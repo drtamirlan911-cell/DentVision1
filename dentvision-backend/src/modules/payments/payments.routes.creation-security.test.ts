@@ -399,6 +399,49 @@ describe('clinic cashier reference boundaries', () => {
     expect(m.paymentCreate).not.toHaveBeenCalled();
   });
 
+  it('denies reading or confirming a clinic payment whose invoice is now outside active branch scope', async () => {
+    m.paymentFindUnique.mockResolvedValue({
+      id: 'payment-archived-invoice',
+      provider: 'clinic_kaspi',
+      externalId: 'clinic-archived-invoice',
+      amount: 10000n,
+      status: 'pending',
+      refType: 'crm_invoice',
+      refId: 'archived-invoice',
+      meta: { clinicId: 'clinic-owned', merchantScope: 'clinic', branchId: 'branch-1' },
+    });
+    m.invoiceFindFirst.mockResolvedValueOnce(null);
+
+    const { response, body } = await postConfirm('payment-archived-invoice');
+
+    expect(response.status).toBe(403);
+    expect(body.ok).toBe(false);
+    expect(m.invoiceFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'archived-invoice',
+        clinicId: 'clinic-owned',
+        deletedAt: null,
+        patient: { branchId: { in: ['branch-1'] } },
+      },
+      select: { patient: { select: { branchId: true } } },
+    });
+    expect(m.providerStatus).not.toHaveBeenCalled();
+    expect(m.loadClinicPaymentsConfig).not.toHaveBeenCalled();
+    expect(m.transaction).not.toHaveBeenCalled();
+  });
+
+  it('persists the authenticated active branch rather than a client-supplied payment branch', async () => {
+    const { response } = await postPayment({
+      amountMinor: '10000',
+      domain: 'crm',
+      clinicId: 'clinic-owned',
+      meta: { branchId: 'branch-attacker', clinicId: 'other-clinic' },
+    });
+    expect(response.status).toBe(201);
+    expect(m.paymentCreate.mock.calls[0][0].data.meta.branchId).toBe('branch-1');
+    expect(m.paymentCreate.mock.calls[0][0].data.meta.clinicId).toBe('clinic-owned');
+  });
+
   it('allows a partial invoice payment that stays within the outstanding balance', async () => {
     m.invoiceFindFirst.mockResolvedValueOnce({
       id: 'invoice-1',
@@ -424,6 +467,7 @@ describe('clinic cashier reference boundaries', () => {
       amountMinor: 40000n,
       refId: 'invoice-1',
     }));
+    expect(m.paymentCreate.mock.calls[0][0].data.meta.branchId).toBe('branch-1');
   });
 });
 
