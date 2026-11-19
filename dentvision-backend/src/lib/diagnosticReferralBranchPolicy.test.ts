@@ -1,25 +1,52 @@
-import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-describe('diagnostic referral branch policy contract', () => {
-  const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/lib/diagnosticReferralBranchPolicy.ts'), 'utf8');
+const { queryRaw } = vi.hoisted(() => ({ queryRaw: vi.fn() }));
 
-  it('requires the exact active clinic context and a trusted active branch allow-list', () => {
-    expect(source).toContain('if (!resource.clinicId) return false');
-    expect(source).toContain('if (!isActiveClinicContext(user, resource.clinicId)) return false');
-    expect(source).toContain('[user.assignedBranchId, ...(user.branchIds ?? [])]');
-    expect(source).toContain('if (!allowedBranchIds.has(resource.branchId)) return false');
-    expect(source).toContain('DIAGNOSTIC_REFERRAL_BRANCH_FORBIDDEN');
-    expect(source).toContain('organization_id = ${organizationId}');
-    expect(source).toContain('organization_id IS NULL AND clinic_id = ${clinicId}');
-    expect(source).toContain('AND active = true');
-    expect(source).not.toContain('FROM "clinic_members" cm');
+vi.mock('./prisma.js', () => ({
+  default: { $queryRaw: queryRaw },
+}));
+
+import { canAccessReferralBranch } from './diagnosticReferralBranchPolicy.js';
+
+const resource = { clinicId: 'clinic-1', branchId: 'branch-1' };
+const clinicUser = (role: string, branchIds: string[] = []) => ({
+  id: 'user-1',
+  role,
+  organizationId: 'org-1',
+  organizationOriginalId: 'clinic-1',
+  organizationType: 'CLINIC',
+  clinicId: 'clinic-1',
+  assignedBranchId: null,
+  branchIds,
+});
+
+beforeEach(() => {
+  queryRaw.mockReset().mockResolvedValue([{ id: 'branch-1' }]);
+});
+
+describe('diagnostic referral branch policy', () => {
+  it('requires the exact active clinic context and a trusted active branch allow-list', async () => {
+    expect(await canAccessReferralBranch(clinicUser('DOCTOR'), resource)).toBe(false);
+    expect(queryRaw).not.toHaveBeenCalled();
+
+    expect(await canAccessReferralBranch(clinicUser('DOCTOR', ['branch-1']), resource)).toBe(true);
+    expect(queryRaw).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps organization roles explicit instead of introducing wildcard access', () => {
-    expect(source).toContain("user.role === 'OWNER'");
-    expect(source).toContain("user.role === 'ADMIN'");
-    expect(source).not.toContain("user.role === '*'");
+  it('does not let organization role names widen access beyond the branch allow-list', async () => {
+    for (const role of ['OWNER', 'ADMIN', 'ACCOUNTANT', 'MANAGER']) {
+      expect(await canAccessReferralBranch(clinicUser(role), resource)).toBe(false);
+    }
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('denies a branch that is archived or belongs to a different clinic', async () => {
+    queryRaw.mockResolvedValueOnce([]);
+    expect(await canAccessReferralBranch(clinicUser('OWNER', ['branch-1']), resource)).toBe(false);
+  });
+
+  it('keeps the explicit platform superadmin exception', async () => {
+    expect(await canAccessReferralBranch(clinicUser('SUPERADMIN'), resource)).toBe(true);
+    expect(queryRaw).not.toHaveBeenCalled();
   });
 });
