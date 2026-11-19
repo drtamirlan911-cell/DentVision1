@@ -49,6 +49,7 @@ import {
 } from '../lib/deterministicShortcuts.js';
 import { sanitizeUserInput, buildSafeInstructions } from '../lib/promptGuard.js';
 import { providerFetch, providerStream } from '../lib/providerFetch.js';
+import { formatProductKnowledgeContext, retrieveProductKnowledge } from '../knowledge/productKnowledge.js';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
@@ -164,6 +165,7 @@ function systemPrompt(
   input: OrchestratorInput,
   currencyCode: string,
   activePersona: PersonaId,
+  productKnowledgeBlock = '',
 ): string {
   if (input.isGuest || String(input.role).toUpperCase() === 'GUEST') {
     const mapBlock = platformMapPromptBlock('GUEST', true);
@@ -172,13 +174,16 @@ function systemPrompt(
 
 ${mapBlock}
 
+${productKnowledgeBlock}
+
 ПРАВИЛА:
 1. Отвечай по-русски.
 2. НЕ выдумывай расписание, выручку, долги, пациентов — у гостя нет клиники.
 3. Если просят данные клиники — мягко предложи демо или регистрацию.
 4. Подсвечивай преимущества DentVision.
 5. Открывай разделы через navigate; в тексте — русские названия.
-6. Экономия: коротко, один next step.`;
+6. Если используешь справку о функциях DentVision, называй раздел-источник. Если статус функции не подтверждён, так и скажи.
+7. Экономия: коротко, один next step.`;
   }
 
   const agents = agentsForRole(input.role);
@@ -212,6 +217,8 @@ ${mandates}
 
 ${mapBlock}
 
+${productKnowledgeBlock}
+
 ПРАВИЛА:
 1. Отвечай по-русски, коротко. Сначала суть, потом деталь.
 2. Все факты о клинике — ТОЛЬКО из инструментов. Не выдумывай.
@@ -228,6 +235,7 @@ ${mapBlock}
 13. Свобода платформы: можешь вести по CRM + маркет + академия + кабинеты, если роль позволяет.
 14. Экономия: не вызывай лишние инструменты; для «открой X» достаточно navigate.
 15. Marketing: getPromotions / getRecallList / draftPromoCopy — draft only, без авторассылки.
+16. Для фактов о продукте используй только справочный блок и карту доступных разделов. Не объявляй частичную функцию готовой; при использовании справки назови раздел-источник.
 ${input.learningInstructions ? `\n${input.learningInstructions}` : ''}`;
 }
 
@@ -513,7 +521,18 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
   const toolSchemas = toolSchemasFor(allowedTools);
   const toolCtx: ToolContext = { userId: input.userId, clinicId: input.clinicId, role: input.role, entity: input.entity };
   const currencyCode = await resolveClinicCurrency(input.clinicId);
-  const instructions = buildSafeInstructions(systemPrompt(input, currencyCode, activePersona), input.text);
+  // Product knowledge is retrieved locally from an allow-listed, versioned guide.
+  // Do not send conversational text to a second provider: it may contain PHI.
+  const knowledgeQuery = [
+    ...(input.history || []).filter((item) => item.role === 'user').slice(-2).map((item) => item.content),
+    input.text,
+  ].join(' ').slice(0, 2_000);
+  const productKnowledge = await retrieveProductKnowledge(knowledgeQuery);
+  const productKnowledgeBlock = formatProductKnowledgeContext(productKnowledge);
+  const instructions = buildSafeInstructions(
+    systemPrompt(input, currencyCode, activePersona, productKnowledgeBlock),
+    input.text,
+  );
 
   const fewShotTurns = (input.fewShots || []).flatMap((ex) => [
     { role: 'user', content: `[Пример прошлого успешного запроса]\n${ex.user}` },
