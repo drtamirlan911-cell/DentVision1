@@ -61,27 +61,29 @@ function canManagePartnerCatalog(user: AuthRequest['user']): boolean {
   return /_(OWNER|ADMIN|MANAGER|DIRECTOR|FINANCE)$/.test(role);
 }
 async function referralBranchAllowed(user: AuthRequest['user'], referral: { clinicId: string; branchId?: string | null }): Promise<boolean> { if (user.role === 'SUPERADMIN') return true; return canAccessReferralBranch(user, { clinicId: referral.clinicId, branchId: referral.branchId ?? null }); }
-async function referralListBranchIds(user: AuthRequest['user'], clinicId?: string): Promise<string[] | undefined> {
+/**
+ * Branch IDs are derived by authenticate from the selected organization,
+ * active PersonRole, active BranchMember and exact legacy clinic mapping.
+ * Re-querying ClinicMember here would deny canonical-only clinic members and
+ * could diverge from the allow-list used by direct referral authorization.
+ */
+export function resolveTrustedReferralBranchIds(
+  user: AuthRequest['user'],
+  clinicId?: string,
+): string[] | undefined {
   if (!clinicId || user.role === 'SUPERADMIN') return undefined;
   if (!isActiveClinicContext(user, clinicId)) return [];
-  if (!(await assertClinicOrgAccess(user, clinicId))) return [];
-  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null; branch_active: boolean }>>`
-    SELECT cm."branch_id",
-      CASE WHEN cm."branch_id" IS NULL THEN true ELSE COALESCE(b."active", false) END AS branch_active
-    FROM "clinic_members" cm
-    LEFT JOIN "branches" b ON b."id" = cm."branch_id"
-    WHERE cm."userId" = ${user.id} AND cm."clinicId" = ${clinicId}
-    LIMIT 1
-  `;
-  if (!membership[0]) return [];
-  if (user.role === 'OWNER' || user.role === 'ADMIN') {
-    const branches = await prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT id FROM branches WHERE clinic_id = ${clinicId} AND active = true
-    `;
-    return branches.map((b) => b.id);
-  }
-  const activeMemberBranchId = membership[0].branch_active ? membership[0].branch_id : null;
-  return [...new Set([activeMemberBranchId, user.assignedBranchId, ...(user.branchIds ?? [])].filter((id): id is string => Boolean(id)))];
+  return Array.from(new Set(
+    [user.branchId, user.assignedBranchId, ...(user.branchIds ?? [])]
+      .filter((id): id is string => typeof id === 'string' && id.length > 0),
+  ));
+}
+
+async function referralListBranchIds(user: AuthRequest['user'], clinicId?: string): Promise<string[] | undefined> {
+  const branchIds = resolveTrustedReferralBranchIds(user, clinicId);
+  if (branchIds === undefined || branchIds.length === 0) return branchIds;
+  if (!(await assertClinicOrgAccess(user, clinicId!))) return [];
+  return branchIds;
 }
 export function requireReferralAccess(includeCenterLab = false) { return async (req: AuthRequest, res: any, next: any) => { try { const id = req.params.id || req.body?.referralId; if (!id) return res.status(400).json({ ok: false, error: 'Referral ID required' }); const referral = await (prisma as any).referral.findUnique({ where: { id }, select: { clinicId: true, branchId: true, doctorId: true, centerId: true, labId: true } }); if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' }); const isWriteRequest = !['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase()); if (req.user!.role === 'SUPERADMIN') return next(); if (referral.doctorId === req.user!.id) { if (await referralBranchAllowed(req.user!, referral)) { if (isWriteRequest && !(await ensureClinicSubscriptionWritableIfClinicActor(req, res, referral.clinicId))) return; return next(); } return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу направления' }); } if (await assertClinicOrgAccess(req.user!, referral.clinicId)) { if (await referralBranchAllowed(req.user!, referral)) { if (isWriteRequest && !(await ensureClinicSubscriptionWritableIfClinicActor(req, res, referral.clinicId))) return; return next(); } return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу направления' }); } if (includeCenterLab) { if (referral.centerId && sameOrgContext(req.user, 'DiagnosticCenter', referral.centerId)) return next(); if (referral.labId && sameOrgContext(req.user, 'Laboratory', referral.labId)) return next(); } return res.status(403).json({ ok: false, error: 'Нет доступа к направлению' }); } catch { return res.status(500).json({ ok: false, error: 'Access check failed' }); } }; }
 export async function authorizeReferralListScope(user: AuthRequest['user'], scope: { clinicId?: string; centerId?: string; labId?: string }): Promise<{ ok: boolean; status?: number; error?: string }> { if (user?.role === 'SUPERADMIN') return { ok: true }; const { clinicId, centerId, labId } = scope; if (!clinicId && !centerId && !labId) return { ok: false, status: 400, error: 'Укажите clinicId, centerId или labId' }; if (centerId && !sameOrgContext(user, 'DiagnosticCenter', centerId)) return { ok: false, status: 403, error: 'Нет доступа к центру' }; if (labId && !sameOrgContext(user, 'Laboratory', labId)) return { ok: false, status: 403, error: 'Нет доступа к лаборатории' }; if (clinicId && !centerId && !labId && !isActiveClinicContext(user!, clinicId)) return { ok: false, status: 403, error: 'Нет доступа к активному контексту клиники' }; if (clinicId && !centerId && !labId && !(await assertClinicOrgAccess(user!, clinicId))) return { ok: false, status: 403, error: 'Нет доступа к клинике' }; return { ok: true }; }
