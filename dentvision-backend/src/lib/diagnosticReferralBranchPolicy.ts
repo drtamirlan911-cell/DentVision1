@@ -7,6 +7,25 @@ export type ReferralBranchResource = {
 };
 
 /**
+ * Resolve a referral's clinic branch from the canonical patient record.
+ * A client branch selector may confirm the patient's branch, never replace it.
+ * Unlinked referrals still require an explicitly selected branch which is
+ * subsequently checked by canAccessReferralBranch.
+ */
+export function resolveReferralBranchId(input: {
+  patientId?: string | null;
+  patientBranchId?: string | null;
+  requestedBranchId?: string | null;
+}): string | null {
+  if (input.patientId) {
+    if (!input.patientBranchId) return null;
+    if (input.requestedBranchId && input.requestedBranchId !== input.patientBranchId) return null;
+    return input.patientBranchId;
+  }
+  return input.requestedBranchId || null;
+}
+
+/**
  * Clinic data is available only while the caller is operating in that exact
  * clinic context. A retained ClinicMember row is not permission to cross from
  * a diagnostic/laboratory/other organization into an unrelated clinic.
