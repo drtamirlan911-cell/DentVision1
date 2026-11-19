@@ -29,12 +29,13 @@ import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billi
 import { canTransitionOrder } from '../../lib/orderStatus.js';
 import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
+import { canAccessClinicPaymentBranch } from '../../lib/clinicPaymentBranchPolicy.js';
 
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
 export const paymentsRouter = Router();
 
 const SERVER_OWNED_PAYMENT_META_KEYS = new Set([
-  'userid', 'clinicid', 'merchantscope', 'clinicpaymode', 'qr',
+  'userid', 'clinicid', 'merchantscope', 'clinicpaymode', 'branchid', 'qr',
 ]);
 
 function clientSafePaymentMeta(value: unknown): Record<string, unknown> {
@@ -494,6 +495,47 @@ async function canManageClinicBillingMutation(user: AuthRequest['user'], clinicI
   return permissionsSatisfy(new Set(permissions), 'billing.manage');
 }
 
+async function canAccessClinicPaymentBranch(
+  req: AuthRequest,
+  payment: { meta: unknown; refType: string | null; refId: string | null },
+  clinicId: string,
+): Promise<boolean> {
+  const role = req.user?.role;
+  if (role === 'SUPERADMIN') return true;
+  const activeBranchIds = req.user?.branchIds ?? [];
+  const meta = (payment.meta || {}) as { branchId?: string };
+  try {
+    if (payment.refType === 'appointment' && payment.refId) {
+      const appointment = await prisma.appointment.findFirst({
+        where: { id: payment.refId, clinicId, branchId: { in: activeBranchIds } },
+        select: { branchId: true },
+      });
+      // An unresolved or archived canonical reference must not fall back to
+      // stale metadata from when the payment was first created.
+      return canAccessClinicPaymentBranch({ role, activeBranchIds, referenceBranchId: appointment?.branchId ?? null });
+    }
+    if (payment.refType === 'crm_invoice' && payment.refId) {
+      const invoice = await prisma.invoice.findFirst({
+        where: {
+          id: payment.refId,
+          clinicId,
+          deletedAt: null,
+          patient: { branchId: { in: activeBranchIds } },
+        },
+        select: { patient: { select: { branchId: true } } },
+      });
+      return canAccessClinicPaymentBranch({ role, activeBranchIds, referenceBranchId: invoice?.patient?.branchId ?? null });
+    }
+    return canAccessClinicPaymentBranch({
+      role,
+      activeBranchIds,
+      persistedBranchId: meta.branchId ?? null,
+    });
+  } catch {
+    return false;
+  }
+}
+
 async function assertPaymentOwner(
   req: AuthRequest,
   payment: { provider: string; meta: unknown; refType: string | null; refId: string | null },
@@ -510,7 +552,8 @@ async function assertPaymentOwner(
   if (clinicScopedPayment) {
     const clinicId = clinicPaymentScope(payment);
     if (!clinicId) return false;
-    return canManageClinicBillingMutation(req.user!, clinicId);
+    if (!(await canManageClinicBillingMutation(req.user!, clinicId))) return false;
+    return canAccessClinicPaymentBranch(req, payment, clinicId);
   }
 
   // Orders are canonical ownership records. Historical payment metadata was
@@ -799,6 +842,8 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     const isClinicCashier = !platformRefTypes.has(String(refType || '')) &&
       (domain === 'crm' || refType === 'appointment' || refType === 'crm_invoice');
 
+    let trustedClinicBranchId: string | null = null;
+
     // CRM cashier → clinic's own Kaspi/bank (never platform merchant).
     if (isClinicCashier) {
       if (!clinicId) {
@@ -816,26 +861,47 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
 
       // A referenced clinical object must belong to this exact clinic. A valid
       // cashier role alone must not allow cross-clinic payment via a substituted refId.
+      const activeBranchIds = req.user?.branchIds ?? [];
+      if (req.user?.role !== 'SUPERADMIN' && activeBranchIds.length === 0) {
+        return res.status(403).json({ ok: false, error: 'Нет активных филиалов для кассовой операции' } satisfies ApiResponse);
+      }
+      const selectedBranchId = [req.user?.branchId, req.user?.assignedBranchId]
+        .find((id): id is string => Boolean(id && activeBranchIds.includes(id)));
+      trustedClinicBranchId = selectedBranchId ?? (activeBranchIds.length === 1 ? activeBranchIds[0] : null);
+
+      // A referenced clinical object must belong to this exact clinic and an
+      // active branch visible to the caller.
       if (refType === 'appointment' && refId) {
         const appointment = await prisma.appointment.findFirst({
-          where: { id: String(refId), clinicId },
-          select: { id: true, clinicId: true },
+          where: {
+            id: String(refId),
+            clinicId,
+            ...(req.user?.role === 'SUPERADMIN' ? {} : { branchId: { in: activeBranchIds } }),
+          },
+          select: { id: true, clinicId: true, branchId: true },
         });
         if (!appointment) {
-          return res.status(404).json({ ok: false, error: 'Приём не найден в выбранной клинике' } satisfies ApiResponse);
+          return res.status(404).json({ ok: false, error: 'Приём не найден в выбранном активном филиале' } satisfies ApiResponse);
         }
+        trustedClinicBranchId = appointment.branchId;
       }
 
       // Invoice balances are stored in whole KZT, payments in minor units.
       // Permit partial payments, but never collect above the canonical balance.
       if ((refType === 'crm_invoice' || (!refType && domain === 'crm')) && refId) {
         const invoice = await prisma.invoice.findFirst({
-          where: { id: String(refId), clinicId, deletedAt: null },
-          select: { id: true, clinicId: true, amount: true, paidAmount: true, status: true },
+          where: {
+            id: String(refId),
+            clinicId,
+            deletedAt: null,
+            ...(req.user?.role === 'SUPERADMIN' ? {} : { patient: { branchId: { in: activeBranchIds } } }),
+          },
+          select: { id: true, clinicId: true, amount: true, paidAmount: true, status: true, patient: { select: { branchId: true } } },
         });
         if (!invoice) {
           return res.status(404).json({ ok: false, error: 'Счёт не найден в выбранной клинике' } satisfies ApiResponse);
         }
+        trustedClinicBranchId = invoice.patient?.branchId ?? null;
         const outstandingTenge = Math.max(0, Number(invoice.amount) - Number(invoice.paidAmount || 0));
         const outstandingMinor = tengeToMinor(outstandingTenge);
         if (invoice.status === 'paid' || outstandingMinor <= 0n) {
@@ -847,6 +913,11 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         if (minor > outstandingMinor) {
           return res.status(409).json({ ok: false, error: 'Сумма превышает остаток по счёту' } satisfies ApiResponse);
         }
+      }
+
+      if (req.user?.role !== 'SUPERADMIN' &&
+        (!trustedClinicBranchId || !activeBranchIds.includes(trustedClinicBranchId))) {
+        return res.status(403).json({ ok: false, error: 'Выберите активный филиал кассы' } satisfies ApiResponse);
       }
 
       if (!(await reserveForPayment())) return;
@@ -877,6 +948,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
             clinicId,
             merchantScope: 'clinic',
             clinicPayMode: created.mode,
+            branchId: trustedClinicBranchId,
           },
         },
       });
