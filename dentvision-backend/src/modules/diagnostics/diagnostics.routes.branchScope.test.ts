@@ -23,15 +23,15 @@ describe('diagnostics referral branch enforcement', () => {
     expect(source).toContain('Нет доступа к активному контексту клиники');
   });
 
-  it('does not reintroduce an archived legacy clinic-member branch into referral lists', () => {
-    const start = source.indexOf('async function referralListBranchIds');
+  it('uses the authenticated active branch allow-list for canonical and legacy clinic members', () => {
+    const start = source.indexOf('export function resolveTrustedReferralBranchIds');
     const end = source.indexOf('export function requireReferralAccess', start);
     const resolver = source.slice(start, end);
-    expect(resolver).toContain('LEFT JOIN "branches" b ON b."id" = cm."branch_id"');
-    expect(resolver).toContain('CASE WHEN cm."branch_id" IS NULL THEN true ELSE COALESCE(b."active", false) END AS branch_active');
-    expect(resolver).toContain('membership[0].branch_active ? membership[0].branch_id : null');
     expect(resolver).toContain('isActiveClinicContext(user, clinicId)');
-    expect(resolver).toContain('if (!isActiveClinicContext(user, clinicId)) return []');
+    expect(resolver).toContain('[user.branchId, user.assignedBranchId, ...(user.branchIds ?? [])]');
+    expect(resolver).toContain('assertClinicOrgAccess');
+    expect(resolver).not.toContain('FROM "clinic_members"');
+    expect(resolver).not.toContain('SELECT id FROM branches WHERE clinic_id');
   });
 
   it('keeps signed diagnostic results behind referral access', () => {
