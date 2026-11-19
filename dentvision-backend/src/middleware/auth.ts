@@ -202,7 +202,16 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
             if (!requestedBranch[0].active) {
               if (!orgManager && !isBranchContextRecoveryPath(requestPath)) return res.status(403).json({ ok: false, error: 'Филиал архивирован. Выберите активный филиал или обратитесь к руководителю.', code: 'BRANCH_ARCHIVED' });
             } else {
-              if (!orgManager && !unifiedBranchIds.includes(payload.branchId)) return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
+              const legacyAssignedBranch = person.organization.type === 'CLINIC' && person.organization.originalId
+                ? user.memberships?.some((membership) =>
+                    membership.clinicId === person.organization.originalId &&
+                    membership.branchId === payload.branchId &&
+                    membership.branch?.active === true,
+                  )
+                : false;
+              if (!orgManager && !unifiedBranchIds.includes(payload.branchId) && !legacyAssignedBranch) {
+                return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
+              }
               effectiveBranchId = payload.branchId;
             }
           }
