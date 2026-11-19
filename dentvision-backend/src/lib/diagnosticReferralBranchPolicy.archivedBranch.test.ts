@@ -58,15 +58,18 @@ describe('diagnostic referral clinic context enforcement', () => {
 
 describe('diagnostic referral branch archive enforcement', () => {
   it('denies a doctor whose active branch allow-list does not include the referral branch', async () => {
+    queryRaw.mockResolvedValueOnce([{ branch_id: null, branch_active: false }]);
     await expect(canAccessReferralBranch(clinicDoctor, {
       clinicId: 'clinic-1',
       branchId: 'branch-old',
     })).resolves.toBe(false);
-    expect(queryRaw).not.toHaveBeenCalled();
+    expect(queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it('does not grant an owner access to an archived branch through an organization-wide role', async () => {
-    queryRaw.mockResolvedValueOnce([]);
+    queryRaw
+      .mockResolvedValueOnce([{ branch_id: 'branch-old', branch_active: false }])
+      .mockResolvedValueOnce([]);
 
     await expect(canAccessReferralBranch({
       ...clinicDoctor,
@@ -79,7 +82,9 @@ describe('diagnostic referral branch archive enforcement', () => {
   });
 
   it('allows a canonical-only clinic member with an active BranchMember assignment', async () => {
-    queryRaw.mockResolvedValueOnce([{ id: 'branch-active' }]);
+    queryRaw
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'branch-active' }]);
 
     await expect(canAccessReferralBranch({
       ...clinicDoctor,
@@ -91,7 +96,9 @@ describe('diagnostic referral branch archive enforcement', () => {
   });
 
   it('allows an organization manager only within its active branch allow-list', async () => {
-    queryRaw.mockResolvedValueOnce([{ id: 'branch-active' }]);
+    queryRaw
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'branch-active' }]);
 
     await expect(canAccessReferralBranch({
       ...clinicDoctor,
@@ -104,7 +111,9 @@ describe('diagnostic referral branch archive enforcement', () => {
   });
 
   it('denies a branch mapped to a different organization, even when its legacy clinic id matches', async () => {
-    queryRaw.mockResolvedValueOnce([]);
+    queryRaw
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
 
     await expect(canAccessReferralBranch({
       ...clinicDoctor,
@@ -116,7 +125,9 @@ describe('diagnostic referral branch archive enforcement', () => {
   });
 
   it('rechecks branch active state even when a stale token still lists the branch', async () => {
-    queryRaw.mockResolvedValueOnce([]);
+    queryRaw
+      .mockResolvedValueOnce([{ branch_id: 'branch-old', branch_active: false }])
+      .mockResolvedValueOnce([]);
 
     await expect(canAccessReferralBranch({
       ...clinicDoctor,
