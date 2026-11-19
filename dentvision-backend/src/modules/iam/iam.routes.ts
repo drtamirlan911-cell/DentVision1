@@ -372,8 +372,11 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         }
         let selectedBranchId: string | undefined;
         if (branchId) {
-          const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null; active: boolean }>>`SELECT "id", "organization_id", "active" FROM "branches" WHERE "id" = ${branchId} LIMIT 1`;
-          if (!rows[0] || rows[0].organization_id !== org.id) return res.status(403).json({ ok: false, error: 'Филиал не относится к выбранной организации' });
+          const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null; clinic_id: string | null; active: boolean }>>`SELECT "id", "organization_id", "clinic_id", "active" FROM "branches" WHERE "id" = ${branchId} LIMIT 1`;
+          const branchMatches = rows[0] && (rows[0].organization_id
+            ? rows[0].organization_id === org.id
+            : org.type === 'CLINIC' && Boolean(org.originalId) && rows[0].clinic_id === org.originalId);
+          if (!branchMatches) return res.status(403).json({ ok: false, error: 'Филиал не относится к выбранной организации' });
           if (!rows[0].active) return res.status(409).json({ ok: false, error: 'Архивный филиал нельзя выбрать рабочим контекстом', code: 'BRANCH_ARCHIVED' });
           const roleRows = await prisma.personRole.findMany({
             where: { personId: person.id, scopeType: 'organization', scopeId: org.id },
@@ -384,7 +387,13 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
             return ['owner', 'org_owner', 'admin', 'org_admin'].includes(key) || /_(owner|admin)$/.test(key);
           });
           const assigned = await prisma.branchMember.findFirst({ where: { personId: person.id, branchId, active: true, branch: { is: { active: true } } } });
-          if (!orgManager && !assigned) return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
+          const legacyAssigned = org.type === 'CLINIC' && org.originalId
+            ? await prisma.clinicMember.findFirst({
+                where: { userId: user.id, clinicId: org.originalId, branchId },
+                select: { id: true },
+              })
+            : null;
+          if (!orgManager && !assigned && !legacyAssigned) return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
           selectedBranchId = branchId;
         }
         const tokens = generateTokens({ ...base, role: scopedRole, organizationId: org.id, organizationOriginalId: org.originalId || undefined, organizationType: org.type, personType: person.personType, ...(selectedBranchId ? { branchId: selectedBranchId } : {}), ...supplierContext, ...(org.type === 'CLINIC' && org.originalId ? { clinicId: org.originalId } : {}) });
