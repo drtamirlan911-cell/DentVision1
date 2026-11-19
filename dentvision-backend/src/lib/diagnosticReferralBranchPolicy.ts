@@ -98,6 +98,17 @@ export async function branchBelongsToClinic(
       AND (
         organization_id = ${organizationId}
         OR (organization_id IS NULL AND clinic_id = ${clinicId})
+        OR (
+          organization_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1
+            FROM "organizations" o
+            WHERE o."id" = branches."organization_id"
+              AND o."type" = 'CLINIC'
+              AND o."originalId" = ${clinicId}
+              AND o."archivedAt" IS NULL
+          )
+        )
       )
     LIMIT 1
   `;
