@@ -54,3 +54,25 @@ describe('public diagnostic booking event and notification PHI contract', () => 
     );
   });
 });
+
+
+describe('diagnostics dashboard active branch filter', () => {
+  it('applies an explicit branch allow-list to totals, status counts, overdue and recent referrals', () => {
+    const start = source.indexOf('export async function getDashboardStats');
+    const end = source.indexOf('// ─── Results ───', start);
+    const dashboard = source.slice(start, end);
+    expect(dashboard).toContain('branchIds?: string[]');
+    expect(dashboard).toContain('if (branchIds !== undefined) where.branchId = { in: branchIds }');
+    expect(dashboard.match(/prisma\.referral\.count\(\{ where:/g)).toHaveLength(0);
+    expect(dashboard).toContain('prisma.referral.count({ where })');
+    expect(dashboard).toContain('prisma.referral.findMany({ where, include: referralInclude');
+  });
+
+  it('keeps an empty branch list as deny-all instead of omitting the filter', () => {
+    const dashboard = source.slice(
+      source.indexOf('export async function getDashboardStats'),
+      source.indexOf('// ─── Results ───', source.indexOf('export async function getDashboardStats')),
+    );
+    expect(dashboard).toContain('if (branchIds !== undefined) where.branchId = { in: branchIds }');
+  });
+});

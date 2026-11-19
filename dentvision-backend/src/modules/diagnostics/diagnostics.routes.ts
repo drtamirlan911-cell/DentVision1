@@ -335,7 +335,25 @@ diagnosticsRouter.delete('/referrals/:id', requireReferralAccess(), async (req: 
 diagnosticsRouter.post('/referrals/:id/files', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const { fileName, fileData, fileType, fileSize } = req.body || {}; if (!fileName || !fileData || !fileType) return res.status(400).json({ ok: false, error: 'fileName, fileData и fileType обязательны' }); const data = await svc.uploadReferralFile({ referralId: req.params.id, fileName: String(fileName), fileData: String(fileData), fileType: String(fileType), fileSize: fileSize ? Number(fileSize) : undefined, uploadedBy: req.user!.id }); return res.status(201).json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.delete('/referral-files/:id', async (req: AuthRequest, res) => { try { const file = await prisma.referralFile.findUnique({ where: { id: req.params.id }, select: { referralId: true } }); if (!file) return res.status(404).json({ ok: false, error: 'File not found' }); const access = await (async () => { const referral = await prisma.referral.findUnique({ where: { id: file.referralId }, select: { clinicId: true, branchId: true, doctorId: true, centerId: true, labId: true } }); if (!referral) return false; return referral.doctorId === req.user!.id ? await referralBranchAllowed(req.user!, referral) : (await assertClinicOrgAccess(req.user!, referral.clinicId) && await referralBranchAllowed(req.user!, referral)) || (referral.centerId ? sameOrgContext(req.user, 'DiagnosticCenter', referral.centerId) : false) || (referral.labId ? sameOrgContext(req.user, 'Laboratory', referral.labId) : false); })(); if (!access) return res.status(403).json({ ok: false, error: 'Нет доступа к файлу' }); const clinicReferral = await prisma.referral.findUnique({ where: { id: file.referralId }, select: { clinicId: true } }); if (clinicReferral && !(await ensureClinicSubscriptionWritableIfClinicActor(req, res, clinicReferral.clinicId))) return; await svc.deleteReferralFile(req.params.id, req.user!.id); return res.json({ ok: true }); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/referrals/:id/comments', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const text = String(req.body?.text || '').trim(); if (!text) return res.status(400).json({ ok: false, error: 'Комментарий не может быть пустым' }); return res.status(201).json({ ok: true, data: await svc.addComment(req.params.id, req.user!.id, text) } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
-diagnosticsRouter.get('/dashboard', async (req: AuthRequest, res) => { try { const q = req.query as Record<string, string | undefined>; const scope = await authorizeReferralListScope(req.user, { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }); if (scope.ok === false) return res.status(scope.status || 403).json({ ok: false, error: scope.error || 'Нет доступа' }); return res.json({ ok: true, data: await svc.getDashboardStats({ clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.get('/dashboard', async (req: AuthRequest, res) => {
+  try {
+    const q = req.query as Record<string, string | undefined>;
+    const scope = await authorizeReferralListScope(req.user, { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId });
+    if (scope.ok === false) return res.status(scope.status || 403).json({ ok: false, error: scope.error || 'Нет доступа' });
+
+    const branchIds = await referralListBranchIds(req.user, scope.clinicId);
+    if (scope.clinicId && branchIds && branchIds.length === 0) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к филиалам клиники' });
+    }
+
+    return res.json({
+      ok: true,
+      data: await svc.getDashboardStats({ ...scope, branchIds }),
+    } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
 diagnosticsRouter.post('/referrals/:id/ai-result', requireReferralAccess(), async (req: AuthRequest, res) => { try { const data = await svc.aiGenerateResult(req.params.id, req.user!.id); return res.json({ ok: true, data: { result: data, requiresDoctorConfirmation: true } } satisfies ApiResponse); } catch (e: any) { return res.status(422).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/referrals/:id/confirm-ai-result', requireReferralAccess(), async (req: AuthRequest, res) => {
   try {

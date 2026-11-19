@@ -40,3 +40,15 @@ describe('diagnostics referral branch enforcement', () => {
     expect(source).toContain('organizationOriginalId || user.organizationId');
   });
 });
+
+
+describe('diagnostics dashboard branch scope', () => {
+  it('uses the same active branch list as the referral catalog and denies an empty clinic branch scope', () => {
+    const start = source.indexOf("diagnosticsRouter.get('/dashboard'");
+    const end = source.indexOf("diagnosticsRouter.post('/referrals'", start);
+    const dashboard = source.slice(start, end);
+    expect(dashboard).toContain('referralListBranchIds(req.user, scope.clinicId)');
+    expect(dashboard).toContain('branchIds.length === 0');
+    expect(dashboard).toContain('svc.getDashboardStats({ ...scope, branchIds })');
+  });
+});
