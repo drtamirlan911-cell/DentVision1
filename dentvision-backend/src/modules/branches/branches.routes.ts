@@ -178,6 +178,36 @@ async function authorizeOrganizationBranch(userId: string, organizationId: strin
 async function organizationPerson(userId: string, organizationId: string) {
   return prisma.person.findFirst({ where: { userId, organizationId }, select: { id: true } });
 }
+
+async function syncClinicBranchAssignment(userId: string, clinicId: string, branchId: string, active: boolean): Promise<boolean> {
+  const organizationId = await resolveOrganizationIdForClinic(clinicId);
+  const person = organizationId ? await organizationPerson(userId, organizationId) : null;
+
+  return prisma.$transaction(async (tx) => {
+    const legacyRows = active
+      ? await tx.$executeRaw`UPDATE "clinic_members" SET "branch_id"=${branchId},"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${clinicId}`
+      : await tx.$executeRaw`UPDATE "clinic_members" SET "branch_id"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${clinicId} AND "branch_id"=${branchId}`;
+
+    let canonicalRows = 0;
+    if (person) {
+      if (active) {
+        await tx.branchMember.upsert({
+          where: { personId_branchId: { personId: person.id, branchId } },
+          create: { id: uid(), personId: person.id, branchId, active: true },
+          update: { active: true },
+        });
+        canonicalRows = 1;
+      } else {
+        const result = await tx.branchMember.updateMany({
+          where: { personId: person.id, branchId },
+          data: { active: false },
+        });
+        canonicalRows = result.count;
+      }
+    }
+    return legacyRows > 0 || canonicalRows > 0;
+  });
+}
 async function authorizeMemberBranch(userId: string, clinicId: string, branch: BranchRow, mutation = false) {
   const archivedOrganization = await prisma.organization.findFirst({
     where: { originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null } },
@@ -473,7 +503,8 @@ branchesRouter.post('/:id/members/:userId', enforceTargetClinicTrial, async (req
       if(!branch.active)return res.status(409).json({ok:false,error:'Нельзя назначать сотрудников в архивный филиал',code:'BRANCH_ARCHIVED'});
       const target=await prisma.clinicMember.findUnique({where:{userId_clinicId:{userId,clinicId:branch.clinic_id}}});
       if(!target)return res.status(404).json({ok:false,error:'Сотрудник не является участником клиники'});
-      await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=${branchId},"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id}`;
+      const assigned = await syncClinicBranchAssignment(userId, branch.clinic_id, branchId, true);
+      if (!assigned) return res.status(404).json({ok:false,error:'Не удалось назначить сотрудника в филиал'});
       await auditFromReq(req, { action: 'branch.member_assigned', entity: 'branch', entityId: branchId, details: { userId } });
     return res.json({ok:true,data:{userId,branchId}});
     }
@@ -505,11 +536,8 @@ branchesRouter.patch('/:id/members/:userId/status', enforceTargetClinicTrial, as
       if(!target) return res.status(404).json({ok:false,error:'Сотрудник не найден в клинике'});
       if(!active && target.branchId !== branchId) return res.status(404).json({ok:false,error:'Сотрудник не закреплён за этим филиалом'});
       if(active && target.branchId && target.branchId !== branchId) return res.status(409).json({ok:false,error:'Сотрудник уже закреплён за другим филиалом',code:'BRANCH_MEMBER_ASSIGNED_ELSEWHERE'});
-      if(active) {
-        await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=${branchId},"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id}`;
-      } else {
-        await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id} AND "branch_id"=${branchId}`;
-      }
+      const changed = await syncClinicBranchAssignment(userId, branch.clinic_id, branchId, active);
+      if (!changed) return res.status(404).json({ok:false,error:'Сотрудник не закреплён за этим филиалом'});
       await auditFromReq(req,{action:active?'branch.member_enabled':'branch.member_disabled',entity:'branch',entityId:branchId,details:{userId,active}});
       return res.json({ok:true,data:{userId,branchId,active}});
     }
@@ -533,7 +561,8 @@ branchesRouter.delete('/:id/members/:userId', enforceTargetClinicTrial, async (r
     if(branch.clinic_id){
       const authz=await authorizeMemberBranch(req.user!.id,branch.clinic_id,branch,true);
       if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
-      await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id} AND "branch_id"=${branchId}`;
+      const removed = await syncClinicBranchAssignment(userId, branch.clinic_id, branchId, false);
+      if (!removed) return res.status(404).json({ok:false,error:'Сотрудник не закреплён за этим филиалом'});
       await auditFromReq(req, { action: 'branch.member_unassigned', entity: 'branch', entityId: branchId, details: { userId } });
     return res.json({ok:true,data:{userId,branchId:null}});
     }
