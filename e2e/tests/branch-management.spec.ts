@@ -161,21 +161,17 @@ test.describe('Canonical organization branch management', () => {
     const branchName = `E2E Archive ${Date.now()}`;
     const branchId = await createBranch(page, branchName);
 
-    // Create a real branch-only doctor assignment and issue a branch-scoped JWT.
+    // Assign through the same API used by the branch-management UI. This must
+    // persist both the legacy ClinicMember and canonical BranchMember records.
     // An owner token is not sufficient for this regression: owners legitimately
     // retain organization-level access to all ACTIVE branches.
+    const ownerHeaders = await bearerHeaders(page);
     const doctor = await prisma.user.findUnique({ where: { email: 'doctor-a@test.com' }, select: { id: true } });
     expect(doctor?.id, 'E2E doctor fixture must exist').toBeTruthy();
-    const doctorPerson = await prisma.person.findFirst({
-      where: { userId: doctor!.id, organizationId: ownerOrganizationId },
-      select: { id: true },
+    const assignment = await page.request.post(`/api/branches/${branchId}/members/${doctor!.id}`, {
+      headers: ownerHeaders,
     });
-    expect(doctorPerson?.id, 'E2E doctor must have an organization-scoped Person').toBeTruthy();
-    await prisma.branchMember.upsert({
-      where: { personId_branchId: { personId: doctorPerson!.id, branchId } },
-      create: { personId: doctorPerson!.id, branchId, active: true },
-      update: { active: true },
-    });
+    expect(assignment.status(), await assignment.text()).toBe(200);
 
     const doctorLogin = await page.request.post('/api/auth/login', {
       data: { email: 'doctor-a@test.com', password: PASSWORD },
@@ -206,7 +202,6 @@ test.describe('Canonical organization branch management', () => {
     const archived = branches.find((item: { id?: string }) => item.id === branchId);
     expect(archived?.active).toBe(false);
 
-    const ownerHeaders = await bearerHeaders(page);
     const workspace = await page.request.post(`/api/branches/${branchId}/workspace`, { headers: ownerHeaders });
     expect(workspace.status()).toBe(409);
     expect((await workspace.json()).code).toBe('BRANCH_ARCHIVED');
