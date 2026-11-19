@@ -166,6 +166,19 @@ test.describe('Canonical organization branch management', () => {
     // An owner token is not sufficient for this regression: owners legitimately
     // retain organization-level access to all ACTIVE branches.
     const ownerHeaders = await bearerHeaders(page);
+
+    // Inventory is operational data too: a clinic owner may manage active
+    // branches, but archived-branch stock must leave normal API listings.
+    const archivedInventoryName = `RB035 Archived Inventory ${Date.now()}`;
+    const inventoryCreate = await page.request.post('/api/inventory', {
+      headers: ownerHeaders,
+      data: { name: archivedInventoryName, quantity: 7, minimum: 1, price: 100, branchId },
+    });
+    expect(inventoryCreate.status(), await inventoryCreate.text()).toBe(201);
+    const inventoryCreateBody = await inventoryCreate.json();
+    const archivedInventoryId = inventoryCreateBody.data?.id as string;
+    expect(archivedInventoryId).toBeTruthy();
+
     const doctor = await prisma.user.findUnique({ where: { email: 'doctor-a@test.com' }, select: { id: true } });
     expect(doctor?.id, 'E2E doctor fixture must exist').toBeTruthy();
     const assignment = await page.request.post(`/api/branches/${branchId}/members/${doctor!.id}`, {
@@ -240,6 +253,24 @@ test.describe('Canonical organization branch management', () => {
       headers: ownerHeaders,
     });
     expect(ownerDirectPatientRead.status()).toBe(404);
+
+    const retainedInventory = await prisma.inventoryItem.findUnique({
+      where: { id: archivedInventoryId },
+      select: { id: true, branchId: true, name: true },
+    });
+    expect(retainedInventory).toEqual({
+      id: archivedInventoryId,
+      branchId,
+      name: archivedInventoryName,
+    });
+
+    const ownerInventoryList = await page.request.get(
+      `/api/inventory?q=${encodeURIComponent(archivedInventoryName)}`,
+      { headers: ownerHeaders },
+    );
+    expect(ownerInventoryList.status(), await ownerInventoryList.text()).toBe(200);
+    const ownerInventoryListBody = await ownerInventoryList.json();
+    expect(ownerInventoryListBody.data ?? []).toEqual([]);
 
     const workspace = await page.request.post(`/api/branches/${branchId}/workspace`, { headers: ownerHeaders });
     expect(workspace.status()).toBe(409);
