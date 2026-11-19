@@ -23,7 +23,7 @@ function safeErrorKind(error: unknown): 'Error' | 'NonError' {
 import { ensurePatientAssignment, revokePatientAssignment, isAssignmentRole } from '../../lib/patientAssignment.js';
 import { isClinicMember } from '../../lib/orgContext.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
-import { assertPatientBranchBelongsToClinic, canAccessPatientBranch, getPatientBranchId, getPatientIdsForBranchScope, resolvePatientBranchContext, setPatientBranch } from '../../lib/patientBranchScope.js';
+import { assertPatientBranchBelongsToClinic, canAccessPatientBranch, canManagePatientBranch, getPatientBranchId, getPatientIdsForBranchScope, resolvePatientBranchContext, setPatientBranch } from '../../lib/patientBranchScope.js';
 
 export const patientsRouter = Router();
 patientsRouter.use(authenticate);
