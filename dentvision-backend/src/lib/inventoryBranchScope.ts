@@ -29,20 +29,39 @@ export async function resolveInventoryBranchContext(
   authorizedBranchIds: readonly string[] = [],
   selectedBranchId?: string | null,
 ): Promise<InventoryBranchContext> {
-  const branchIds = Array.from(new Set(
-    authorizedBranchIds.filter((id): id is string => typeof id === 'string' && id.length > 0),
+  const membership = await prisma.$queryRaw<Array<{
+    branch_id: string | null;
+    branch_active: boolean;
+  }>>`
+    SELECT cm."branch_id",
+      CASE WHEN cm."branch_id" IS NULL THEN false ELSE COALESCE(b."active", false) END AS branch_active
+    FROM "clinic_members" cm
+    LEFT JOIN "branches" b ON b."id" = cm."branch_id"
+    WHERE cm."userId" = ${_userId} AND cm."clinicId" = ${clinicId}
+    LIMIT 1
+  `;
+  const legacyBranchId = membership[0]?.branch_active ? membership[0].branch_id : null;
+  let branchIds = Array.from(new Set(
+    [...authorizedBranchIds, legacyBranchId]
+      .filter((id): id is string => typeof id === 'string' && id.length > 0),
   ));
+  const organizationWide = ORGANIZATION_ROLES.has(String(role || '').toUpperCase());
+
+  if (organizationWide && (membership[0] || branchIds.length > 0)) {
+    const activeBranches = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM "branches"
+      WHERE "clinic_id" = ${clinicId} AND "active" = true
+      ORDER BY "isDefault" DESC, "created_at" ASC
+    `;
+    branchIds = Array.from(new Set([...branchIds, ...activeBranches.map((branch) => branch.id)]));
+  }
   const branchId = selectedBranchId && branchIds.includes(selectedBranchId)
     ? selectedBranchId
-    : branchIds[0] ?? null;
+    : legacyBranchId && branchIds.includes(legacyBranchId)
+      ? legacyBranchId
+      : branchIds[0] ?? null;
 
-  return {
-    clinicId,
-    role,
-    branchId,
-    organizationWide: ORGANIZATION_ROLES.has(String(role || '').toUpperCase()),
-    branchIds,
-  };
+  return { clinicId, role, branchId, organizationWide, branchIds };
 }
 
 export async function assertInventoryBranch(
