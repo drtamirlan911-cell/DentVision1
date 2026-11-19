@@ -80,4 +80,21 @@ describe('branch route authorization contract', () => {
     expect(statusRoute.indexOf('if(!authz.allowed)')).toBeLessThan(statusRoute.indexOf('Нельзя включить сотрудника в архивном филиале'));
   });
 
+
+  it('authorizes a caller before disclosing the archived state of an organization branch', () => {
+    const workspace = source.slice(
+      source.indexOf("branchesRouter.post('/:id/workspace'"),
+      source.indexOf("branchesRouter.get('/:id/members'"),
+    );
+    expect(workspace.indexOf('if (!authz.allowed)')).toBeGreaterThanOrEqual(0);
+    expect(workspace.indexOf('if (!branch.active)')).toBeGreaterThan(workspace.indexOf('if (!authz.allowed)'));
+
+    const assignment = source.slice(
+      source.indexOf("branchesRouter.post('/:id/members/:userId'"),
+      source.indexOf("branchesRouter.patch('/:id/members/:userId/status'"),
+    );
+    expect(assignment.indexOf('if (!authz.allowed)')).toBeGreaterThanOrEqual(0);
+    expect(assignment.indexOf('BRANCH_ARCHIVED')).toBeGreaterThan(assignment.indexOf('if (!authz.allowed)'));
+  });
+
 });

@@ -161,6 +161,41 @@ test.describe('Canonical organization branch management', () => {
     const branchName = `E2E Archive ${Date.now()}`;
     const branchId = await createBranch(page, branchName);
 
+    // Create a real branch-only doctor assignment and issue a branch-scoped JWT.
+    // An owner token is not sufficient for this regression: owners legitimately
+    // retain organization-level access to all ACTIVE branches.
+    const doctor = await prisma.user.findUnique({ where: { email: 'doctor-a@test.com' }, select: { id: true } });
+    expect(doctor?.id, 'E2E doctor fixture must exist').toBeTruthy();
+    const doctorPerson = await prisma.person.findFirst({
+      where: { userId: doctor!.id, organizationId: ownerOrganizationId },
+      select: { id: true },
+    });
+    expect(doctorPerson?.id, 'E2E doctor must have an organization-scoped Person').toBeTruthy();
+    await prisma.branchMember.upsert({
+      where: { personId_branchId: { personId: doctorPerson!.id, branchId } },
+      create: { personId: doctorPerson!.id, branchId, active: true },
+      update: { active: true },
+    });
+
+    const doctorLogin = await page.request.post('/api/auth/login', {
+      data: { email: 'doctor-a@test.com', password: PASSWORD },
+    });
+    expect(doctorLogin.status(), await doctorLogin.text()).toBe(200);
+    const doctorLoginData = (await doctorLogin.json()).data;
+    const doctorAccessToken = String(doctorLoginData.accessToken || '');
+    expect(doctorAccessToken).toBeTruthy();
+
+    const doctorSwitch = await page.request.post('/api/iam/switch-context', {
+      headers: { Authorization: `Bearer ${doctorAccessToken}` },
+      data: { scopeType: 'CLINIC', scopeId: ownerOrganizationId, branchId },
+    });
+    expect(doctorSwitch.status(), await doctorSwitch.text()).toBe(200);
+    const doctorBranchTokens = (await doctorSwitch.json()).data;
+    const staleBranchAccessToken = String(doctorBranchTokens.accessToken || '');
+    const doctorRefreshToken = String(doctorBranchTokens.refreshToken || '');
+    expect(staleBranchAccessToken).toBeTruthy();
+    expect(doctorRefreshToken).toBeTruthy();
+
     await branchRow(page, branchName).click();
     await page.getByRole('button', { name: 'Архивировать', exact: true }).click();
     await expect(branchRow(page, branchName)).toContainText('Архив', { timeout: 15000 });
@@ -171,31 +206,61 @@ test.describe('Canonical organization branch management', () => {
     const archived = branches.find((item: { id?: string }) => item.id === branchId);
     expect(archived?.active).toBe(false);
 
-    const headers = await bearerHeaders(page);
-    const workspace = await page.request.post(`/api/branches/${branchId}/workspace`, { headers });
+    const ownerHeaders = await bearerHeaders(page);
+    const workspace = await page.request.post(`/api/branches/${branchId}/workspace`, { headers: ownerHeaders });
     expect(workspace.status()).toBe(409);
     expect((await workspace.json()).code).toBe('BRANCH_ARCHIVED');
 
-    const switchArchived = await page.request.post('/api/iam/switch-context', {
-      headers,
+    const ownerSwitchArchived = await page.request.post('/api/iam/switch-context', {
+      headers: ownerHeaders,
       data: { scopeType: 'CLINIC', scopeId: ownerOrganizationId, branchId },
     });
-    expect(switchArchived.status()).toBe(409);
-    expect((await switchArchived.json()).code).toBe('BRANCH_ARCHIVED');
+    expect(ownerSwitchArchived.status()).toBe(409);
+    expect((await ownerSwitchArchived.json()).code).toBe('BRANCH_ARCHIVED');
+
+    const staleDoctorHeaders = { Authorization: `Bearer ${staleBranchAccessToken}` };
+    const staleOperationalRead = await page.request.get('/api/patients', { headers: staleDoctorHeaders });
+    expect(staleOperationalRead.status()).toBe(403);
+    expect((await staleOperationalRead.json()).code).toBe('BRANCH_ARCHIVED');
+
+    const refreshed = await page.request.post('/api/auth/refresh', { data: { refreshToken: doctorRefreshToken } });
+    expect(refreshed.status(), await refreshed.text()).toBe(200);
+    const refreshedTokens = (await refreshed.json()).data;
+    const refreshedDoctorAccessToken = String(refreshedTokens.accessToken || '');
+    expect(refreshedDoctorAccessToken).toBeTruthy();
+
+    const recoveredContexts = await page.request.get('/api/iam/me/contexts', {
+      headers: { Authorization: `Bearer ${refreshedDoctorAccessToken}` },
+    });
+    expect(recoveredContexts.status(), await recoveredContexts.text()).toBe(200);
+    const recoveredContext = ((await recoveredContexts.json()).data?.contexts || []).find(
+      (item: { organizationId?: string; scopeType?: string }) => item.organizationId === ownerOrganizationId,
+    );
+    expect(recoveredContext, 'doctor keeps the organization identity after the archived branch claim is dropped').toBeTruthy();
+    expect(recoveredContext.branchId).not.toBe(branchId);
+
+    const recoveredArchivedSwitch = await page.request.post('/api/iam/switch-context', {
+      headers: { Authorization: `Bearer ${refreshedDoctorAccessToken}` },
+      data: { scopeType: 'CLINIC', scopeId: ownerOrganizationId, branchId },
+    });
+    expect(recoveredArchivedSwitch.status()).toBe(409);
+    expect((await recoveredArchivedSwitch.json()).code).toBe('BRANCH_ARCHIVED');
 
     await page.getByRole('button', { name: 'Восстановить филиал', exact: true }).click();
     await expect(branchRow(page, branchName)).not.toContainText('Архив', { timeout: 15000 });
 
-    const afterRestore = await page.request.get(`/api/branches?organizationId=${encodeURIComponent(ownerOrganizationId)}`, { headers });
+    const afterRestore = await page.request.get(`/api/branches?organizationId=${encodeURIComponent(ownerOrganizationId)}`, { headers: ownerHeaders });
     const restorePayload = await afterRestore.json();
     const restoredBranches = Array.isArray(restorePayload) ? restorePayload : restorePayload?.data ?? [];
     expect(restoredBranches.find((item: { id?: string }) => item.id === branchId)?.active).toBe(true);
 
+    // The pre-existing BranchMember assignment is preserved; access resumes only
+    // after the owner explicitly restores the archived branch.
     const switchRestored = await page.request.post('/api/iam/switch-context', {
-      headers,
+      headers: { Authorization: `Bearer ${refreshedDoctorAccessToken}` },
       data: { scopeType: 'CLINIC', scopeId: ownerOrganizationId, branchId },
     });
-    expect(switchRestored.status()).toBe(200);
+    expect(switchRestored.status(), await switchRestored.text()).toBe(200);
   });
   test('BRANCH-003: workspace switcher selects a branch and propagates branch scope', async ({ page }) => {
     await login(page);
