@@ -1,3 +1,28 @@
+## Execution checkpoint — 2026-11-19 (RB-035 cross-domain continuation)
+
+Current main remains da1257fc650f536c76583bdff570906290b92bcd. PR #349 is merged and verified; PR #350 remains open on security/rb035-inactive-branch-access-main-20261119.
+
+### RB-035 candidate now covers
+- Stale archived-branch JWT denial, refresh/context recovery, active-only branch allow-lists and preservation of organization identity.
+- Patient, finance, diagnostics, inventory, appointment, analytics, treatment-case, dental-lab and medical-lab branch filters.
+- Direct diagnostic referral access, list scope and dashboard aggregates across totals/status/overdue/recent.
+- Medical-lab detail reads bound to the active clinic context and active branch list; membership in a second clinic alone is no longer sufficient.
+- Atomic legacy/canonical clinic branch assignment synchronization. IAM/auth preserve exact active legacy assignments where organization_id is null and clinic_id matches the clinic Organization, without accepting another organization.
+- Owner/admin archive restoration without deleting clinical/financial history; E2E uses the actual branch assignment API and stale-token recovery flow.
+
+### Verification status and next order
+1. Wait for exact-current-HEAD PR #350 CI (unit/tsc, backend/frontend lint, E2E), Quality Gate, RB-034 and Preview; fix failures without weakening negative assertions.
+2. Finish RB-035 full patient/clinical/billing route × role × tenant × clinic × branch × active/revoked/expired-session matrix, plus partner organization branches and archive-history access policy.
+3. Complete RB-029 historical PHI inventory/backfill, worker drain/strict cutover, key lifecycle, retention/deletion and approved staging backup/restore.
+4. Obtain repository-admin RB-033 required-check evidence; capture RB-031 real WebKit OPTIONS/CORS/WebSocket evidence.
+5. D1/D2 staging migrations and before/after/restore/rollback proof.
+6. Diagnostics/medical lab full modality/accession/chain-of-custody/QC/release/settlement; Dental Lab D10 remake, logistics, payout/refund/chargeback.
+7. Marketplace/Supplier KYB/fulfillment/returns, Academy/Community complete lifecycles, Employer interviews/offers/vacancy lifecycle/consent/matching/Android.
+8. Public discovery, true 32-tooth WebGL odontogram, physical Android runtime and final Master Spec DoD journey.
+
+Release remains **NOT READY**. CI is source-level evidence only and does not certify live staging/production, legal, provider, historical-PHI, backup/restore or device readiness.
+
+---
 ## Execution checkpoint — 2026-11-19 (RB-029 merge; RB-035 archived branch hardening)
 
 Current main is `da1257fc650f536c76583bdff570906290b92bcd`. PR #349 merged on exact CI-green HEAD `3dd1d17bc1978a0f7d695adbadc59969950505cf` as `da1257fc650f536c76583bdff570906290b92bcd`. Its PHI-free AI Admin booking diagnostic and patient-name/phone logging regression test are now in main. RB-029 overall remains P0/open for historical PHI inventory/backfill, worker drain/strict cutover, key lifecycle, retention and verified staging backup/restore.

@@ -1,3 +1,16 @@
+## Continuation checkpoint — 2026-11-19 (RB-035 expanded review)
+
+- Canonical repository: drtamirlan911-cell/DentVision1; current main remains da1257fc650f536c76583bdff570906290b92bcd.
+- PR #349 is merged and verified. PR #350 is the active RB-035 candidate; still open, not merged.
+- Candidate now covers active archived-branch revocation and filters patient, finance, diagnostics, inventory, appointments, analytics, treatment cases, dental-lab, medical-lab and diagnostics aggregates/referral paths.
+- Diagnostics dashboard counts and recent referrals now receive explicit branch allow-lists. Medical-lab direct order reads require the active clinic context and branch allow-list. Legacy clinic branch assignment APIs now keep ClinicMember and BranchMember synchronized atomically; IAM/auth can use only an exact active legacy ClinicMember assignment where organization_id is absent and clinic_id maps to the selected clinic.
+- E2E assigns a doctor through the real branch-management API, checks stale branch token denial, refreshes away the archived claim, restores the branch and verifies the doctor can switch back using the preserved assignment.
+- **Latest PR #350 exact-head CI/E2E, Quality Gate, RB-034 and Preview remain pending.** Do not treat earlier SHA runs as final.
+- RB-035 broader patient-route × role × tenant × organization × clinic × branch × active/revoked/expired-session matrix remains open, as does authorized history reading from archived branches.
+- Other release gaps remain RB-029 historical PHI lifecycle, RB-031 WebKit/CORS/WebSocket, RB-033 branch-protection evidence, D1/D2 staging/restore, legal/EDS, Kaspi provider, physical Android, diagnostics/medical-lab depth, D10 settlement, Marketplace/Supplier, Academy/Community, Employer lifecycle, public discovery and 32-tooth WebGL.
+- No live DB/PHI, keys/secrets, provider, legal signature or production deployment was touched. Release remains NOT READY.
+
+---
 ## Continuation checkpoint — 2026-11-19
 
 - Canonical repo: `drtamirlan911-cell/DentVision1`; current main: `da1257fc650f536c76583bdff570906290b92bcd`.

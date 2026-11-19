@@ -1,3 +1,16 @@
+## Current checkpoint — 2026-11-19 (RB-035 expanded source review)
+
+- **Current main remains** da1257fc650f536c76583bdff570906290b92bcd; PR #349 is merged with exact CI/Quality Gate/Vercel success. The next candidate is PR #350 / security/rb035-inactive-branch-access-main-20261119; it is not merged.
+- RB-035 now covers more than stale JWT rejection: active-only patient/finance/diagnostic/inventory scopes; diagnostics referral list and direct reads; branch-filtered diagnostics dashboard aggregates; appointments, analytics, treatment cases, dental-lab and medical-lab filters; archived workspace/switch/default/assignment guards; owner/admin restore; legacy clinic context recovery.
+- **Additional confirmed parity fixes in PR #350:** diagnostics dashboard totals/status/overdue/recent referrals now use the same active branch allow-list as the referral catalogue; medical-lab direct reads require the active clinic context and branch allow-list instead of membership-only cross-clinic fallback; clinic branch assignment/enable/disable/unassign now synchronizes legacy ClinicMember and canonical BranchMember in one transaction. IAM/auth accept a legacy assignment only for an active branch mapped to the exact clinic; a non-null mismatched organization_id is never bypassed.
+- Branch-management E2E now assigns a real seeded doctor through POST /api/branches/:id/members/:userId, issues a branch-scoped token, verifies stale-token 403 BRANCH_ARCHIVED, refreshes to drop the claim, restores the branch and reuses the preserved assignment.
+- **Verification pending for the latest PR #350 HEAD:** CI, E2E, Quality Gate and RB-034 must complete on the exact current SHA. Previous SHA runs do not certify later commits.
+- RB-035 remains OPEN for the full patient-route × role × tenant × organization × clinic × branch × active/revoked/expired-session matrix, partner-branch coverage, and a separately authorized archive-history read policy.
+- RB-029 historical PHI lifecycle, RB-031 WebKit/CORS/WebSocket, RB-033 branch-protection evidence, D1/D2 staging and restore, legal/EDS, Kaspi provider, physical Android, diagnostics/medical-lab workflows, D10 settlement, Marketplace/Supplier, Academy/Community, employer lifecycle, public discovery and true 32-tooth WebGL remain open/partial.
+- **Release remains NOT READY.** No production/staging DB, PHI, secret/key, payment provider, legal signature or production deployment was accessed or modified.
+
+---
+
 ## Current checkpoint — 2026-11-19 (post PR #349)
 
 - **Current main:** `da1257fc650f536c76583bdff570906290b92bcd`. PR #349 was squash-merged as `da1257fc650f536c76583bdff570906290b92bcd`; raw AI Admin booking exception logging is removed and a regression test proves patient name/phone do not reach console logs.
