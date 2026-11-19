@@ -10,6 +10,27 @@ export type FinanceBranchContext = {
 
 const ORGANIZATION_ROLES = new Set(['OWNER', 'ADMIN', 'ACCOUNTANT']);
 
+export function financeAllowedBranchIds(role: string | null | undefined, branchIds: readonly string[] | null | undefined): string[] | null {
+  if (String(role || '').toUpperCase() === 'SUPERADMIN') return null;
+  return [...new Set((branchIds ?? []).filter((id): id is string => typeof id === 'string' && id.length > 0))];
+}
+
+/** Patient-linked clinic invoices follow the patient's active operational branch. */
+export function financeInvoicePatientWhere(role: string | null | undefined, branchIds: readonly string[] | null | undefined): Record<string, unknown> {
+  const allowed = financeAllowedBranchIds(role, branchIds);
+  return allowed === null ? {} : { patient: { branchId: { in: allowed } } };
+}
+
+export function financePatientBranchWhere(role: string | null | undefined, branchIds: readonly string[] | null | undefined): Record<string, unknown> {
+  const allowed = financeAllowedBranchIds(role, branchIds);
+  return allowed === null ? {} : { branchId: { in: allowed } };
+}
+
+export function financeBranchIdWhere(role: string | null | undefined, branchIds: readonly string[] | null | undefined): Record<string, unknown> {
+  const allowed = financeAllowedBranchIds(role, branchIds);
+  return allowed === null ? {} : { branchId: { in: allowed } };
+}
+
 /** Resolve the financial visibility boundary before invoices/expenses are queried. */
 export async function resolveFinanceBranchContext(
   userId: string,
