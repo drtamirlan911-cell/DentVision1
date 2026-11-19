@@ -831,7 +831,13 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       }
     }
 
-    const clinicId = String(metaObj.clinicId || req.body?.clinicId || '');
+    const requestedClinicId = String(metaObj.clinicId || req.body?.clinicId || '');
+    // Clinic cashier branchIds come from the authenticated active clinic
+    // context. Do not let client metadata switch the clinic while retaining a
+    // different clinic's branch allow-list.
+    const clinicId = req.user?.role === 'SUPERADMIN'
+      ? requestedClinicId
+      : String(req.user?.clinicId || '');
     // Platform-owned references always use the platform merchant. A client
     // cannot reroute SaaS, Academy, Shop or medical-lab payments by setting
     // domain=crm, clinicId or merchantScope in the request.
@@ -846,6 +852,9 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
 
     // CRM cashier → clinic's own Kaspi/bank (never platform merchant).
     if (isClinicCashier) {
+      if (req.user?.role !== 'SUPERADMIN' && requestedClinicId && requestedClinicId !== clinicId) {
+        return res.status(403).json({ ok: false, error: 'Кассовая операция не соответствует активной клинике' } satisfies ApiResponse);
+      }
       if (!clinicId) {
         return res.status(400).json({
           ok: false,
