@@ -10,6 +10,12 @@ export type InventoryBranchContext = {
 
 const ORGANIZATION_ROLES = new Set(['OWNER', 'ADMIN', 'ACCOUNTANT']);
 
+export function inventoryBranchWhere(ctx: InventoryBranchContext): { clinicId: string; branchId: { in: string[] } } {
+  // Organization-wide is still a finite allow-list of currently active
+  // branches. Never convert that role into an unfiltered clinic-wide query.
+  return { clinicId: ctx.clinicId, branchId: { in: ctx.branchIds } };
+}
+
 export async function resolveInventoryBranchContext(
   userId: string,
   clinicId: string,
