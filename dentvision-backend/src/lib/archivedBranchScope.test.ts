@@ -17,7 +17,7 @@ const ARCHIVED_BRANCH_ID = 'branch-archived';
 const ACTIVE_BRANCH_ID = 'branch-active';
 
 beforeEach(() => {
-  queryRaw.mockReset();
+  queryRaw.mockReset().mockResolvedValue([]);
 });
 
 describe('archived branch operational scope', () => {
@@ -47,13 +47,16 @@ describe('archived branch operational scope', () => {
     expect(inventory.organizationWide).toBe(false);
   });
 
-  it('limits organization-wide visibility to the trusted active branch allow-list', async () => {
+  it('limits organization-wide visibility to active branches only', async () => {
+    queryRaw.mockResolvedValueOnce([{ branch_id: ARCHIVED_BRANCH_ID, branch_active: false }])
+      .mockResolvedValueOnce([{ id: ACTIVE_BRANCH_ID }]);
     const patients = await resolvePatientBranchContext(
-      USER_ID, CLINIC_ID, 'OWNER', [ACTIVE_BRANCH_ID], ACTIVE_BRANCH_ID,
+      USER_ID, CLINIC_ID, 'OWNER', [ACTIVE_BRANCH_ID], ARCHIVED_BRANCH_ID,
     );
     expect(patients.scope.branchIds).toEqual([ACTIVE_BRANCH_ID]);
 
-    queryRaw.mockResolvedValueOnce([{ branch_id: ARCHIVED_BRANCH_ID, branch_active: false, role: 'OWNER' }])
+    queryRaw.mockReset()
+      .mockResolvedValueOnce([{ branch_id: ARCHIVED_BRANCH_ID, branch_active: false, role: 'OWNER' }])
       .mockResolvedValueOnce([{ id: ACTIVE_BRANCH_ID }]);
     const finance = await resolveFinanceBranchContext(USER_ID, CLINIC_ID, 'OWNER');
     expect(finance.branchIds).toEqual([ACTIVE_BRANCH_ID]);
@@ -64,10 +67,11 @@ describe('archived branch operational scope', () => {
     const diagnostics = await resolveDiagnosticBranchContext(USER_ID, CLINIC_ID, 'OWNER');
     expect(diagnostics.branchIds).toEqual([ACTIVE_BRANCH_ID]);
 
-    // authenticate builds this trusted list from active canonical and
-    // exact legacy assignments on every request; inventory must reuse it.
+    queryRaw.mockReset()
+      .mockResolvedValueOnce([{ branch_id: ARCHIVED_BRANCH_ID, branch_active: false }])
+      .mockResolvedValueOnce([{ id: ACTIVE_BRANCH_ID }]);
     const inventory = await resolveInventoryBranchContext(
-      USER_ID, CLINIC_ID, 'OWNER', [ACTIVE_BRANCH_ID], ACTIVE_BRANCH_ID,
+      USER_ID, CLINIC_ID, 'OWNER', [], ARCHIVED_BRANCH_ID,
     );
     expect(inventory.branchIds).toEqual([ACTIVE_BRANCH_ID]);
   });
