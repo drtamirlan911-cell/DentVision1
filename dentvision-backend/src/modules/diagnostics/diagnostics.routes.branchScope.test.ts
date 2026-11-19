@@ -23,15 +23,16 @@ describe('diagnostics referral branch enforcement', () => {
     expect(source).toContain('Нет доступа к активному контексту клиники');
   });
 
-  it('uses the authenticated active branch allow-list for canonical and legacy clinic members', () => {
-    const start = source.indexOf('export function resolveTrustedReferralBranchIds');
+  it('uses the authenticated allow-list plus an exact active legacy clinic assignment', () => {
+    const start = source.indexOf('async function referralListBranchIds');
     const end = source.indexOf('export function requireReferralAccess', start);
     const resolver = source.slice(start, end);
-    expect(resolver).toContain('isActiveClinicContext(user, clinicId)');
-    expect(resolver).toContain('[user.branchId, user.assignedBranchId, ...(user.branchIds ?? [])]');
-    expect(resolver).toContain('assertClinicOrgAccess');
-    expect(resolver).not.toContain('FROM "clinic_members"');
-    expect(resolver).not.toContain('SELECT id FROM branches WHERE clinic_id');
+    expect(resolver).toContain('resolveTrustedReferralBranchIds(user, clinicId)');
+    expect(resolver).toContain('isActiveClinicContext(user, clinicId!)');
+    expect(resolver).toContain('assertClinicOrgAccess(user, clinicId!)');
+    expect(resolver).toContain('cm."userId" = ${user.id} AND cm."clinicId" = ${clinicId}');
+    expect(resolver).toContain('COALESCE(b."active", false)');
+    expect(resolver).toContain('WHERE "clinic_id" = ${clinicId} AND "active" = true');
   });
 
   it('keeps signed diagnostic results behind referral access', () => {
