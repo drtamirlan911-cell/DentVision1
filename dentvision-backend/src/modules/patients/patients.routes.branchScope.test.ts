@@ -17,6 +17,11 @@ describe('patients route branch scope contract', () => {
     expect(source).toContain('prisma.patient.findMany');
     expect(source).toContain('prisma.patient.count');
   });
+  it('rechecks the active branch allow-list before returning an idempotent patient replay', () => {
+    expect(source).toContain('if(!canAccessPatientBranch(context,priorBranch))');
+    expect(source).not.toContain("context.scope.kind!=='organization'&&!canAccessPatientBranch(context,priorBranch)");
+  });
+
   it('checks the branch before direct patient access and mutations', () => {
     expect(source).toContain('loadClinicPatient(req,res)');
     expect(source).toContain('canAccessPatientBranch(context,patientBranchId)');
