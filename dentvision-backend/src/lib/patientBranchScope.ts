@@ -25,27 +25,54 @@ export async function resolvePatientBranchContext(
   authorizedBranchIds: readonly string[] = [],
   assignedBranchId?: string | null,
 ): Promise<PatientBranchContext> {
-  // authenticate has already resolved canonical PersonRole + active
-  // BranchMember assignments, with a legacy ClinicMember fallback only for
-  // clinics that have not migrated to the canonical organization model.
-  const branchIds = Array.from(new Set(
-    [...authorizedBranchIds, assignedBranchId]
+  // Start from the branch allow-list rebuilt by authenticate from canonical
+  // BranchMember + active legacy assignments. Recheck the exact legacy clinic
+  // membership here as a compatibility path for older E2E/deployed sessions
+  // whose claim did not yet hydrate branchIds. Archived branches never enter it.
+  const membership = await prisma.$queryRaw<Array<{
+    branch_id: string | null;
+    branch_active: boolean;
+  }>>`
+    SELECT cm."branch_id",
+      CASE WHEN cm."branch_id" IS NULL THEN false ELSE COALESCE(b."active", false) END AS branch_active
+    FROM "clinic_members" cm
+    LEFT JOIN "branches" b ON b."id" = cm."branch_id"
+    WHERE cm."userId" = ${userId} AND cm."clinicId" = ${clinicId}
+    LIMIT 1
+  `;
+  const legacyBranchId = membership[0]?.branch_active ? membership[0].branch_id : null;
+  let allowed = Array.from(new Set(
+    [...authorizedBranchIds, assignedBranchId, legacyBranchId]
       .filter((id): id is string => typeof id === 'string' && id.length > 0),
   ));
-  const activeBranchId = assignedBranchId && branchIds.includes(assignedBranchId)
+
+  // OWNER/ADMIN can see every active clinic branch only after a clinic-scoped
+  // membership or an already-authenticated canonical allow-list proves access.
+  if (ORGANIZATION_ROLES.has(role) && (membership[0] || allowed.length > 0)) {
+    const activeBranches = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM "branches"
+      WHERE "clinic_id" = ${clinicId} AND "active" = true
+      ORDER BY "isDefault" DESC, "created_at" ASC
+    `;
+    allowed = Array.from(new Set([...allowed, ...activeBranches.map((branch) => branch.id)]));
+  }
+
+  const activeBranchId = assignedBranchId && allowed.includes(assignedBranchId)
     ? assignedBranchId
-    : branchIds[0] ?? null;
+    : legacyBranchId && allowed.includes(legacyBranchId)
+      ? legacyBranchId
+      : allowed[0] ?? null;
 
   if (ORGANIZATION_ROLES.has(role)) {
-    return { clinicId, userId, role, branchId: activeBranchId, scope: { kind: 'organization', branchIds } };
+    return { clinicId, userId, role, branchId: activeBranchId, scope: { kind: 'organization', branchIds: allowed } };
   }
 
   if (BRANCH_ROLES.has(role)) {
-    return { clinicId, userId, role, branchId: activeBranchId, scope: { kind: 'branch', branchIds } };
+    return { clinicId, userId, role, branchId: activeBranchId, scope: { kind: 'branch', branchIds: allowed } };
   }
 
   if (ASSIGNED_ROLES.has(role)) {
-    return { clinicId, userId, role, branchId: activeBranchId, scope: { kind: 'assigned', branchIds } };
+    return { clinicId, userId, role, branchId: activeBranchId, scope: { kind: 'assigned', branchIds: allowed } };
   }
 
   return { clinicId, userId, role, branchId: activeBranchId, scope: { kind: 'assigned', branchIds: [] } };
