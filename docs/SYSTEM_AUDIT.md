@@ -1,3 +1,15 @@
+## RB-035 source review update — 2026-11-19
+
+- PR #350 / security/rb035-inactive-branch-access-main-20261119 remains an open candidate based on main da1257fc650f536c76583bdff570906290b92bcd. No merge to main has occurred.
+- Confirmed and addressed the clinic branch archive gap in runtime auth, refresh, IAM switching, branch endpoints, UI and four data-scope resolvers. Archive preserves patient/financial history and membership rows; access is re-enabled only after authorized restoration.
+- Expanded review also found branch-level omissions in diagnostics dashboard aggregates and medical-lab detail reads. Dashboard totals/status/overdue/recent now share the active branch allow-list used by the referral catalog. A clinic actor can read a medical-lab order only when the order clinic matches the active clinic context and the patient branch is allowed; membership in a second clinic alone is insufficient. Laboratory organization context remains separately supported.
+- Legacy/canonical branch membership drift was also found: clinic branch assignment routes previously updated only ClinicMember while canonical workspace switching checked BranchMember. The candidate now synchronizes both in one transaction on assignment, enable, disable and unassign. IAM/auth allow a legacy assignment only when the branch is active and belongs to the exact clinic. If organization_id is non-null, it must match the Organization; fallback to clinic_id is permitted only when organization_id is null and clinic_id equals Organization.originalId.
+- Branch E2E uses the real owner-facing branch assignment API to assign doctor-a, issues a branch-scoped token, archives the branch, asserts stale-token denial, refreshes the token to drop the branch claim, restores the branch, and switches the doctor back using the preserved assignment.
+- Tests now cover four executable scope resolvers, auth refresh and recovery, route-order authorization, legacy/canonical assignment synchronization, dashboard branch scoping, medical-lab direct access and the branch lifecycle E2E.
+- **Verification pending:** exact-current-HEAD CI, E2E, Quality Gate, RB-034 and Preview must all finish. Older SHA runs do not count for the latest branch head.
+- RB-035 is still not fully closed: full patient/clinical/billing route × role × tenant × clinic × branch × active/revoked/expired-session matrix, partner branch coverage and separately authorized archive-history access remain outstanding. Release remains NOT READY.
+
+---
 ## Current security continuation — 2026-11-19
 
 **Current main:** `da1257fc650f536c76583bdff570906290b92bcd`  

@@ -46,3 +46,13 @@ Operational tables will receive branch ownership progressively. Do not introduce
 - Organization owners/admins retain organization-level settings access so they can restore a branch. Existing history and assignments remain untouched.
 - Reactivation uses the existing owner/admin branch update action. Existing assignments become operational only after the branch is active again.
 - Historical records in archived branches require a separately authorized archive/reporting workflow; a stale JWT is never evidence of archive-history permission.
+
+
+## Legacy and canonical clinic branch assignment parity (RB-035)
+
+- Clinic branch assignment routes MUST update both legacy ClinicMember.branchId and canonical BranchMember in one transaction whenever a canonical Person exists. Disable/unassign marks BranchMember inactive rather than deleting it.
+- IAM branch switching and request authentication may fall back to legacy ClinicMember only when the user, clinic and branch IDs all match and the branch is active. The legacy fallback is not an alternative tenant identifier.
+- A branch row with a non-null organization_id must match the selected Organization exactly. Only rows with organization_id IS NULL may use the legacy mapping where branch.clinic_id equals Organization.originalId.
+- Archive does not modify either assignment representation. Archived rows remain inactive for operational access; after owner/admin restoration, preserved active assignments become usable again.
+- Patient, finance, diagnostic and inventory reads, diagnostic referral lists/details and aggregates, appointments, analytics, treatment cases and lab orders must all apply the same active-branch allow-list.
+- Clinic actors reading medical-lab orders must be in the matching active clinic context and have an active branch assignment. Membership in another clinic alone is not enough; laboratory tenant access uses its own organization context.
