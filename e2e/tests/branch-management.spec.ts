@@ -222,6 +222,20 @@ test.describe('Canonical organization branch management', () => {
     });
     expect(patientBeforeArchive.status(), await patientBeforeArchive.text()).toBe(200);
 
+    const invoiceIdempotencyKey = `rb035-invoice-${Date.now()}`;
+    const archivedPatientInvoiceResponse = await page.request.post('/api/billing/invoices', {
+      headers: { ...ownerHeaders, 'Idempotency-Key': invoiceIdempotencyKey },
+      data: { patientId: archivedPatient.id, amount: 8765, items: [{ name: 'RB-035 archive fixture', price: 8765 }] },
+    });
+    expect(archivedPatientInvoiceResponse.status(), await archivedPatientInvoiceResponse.text()).toBe(201);
+    const archivedPatientInvoice = (await archivedPatientInvoiceResponse.json()).data;
+    expect(archivedPatientInvoice.branchId).toBe(branchId);
+
+    const invoiceBeforeArchive = await page.request.get(`/api/billing/invoices/${archivedPatientInvoice.id}`, {
+      headers: ownerHeaders,
+    });
+    expect(invoiceBeforeArchive.status(), await invoiceBeforeArchive.text()).toBe(200);
+
     await branchRow(page, branchName).click();
     await page.getByRole('button', { name: 'Архивировать', exact: true }).click();
     await expect(branchRow(page, branchName)).toContainText('Архив', { timeout: 15000 });
@@ -253,6 +267,50 @@ test.describe('Canonical organization branch management', () => {
       headers: ownerHeaders,
     });
     expect(ownerDirectPatientRead.status()).toBe(404);
+
+    const retainedInvoice = await prisma.invoice.findUnique({
+      where: { id: archivedPatientInvoice.id },
+      select: { id: true, clinicId: true, branchId: true, patientId: true, amount: true },
+    });
+    expect(retainedInvoice).toMatchObject({
+      id: archivedPatientInvoice.id,
+      clinicId: ownerClinicId,
+      branchId,
+      patientId: archivedPatient.id,
+      amount: 8765,
+    });
+
+    const ownerInvoiceList = await page.request.get('/api/billing/invoices?limit=100', {
+      headers: ownerHeaders,
+    });
+    expect(ownerInvoiceList.status(), await ownerInvoiceList.text()).toBe(200);
+    const ownerInvoiceListBody = await ownerInvoiceList.json();
+    expect(ownerInvoiceListBody.data?.data ?? []).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: archivedPatientInvoice.id })]),
+    );
+
+    const ownerDirectInvoiceRead = await page.request.get(`/api/billing/invoices/${archivedPatientInvoice.id}`, {
+      headers: ownerHeaders,
+    });
+    expect(ownerDirectInvoiceRead.status()).toBe(404);
+
+    const archivedInvoiceReplay = await page.request.post('/api/billing/invoices', {
+      headers: { ...ownerHeaders, 'Idempotency-Key': invoiceIdempotencyKey },
+      data: { patientId: archivedPatient.id, amount: 8765, items: [{ name: 'RB-035 archive fixture', price: 8765 }] },
+    });
+    expect(archivedInvoiceReplay.status()).toBe(404);
+
+    const archivedInvoicePayment = await page.request.post(`/api/billing/invoices/${archivedPatientInvoice.id}/pay`, {
+      headers: ownerHeaders,
+      data: { amount: 8765, paymentMethod: 'cash' },
+    });
+    expect(archivedInvoicePayment.status()).toBe(404);
+
+    const archivedPatientPrepayment = await page.request.post(`/api/billing/patients/${archivedPatient.id}/prepayment`, {
+      headers: ownerHeaders,
+      data: { amount: 1000, paymentMethod: 'cash' },
+    });
+    expect(archivedPatientPrepayment.status()).toBe(404);
 
     const retainedInventory = await prisma.inventoryItem.findUnique({
       where: { id: archivedInventoryId },
