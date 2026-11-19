@@ -8,6 +8,8 @@ describe('patients route branch scope contract', () => {
   it('uses the shared patient branch resolver', () => {
     expect(source).toContain("from '../../lib/patientBranchScope.js'");
     expect(source).toContain('resolvePatientBranchContext');
+    expect(source).toContain('req.user!.branchIds ?? []');
+    expect(source).toContain('req.user!.assignedBranchId ?? req.user!.branchId ?? null');
     expect(source).toContain('getPatientIdsForBranchScope');
   });
   it('filters patient lists by branch at query construction time', () => {
@@ -18,6 +20,8 @@ describe('patients route branch scope contract', () => {
   it('checks the branch before direct patient access and mutations', () => {
     expect(source).toContain('loadClinicPatient(req,res)');
     expect(source).toContain('canAccessPatientBranch(context,patientBranchId)');
+    expect(source).toContain('if(!canAccessPatientBranch(context,patientBranchId))');
+    expect(source).toContain('getScopedWhere(clinicId,context.scope.branchIds,extra)');
     expect(source).toMatch(/setPatientBranch\s*\(\s*patient\.id\s*,\s*clinicId\s*,\s*targetBranchId\s*\)/);
   });
 

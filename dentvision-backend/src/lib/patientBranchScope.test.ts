@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canAccessPatientBranch, type PatientBranchContext } from './patientBranchScope.js';
+import { canAccessPatientBranch, resolvePatientBranchContext, type PatientBranchContext } from './patientBranchScope.js';
 
 const context = (kind: PatientBranchContext['scope']['kind'], branchIds: string[]): PatientBranchContext => ({
   clinicId: 'clinic-a',
@@ -10,6 +10,26 @@ const context = (kind: PatientBranchContext['scope']['kind'], branchIds: string[
 });
 
 describe('patient branch scope', () => {
+  it('uses trusted canonical BranchMember allow-lists without requiring ClinicMember reads', async () => {
+    const actor = await resolvePatientBranchContext('user-a', 'clinic-a', 'DOCTOR', ['branch-a', 'branch-b'], 'branch-a');
+    expect(actor.scope).toEqual({ kind: 'assigned', branchIds: ['branch-a', 'branch-b'] });
+    expect(actor.branchId).toBe('branch-a');
+    expect(canAccessPatientBranch(actor, 'branch-a')).toBe(true);
+    expect(canAccessPatientBranch(actor, 'branch-c')).toBe(false);
+  });
+
+  it('fails closed for organization roles when auth supplies no active branches', async () => {
+    const actor = await resolvePatientBranchContext('owner-a', 'clinic-a', 'OWNER', [], null);
+    expect(actor.scope).toEqual({ kind: 'organization', branchIds: [] });
+    expect(canAccessPatientBranch(actor, 'branch-a')).toBe(false);
+  });
+
+  it('does not widen a manager beyond their authenticated branch allow-list', async () => {
+    const actor = await resolvePatientBranchContext('manager-a', 'clinic-a', 'MANAGER', ['branch-a'], 'branch-a');
+    expect(actor.scope).toEqual({ kind: 'branch', branchIds: ['branch-a'] });
+    expect(canAccessPatientBranch(actor, 'branch-b')).toBe(false);
+  });
+
   it('allows organization roles to access all assigned organization branches', () => {
     const actor = context('organization', ['branch-a', 'branch-b']);
     expect(canAccessPatientBranch(actor, 'branch-a')).toBe(true);
