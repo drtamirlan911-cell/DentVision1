@@ -26,23 +26,40 @@ beforeEach(() => {
 
 describe('diagnostic referral branch policy', () => {
   it('requires the exact active clinic context and a trusted active branch allow-list', async () => {
+    queryRaw.mockResolvedValueOnce([{ branch_id: null, branch_active: false }]);
     expect(await canAccessReferralBranch(clinicUser('DOCTOR'), resource)).toBe(false);
-    expect(queryRaw).not.toHaveBeenCalled();
-
-    expect(await canAccessReferralBranch(clinicUser('DOCTOR', ['branch-1']), resource)).toBe(true);
     expect(queryRaw).toHaveBeenCalledTimes(1);
+
+    queryRaw.mockReset()
+      .mockResolvedValueOnce([{ branch_id: null, branch_active: false }])
+      .mockResolvedValueOnce([{ id: 'branch-1' }]);
+    expect(await canAccessReferralBranch(clinicUser('DOCTOR', ['branch-1']), resource)).toBe(true);
+    expect(queryRaw).toHaveBeenCalledTimes(2);
   });
 
   it('does not let organization role names widen access beyond the branch allow-list', async () => {
     for (const role of ['OWNER', 'ADMIN', 'ACCOUNTANT', 'MANAGER']) {
+      queryRaw.mockReset().mockResolvedValueOnce([{ branch_id: null, branch_active: false }]);
       expect(await canAccessReferralBranch(clinicUser(role), resource)).toBe(false);
     }
-    expect(queryRaw).not.toHaveBeenCalled();
   });
 
   it('denies a branch that is archived or belongs to a different clinic', async () => {
-    queryRaw.mockResolvedValueOnce([]);
+    queryRaw.mockReset()
+      .mockResolvedValueOnce([{ branch_id: null, branch_active: false }])
+      .mockResolvedValueOnce([]);
     expect(await canAccessReferralBranch(clinicUser('OWNER', ['branch-1']), resource)).toBe(false);
+  });
+
+
+  it('recovers an active exact-clinic legacy assignment but rejects archived assignments', async () => {
+    queryRaw.mockReset()
+      .mockResolvedValueOnce([{ branch_id: 'branch-1', branch_active: true }])
+      .mockResolvedValueOnce([{ id: 'branch-1' }]);
+    expect(await canAccessReferralBranch(clinicUser('DOCTOR'), resource)).toBe(true);
+
+    queryRaw.mockReset().mockResolvedValueOnce([{ branch_id: 'branch-1', branch_active: false }]);
+    expect(await canAccessReferralBranch(clinicUser('DOCTOR'), resource)).toBe(false);
   });
 
   it('keeps the explicit platform superadmin exception', async () => {
