@@ -11,6 +11,7 @@
 import { chatWithTools, type ChatMessage, type ConversationItem, type ToolDefinition } from '../ai/llm/client.js';
 import { PATIENT_TOOLS, type PatientToolContext } from './patientTools.js';
 import { runAiAction } from '../ai/os/kernel.js';
+import { formatProductKnowledgeContext, retrievePatientProductKnowledge } from '../ai/knowledge/productKnowledge.js';
 
 /**
  * Two rounds, not more. Each round is one model call plus its tool results,
@@ -79,8 +80,19 @@ export async function runPatientTurn(
   const toolsUsed: string[] = [];
   const data: Record<string, unknown> = {};
 
+  // The portal is a separate AI surface. Retrieve only the patient-facing
+  // product-guide section; never pass staff CRM instructions or partner
+  // workspace documentation into the patient's assistant.
+  const knowledgeQuery = [
+    ...history.filter((item) => item.role === 'user').slice(-2).map((item) => item.content),
+    userText,
+  ].join(' ').slice(0, 2_000);
+  const patientKnowledge = await retrievePatientProductKnowledge(knowledgeQuery);
+  const patientKnowledgeBlock = formatProductKnowledgeContext(patientKnowledge);
+  const patientSystemPrompt = [PATIENT_SYSTEM_PROMPT, patientKnowledgeBlock].filter(Boolean).join('\n\n');
+
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
-    const response = await chatWithTools(PATIENT_SYSTEM_PROMPT, messages, toolDefinitions(), {
+    const response = await chatWithTools(patientSystemPrompt, messages, toolDefinitions(), {
       round,
       toolsUsed: toolsUsed.length,
     });
@@ -142,7 +154,7 @@ export async function runPatientTurn(
 
   // Rounds exhausted with the model still asking for tools. Answering from
   // what was gathered beats an empty reply, but say the shape of the limit.
-  const final = await chatWithTools(PATIENT_SYSTEM_PROMPT, messages, [], {
+  const final = await chatWithTools(patientSystemPrompt, messages, [], {
     round: MAX_ROUNDS,
     toolsUsed: toolsUsed.length,
   });

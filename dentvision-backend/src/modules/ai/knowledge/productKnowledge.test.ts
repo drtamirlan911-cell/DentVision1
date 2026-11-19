@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  filterPatientProductKnowledge,
   formatProductKnowledgeContext,
   rankProductKnowledgeChunks,
   splitProductKnowledgeSections,
@@ -42,6 +43,17 @@ describe('splitProductKnowledgeSections', () => {
   });
 });
 
+describe('patient product knowledge boundary', () => {
+  it('exposes only the patient portal section, not staff clinic instructions', () => {
+    const chunks = [
+      chunk('patient', 'Руководство / Личный кабинет пациента и AI-помощник пациента', 'Свои визиты, счета и запись на приём.'),
+      chunk('staff', 'Руководство / Рабочее пространство стоматологической клиники', 'Поиск пациентов и внутренние клинические действия.'),
+      chunk('supplier', 'Руководство / Маркетплейс и поставщики', 'Заказы поставщика и коммерческая аналитика.'),
+    ];
+
+    expect(filterPatientProductKnowledge(chunks).map((item) => item.id)).toEqual(['patient']);
+  });
+});
 describe('rankProductKnowledgeChunks', () => {
   const chunks = [
     chunk('schedule', 'Расписание и запись пациентов', 'Проверка доступных слотов, создание, перенос и отмена записи пациента.'),

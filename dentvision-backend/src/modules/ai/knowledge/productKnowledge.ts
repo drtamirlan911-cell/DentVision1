@@ -261,6 +261,21 @@ async function loadProductKnowledgeChunks(): Promise<ProductKnowledgeChunk[]> {
   }
 }
 
+/**
+ * Patient portal gets only its own approved product section. It must not be
+ * given staff-facing CRM instructions or partner-organization internals.
+ */
+export function filterPatientProductKnowledge(
+  chunks: ProductKnowledgeChunk[],
+): ProductKnowledgeChunk[] {
+  return chunks.filter((chunk) => /личный кабинет пациента/i.test(chunk.title));
+}
+
+export async function retrievePatientProductKnowledge(query: string): Promise<ProductKnowledgeHit[]> {
+  const chunks = await loadProductKnowledgeChunks();
+  return rankProductKnowledgeChunks(query, filterPatientProductKnowledge(chunks));
+}
+
 export async function retrieveProductKnowledge(query: string): Promise<ProductKnowledgeHit[]> {
   const chunks = await loadProductKnowledgeChunks();
   return rankProductKnowledgeChunks(query, chunks);
