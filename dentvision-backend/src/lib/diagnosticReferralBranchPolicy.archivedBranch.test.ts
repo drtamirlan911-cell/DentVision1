@@ -26,6 +26,7 @@ const clinicDoctor = {
 describe('diagnostic referral clinic context enforcement', () => {
   it('accepts only the exact active clinic context', () => {
     expect(isActiveClinicContext(clinicDoctor, 'clinic-1')).toBe(true);
+    expect(isActiveClinicContext({ ...clinicDoctor, organizationOriginalId: undefined, organizationId: 'clinic-1' }, 'clinic-1')).toBe(true);
     expect(isActiveClinicContext(clinicDoctor, 'clinic-other')).toBe(false);
     expect(isActiveClinicContext({
       ...clinicDoctor,

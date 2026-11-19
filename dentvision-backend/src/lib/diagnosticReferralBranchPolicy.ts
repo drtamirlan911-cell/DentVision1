@@ -12,10 +12,10 @@ export type ReferralBranchResource = {
  * a diagnostic/laboratory/other organization into an unrelated clinic.
  */
 export function isActiveClinicContext(
-  user: Pick<AuthUser, 'organizationId' | 'organizationOriginalId' | 'organizationType' | 'clinicId'>,
+  user: Pick<AuthUser, 'organizationId' | 'organizationOriginalId' | 'organizationType' | 'clinicId'> | null | undefined,
   clinicId: string,
 ): boolean {
-  if (!clinicId || user.organizationType?.toUpperCase() !== 'CLINIC' || user.clinicId !== clinicId) {
+  if (!user || !clinicId || user.organizationType?.toUpperCase() !== 'CLINIC' || user.clinicId !== clinicId || !user.organizationId) {
     return false;
   }
 
@@ -32,17 +32,15 @@ export function isActiveClinicContext(
  * organization boundary is checked by the partner membership layer.
  */
 export async function canAccessReferralBranch(
-  user: Pick<AuthUser, 'id' | 'role' | 'organizationId' | 'assignedBranchId' | 'branchIds' | 'clinicId'>,
+  user: Pick<AuthUser, 'id' | 'role' | 'organizationId' | 'organizationOriginalId' | 'organizationType' | 'assignedBranchId' | 'branchIds' | 'clinicId'>,
   resource: ReferralBranchResource,
 ): Promise<boolean> {
   if (!resource.clinicId) return false;
   if (user.role === 'SUPERADMIN') return true;
   if (!isActiveClinicContext(user, resource.clinicId)) return false;
 
-  // The clinic membership is the authoritative tenant boundary. Do not require
-  // a JWT clinicId to be populated as a second, independent prerequisite: tokens
-  // created before active-clinic context restoration can legitimately omit it,
-  // while the membership row still proves the caller belongs to this clinic.
+  // Verify current membership as a second boundary after validating active
+  // organization context; neither a role nor a retained membership is enough alone.
   const membership = await prisma.$queryRaw<Array<{ branch_id: string | null; branch_active: boolean }>>`
     SELECT cm."branch_id",
       CASE WHEN cm."branch_id" IS NULL THEN true ELSE COALESCE(b."active", false) END AS branch_active
