@@ -29,7 +29,13 @@ function nonNegativeNumber(v: unknown): number | undefined {
 async function getBranchContext(req: AuthRequest, clinicId: string) {
   const user = req.user;
   if (!user?.id) return null;
-  return resolveInventoryBranchContext(user.id, clinicId, String(user.role || ''));
+  return resolveInventoryBranchContext(
+    user.id,
+    clinicId,
+    String(user.role || ''),
+    user.branchIds ?? [],
+    user.branchId ?? user.assignedBranchId ?? null,
+  );
 }
 
 function scopedWhere(context: Awaited<ReturnType<typeof resolveInventoryBranchContext>>) {
