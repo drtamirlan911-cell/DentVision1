@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { branchMatchesOrganization, isBranchContextRecoveryPath, isOrganizationBranchManagerRoleKey, mergeBranchIds, shouldUseLegacyClinicFallback } from './auth.js';
 
+const authSource = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/middleware/auth.ts'), 'utf8');
+
 describe('mergeBranchIds', () => {
   it('combines universal and legacy branch assignments without duplicates', () => {
     expect(mergeBranchIds(['branch-a', 'branch-b'], ['branch-b', 'branch-c'])).toEqual([
@@ -60,7 +62,7 @@ describe('archived branch recovery policy', () => {
 
 describe('organization-wide active branch context', () => {
   it('hydrates OWNER/ADMIN branch lists from active branches only', () => {
-    const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/middleware/auth.ts'), 'utf8');
+    const source = authSource;
     expect(source).toContain("if (['OWNER', 'ADMIN'].includes(String(effectiveRole).toUpperCase()))");
     expect(source).toContain('organizationWideBranchIds');
     expect(source).toContain('WHERE "organization_id" = ${effectiveOrgId} AND "active" = true');

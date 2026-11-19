@@ -531,7 +531,7 @@ branchesRouter.patch('/:id/members/:userId/status', enforceTargetClinicTrial, as
     if(branch.clinic_id){
       const authz=await authorizeMemberBranch(req.user!.id,branch.clinic_id,branch,true);
       if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
-      if(active && !branch.active)return res.status(409).json({ok:false,error:'Нельзя включить сотрудника в архивном филиале',code:'BRANCH_ARCHIVED'});
+      if (active && !branch.active)return res.status(409).json({ok:false,error:'Нельзя включить сотрудника в архивном филиале',code:'BRANCH_ARCHIVED'});
       const target=await prisma.clinicMember.findUnique({where:{userId_clinicId:{userId,clinicId:branch.clinic_id}}});
       if(!target) return res.status(404).json({ok:false,error:'Сотрудник не найден в клинике'});
       if(!active && target.branchId !== branchId) return res.status(404).json({ok:false,error:'Сотрудник не закреплён за этим филиалом'});
@@ -544,7 +544,7 @@ branchesRouter.patch('/:id/members/:userId/status', enforceTargetClinicTrial, as
     if(!branch.organization_id)return res.status(404).json({ok:false,error:'Филиал не найден'});
     const authz=await authorizeOrganizationBranch(req.user!.id,branch.organization_id,branch,true);
     if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
-    if(active && !branch.active)return res.status(409).json({ok:false,error:'Нельзя включить сотрудника в архивном филиале',code:'BRANCH_ARCHIVED'});
+    if (active && !branch.active)return res.status(409).json({ok:false,error:'Нельзя включить сотрудника в архивном филиале',code:'BRANCH_ARCHIVED'});
     const person=await organizationPerson(userId,branch.organization_id);
     if(!person)return res.status(404).json({ok:false,error:'Пользователь не является участником этой организации'});
     const changed=await prisma.branchMember.updateMany({where:{personId:person.id,branchId},data:{active}});

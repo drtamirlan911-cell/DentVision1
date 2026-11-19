@@ -27,7 +27,7 @@ describe('diagnostics referral branch enforcement', () => {
     const end = source.indexOf('export function requireReferralAccess', start);
     const resolver = source.slice(start, end);
     expect(resolver).toContain('LEFT JOIN "branches" b ON b."id" = cm."branch_id"');
-    expect(resolver).toContain('COALESCE(b."active", false) AS branch_active');
+    expect(resolver).toContain('CASE WHEN cm."branch_id" IS NULL THEN true ELSE COALESCE(b."active", false) END AS branch_active');
     expect(resolver).toContain('membership[0].branch_active ? membership[0].branch_id : null');
   });
 
