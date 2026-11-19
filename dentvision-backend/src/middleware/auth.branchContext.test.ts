@@ -84,3 +84,12 @@ describe('legacy branch organization mapping', () => {
     expect(branchMatchesOrganization({ organizationId: null, clinicId: 'clinic-1' }, { id: 'org-lab', type: 'LABORATORY', originalId: 'clinic-1' })).toBe(false);
   });
 });
+
+
+describe('organization-wide active branch allow-list', () => {
+  it('includes legacy clinic branches only when organization_id is null and clinic_id matches the clinic originalId', () => {
+    expect(authSource).toContain('"organization_id" IS NULL AND "clinic_id" = ${effectiveOrgOriginalId}');
+    expect(authSource).toContain('"organization_id" = ${effectiveOrgId}');
+    expect(authSource).toContain('"active" = true');
+  });
+});

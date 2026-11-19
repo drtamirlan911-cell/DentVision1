@@ -241,7 +241,12 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     // archived branches remain excluded from normal operational routes.
     if (['OWNER', 'ADMIN'].includes(String(effectiveRole).toUpperCase())) {
       const activeBranches = effectiveOrgType === 'CLINIC' && effectiveOrgOriginalId && effectiveOrgId
-        ? await prisma.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "branches" WHERE "organization_id" = ${effectiveOrgId} AND "active" = true`
+        ? await prisma.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "branches"
+              WHERE "active" = true
+                AND (
+                  "organization_id" = ${effectiveOrgId}
+                  OR ("organization_id" IS NULL AND "clinic_id" = ${effectiveOrgOriginalId})
+                )`
         : effectiveClinicId
           ? await prisma.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "branches" WHERE "clinic_id" = ${effectiveClinicId} AND "active" = true`
           : effectiveOrgId
