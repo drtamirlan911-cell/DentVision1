@@ -45,10 +45,12 @@ describe('diagnostics referral branch enforcement', () => {
 describe('diagnostics dashboard branch scope', () => {
   it('uses the same active branch list as the referral catalog and denies an empty clinic branch scope', () => {
     const start = source.indexOf("diagnosticsRouter.get('/dashboard'");
-    const end = source.indexOf("diagnosticsRouter.post('/referrals'", start);
+    const end = source.indexOf("diagnosticsRouter.post('/referrals/:id/ai-result'", start);
     const dashboard = source.slice(start, end);
-    expect(dashboard).toContain('referralListBranchIds(req.user, scope.clinicId)');
+    expect(dashboard).toContain('const requestedScope = { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }');
+    expect(dashboard).toContain('authorizeReferralListScope(req.user, requestedScope)');
+    expect(dashboard).toContain('referralListBranchIds(req.user, requestedScope.clinicId)');
     expect(dashboard).toContain('branchIds.length === 0');
-    expect(dashboard).toContain('svc.getDashboardStats({ ...scope, branchIds })');
+    expect(dashboard).toContain('svc.getDashboardStats({ ...requestedScope, branchIds })');
   });
 });
