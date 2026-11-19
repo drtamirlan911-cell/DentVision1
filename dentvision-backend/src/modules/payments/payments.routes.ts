@@ -53,7 +53,7 @@ async function medicalLabOrderAmountMinor(
   db: Prisma.TransactionClient | typeof prisma = prisma,
 ): Promise<{ clinicId: string; labId: string; amountMinor: bigint; branchId: string | null } | null> {
   const orders = await db.$queryRawUnsafe<Array<{ clinicId: string; labId: string | null; branchId: string | null }>>(
-    `SELECT "clinicId", "labId", (SELECT "branchId" FROM "patients" p WHERE p."id"=o."patientId") AS "branchId" FROM "medical_lab_orders" o WHERE o."id"=$1 LIMIT 1`,
+    `SELECT "clinicId", "labId", (SELECT "branchId" FROM "patients" p WHERE p."id"=o."patientId" AND p."clinicId"=o."clinicId" AND p."deletedAt" IS NULL) AS "branchId" FROM "medical_lab_orders" o WHERE o."id"=$1 LIMIT 1`,
     orderId,
   );
   const order = orders[0];
