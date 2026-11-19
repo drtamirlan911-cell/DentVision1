@@ -92,4 +92,10 @@ describe('organization-wide active branch allow-list', () => {
     expect(authSource).toContain('"organization_id" = ${effectiveOrgId}');
     expect(authSource).toContain('"active" = true');
   });
+  it('accepts only an active legacy ClinicMember assignment for the selected clinic branch', () => {
+    expect(authSource).toContain('membership.clinicId === person.organization.originalId');
+    expect(authSource).toContain('membership.branchId === payload.branchId');
+    expect(authSource).toContain('membership.branch?.active === true');
+  });
+
 });

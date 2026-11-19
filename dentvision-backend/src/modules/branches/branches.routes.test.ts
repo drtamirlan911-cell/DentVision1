@@ -101,4 +101,13 @@ describe('branch route authorization contract', () => {
     expect(assignment.indexOf('BRANCH_ARCHIVED')).toBeGreaterThan(authorizationIndex);
   });
 
+  it('keeps ClinicMember and canonical BranchMember assignments synchronized', () => {
+    expect(source).toContain('async function syncClinicBranchAssignment(');
+    expect(source).toContain('tx.branchMember.upsert(');
+    expect(source).toContain('tx.branchMember.updateMany(');
+    expect(source).toContain('syncClinicBranchAssignment(userId, branch.clinic_id, branchId, true)');
+    expect(source).toContain('syncClinicBranchAssignment(userId, branch.clinic_id, branchId, active)');
+    expect(source).toContain('syncClinicBranchAssignment(userId, branch.clinic_id, branchId, false)');
+  });
+
 });
