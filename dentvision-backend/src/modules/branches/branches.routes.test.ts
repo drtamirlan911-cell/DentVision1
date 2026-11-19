@@ -93,8 +93,12 @@ describe('branch route authorization contract', () => {
       source.indexOf("branchesRouter.post('/:id/members/:userId'"),
       source.indexOf("branchesRouter.patch('/:id/members/:userId/status'"),
     );
-    expect(assignment.indexOf('if (!authz.allowed)')).toBeGreaterThanOrEqual(0);
-    expect(assignment.indexOf('BRANCH_ARCHIVED')).toBeGreaterThan(assignment.indexOf('if (!authz.allowed)'));
+    const authorizationIndex = Math.max(
+      assignment.indexOf('if(!authz.allowed)'),
+      assignment.indexOf('if (!authz.allowed)'),
+    );
+    expect(authorizationIndex).toBeGreaterThanOrEqual(0);
+    expect(assignment.indexOf('BRANCH_ARCHIVED')).toBeGreaterThan(authorizationIndex);
   });
 
 });
