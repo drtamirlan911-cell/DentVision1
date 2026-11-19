@@ -64,10 +64,11 @@ describe('archived branch operational scope', () => {
     const diagnostics = await resolveDiagnosticBranchContext(USER_ID, CLINIC_ID, 'OWNER');
     expect(diagnostics.branchIds).toEqual([ACTIVE_BRANCH_ID]);
 
-    queryRaw.mockReset()
-      .mockResolvedValueOnce([{ branch_id: ARCHIVED_BRANCH_ID, branch_active: false }])
-      .mockResolvedValueOnce([{ id: ACTIVE_BRANCH_ID }]);
-    const inventory = await resolveInventoryBranchContext(USER_ID, CLINIC_ID, 'OWNER');
+    // authenticate builds this trusted list from active canonical and
+    // exact legacy assignments on every request; inventory must reuse it.
+    const inventory = await resolveInventoryBranchContext(
+      USER_ID, CLINIC_ID, 'OWNER', [ACTIVE_BRANCH_ID], ACTIVE_BRANCH_ID,
+    );
     expect(inventory.branchIds).toEqual([ACTIVE_BRANCH_ID]);
   });
 });
