@@ -6,7 +6,7 @@ vi.mock('./prisma.js', () => ({
   default: { $queryRaw: queryRaw },
 }));
 
-import { canAccessReferralBranch } from './diagnosticReferralBranchPolicy.js';
+import { canAccessReferralBranch, isActiveClinicContext } from './diagnosticReferralBranchPolicy.js';
 
 beforeEach(() => {
   queryRaw.mockReset();
@@ -16,10 +16,44 @@ const clinicDoctor = {
   id: 'doctor-1',
   role: 'DOCTOR',
   organizationId: 'clinic-org-1',
+  organizationOriginalId: 'clinic-1',
+  organizationType: 'CLINIC',
   assignedBranchId: null,
   branchIds: [],
   clinicId: 'clinic-1',
 };
+
+describe('diagnostic referral clinic context enforcement', () => {
+  it('accepts only the exact active clinic context', () => {
+    expect(isActiveClinicContext(clinicDoctor, 'clinic-1')).toBe(true);
+    expect(isActiveClinicContext(clinicDoctor, 'clinic-other')).toBe(false);
+    expect(isActiveClinicContext({
+      ...clinicDoctor,
+      organizationId: 'diagnostic-org-1',
+      organizationOriginalId: 'center-1',
+      organizationType: 'DIAGNOSTIC_CENTER',
+    }, 'clinic-1')).toBe(false);
+    expect(isActiveClinicContext({
+      ...clinicDoctor,
+      organizationOriginalId: 'clinic-other',
+    }, 'clinic-1')).toBe(false);
+  });
+
+  it('does not let a partner workspace use retained clinic membership to read a referral', async () => {
+    const partnerUser = {
+      ...clinicDoctor,
+      organizationId: 'diagnostic-org-1',
+      organizationOriginalId: 'center-1',
+      organizationType: 'DIAGNOSTIC_CENTER',
+    };
+
+    await expect(canAccessReferralBranch(partnerUser, {
+      clinicId: 'clinic-1',
+      branchId: 'branch-active',
+    })).resolves.toBe(false);
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+});
 
 describe('diagnostic referral branch archive enforcement', () => {
   it('denies a doctor whose only legacy clinic-member assignment points to an archived branch', async () => {

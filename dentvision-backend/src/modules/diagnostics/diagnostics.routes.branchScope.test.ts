@@ -20,6 +20,7 @@ describe('diagnostics referral branch enforcement', () => {
     expect(source).toContain('referralListBranchIds');
     expect(source).toContain('branchIds');
     expect(source).toContain('Нет доступа к филиалам клиники');
+    expect(source).toContain('Нет доступа к активному контексту клиники');
   });
 
   it('does not reintroduce an archived legacy clinic-member branch into referral lists', () => {
@@ -29,6 +30,8 @@ describe('diagnostics referral branch enforcement', () => {
     expect(resolver).toContain('LEFT JOIN "branches" b ON b."id" = cm."branch_id"');
     expect(resolver).toContain('CASE WHEN cm."branch_id" IS NULL THEN true ELSE COALESCE(b."active", false) END AS branch_active');
     expect(resolver).toContain('membership[0].branch_active ? membership[0].branch_id : null');
+    expect(resolver).toContain('isActiveClinicContext(user, clinicId)');
+    expect(resolver).toContain('if (!isActiveClinicContext(user, clinicId)) return []');
   });
 
   it('keeps signed diagnostic results behind referral access', () => {

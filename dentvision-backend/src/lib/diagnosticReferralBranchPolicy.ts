@@ -7,6 +7,26 @@ export type ReferralBranchResource = {
 };
 
 /**
+ * Clinic data is available only while the caller is operating in that exact
+ * clinic context. A retained ClinicMember row is not permission to cross from
+ * a diagnostic/laboratory/other organization into an unrelated clinic.
+ */
+export function isActiveClinicContext(
+  user: Pick<AuthUser, 'organizationId' | 'organizationOriginalId' | 'organizationType' | 'clinicId'>,
+  clinicId: string,
+): boolean {
+  if (!clinicId || user.organizationType?.toUpperCase() !== 'CLINIC' || user.clinicId !== clinicId) {
+    return false;
+  }
+
+  // Canonical clinic contexts carry originalId; pre-canonical contexts use
+  // the clinic ID as organizationId. Both must resolve to the same clinic.
+  const activeClinicId = user.organizationOriginalId
+    || (user.organizationId === clinicId ? user.organizationId : undefined);
+  return activeClinicId === clinicId;
+}
+
+/**
  * Runtime policy for clinic-originated diagnostic referrals.
  * Partner-center/laboratory access is intentionally outside this policy: their
  * organization boundary is checked by the partner membership layer.
@@ -17,6 +37,7 @@ export async function canAccessReferralBranch(
 ): Promise<boolean> {
   if (!resource.clinicId) return false;
   if (user.role === 'SUPERADMIN') return true;
+  if (!isActiveClinicContext(user, resource.clinicId)) return false;
 
   // The clinic membership is the authoritative tenant boundary. Do not require
   // a JWT clinicId to be populated as a second, independent prerequisite: tokens
