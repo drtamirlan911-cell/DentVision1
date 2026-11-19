@@ -8,7 +8,7 @@ import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.j
 import { recordMovement, isMovementApplied } from './ledger.js';
 import { SUPPLY_CATALOG, SUPPLY_CATEGORIES } from './supplyCatalog.js';
 import { normalizeItemName } from './orderRestock.js';
-import { resolveInventoryBranchContext, assertInventoryBranch } from '../../lib/inventoryBranchScope.js';
+import { resolveInventoryBranchContext, assertInventoryBranch, inventoryBranchWhere } from '../../lib/inventoryBranchScope.js';
 
 const inventoryRouter = Router();
 
@@ -33,9 +33,7 @@ async function getBranchContext(req: AuthRequest, clinicId: string) {
 }
 
 function scopedWhere(context: Awaited<ReturnType<typeof resolveInventoryBranchContext>>) {
-  return context.organizationWide
-    ? { clinicId: context.clinicId }
-    : { clinicId: context.clinicId, branchId: { in: context.branchIds } };
+  return inventoryBranchWhere(context);
 }
 
 async function resolveCreateBranch(req: AuthRequest, clinicId: string) {
