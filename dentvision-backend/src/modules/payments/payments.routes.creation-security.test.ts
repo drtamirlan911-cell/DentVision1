@@ -12,6 +12,7 @@ const m = vi.hoisted(() => ({
   paymentFindUniqueOrThrow: vi.fn(),
   appointmentFindFirst: vi.fn(),
   invoiceFindFirst: vi.fn(),
+  queryRawUnsafe: vi.fn(),
   transaction: vi.fn(),
   orderFindUnique: vi.fn(),
   courseFindUnique: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock('../../lib/prisma.js', () => ({
     course: { findUnique: m.courseFindUnique },
     appointment: { findFirst: m.appointmentFindFirst },
     invoice: { findFirst: m.invoiceFindFirst },
+    $queryRawUnsafe: m.queryRawUnsafe,
     $transaction: m.transaction,
   },
 }));
@@ -326,6 +328,74 @@ describe('payment creation server-side pricing and metadata protection', () => {
     expect(enrollment.response.status).toBe(201);
     expect(m.paymentCreate.mock.calls[0][0].data.meta.userId).toBe('authenticated-user');
     expect(enrollment.body.ok).toBe(true);
+  });
+});
+
+describe('medical laboratory payment branch isolation', () => {
+  it('rejects creating a payment for a medical order in an archived branch', async () => {
+    m.queryRawUnsafe.mockResolvedValueOnce([{
+      clinicId: 'clinic-owned',
+      labId: 'lab-1',
+      branchId: 'branch-archived',
+    }]);
+
+    const { response, body } = await postPayment({
+      amountMinor: '10000',
+      refType: 'medical_lab_order',
+      refId: 'medical-order-archived',
+      meta: {},
+    });
+
+    expect(response.status).toBe(403);
+    expect(body.ok).toBe(false);
+    expect(m.queryRawUnsafe).toHaveBeenCalledTimes(1);
+    expect(m.providerCreate).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it('allows the creator to pay a medical order only while its patient branch remains active', async () => {
+    m.queryRawUnsafe
+      .mockResolvedValueOnce([{ clinicId: 'clinic-owned', labId: 'lab-1', branchId: 'branch-1' }])
+      .mockResolvedValueOnce([{ priceMinor: 10000n, price: null }]);
+
+    const { response, body } = await postPayment({
+      amountMinor: '10000',
+      refType: 'medical_lab_order',
+      refId: 'medical-order-active',
+      meta: { userId: 'attacker', branchId: 'branch-attacker' },
+    });
+
+    expect(response.status).toBe(201);
+    expect(body.ok).toBe(true);
+    expect(m.providerCreate).toHaveBeenCalledWith({ amountMinor: 10000n, refId: 'medical-order-active' });
+    expect(m.paymentCreate.mock.calls[0][0].data.meta.userId).toBe('authenticated-user');
+    expect(m.paymentCreate.mock.calls[0][0].data.meta.branchId).toBeUndefined();
+  });
+
+  it('denies creator access to an existing medical payment after its patient branch is archived', async () => {
+    m.paymentFindUnique.mockResolvedValue({
+      id: 'payment-medical-archived',
+      provider: 'kaspi_qr',
+      externalId: 'payment-medical-archived-external',
+      amount: 10000n,
+      status: 'pending',
+      refType: 'medical_lab_order',
+      refId: 'medical-order-archived',
+      meta: { userId: 'authenticated-user', merchantScope: 'platform' },
+    });
+    m.queryRawUnsafe.mockResolvedValueOnce([{
+      clinicId: 'clinic-owned',
+      labId: 'lab-1',
+      branchId: 'branch-archived',
+    }]);
+
+    const { response, body } = await postConfirm('payment-medical-archived');
+
+    expect(response.status).toBe(403);
+    expect(body.ok).toBe(false);
+    expect(m.queryRawUnsafe).toHaveBeenCalledTimes(1);
+    expect(m.providerStatus).not.toHaveBeenCalled();
+    expect(m.transaction).not.toHaveBeenCalled();
   });
 });
 
