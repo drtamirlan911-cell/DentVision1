@@ -23,16 +23,17 @@ function mockRes() {
   return res;
 }
 
+const activeClinicClaims = {
+  clinicId: 'clinic-1',
+  organizationId: 'clinic-org-1',
+  organizationOriginalId: 'clinic-1',
+  organizationType: 'CLINIC',
+  branchIds: ['branch-1'],
+  assignedBranchId: 'branch-1',
+};
+
 describe('requireReferralAccess middleware', () => {
   const referral = { clinicId: 'clinic-1', branchId: 'branch-1', doctorId: 'doc-1', centerId: 'center-1', labId: null };
-  const activeClinicClaims = {
-    clinicId: 'clinic-1',
-    organizationId: 'clinic-org-1',
-    organizationOriginalId: 'clinic-1',
-    organizationType: 'CLINIC',
-    branchIds: ['branch-1'],
-    assignedBranchId: 'branch-1',
-  };
 
   it('admits SUPERADMIN unconditionally', async () => {
     referralFindUnique.mockResolvedValueOnce(referral);
