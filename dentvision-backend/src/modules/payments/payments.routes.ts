@@ -392,22 +392,6 @@ async function settlePaidPayment(
     settled = (await settleMedicalLabOrderPayment(payment, db)) || settled;
   }
 
-  if (payment.refType === 'medical_lab_order') {
-    if (!payment.refId || !meta.userId || meta.userId !== req.user!.id) return false;
-    if (req.user?.role === 'SUPERADMIN') return true;
-    try {
-      const order = await medicalLabOrderAmountMinor(payment.refId);
-      return Boolean(
-        order &&
-        order.clinicId === req.user?.clinicId &&
-        order.branchId &&
-        (req.user?.branchIds ?? []).includes(order.branchId),
-      );
-    } catch {
-      return false;
-    }
-  }
-
   if (payment.refType === 'order' || payment.refType === 'shop_order') {
     settled = (await settleOrderPayment(payment, db)) || settled;
   }
@@ -576,6 +560,22 @@ async function assertPaymentOwner(
   // client-writable before the metadata hardening, so it must never override an
   // order's actual owner when reading, confirming, refunding, or replaying a
   // payment. Fail closed if the referenced order is missing or DB lookup fails.
+  if (payment.refType === 'medical_lab_order') {
+    if (!payment.refId || !meta.userId || meta.userId !== req.user!.id) return false;
+    if (req.user?.role === 'SUPERADMIN') return true;
+    try {
+      const order = await medicalLabOrderAmountMinor(payment.refId);
+      return Boolean(
+        order &&
+        order.clinicId === req.user?.clinicId &&
+        order.branchId &&
+        (req.user?.branchIds ?? []).includes(order.branchId),
+      );
+    } catch {
+      return false;
+    }
+  }
+
   if (payment.refType === 'order' || payment.refType === 'shop_order') {
     if (!payment.refId) return false;
     try {
