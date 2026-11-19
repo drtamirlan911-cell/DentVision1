@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { queryRaw } = vi.hoisted(() => ({ queryRaw: vi.fn() }));
+vi.mock('./prisma.js', () => ({ default: { $queryRaw: queryRaw } }));
+
 import { canAccessPatientBranch, resolvePatientBranchContext, type PatientBranchContext } from './patientBranchScope.js';
 
 const context = (kind: PatientBranchContext['scope']['kind'], branchIds: string[]): PatientBranchContext => ({
@@ -9,8 +13,13 @@ const context = (kind: PatientBranchContext['scope']['kind'], branchIds: string[
   scope: { kind, branchIds },
 });
 
+beforeEach(() => {
+  queryRaw.mockReset().mockResolvedValue([]);
+});
+
 describe('patient branch scope', () => {
-  it('uses trusted canonical BranchMember allow-lists without requiring ClinicMember reads', async () => {
+  it('keeps canonical BranchMember allow-lists when no legacy membership is present', async () => {
+    queryRaw.mockResolvedValueOnce([]);
     const actor = await resolvePatientBranchContext('user-a', 'clinic-a', 'DOCTOR', ['branch-a', 'branch-b'], 'branch-a');
     expect(actor.scope).toEqual({ kind: 'assigned', branchIds: ['branch-a', 'branch-b'] });
     expect(actor.branchId).toBe('branch-a');
@@ -18,7 +27,8 @@ describe('patient branch scope', () => {
     expect(canAccessPatientBranch(actor, 'branch-c')).toBe(false);
   });
 
-  it('fails closed for organization roles when auth supplies no active branches', async () => {
+  it('fails closed for organization roles when auth and the exact clinic membership supply no active branches', async () => {
+    queryRaw.mockResolvedValueOnce([]);
     const actor = await resolvePatientBranchContext('owner-a', 'clinic-a', 'OWNER', [], null);
     expect(actor.scope).toEqual({ kind: 'organization', branchIds: [] });
     expect(canAccessPatientBranch(actor, 'branch-a')).toBe(false);
@@ -46,6 +56,22 @@ describe('patient branch scope', () => {
     const actor = context('assigned', ['branch-a']);
     expect(canAccessPatientBranch(actor, 'branch-a')).toBe(true);
     expect(canAccessPatientBranch(actor, 'branch-b')).toBe(false);
+  });
+
+  
+  it('recovers an active exact-clinic legacy assignment when an older session lacks branchIds', async () => {
+    queryRaw.mockResolvedValueOnce([{ branch_id: 'branch-a', branch_active: true }]);
+    const actor = await resolvePatientBranchContext('doctor-a', 'clinic-a', 'DOCTOR', [], null);
+    expect(actor.scope.branchIds).toEqual(['branch-a']);
+    expect(actor.branchId).toBe('branch-a');
+    expect(canAccessPatientBranch(actor, 'branch-a')).toBe(true);
+  });
+
+  it('does not recover an archived legacy assignment', async () => {
+    queryRaw.mockResolvedValueOnce([{ branch_id: 'branch-archived', branch_active: false }]);
+    const actor = await resolvePatientBranchContext('doctor-a', 'clinic-a', 'DOCTOR', [], null);
+    expect(actor.scope.branchIds).toEqual([]);
+    expect(canAccessPatientBranch(actor, 'branch-archived')).toBe(false);
   });
 
   it('fails closed for legacy patients without a branch', () => {
