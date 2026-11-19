@@ -495,7 +495,7 @@ async function canManageClinicBillingMutation(user: AuthRequest['user'], clinicI
   return permissionsSatisfy(new Set(permissions), 'billing.manage');
 }
 
-async function canAccessClinicPaymentBranch(
+async function assertClinicPaymentBranchAccess(
   req: AuthRequest,
   payment: { meta: unknown; refType: string | null; refId: string | null },
   clinicId: string,
@@ -553,7 +553,7 @@ async function assertPaymentOwner(
     const clinicId = clinicPaymentScope(payment);
     if (!clinicId) return false;
     if (!(await canManageClinicBillingMutation(req.user!, clinicId))) return false;
-    return canAccessClinicPaymentBranch(req, payment, clinicId);
+    return assertClinicPaymentBranchAccess(req, payment, clinicId);
   }
 
   // Orders are canonical ownership records. Historical payment metadata was
