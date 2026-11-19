@@ -1,4 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { queryRaw } = vi.hoisted(() => ({ queryRaw: vi.fn() }));
+vi.mock('./prisma.js', () => ({ default: { $queryRaw: queryRaw } }));
+
+beforeEach(() => queryRaw.mockReset().mockResolvedValue([]));
 import { inventoryBranchWhere, resolveInventoryBranchContext } from './inventoryBranchScope.js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -47,7 +52,8 @@ describe('inventory branch query allow-list', () => {
 });
 
 describe('inventory branch context resolution', () => {
-  it('uses the trusted active canonical branch allow-list without legacy membership lookups', async () => {
+  it('uses the trusted active canonical branch allow-list and preserves it when legacy membership is absent', async () => {
+    queryRaw.mockResolvedValueOnce([]);
     await expect(resolveInventoryBranchContext(
       'user-1',
       'clinic-a',
@@ -64,6 +70,7 @@ describe('inventory branch context resolution', () => {
   });
 
   it('keeps organization roles limited to the authenticated active branch list', async () => {
+    queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'active-a' }, { id: 'active-b' }]);
     await expect(resolveInventoryBranchContext(
       'owner-1',
       'clinic-a',
@@ -78,6 +85,7 @@ describe('inventory branch context resolution', () => {
   });
 
   it('denies an empty canonical assignment instead of expanding to every clinic branch', async () => {
+    queryRaw.mockResolvedValueOnce([]);
     await expect(resolveInventoryBranchContext(
       'doctor-1',
       'clinic-a',
@@ -91,7 +99,19 @@ describe('inventory branch context resolution', () => {
     });
   });
 
+
+  it('recovers only an active branch from exact legacy clinic membership', async () => {
+    queryRaw.mockResolvedValueOnce([{ branch_id: 'legacy-a', branch_active: true }]);
+    await expect(resolveInventoryBranchContext('doctor-a', 'clinic-a', 'DOCTOR', [], null))
+      .resolves.toMatchObject({ branchId: 'legacy-a', branchIds: ['legacy-a'] });
+
+    queryRaw.mockReset().mockResolvedValueOnce([{ branch_id: 'archived-a', branch_active: false }]);
+    await expect(resolveInventoryBranchContext('doctor-a', 'clinic-a', 'DOCTOR', [], null))
+      .resolves.toMatchObject({ branchId: null, branchIds: [] });
+  });
+
   it('ignores a selected branch that is not in the authenticated active list', async () => {
+    queryRaw.mockResolvedValueOnce([]);
     await expect(resolveInventoryBranchContext(
       'doctor-1',
       'clinic-a',
