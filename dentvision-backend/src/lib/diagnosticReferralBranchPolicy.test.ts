@@ -6,7 +6,7 @@ vi.mock('./prisma.js', () => ({
   default: { $queryRaw: queryRaw },
 }));
 
-import { canAccessReferralBranch } from './diagnosticReferralBranchPolicy.js';
+import { canAccessReferralBranch, resolveReferralBranchId } from './diagnosticReferralBranchPolicy.js';
 
 const resource = { clinicId: 'clinic-1', branchId: 'branch-1' };
 const clinicUser = (role: string, branchIds: string[] = []) => ({
@@ -48,5 +48,40 @@ describe('diagnostic referral branch policy', () => {
   it('keeps the explicit platform superadmin exception', async () => {
     expect(await canAccessReferralBranch(clinicUser('SUPERADMIN'), resource)).toBe(true);
     expect(queryRaw).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('diagnostic referral patient branch binding', () => {
+  it('derives the target branch from the patient record when the client omits branchId', () => {
+    expect(resolveReferralBranchId({
+      patientId: 'patient-1',
+      patientBranchId: 'branch-patient',
+      requestedBranchId: null,
+    })).toBe('branch-patient');
+  });
+
+  it('rejects an owner-selected branch that differs from the canonical patient branch', () => {
+    expect(resolveReferralBranchId({
+      patientId: 'patient-1',
+      patientBranchId: 'branch-patient',
+      requestedBranchId: 'another-active-branch',
+    })).toBeNull();
+  });
+
+  it('fails closed when the selected clinic patient has no canonical branch', () => {
+    expect(resolveReferralBranchId({
+      patientId: 'patient-1',
+      patientBranchId: null,
+      requestedBranchId: 'another-active-branch',
+    })).toBeNull();
+  });
+
+  it('allows an unlinked referral to select a branch for subsequent active-membership validation', () => {
+    expect(resolveReferralBranchId({
+      patientId: null,
+      patientBranchId: null,
+      requestedBranchId: 'branch-selected',
+    })).toBe('branch-selected');
   });
 });
