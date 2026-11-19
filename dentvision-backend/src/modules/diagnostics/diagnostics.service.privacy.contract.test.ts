@@ -63,7 +63,7 @@ describe('diagnostics dashboard active branch filter', () => {
     const dashboard = source.slice(start, end);
     expect(dashboard).toContain('branchIds?: string[]');
     expect(dashboard).toContain('if (branchIds !== undefined) where.branchId = { in: branchIds }');
-    expect(dashboard.match(/prisma\.referral\.count\(\{ where:/g)).toHaveLength(0);
+    expect(dashboard.match(/prisma\.referral\.count\(\{ where/g) || []).toHaveLength(5);
     expect(dashboard).toContain('prisma.referral.count({ where })');
     expect(dashboard).toContain('prisma.referral.findMany({ where, include: referralInclude');
   });

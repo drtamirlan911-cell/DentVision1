@@ -338,17 +338,18 @@ diagnosticsRouter.post('/referrals/:id/comments', requireReferralAccess(true), a
 diagnosticsRouter.get('/dashboard', async (req: AuthRequest, res) => {
   try {
     const q = req.query as Record<string, string | undefined>;
-    const scope = await authorizeReferralListScope(req.user, { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId });
-    if (scope.ok === false) return res.status(scope.status || 403).json({ ok: false, error: scope.error || 'Нет доступа' });
+    const requestedScope = { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId };
+    const access = await authorizeReferralListScope(req.user, requestedScope);
+    if (access.ok === false) return res.status(access.status || 403).json({ ok: false, error: access.error || 'Нет доступа' });
 
-    const branchIds = await referralListBranchIds(req.user, scope.clinicId);
-    if (scope.clinicId && branchIds && branchIds.length === 0) {
+    const branchIds = await referralListBranchIds(req.user, requestedScope.clinicId);
+    if (requestedScope.clinicId && branchIds && branchIds.length === 0) {
       return res.status(403).json({ ok: false, error: 'Нет доступа к филиалам клиники' });
     }
 
     return res.json({
       ok: true,
-      data: await svc.getDashboardStats({ ...scope, branchIds }),
+      data: await svc.getDashboardStats({ ...requestedScope, branchIds }),
     } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
