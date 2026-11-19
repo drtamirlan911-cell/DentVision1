@@ -5,16 +5,16 @@ import { resolve } from 'node:path';
 describe('diagnostic referral branch policy contract', () => {
   const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/lib/diagnosticReferralBranchPolicy.ts'), 'utf8');
 
-  it('requires clinic membership and an assigned branch for scoped access', () => {
+  it('requires the exact active clinic context and a trusted active branch allow-list', () => {
     expect(source).toContain('if (!resource.clinicId) return false');
-    expect(source).toContain('WHERE cm."userId" = ${user.id} AND cm."clinicId" = ${resource.clinicId}');
-    expect(source).toContain('LEFT JOIN "branches" b ON b."id" = cm."branch_id"');
-    expect(source).toContain('CASE WHEN cm."branch_id" IS NULL THEN true ELSE COALESCE(b."active", false) END AS branch_active');
-    expect(source).toContain('const activeMemberBranchId = membership[0].branch_active ? membership[0].branch_id : null');
-    expect(source).toContain('if (!membership[0]) return false');
-    expect(source).toContain('if (!resource.branchId) return false');
+    expect(source).toContain('if (!isActiveClinicContext(user, resource.clinicId)) return false');
+    expect(source).toContain('[user.assignedBranchId, ...(user.branchIds ?? [])]');
+    expect(source).toContain('if (!allowedBranchIds.has(resource.branchId)) return false');
     expect(source).toContain('DIAGNOSTIC_REFERRAL_BRANCH_FORBIDDEN');
-    expect(source).toContain('AND clinic_id = ${clinicId} AND active = true');
+    expect(source).toContain('organization_id = ${organizationId}');
+    expect(source).toContain('organization_id IS NULL AND clinic_id = ${clinicId}');
+    expect(source).toContain('AND active = true');
+    expect(source).not.toContain('FROM "clinic_members" cm');
   });
 
   it('keeps organization roles explicit instead of introducing wildcard access', () => {

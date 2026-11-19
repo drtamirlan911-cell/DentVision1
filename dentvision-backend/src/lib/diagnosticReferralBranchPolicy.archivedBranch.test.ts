@@ -57,43 +57,20 @@ describe('diagnostic referral clinic context enforcement', () => {
 });
 
 describe('diagnostic referral branch archive enforcement', () => {
-  it('denies a doctor whose only legacy clinic-member assignment points to an archived branch', async () => {
-    queryRaw.mockResolvedValueOnce([{ branch_id: 'branch-old', branch_active: false }])
-      .mockResolvedValueOnce([]);
-
+  it('denies a doctor whose active branch allow-list does not include the referral branch', async () => {
     await expect(canAccessReferralBranch(clinicDoctor, {
       clinicId: 'clinic-1',
       branchId: 'branch-old',
     })).resolves.toBe(false);
+    expect(queryRaw).not.toHaveBeenCalled();
   });
 
-  it('does not grant an owner access to an archived branch through a legacy assignment', async () => {
-    queryRaw.mockResolvedValueOnce([{ branch_id: 'branch-old', branch_active: false }])
-      .mockResolvedValueOnce([]);
-
-    await expect(canAccessReferralBranch({ ...clinicDoctor, role: 'OWNER' }, {
-      clinicId: 'clinic-1',
-      branchId: 'branch-old',
-    })).resolves.toBe(false);
-  });
-
-  it('continues to allow an assigned doctor in an active branch', async () => {
-    queryRaw.mockResolvedValueOnce([{ branch_id: 'branch-active', branch_active: true }])
-      .mockResolvedValueOnce([{ id: 'branch-active' }]);
-
-    await expect(canAccessReferralBranch(clinicDoctor, {
-      clinicId: 'clinic-1',
-      branchId: 'branch-active',
-    })).resolves.toBe(true);
-  });
-
-  it('rechecks branch active state even when a stale token still lists the branch', async () => {
-    queryRaw.mockResolvedValueOnce([{ branch_id: 'branch-old', branch_active: false }])
-      .mockResolvedValueOnce([]);
+  it('does not grant an owner access to an archived branch through an organization-wide role', async () => {
+    queryRaw.mockResolvedValueOnce([]);
 
     await expect(canAccessReferralBranch({
       ...clinicDoctor,
-      assignedBranchId: 'branch-old',
+      role: 'OWNER',
       branchIds: ['branch-old'],
     }, {
       clinicId: 'clinic-1',
@@ -101,13 +78,48 @@ describe('diagnostic referral branch archive enforcement', () => {
     })).resolves.toBe(false);
   });
 
-  it('does not let an owner use a stale assignment to access an inactive branch', async () => {
-    queryRaw.mockResolvedValueOnce([{ branch_id: 'branch-old', branch_active: false }])
-      .mockResolvedValueOnce([]);
+  it('allows a canonical-only clinic member with an active BranchMember assignment', async () => {
+    queryRaw.mockResolvedValueOnce([{ id: 'branch-active' }]);
+
+    await expect(canAccessReferralBranch({
+      ...clinicDoctor,
+      branchIds: ['branch-active'],
+    }, {
+      clinicId: 'clinic-1',
+      branchId: 'branch-active',
+    })).resolves.toBe(true);
+  });
+
+  it('allows an organization manager only within its active branch allow-list', async () => {
+    queryRaw.mockResolvedValueOnce([{ id: 'branch-active' }]);
 
     await expect(canAccessReferralBranch({
       ...clinicDoctor,
       role: 'OWNER',
+      branchIds: ['branch-active'],
+    }, {
+      clinicId: 'clinic-1',
+      branchId: 'branch-active',
+    })).resolves.toBe(true);
+  });
+
+  it('denies a branch mapped to a different organization, even when its legacy clinic id matches', async () => {
+    queryRaw.mockResolvedValueOnce([]);
+
+    await expect(canAccessReferralBranch({
+      ...clinicDoctor,
+      branchIds: ['branch-foreign'],
+    }, {
+      clinicId: 'clinic-1',
+      branchId: 'branch-foreign',
+    })).resolves.toBe(false);
+  });
+
+  it('rechecks branch active state even when a stale token still lists the branch', async () => {
+    queryRaw.mockResolvedValueOnce([]);
+
+    await expect(canAccessReferralBranch({
+      ...clinicDoctor,
       assignedBranchId: 'branch-old',
       branchIds: ['branch-old'],
     }, {

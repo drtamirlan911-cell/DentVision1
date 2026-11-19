@@ -39,42 +39,36 @@ export async function canAccessReferralBranch(
   if (user.role === 'SUPERADMIN') return true;
   if (!isActiveClinicContext(user, resource.clinicId)) return false;
 
-  // Verify current membership as a second boundary after validating active
-  // organization context; neither a role nor a retained membership is enough alone.
-  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null; branch_active: boolean }>>`
-    SELECT cm."branch_id",
-      CASE WHEN cm."branch_id" IS NULL THEN true ELSE COALESCE(b."active", false) END AS branch_active
-    FROM "clinic_members" cm
-    LEFT JOIN "branches" b ON b."id" = cm."branch_id"
-    WHERE cm."userId" = ${user.id} AND cm."clinicId" = ${resource.clinicId}
-    LIMIT 1
-  `;
-  if (!membership[0]) return false;
+  // The auth middleware has already resolved PersonRole and active
+  // BranchMember assignments from the selected organization. ClinicMember is
+  // only merged into this positive allow-list for legacy, non-canonical data.
+  // Requiring a legacy row here would deny valid canonical-only clinic users.
+  if (!resource.branchId) return false;
 
-  const activeMemberBranchId = membership[0].branch_active ? membership[0].branch_id : null;
-  const assigned = new Set(
-    [activeMemberBranchId, user.assignedBranchId, ...(user.branchIds ?? [])]
+  const allowedBranchIds = new Set(
+    [user.assignedBranchId, ...(user.branchIds ?? [])]
       .filter((id): id is string => Boolean(id)),
   );
+  if (!allowedBranchIds.has(resource.branchId)) return false;
 
-  if (user.role === 'OWNER' || user.role === 'ADMIN') {
-    return branchBelongsToClinic(resource.branchId, resource.clinicId);
-  }
-
-  if (!resource.branchId) return false;
-  if (!(await branchBelongsToClinic(resource.branchId, resource.clinicId))) return false;
-  return assigned.has(resource.branchId);
+  return branchBelongsToClinic(resource.branchId, resource.clinicId, user.organizationId);
 }
 
 export async function branchBelongsToClinic(
   branchId: string | null | undefined,
   clinicId: string,
+  organizationId?: string,
 ): Promise<boolean> {
-  if (!branchId || !clinicId) return false;
+  if (!branchId || !clinicId || !organizationId) return false;
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT id
     FROM branches
-    WHERE id = ${branchId} AND clinic_id = ${clinicId} AND active = true
+    WHERE id = ${branchId}
+      AND active = true
+      AND (
+        organization_id = ${organizationId}
+        OR (organization_id IS NULL AND clinic_id = ${clinicId})
+      )
     LIMIT 1
   `;
   return rows.length === 1;
