@@ -70,10 +70,14 @@ function normalizeText(value: string): string {
 
 function stemToken(token: string): string {
   if (token.length < 5) return token;
-  return token.replace(
-    /(иями|ями|ами|ией|ией|ого|ему|ыми|ими|ая|яя|ое|ее|ые|ие|ий|ый|ой|ов|ев|ам|ям|ах|ях|ую|юю|ы|и|а|я|у|ю|е|о|s)$/i,
+  const stemmed = token.replace(
+    /(иями|ями|ами|ией|ого|ему|ыми|ими|ая|яя|ое|ее|ые|ие|ий|ый|ой|ов|ев|ей|ам|ям|ах|ях|ую|юю|ы|и|а|я|у|ю|е|о|s)$/i,
     (suffix) => token.length - suffix.length >= 4 ? '' : suffix,
   );
+  // A short stable Russian stem makes common inflections (запись/записи,
+  // расписание/расписания, лабораторию/лаборатория) searchable without an
+  // external morphological service or sending the user's text elsewhere.
+  return /[а-я]/i.test(stemmed) && stemmed.length > 8 ? stemmed.slice(0, 8) : stemmed;
 }
 
 function tokenize(value: string): string[] {
@@ -198,20 +202,29 @@ export function rankProductKnowledgeChunks(
     bodyTerms: termFrequencies(chunk.content),
     titleTerms: termFrequencies(chunk.title),
   }));
-  const averageLength = documents.reduce((sum, doc) => sum + [...doc.bodyTerms.values()].reduce((a, b) => a + b, 0), 0)
-    / Math.max(1, documents.length);
+  const averageLength = documents.reduce((sum, doc) =>
+    sum
+    + [...doc.bodyTerms.values()].reduce((a, b) => a + b, 0)
+    + 2 * [...doc.titleTerms.values()].reduce((a, b) => a + b, 0),
+  0) / Math.max(1, documents.length);
   const total = documents.length;
   const normalizedQuery = normalizeText(trimmedQuery);
   const scored: ProductKnowledgeHit[] = [];
 
   for (const document of documents) {
-    const length = [...document.bodyTerms.values()].reduce((a, b) => a + b, 0);
+    const length = [...document.bodyTerms.values()].reduce((a, b) => a + b, 0)
+      + 2 * [...document.titleTerms.values()].reduce((a, b) => a + b, 0);
     let score = 0;
 
     for (const [term, weight] of queryWeights) {
-      const frequency = document.bodyTerms.get(term) || 0;
+      // Heading matches count too; users often ask with the cabinet name or
+      // feature label while the detail paragraph uses different wording.
+      const frequency = (document.bodyTerms.get(term) || 0)
+        + 2 * (document.titleTerms.get(term) || 0);
       if (!frequency) continue;
-      const documentFrequency = documents.filter((candidate) => candidate.bodyTerms.has(term)).length;
+      const documentFrequency = documents.filter((candidate) =>
+        candidate.bodyTerms.has(term) || candidate.titleTerms.has(term),
+      ).length;
       const inverseFrequency = Math.log(1 + (total - documentFrequency + 0.5) / (documentFrequency + 0.5));
       const denominator = frequency + 1.2 * (0.25 + 0.75 * length / Math.max(1, averageLength));
       score += weight * inverseFrequency * (frequency * 2.2) / denominator;
@@ -261,7 +274,7 @@ export function formatProductKnowledgeContext(hits: ProductKnowledgeHit[]): stri
   let used = 0;
   for (let index = 0; index < hits.length; index += 1) {
     const hit = hits[index];
-    const citation = 'Источник: Руководство пользователя DentVision — ' + hit.title + ' (' + hit.sourcePath + '#' + slugify(hit.title) + ').';
+    const citation = 'Источник: Руководство пользователя DentVision, раздел «' + hit.title + '».';
     const section = '[' + (index + 1) + '] ' + citation + '\n' + hit.content;
     if (used + section.length > MAX_CONTEXT_CHARS) {
       const remaining = MAX_CONTEXT_CHARS - used;
