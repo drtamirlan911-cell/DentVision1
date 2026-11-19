@@ -41,8 +41,15 @@ export async function resolvePatientBranchContext(
     LIMIT 1
   `;
   const legacyBranchId = membership[0]?.branch_active ? membership[0].branch_id : null;
+  // assignedBranchId is only a selected-branch hint. It is trusted when it is
+  // part of the freshly verified allow-list or the active exact-clinic fallback;
+  // a stale JWT claim cannot reintroduce a branch removed by archive/revocation.
+  const verifiedAssignedBranchId = assignedBranchId
+    && (authorizedBranchIds.includes(assignedBranchId) || assignedBranchId === legacyBranchId)
+    ? assignedBranchId
+    : null;
   let allowed = Array.from(new Set(
-    [...authorizedBranchIds, assignedBranchId, legacyBranchId]
+    [...authorizedBranchIds, verifiedAssignedBranchId, legacyBranchId]
       .filter((id): id is string => typeof id === 'string' && id.length > 0),
   ));
 
