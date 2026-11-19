@@ -89,6 +89,15 @@ export function isOrganizationBranchManagerRoleKey(roleKey: string): boolean {
   return ['owner', 'org_owner', 'admin', 'org_admin'].includes(key) || /_(owner|admin)$/.test(key);
 }
 
+/** A legacy clinic branch may have no organization_id; only then may clinic_id map it to the canonical clinic Organization. */
+export function branchMatchesOrganization(
+  branch: { organizationId: string | null; clinicId: string | null },
+  organization: { id: string; type: string; originalId: string | null },
+): boolean {
+  if (branch.organizationId) return branch.organizationId === organization.id;
+  return organization.type === 'CLINIC' && Boolean(organization.originalId) && branch.clinicId === organization.originalId;
+}
+
 export function resolveActivePersonRole(
   personRoles: Array<{ scopeType: string | null; scopeId: string | null; role: { key: string } }>,
   organizationId: string,
@@ -181,8 +190,11 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
           effectiveRole = scopedRole;
           unifiedBranchIds = person.branchMemberships.map((membership) => membership.branchId);
           if (payload.branchId) {
-            const requestedBranch = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null; active: boolean }>>`SELECT "id", "organization_id", "active" FROM "branches" WHERE "id" = ${payload.branchId} LIMIT 1`;
-            if (!requestedBranch[0] || requestedBranch[0].organization_id !== payload.organizationId) return res.status(403).json({ ok: false, error: 'Филиал не относится к активной организации' });
+            const requestedBranch = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null; clinic_id: string | null; active: boolean }>>`SELECT "id", "organization_id", "clinic_id", "active" FROM "branches" WHERE "id" = ${payload.branchId} LIMIT 1`;
+            if (!requestedBranch[0] || !branchMatchesOrganization(
+              { organizationId: requestedBranch[0].organization_id, clinicId: requestedBranch[0].clinic_id },
+              { id: payload.organizationId, type: person.organization.type, originalId: person.organization.originalId },
+            )) return res.status(403).json({ ok: false, error: 'Филиал не относится к активной организации' });
             const roleKeys = person.personRoles
               .filter((pr) => pr.scopeType === 'organization' && pr.scopeId === payload.organizationId)
               .map((pr) => pr.role.key.toLowerCase());

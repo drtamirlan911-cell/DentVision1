@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { isBranchContextRecoveryPath, isOrganizationBranchManagerRoleKey, mergeBranchIds, shouldUseLegacyClinicFallback } from './auth.js';
+import { branchMatchesOrganization, isBranchContextRecoveryPath, isOrganizationBranchManagerRoleKey, mergeBranchIds, shouldUseLegacyClinicFallback } from './auth.js';
 
 describe('mergeBranchIds', () => {
   it('combines universal and legacy branch assignments without duplicates', () => {
@@ -66,5 +66,21 @@ describe('organization-wide active branch context', () => {
     expect(source).toContain('WHERE "organization_id" = ${effectiveOrgId} AND "active" = true');
     expect(source).toContain('WHERE "clinic_id" = ${effectiveClinicId} AND "active" = true');
     expect(source).toContain('mergeBranchIds(mergeBranchIds(unifiedBranchIds, legacyBranchIds), organizationWideBranchIds)');
+  });
+});
+
+
+describe('legacy branch organization mapping', () => {
+  it('accepts a clinic_id mapping only when organization_id is absent', () => {
+    const clinic = { id: 'org-clinic', type: 'CLINIC', originalId: 'clinic-1' };
+    expect(branchMatchesOrganization({ organizationId: 'org-clinic', clinicId: 'clinic-1' }, clinic)).toBe(true);
+    expect(branchMatchesOrganization({ organizationId: null, clinicId: 'clinic-1' }, clinic)).toBe(true);
+  });
+
+  it('fails closed for a branch mapped to another organization or another clinic', () => {
+    const clinic = { id: 'org-clinic', type: 'CLINIC', originalId: 'clinic-1' };
+    expect(branchMatchesOrganization({ organizationId: 'org-other', clinicId: 'clinic-1' }, clinic)).toBe(false);
+    expect(branchMatchesOrganization({ organizationId: null, clinicId: 'clinic-2' }, clinic)).toBe(false);
+    expect(branchMatchesOrganization({ organizationId: null, clinicId: 'clinic-1' }, { id: 'org-lab', type: 'LABORATORY', originalId: 'clinic-1' })).toBe(false);
   });
 });

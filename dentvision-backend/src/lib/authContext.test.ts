@@ -115,7 +115,7 @@ describe('resolveAuthContext — archived preferred branch', () => {
       organization: clinicOrg,
       personRoles: activeClinicRole,
     });
-    queryRaw.mockResolvedValueOnce([{ id: 'branch-archived', organization_id: ORG_ID, active: false }]);
+    queryRaw.mockResolvedValueOnce([{ id: 'branch-archived', organization_id: ORG_ID, clinic_id: CLINIC_ID, active: false }]);
 
     const ctx = await resolveAuthContext(USER_ID, { organizationId: ORG_ID, branchId: 'branch-archived' });
 
@@ -127,6 +127,28 @@ describe('resolveAuthContext — archived preferred branch', () => {
     });
     expect(ctx).not.toHaveProperty('branchId');
     expect(personFindFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops a legacy archived clinic branch but preserves its clinic identity', async () => {
+    organizationFindFirst.mockResolvedValueOnce(null);
+    clinicMemberFindUnique.mockResolvedValueOnce({ id: 'membership-1' });
+    queryRaw.mockResolvedValueOnce([{ id: 'legacy-branch', organization_id: null, clinic_id: CLINIC_ID, active: false }]);
+
+    const ctx = await resolveAuthContext(USER_ID, { clinicId: CLINIC_ID, branchId: 'legacy-branch' });
+
+    expect(ctx).toEqual({ clinicId: CLINIC_ID });
+  });
+
+  it('retains a legacy active branch only for its exact clinic assignment', async () => {
+    organizationFindFirst.mockResolvedValueOnce(null);
+    clinicMemberFindUnique
+      .mockResolvedValueOnce({ id: 'membership-1' })
+      .mockResolvedValueOnce({ id: 'membership-1', branchId: 'legacy-branch' });
+    queryRaw.mockResolvedValueOnce([{ id: 'legacy-branch', organization_id: null, clinic_id: CLINIC_ID, active: true }]);
+
+    const ctx = await resolveAuthContext(USER_ID, { clinicId: CLINIC_ID, branchId: 'legacy-branch' });
+
+    expect(ctx).toEqual({ clinicId: CLINIC_ID, branchId: 'legacy-branch' });
   });
 });
 

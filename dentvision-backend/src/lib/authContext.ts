@@ -167,11 +167,35 @@ export async function resolveAuthContext(
   }
 
   if (preferred?.branchId) {
-    const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null; active: boolean }>>`SELECT "id", "organization_id", "active" FROM "branches" WHERE "id" = ${preferred.branchId} LIMIT 1`;
+    const rows = await prisma.$queryRaw<Array<{
+      id: string;
+      organization_id: string | null;
+      clinic_id: string | null;
+      active: boolean;
+    }>>`SELECT "id", "organization_id", "clinic_id", "active" FROM "branches" WHERE "id" = ${preferred.branchId} LIMIT 1`;
     const branch = rows[0];
-    if (!branch?.organization_id) return {};
+    if (!branch) return {};
+
+    // Legacy clinic branches can predate organization_id. Resolve them only
+    // through their exact clinic_id -> Organization.originalId relationship.
+    if (!branch.organization_id && branch.clinic_id) {
+      const ctx = await contextForClinic(userId, branch.clinic_id);
+      if (!ctx) return {};
+      if (preferred.organizationId && ctx.organizationId !== preferred.organizationId) return {};
+      if (!branch.active) return ctx;
+
+      const membership = await prisma.clinicMember.findUnique({
+        where: { userId_clinicId: { userId, clinicId: branch.clinic_id } },
+        select: { id: true, branchId: true },
+      });
+      if (!membership || membership.branchId !== preferred.branchId) return {};
+      return { ...ctx, branchId: preferred.branchId };
+    }
+
+    if (!branch.organization_id) return {};
     const ctx = await contextForOrganization(userId, preferred.organizationId || branch.organization_id);
     if (!ctx || ctx.organizationId !== branch.organization_id) return {};
+    // Preserve organization access while removing the stale archived branch claim.
     if (!branch.active) return ctx;
     const person = await prisma.person.findFirst({
       where: { userId, organizationId: branch.organization_id },
