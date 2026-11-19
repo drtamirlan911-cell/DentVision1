@@ -16,40 +16,32 @@ export function inventoryBranchWhere(ctx: InventoryBranchContext): { clinicId: s
   return { clinicId: ctx.clinicId, branchId: { in: ctx.branchIds } };
 }
 
+/**
+ * Build inventory scope only from the authenticated request context.
+ * auth.ts revalidates canonical BranchMember + legacy assignments against
+ * active branch rows on every request, so a second ClinicMember-only lookup
+ * here would incorrectly deny canonical-only clinic members.
+ */
 export async function resolveInventoryBranchContext(
-  userId: string,
+  _userId: string,
   clinicId: string,
   role: string,
+  authorizedBranchIds: readonly string[] = [],
+  selectedBranchId?: string | null,
 ): Promise<InventoryBranchContext> {
-  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null; branch_active: boolean }>>`
-    SELECT cm."branch_id", CASE WHEN cm."branch_id" IS NULL THEN true ELSE COALESCE(b."active", false) END AS branch_active
-    FROM "clinic_members" cm LEFT JOIN "branches" b ON b."id" = cm."branch_id"
-    WHERE cm."userId" = ${userId} AND cm."clinicId" = ${clinicId}
-    LIMIT 1
-  `;
-  const branchId = membership[0]?.branch_active ? (membership[0]?.branch_id ?? null) : null;
-
-  if (ORGANIZATION_ROLES.has(role)) {
-    const branches = await prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT id FROM branches
-      WHERE clinic_id = ${clinicId} AND active = true
-      ORDER BY "isDefault" DESC, created_at ASC
-    `;
-    return {
-      clinicId,
-      role,
-      branchId,
-      organizationWide: true,
-      branchIds: branches.map((b) => b.id),
-    };
-  }
+  const branchIds = Array.from(new Set(
+    authorizedBranchIds.filter((id): id is string => typeof id === 'string' && id.length > 0),
+  ));
+  const branchId = selectedBranchId && branchIds.includes(selectedBranchId)
+    ? selectedBranchId
+    : branchIds[0] ?? null;
 
   return {
     clinicId,
     role,
     branchId,
-    organizationWide: false,
-    branchIds: branchId ? [branchId] : [],
+    organizationWide: ORGANIZATION_ROLES.has(String(role || '').toUpperCase()),
+    branchIds,
   };
 }
 
