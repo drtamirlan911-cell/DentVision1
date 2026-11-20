@@ -225,7 +225,7 @@ export async function chatCompletion(request: LLMRequest): Promise<LLMResponse> 
           .join(''),
         content,
       );
-  await recordModelUsage(choice.tier, tokens);
+  await recordModelUsage(choice.tier, tokens, choice.model);
 
   return {
     content,
