@@ -48,6 +48,17 @@ describe('AI clinic tools — branch filtering allow-list', () => {
     expect(toolBlock('createInvoice')).toContain('branchId: ctx.branchScope?.branchId || patient.branchId || null');
   });
 
+
+  it('filters createAppointment conflict candidates to the caller branch', () => {
+    const block = toolBlock('createAppointment');
+    expect(block).toMatch(/appointment\\.findMany\\(\\{\\s*where:\\s*\\{\\s*clinicId,\\s*\\.\\.\\.appointmentBranchWhere\\(ctx\\)/);
+  });
+
+  it('filters rescheduleAppointment conflict candidates to the caller branch', () => {
+    const block = toolBlock('rescheduleAppointment');
+    expect(block).toMatch(/appointment\\.findMany\\(\\{\\s*where:\\s*\\{\\s*clinicId,\\s*\\.\\.\\.appointmentBranchWhere\\(ctx\\)/);
+  });
+
   it('does not allow unfiltered clinic-wide tools for narrow branch contexts', () => {
     for (const tool of [
       'getPromotions',
