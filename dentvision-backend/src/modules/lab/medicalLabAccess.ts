@@ -50,3 +50,12 @@ export const MEDICAL_LAB_CAPABILITIES: readonly MedicalLabCapability[] = [
 export function medicalLabCapabilitiesForRoles(roleKeys: readonly string[]): MedicalLabCapability[] {
   return MEDICAL_LAB_CAPABILITIES.filter((capability) => medicalLabRoleAllows(roleKeys, capability));
 }
+
+/** Legacy fallback may be used only when exactly one laboratory membership exists. */
+export function selectUniqueMedicalLabMembershipId(
+  memberships: readonly { labId?: string | null }[],
+): string | null {
+  if (memberships.length !== 1) return null;
+  const labId = String(memberships[0]?.labId || '').trim();
+  return labId || null;
+}
