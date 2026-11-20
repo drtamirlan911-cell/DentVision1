@@ -577,7 +577,13 @@ schoolRouter.get('/enrollments', authenticate, async (req: AuthRequest, res) => 
       include: { course: true },
       orderBy: { createdAt: 'desc' },
     });
-    res.json({ ok: true, data: enrollments });
+    // Prisma BigInt cannot be serialized by JSON.stringify. Return the minor-unit
+    // amount as a decimal string so the candidate can see the confirmed purchase.
+    const data = enrollments.map((enrollment) => ({
+      ...enrollment,
+      paidAmountMinor: enrollment.paidAmountMinor == null ? null : enrollment.paidAmountMinor.toString(),
+    }));
+    return res.json({ ok: true, data });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch enrollments' });
   }
