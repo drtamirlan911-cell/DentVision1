@@ -144,17 +144,9 @@ export const BRANCH_FILTERED_CLINIC_AI_TOOLS = new Set([
   'getRevenue',
   'getDebtors',
   'createInvoice',
-  'getClinicLoadPlan',
-  'getDashboardStats',
   'getInventory',
   'getLabOrders',
-  'createDiagnosticReferral',
-  'createLabOrder',
   'updateLabOrderStatus',
-  'getRecallList',
-  'searchClinicalNotes',
-  'analyzeRadiograph',
-  'applyToothFindings',
 ]);
 
 export function patientBranchWhere(scope: AiToolBranchScope): Prisma.PatientWhereInput {

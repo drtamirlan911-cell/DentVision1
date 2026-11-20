@@ -97,6 +97,8 @@ export interface OrchestratorInput {
   availableWorkspaces?: Array<{ name: string; scopeType: string; roleLabel: string }>;
   /** Branch is present only after server-side IAM + branch membership verification. */
   branch?: { id: string; name: string; code: string; organizationId: string | null; clinicId: string | null } | null;
+  /** Branch hint forwarded to the kernel; it is revalidated before tool execution. */
+  requestedBranchId?: string | null;
   /** Context focus from workspace (patient / product / …). */
   focusType?: string | null;
   focusId?: string | null;
@@ -558,6 +560,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
     organizationId: access.organizationId,
     organizationType: access.organizationType,
     organizationOriginalId: access.organizationOriginalId,
+    requestedBranchId: input.requestedBranchId || input.branch?.id || null,
     supplierId: access.supplierId,
     lecturerId: access.lecturerId,
     entity: input.entity,

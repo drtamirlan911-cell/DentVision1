@@ -403,6 +403,7 @@ async function processQuery(
           roleLabel,
         })) || [],
         branch: aiContext?.branch || null,
+        requestedBranchId: req.user?.branchId || req.user?.assignedBranchId || aiContext?.branch?.id || null,
         userName: isGuest
           ? 'Гость'
           : [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' '),
@@ -849,6 +850,7 @@ aiRouter.post('/action', authenticate, async (req: AuthRequest, res) => {
       role: access.role,
       organizationId: access.organizationId,
       organizationType: access.organizationType,
+      requestedBranchId: req.user?.branchId || req.user?.assignedBranchId || null,
       supplierId: access.supplierId,
       lecturerId: access.lecturerId,
     }, allowed);
@@ -1079,6 +1081,7 @@ aiRouter.post('/confirm', authenticate, async (req: AuthRequest, res) => {
         role: access.role,
         organizationId: access.organizationId,
         organizationType: access.organizationType,
+        requestedBranchId: req.user?.branchId || req.user?.assignedBranchId || null,
         supplierId: access.supplierId,
         lecturerId: access.lecturerId,
       },

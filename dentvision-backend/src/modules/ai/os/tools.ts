@@ -24,6 +24,13 @@ import { publish } from '../../../lib/events.js';
 import { resolveClinicAccess } from '../../../lib/orgContext.js';
 import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
 import { scrubToolOutput } from '../lib/piiScrubber.js';
+import {
+  patientBranchWhere as patientBranchFilter,
+  appointmentBranchWhere as appointmentBranchFilter,
+  invoiceBranchWhere as invoiceBranchFilter,
+  inventoryBranchWhere as inventoryBranchFilter,
+  labOrderBranchWhere as labOrderBranchFilter,
+} from './aiToolBranchScope.js';
 import { createReferral } from '../../diagnostics/diagnostics.service.js';
 import { prepareLabOrderWrite, VALID_STATUSES as VALID_LAB_STATUSES } from '../../lab/lab.routes.js';
 import { getDentalLabWorkQueue, getDiagnosticCenterWorkQueue, getMedicalLabReferralQueue, getSupplierInventoryOverview } from './partnerWorkspaceTools.js';
@@ -52,6 +59,10 @@ export interface ToolContext {
   organizationOriginalId?: string | null;
   supplierId?: string | null;
   lecturerId?: string | null;
+  /** Untrusted active branch selector; the kernel validates it against IAM membership. */
+  requestedBranchId?: string | null;
+  /** Scope verified by the governance kernel; never populated from model arguments. */
+  branchScope?: import('./aiToolBranchScope.js').AiToolBranchScope | null;
   /** What's open in the caller's workspace (os/context.ts) — the kernel may use it to fill a missing patientId, never a tool directly. */
   entity?: { type: string; id: string } | null;
 }
@@ -117,6 +128,31 @@ const RADIOGRAPH_FINDINGS_SCHEMA = {
 function requireClinic(ctx: ToolContext): string {
   if (!ctx.clinicId) throw new Error('NO_CLINIC');
   return ctx.clinicId;
+}
+
+function requireBranchScope(ctx: ToolContext) {
+  if (!ctx.branchScope) throw new Error('BRANCH_SCOPE_REQUIRED');
+  return ctx.branchScope;
+}
+
+function patientBranchWhere(ctx: ToolContext): Prisma.PatientWhereInput {
+  return patientBranchFilter(requireBranchScope(ctx));
+}
+
+function appointmentBranchWhere(ctx: ToolContext): Prisma.AppointmentWhereInput {
+  return appointmentBranchFilter(requireBranchScope(ctx));
+}
+
+function invoiceBranchWhere(ctx: ToolContext): Prisma.InvoiceWhereInput {
+  return invoiceBranchFilter(requireBranchScope(ctx));
+}
+
+function inventoryBranchWhere(ctx: ToolContext): Prisma.InventoryItemWhereInput {
+  return inventoryBranchFilter(requireBranchScope(ctx));
+}
+
+function labOrderBranchWhere(ctx: ToolContext): Prisma.LabOrderWhereInput {
+  return labOrderBranchFilter(requireBranchScope(ctx));
 }
 
 const APPOINTMENT_DOCTOR_ROLES = new Set(['DOCTOR', 'OWNER', 'DIRECTOR']);
@@ -202,6 +238,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const patients = await prisma.patient.findMany({
         where: {
           clinicId,
+          ...patientBranchWhere(ctx),
           ...(query && {
             OR: [
               { firstName: { contains: query, mode: 'insensitive' } },
@@ -231,7 +268,7 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
       const patient = await prisma.patient.findFirst({
-        where: scopedId(clinicId, String(args.patientId)),
+        where: { ...scopedId(clinicId, String(args.patientId)), ...patientBranchWhere(ctx) },
         include: {
           visits: { orderBy: { date: 'desc' }, take: 5 },
           teeth: { orderBy: { number: 'asc' } },
@@ -304,8 +341,8 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const visits = await prisma.visit.findMany({
         where: args.patientId
-          ? { patientId: String(args.patientId), patient: { clinicId } }
-          : { patient: { clinicId } },
+          ? { patientId: String(args.patientId), patient: { clinicId, ...patientBranchWhere(ctx) } }
+          : { patient: { clinicId, ...patientBranchWhere(ctx) } },
         orderBy: { date: 'desc' },
         take: Math.min(Number(args.limit) || 10, 50),
         include: { patient: { select: { firstName: true, lastName: true } } },
@@ -327,7 +364,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const start = new Date(date); start.setHours(0, 0, 0, 0);
       const end = new Date(date); end.setHours(23, 59, 59, 999);
       const appointments = await prisma.appointment.findMany({
-        where: { clinicId, date: { gte: start, lte: end } },
+        where: { clinicId, ...appointmentBranchWhere(ctx), date: { gte: start, lte: end } },
         orderBy: [{ date: 'asc' }, { time: 'asc' }],
         include: { patient: { select: { id: true, firstName: true, lastName: true, phone: true } } },
       });
@@ -358,8 +395,8 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { findScheduleConflicts, buildMeta } = await import('../../crm/appointmentMeta.js');
       const patient = await prisma.patient.findFirst({
-        where: scopedId(clinicId, String(args.patientId)),
-        select: { id: true, firstName: true, lastName: true },
+        where: { ...scopedId(clinicId, String(args.patientId)), ...patientBranchWhere(ctx) },
+        select: { id: true, firstName: true, lastName: true, branchId: true },
       });
       if (!patient) return { ok: false, error: 'Пациент не найден' };
 
@@ -419,6 +456,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         data: {
           id: uid(),
           clinicId,
+          branchId: ctx.branchScope?.branchId || patient.branchId || null,
           patientId: patient.id,
           doctorId,
           date: new Date(date),
@@ -463,7 +501,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { buildMeta, parseMeta, serializeAppointment, toDbStatus } = await import('../../crm/appointmentMeta.js');
       const existing = await prisma.appointment.findFirst({
-        where: scopedId(clinicId, String(args.appointmentId)),
+        where: { ...scopedId(clinicId, String(args.appointmentId)), ...appointmentBranchWhere(ctx) },
         include: { patient: { select: { firstName: true, lastName: true } } },
       });
       if (!existing) return { ok: false, error: 'Запись не найдена' };
@@ -511,7 +549,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { serializeAppointment } = await import('../../crm/appointmentMeta.js');
       const existing = await prisma.appointment.findFirst({
-        where: scopedId(clinicId, String(args.appointmentId)),
+        where: { ...scopedId(clinicId, String(args.appointmentId)), ...appointmentBranchWhere(ctx) },
         include: { patient: { select: { firstName: true, lastName: true } } },
       });
       if (!existing) return { ok: false, error: 'Запись не найдена' };
@@ -564,7 +602,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { findScheduleConflicts, parseMeta, serializeAppointment } = await import('../../crm/appointmentMeta.js');
       const existing = await prisma.appointment.findFirst({
-        where: scopedId(clinicId, String(args.appointmentId)),
+        where: { ...scopedId(clinicId, String(args.appointmentId)), ...appointmentBranchWhere(ctx) },
         include: { patient: { select: { firstName: true, lastName: true } } },
       });
       if (!existing) return { ok: false, error: 'Запись не найдена' };
@@ -617,7 +655,7 @@ export const TOOLS: Record<string, ToolSpec> = {
 
       const appointment = await prisma.appointment.update({
         where: { id: existing.id },
-        data: { date: new Date(date), time, doctorId },
+        data: { date: new Date(date), time, doctorId, ...(ctx.branchScope?.branchId ? { branchId: ctx.branchScope.branchId } : {}) },
         include: { patient: { select: { id: true, firstName: true, lastName: true, phone: true } } },
       });
       return { ok: true, data: serializeAppointment(appointment), navigate: '/crm/schedule' };
@@ -635,7 +673,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const plans = await prisma.treatmentPlan.findMany({
         where: {
-          patient: { clinicId },
+          patient: { clinicId, ...patientBranchWhere(ctx) },
           ...(args.patientId ? { patientId: String(args.patientId) } : {}),
         },
         orderBy: { createdAt: 'desc' },
@@ -673,8 +711,8 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
       const patient = await prisma.patient.findFirst({
-        where: scopedId(clinicId, String(args.patientId)),
-        select: { id: true, firstName: true, lastName: true },
+        where: { ...scopedId(clinicId, String(args.patientId)), ...patientBranchWhere(ctx) },
+        select: { id: true, firstName: true, lastName: true, branchId: true },
       });
       if (!patient) return { ok: false, error: 'Пациент не найден' };
 
@@ -730,7 +768,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const now = new Date();
       const from = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
       const invoices = await prisma.invoice.findMany({
-        where: { clinicId, status: 'paid', createdAt: { gte: from } },
+        where: { clinicId, ...invoiceBranchWhere(ctx), status: 'paid', createdAt: { gte: from } },
         select: { amount: true, createdAt: true },
       });
       const byMonth = new Map<string, number>();
@@ -750,13 +788,13 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(_args, ctx) {
       const clinicId = requireClinic(ctx);
       const invoices = await prisma.invoice.findMany({
-        where: { clinicId, status: { in: ['unpaid', 'partial', 'overdue'] } },
+        where: { clinicId, ...invoiceBranchWhere(ctx), status: { in: ['unpaid', 'partial', 'overdue'] } },
         orderBy: { createdAt: 'desc' },
         take: 30,
       });
       const patientIds = [...new Set(invoices.map((i) => i.patientId).filter(Boolean))] as string[];
       const patients = await prisma.patient.findMany({
-        where: { id: { in: patientIds } },
+        where: { id: { in: patientIds }, clinicId, ...patientBranchWhere(ctx) },
         select: { id: true, firstName: true, lastName: true, phone: true },
       });
       const byId = new Map(patients.map((p) => [p.id, p]));
@@ -798,8 +836,8 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
       const patient = await prisma.patient.findFirst({
-        where: scopedId(clinicId, String(args.patientId)),
-        select: { id: true, firstName: true, lastName: true },
+        where: { ...scopedId(clinicId, String(args.patientId)), ...patientBranchWhere(ctx) },
+        select: { id: true, firstName: true, lastName: true, branchId: true },
       });
       if (!patient) return { ok: false, error: 'Пациент не найден' };
       const amount = Number(args.amount);
@@ -820,6 +858,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         data: {
           id: uid(),
           clinicId,
+          branchId: ctx.branchScope?.branchId || patient.branchId || null,
           patientId: patient.id,
           amount,
           status: 'unpaid',
@@ -927,7 +966,7 @@ export const TOOLS: Record<string, ToolSpec> = {
     },
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
-      const items = await prisma.inventoryItem.findMany({ where: { clinicId }, orderBy: { name: 'asc' }, take: 100 });
+      const items = await prisma.inventoryItem.findMany({ where: { clinicId, ...inventoryBranchWhere(ctx) }, orderBy: { name: 'asc' }, take: 100 });
       const filtered = args.lowStockOnly ? items.filter((i) => i.quantity <= i.minimum) : items;
       return { ok: true, data: filtered };
     },
@@ -1054,7 +1093,7 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(_args, ctx) {
       const clinicId = requireClinic(ctx);
       const orders = await prisma.labOrder.findMany({
-        where: { clinicId },
+        where: { clinicId, ...labOrderBranchWhere(ctx) },
         orderBy: { createdAt: 'desc' },
         take: 30,
       });
@@ -1197,7 +1236,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         return { ok: false, error: `Недопустимый статус. Допустимые: ${VALID_LAB_STATUSES.join(', ')}` };
       }
 
-      const owned = await prisma.labOrder.findFirst({ where: scopedId(clinicId, id), select: { id: true } });
+      const owned = await prisma.labOrder.findFirst({ where: { ...scopedId(clinicId, id), ...labOrderBranchWhere(ctx) }, select: { id: true } });
       if (!owned) return { ok: false, error: 'Заказ лаборатории не найден' };
 
       const order = await prisma.labOrder.update({
@@ -1712,6 +1751,7 @@ export async function executeTool(
       requestedClinicId: ctx.clinicId,
       requestedOrganizationId: ctx.organizationId,
       requestedOrganizationType: ctx.organizationType,
+      requestedBranchId: ctx.requestedBranchId || null,
       supplierId: ctx.supplierId,
       lecturerId: ctx.lecturerId,
       entity: ctx.entity,
