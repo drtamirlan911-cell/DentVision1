@@ -19,6 +19,13 @@ describe('appointment branch isolation contract', () => {
     expect(source).toContain("if (role === 'SUPERADMIN') return {};");
   });
 
+  it('verifies the selected doctor has membership in the patient branch', () => {
+    expect(source).toContain("role: 'DOCTOR'");
+    expect(source).toContain('requestedBranchId: patient.branchId');
+    expect(source).toContain('if (!doctorHasBranchAccess)');
+    expect(source).toContain('Указанный врач не имеет доступа к филиалу пациента');
+  });
+
   it('scopes appointment listing and conflict queries to the resolved branch', () => {
     expect(source).toContain("const where: Record<string, unknown> = { clinicId, ...(await branchScope(req, clinicId)) }");
     expect(source).toContain("where: { clinicId, ...(await branchScope(req, clinicId)), date:");
