@@ -130,6 +130,19 @@ describe('product guide runtime asset parity', () => {
   });
 });
 
+describe('Jarvis AI Employee scope retrieval', () => {
+  it('explains clinic-only durable tasks and partner read-only limits', async () => {
+    resetProductKnowledgeCacheForTests();
+
+    const hits = await retrieveProductKnowledge('Есть ли общая очередь AI Employee для поставщиков и лабораторий?');
+
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].title).toContain('AI-агенты');
+    expect(hits[0].content).toContain('Постоянная очередь AI Employee');
+    expect(hits[0].content).toContain('только в контексте клиники');
+  });
+});
+
 describe('backend Docker build context knowledge asset', () => {
   it('does not ignore the Jarvis guide from the backend build context', () => {
     const dockerignore = readFileSync(
