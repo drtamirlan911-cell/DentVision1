@@ -14,7 +14,7 @@ Implement the first safe prerequisite for an ecosystem-wide AI Employee queue: a
 1. Call the existing AI IAM resolver; do not trust global role or raw organization claims.
 2. Preserve clinic compatibility. For canonical organizations, derive the workspace type and domain identity from the persisted Organization and verified Person records.
 3. Resolve active branches from Branch + BranchMember. For pre-canonical clinics only, use ClinicMember.branchId and independently verify the branch.
-4. Treat JWT branchId / assignedBranchId as selection hints and branchIds as non-authoritative. A supplied branch hint outside the database-resolved branch set denies the scope.
+4. Treat JWT branchId / assignedBranchId as selection hints and branchIds as non-authoritative. A supplied branch hint outside the database-resolved branch set denies the scope. Branch-scoped roles require one selected active branch; branchId=null is reserved for an explicitly organization-wide role.
 5. Resolve permissions through resolveUserPermissions using the exact active tenant and verified role.
 6. Fail closed on guests, missing/archived organizations, roles without an explicit scope policy, invalid branch selection, and platform scope until a separate platform policy exists.
 
@@ -22,7 +22,8 @@ Implement the first safe prerequisite for an ecosystem-wide AI Employee queue: a
 
 - canonical partner organization + active branch membership;
 - organization-wide role constrained to branches of its own organization;
-- forged branch claim and stale/revoked BranchMember denial;
+- forged branch claim, stale/revoked PersonRole and BranchMember denial;
+- ambiguity denial for branch-scoped members without a single selected branch;
 - cross-organization branch exclusion;
 - legacy clinic compatibility without inventing Organization IDs;
 - missing membership and platform/guest denial;
