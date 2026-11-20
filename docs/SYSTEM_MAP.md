@@ -5,7 +5,7 @@
 ## Summary
 
 - Mounted routers: **69**
-- Unique route handlers: **713**
+- Unique route handlers: **714**
 - Registered HTTP routes after mount: **675**
 - Routes without detected web/mobile consumer: **97**
 - Prisma models: **156**
