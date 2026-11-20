@@ -36,11 +36,12 @@ export interface ModelCandidate {
  * enough to be safe to assume.
  */
 export const FULL_LADDER: readonly ModelCandidate[] = [
-  // Current flagship and general-purpose models first. Availability is still
-  // intersected with this API account's live /v1/models response.
+  // Sol is positioned as the everyday agent model. The API probe decides
+  // whether the exact account may call the current or previous version.
+  { id: 'gpt-6.2-sol', vision: false, reasoning: false },
+  { id: 'gpt-6.1-sol', vision: false, reasoning: true },
   { id: 'gpt-6.2-astra', vision: false, reasoning: true },
   { id: 'gpt-6-astra', vision: false, reasoning: true },
-  { id: 'gpt-6.1-sol', vision: false, reasoning: true },
   // Terra is the dedicated visual-reasoning choice for radiograph/image work.
   { id: 'gpt-6.1-terra', vision: true, reasoning: true },
   { id: 'gpt-5.6-sol', vision: false, reasoning: true },
@@ -49,6 +50,15 @@ export const FULL_LADDER: readonly ModelCandidate[] = [
   { id: 'gpt-4.1', vision: true, reasoning: false },
   { id: 'o3', vision: false, reasoning: true },
   { id: 'gpt-4o', vision: true, reasoning: false },
+];
+
+/** Highest-reasoning tier, reserved for deep clinical/strategic work. */
+export const DEEP_LADDER: readonly ModelCandidate[] = [
+  { id: 'gpt-6.2-astra', vision: false, reasoning: true },
+  { id: 'gpt-6-astra', vision: false, reasoning: true },
+  { id: 'gpt-5.6-sol', vision: false, reasoning: true },
+  { id: 'gpt-5.4', vision: true, reasoning: true },
+  { id: 'o3', vision: false, reasoning: true },
 ];
 
 export const MINI_LADDER: readonly ModelCandidate[] = [
@@ -93,6 +103,8 @@ export interface ResolvedModels {
   /** Best available model that accepts images, or null when none does. */
   vision: string | null;
   fullSupportsReasoning: boolean;
+  deep: string;
+  deepSupportsReasoning: boolean;
   miniSupportsReasoning: boolean;
   visionSupportsReasoning: boolean;
   /** Best available embedding model. */
@@ -183,14 +195,17 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
       .find((candidate) => candidate !== undefined);
 
     const selectedFull = FULL_LADDER.find((candidate) => candidate.id === envFull) ?? floorOf(FULL_LADDER);
+    const selectedDeep = DEEP_LADDER.find((candidate) => candidate.id === envFull) ?? DEEP_LADDER[0];
     const selectedMini = MINI_LADDER.find((candidate) => candidate.id === envMini) ?? floorOf(MINI_LADDER);
     const fallbackVision = pinnedVision ?? floorOf(FULL_LADDER);
 
     const fallback = (degraded: boolean): ResolvedModels => ({
       full: envFull || selectedFull.id,
+      deep: envFull || selectedDeep.id,
       mini: envMini || selectedMini.id,
       vision: fallbackVision.id,
       fullSupportsReasoning: selectedFull.reasoning,
+      deepSupportsReasoning: selectedDeep.reasoning,
       miniSupportsReasoning: selectedMini.reasoning,
       visionSupportsReasoning: fallbackVision.reasoning,
       embedding: EMBEDDING_LADDER[EMBEDDING_LADDER.length - 1],
@@ -205,6 +220,7 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
     try {
       const available = await probeAvailableModels(opts.apiKey);
       const full = envFull ? null : pickAvailable(FULL_LADDER, available);
+      const deep = envFull ? null : pickAvailable(DEEP_LADDER, available);
       const mini = envMini ? null : pickAvailable(MINI_LADDER, available);
 
       if (!envFull && !full && !envMini && !mini) {
@@ -221,15 +237,20 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
       const selectedFull = envFull
         ? [...FULL_LADDER, ...MINI_LADDER].find((candidate) => candidate.id === envFull)
         : full;
+      const selectedDeep = envFull
+        ? [...DEEP_LADDER, ...FULL_LADDER].find((candidate) => candidate.id === envFull)
+        : deep;
       const selectedMini = envMini
         ? [...FULL_LADDER, ...MINI_LADDER].find((candidate) => candidate.id === envMini)
         : mini;
 
       const resolved: ResolvedModels = {
         full: envFull || full?.id || floorOf(FULL_LADDER).id,
+        deep: envFull || deep?.id || DEEP_LADDER[0].id,
         mini: envMini || mini?.id || floorOf(MINI_LADDER).id,
         vision: visionCandidate?.id ?? null,
         fullSupportsReasoning: selectedFull?.reasoning ?? false,
+        deepSupportsReasoning: selectedDeep?.reasoning ?? false,
         miniSupportsReasoning: selectedMini?.reasoning ?? false,
         visionSupportsReasoning: visionCandidate?.reasoning ?? false,
         embedding:
