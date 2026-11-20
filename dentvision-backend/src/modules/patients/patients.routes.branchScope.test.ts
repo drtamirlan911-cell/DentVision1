@@ -30,6 +30,14 @@ describe('patients route branch scope contract', () => {
     expect(source).toMatch(/setPatientBranch\s*\(\s*patient\.id\s*,\s*clinicId\s*,\s*targetBranchId\s*\)/);
   });
 
+  it('does not let an organization role create in another branch while one branch is selected', () => {
+    const createStart = source.indexOf("patientsRouter.post('/',");
+    const lookupStart = source.indexOf("patientsRouter.get('/lookup'", createStart);
+    const createRoute = source.slice(createStart, lookupStart);
+    expect(createRoute).toContain('if(context.branchId && requestedBranchId!==context.branchId)');
+    expect(createRoute).toContain('context.allowedBranchIds');
+  });
+
   it('requires patient permission and returns a minimized list payload', () => {
     expect(source).toContain("patientsRouter.get('/', requirePermission('patient.read')");
     expect(source).toContain('serializePatientList(patient, canReadBilling)');

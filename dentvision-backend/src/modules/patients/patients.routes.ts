@@ -168,7 +168,7 @@ patientsRouter.post('/', requirePatientMutationPermission, guardPatientCreate, a
     let targetBranchId:string|null=context.branchId;
     if(body.branchId!==undefined){
       const requestedBranchId=String(body.branchId);
-      if(context.scope.kind!=='organization' && requestedBranchId!==context.branchId) return res.status(403).json({ok:false,error:'Нет доступа к выбранному филиалу'} satisfies ApiResponse);
+      if(context.branchId && requestedBranchId!==context.branchId) return res.status(403).json({ok:false,error:'Нет доступа к выбранному филиалу'} satisfies ApiResponse);
       if(!(context.allowedBranchIds??[]).includes(requestedBranchId)) return res.status(403).json({ok:false,error:'Нет доступа к выбранному филиалу'} satisfies ApiResponse);
       if(!(await assertPatientBranchBelongsToClinic(requestedBranchId,clinicId))) return res.status(400).json({ok:false,error:'Недействующий филиал'} satisfies ApiResponse);
       targetBranchId=requestedBranchId;

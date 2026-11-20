@@ -9,7 +9,6 @@
 import type { AuthUser } from '../../../types/index.js';
 import prisma from '../../../lib/prisma.js';
 import { resolveUserPermissions } from '../../../lib/resolvePermissions.js';
-import { PERSON_ROLE_MAP } from '../../../lib/orgContext.js';
 import { PARTNER_ROLE_DEFINITIONS, type RoleScope } from '../../../lib/roleAccessRegistry.js';
 import { resolveAiToolAccess } from './access.js';
 import type { ScopeType } from '../../iam/contexts.js';
