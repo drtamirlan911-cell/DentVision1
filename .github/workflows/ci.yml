@@ -124,6 +124,9 @@ jobs:
       - name: Apply raw lifecycle tables required by E2E
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260917_medical_lab_and_dental_lifecycle/migration.sql
         working-directory: dentvision-backend
+      - name: Apply medical laboratory price snapshot required by order creation
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260920120000_medical_lab_price_snapshot/migration.sql
+        working-directory: dentvision-backend
       - name: Apply durable AI admin queue table required by backend worker
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260929130000_ai_admin_postgres_queue/migration.sql
         working-directory: dentvision-backend
