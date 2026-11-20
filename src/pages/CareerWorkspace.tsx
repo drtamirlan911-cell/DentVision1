@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { BellRing, BriefcaseBusiness, CalendarClock, CheckCircle2, FileText, Inbox, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
@@ -115,7 +115,6 @@ function tabFromLocation(pathname: string, queryTab: string | null): CareerTab {
 export default function CareerWorkspace() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [applications, setApplications] = useState<CareerApplication[]>([]);
@@ -126,11 +125,10 @@ export default function CareerWorkspace() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [resumeQuery, setResumeQuery] = useState('');
-  const activeTab = tabFromLocation(location.pathname, searchParams.get('tab'));
+  const activeTab = tabFromLocation(location.pathname, null);
 
   const setTab = (tab: CareerTab) => {
-    if (location.pathname !== '/career') navigate('/career', { replace: true });
-    setSearchParams(tab === 'overview' ? {} : { tab }, { replace: true });
+    navigate(tab === 'overview' ? '/career' : `/career/${tab}`);
   };
 
   const load = useCallback(async () => {
