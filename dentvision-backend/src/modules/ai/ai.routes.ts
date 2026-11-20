@@ -7,7 +7,8 @@ import { validate } from '../../middleware/validate.js';
 import { z } from 'zod';
 import { aiService } from './core/ai.service.js';
 import { improveResponseWithLLM } from './core/llm.service.js';
-import { orchestrate, orchestratorEnabled, isProviderUnavailableError } from './os/orchestrator.js';
+import { orchestrate, orchestratorEnabled, isProviderUnavailableError, canUseClinicWideAiShortcuts } from './os/orchestrator.js';
+import { resolveAiToolAccess } from './os/access.js';
 import type { AIResponse } from './types/ai.types.js';
 import { prisma } from '../../lib/prisma.js';
 import type { Prisma } from '@prisma/client';
@@ -996,8 +997,19 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
       return res.status(403).json({ ok: false, error: 'Briefing requires clinic user' });
     }
     const { buildJarvisBriefing } = await import('./core/jarvisBriefing.js');
-    const clinicId = activeAiClinicId(req.user);
-    const activeWorkspace = await buildAiContext(req, {}).then((ctx) => ctx?.workspace ?? null).catch(() => null);
+    const access = await resolveAiToolAccess({
+      userId: req.user.id,
+      clinicId: activeAiClinicId(req.user),
+      organizationId: req.user.organizationId,
+      organizationType: req.user.organizationType,
+      supplierId: req.user.supplierId,
+      lecturerId: req.user.lecturerId,
+      isGuest: req.user.isGuest,
+    });
+    const clinicId = access.clinicId;
+    const aiContext = await buildAiContext(req, {}).catch(() => null);
+    const activeWorkspace = aiContext?.workspace ?? null;
+    const requestedBranchId = req.user.branchId || req.user.assignedBranchId || null;
     const clinic = clinicId
       ? await prisma.clinic.findUnique({
           where: { id: clinicId },
@@ -1023,6 +1035,23 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
           action: { type: 'SHOW_BRIEFING', payload: { workspace: activeWorkspace } },
           role: req.user.role || 'STAFF',
           timeZone: timeZone,
+        },
+      });
+    }
+    if (!canUseClinicWideAiShortcuts(access.role, requestedBranchId, aiContext?.branch?.id || null)) {
+      const workspaceName = activeWorkspace?.name || clinic?.name || 'DentVision';
+      const reply = `Рабочий контекст «${workspaceName}» готов. Я подготовлю сведения и действия в пределах доступного вам филиала и роли.`;
+      return res.json({
+        ok: true,
+        data: {
+          reply,
+          message: reply,
+          suggestions: ['Покажи моё расписание', 'Какие задачи доступны?', 'Открой нужный раздел'],
+          skill: 'workspace',
+          intent: 'WORKSPACE_BRIEFING',
+          action: { type: 'SHOW_BRIEFING', payload: { workspace: activeWorkspace, branch: aiContext?.branch || null } },
+          role: access.role,
+          timeZone,
         },
       });
     }
