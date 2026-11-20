@@ -178,6 +178,7 @@ export function pickModel(input: {
   miniSupportsReasoning?: boolean;
   visionSupportsReasoning?: boolean;
   reasoningEffort?: 'low' | 'medium' | 'high';
+  deepReasoningEffort?: 'medium' | 'high';
   miniUsed?: number;
   fullUsed?: number;
   miniBudget?: number;
@@ -187,6 +188,7 @@ export function pickModel(input: {
   const mode = input.mode ?? 'auto';
   const { miniModel, fullModel } = input;
   const effort = input.reasoningEffort ?? 'low';
+  const deepEffort = input.deepReasoningEffort ?? 'high';
   const miniBudget = input.miniBudget ?? configuredMiniBudget;
   const fullBudget = input.fullBudget ?? configuredFullBudget;
   const usedMini = input.miniUsed ?? miniUsed;
@@ -216,7 +218,7 @@ export function pickModel(input: {
   const asDeep = (reason: string, maxOut: number): ModelChoice => ({
     model: deepModel,
     tier: 'full',
-    reasoningEffort: effort,
+    reasoningEffort: deepEffort,
     supportsReasoning: input.deepSupportsReasoning ?? supportsReasoning(deepModel),
     maxOutputTokens: maxOut,
     reason,
@@ -349,6 +351,7 @@ export async function chooseOpenAIModel(input: {
     miniSupportsReasoning: models.miniSupportsReasoning,
     visionSupportsReasoning: models.visionSupportsReasoning,
     reasoningEffort: env.OPENAI_REASONING_EFFORT,
+    deepReasoningEffort: env.OPENAI_DEEP_REASONING_EFFORT,
     ...(sharedMini !== null ? { miniUsed: sharedMini } : {}),
     ...(sharedFull !== null ? { fullUsed: sharedFull } : {}),
   });
