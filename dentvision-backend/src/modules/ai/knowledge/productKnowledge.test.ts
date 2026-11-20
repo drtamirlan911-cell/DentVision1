@@ -102,6 +102,18 @@ describe('Jarvis product guide stays in sync with the agent registry', () => {
   });
 });
 
+describe('Jarvis agent catalogue retrieval', () => {
+  it('finds the registered agent catalogue for a normal user question', async () => {
+    resetProductKnowledgeCacheForTests();
+
+    const hits = await retrieveProductKnowledge('Какие AI агенты есть в DentVision?');
+
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].title).toContain('AI-агенты');
+    expect(hits.some((hit) => hit.content.includes('Patient Agent'))).toBe(true);
+  });
+});
+
 describe('product guide runtime asset parity', () => {
   it('keeps the backend container copy identical to the canonical product guide', () => {
     const canonical = readFileSync(
