@@ -16,6 +16,7 @@ import {
   planTotal,
 } from '../../lib/treatmentPlanShape.js';
 import { applyToothFindings, normalizeSurfaceFindings } from '../patients/teethStore.js';
+import { resolveClinicBranchAccess } from '../../lib/clinicBranchAccess.js';
 
 const medicalRouter = Router();
 
@@ -24,12 +25,43 @@ medicalRouter.use(requirePermission('patient.read'));
 medicalRouter.use(loadClinicAccess);
 medicalRouter.use(blockClinicWrites);
 
-/** Verifies that the patient belongs to the current user's clinic. Returns 403 if not. */
-function patientBranchScope(req: AuthRequest): Record<string, unknown> {
-  const role = String(req.user?.role || '').toUpperCase();
-  if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {};
-  const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
-  return branchIds.length > 0 ? { branchId: { in: branchIds } } : { branchId: '__NO_BRANCH_ACCESS__' };
+interface MedicalBranchContext {
+  organizationWide: boolean;
+  branchId: string | null;
+  branchIds: string[];
+}
+
+async function resolveMedicalBranchContext(req: AuthRequest): Promise<MedicalBranchContext | null> {
+  const user = req.user;
+  const clinicId = user?.clinicId;
+  if (!user?.id || !clinicId) return null;
+  if (String(user.role || '').toUpperCase() === 'SUPERADMIN') {
+    return { organizationWide: true, branchId: null, branchIds: [] };
+  }
+
+  const access = await resolveClinicBranchAccess({
+    userId: user.id,
+    clinicId,
+    organizationId: user.organizationId,
+    role: String(user.role || ''),
+    requestedBranchId: user.branchId,
+  });
+  if (!access) return { organizationWide: false, branchId: null, branchIds: [] };
+
+  return {
+    organizationWide: access.roleScope === 'ORGANIZATION' && access.branchId === null,
+    branchId: access.branchId,
+    branchIds: access.branchId ? [access.branchId] : access.allowedBranchIds,
+  };
+}
+
+/** Patient relation filter from the active, DB-verified clinic branch context. */
+async function patientBranchScope(req: AuthRequest): Promise<Record<string, unknown>> {
+  const access = await resolveMedicalBranchContext(req);
+  if (access?.organizationWide) return {};
+  return access?.branchIds.length
+    ? { branchId: { in: access.branchIds } }
+    : { branchId: '__NO_BRANCH_ACCESS__' };
 }
 
 async function requirePatientAccess(req: AuthRequest, res: any, patientId: string): Promise<boolean> {
@@ -39,7 +71,7 @@ async function requirePatientAccess(req: AuthRequest, res: any, patientId: strin
     return false;
   }
   const patient = await prisma.patient.findFirst({
-    where: { id: patientId, clinicId, ...patientBranchScope(req) },
+    where: { id: patientId, clinicId, ...(await patientBranchScope(req)) },
     select: { clinicId: true, branchId: true },
   });
   if (!patient) {
@@ -57,9 +89,9 @@ async function requireVisitAccess(req: AuthRequest, res: any, visitId: string): 
     return false;
   }
   const visit = await prisma.visit.findUnique({ where: { id: visitId }, include: { patient: { select: { clinicId: true, branchId: true } } } });
-  const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
-  const organizationWide = ['SUPERADMIN', 'OWNER', 'ADMIN'].includes(String(req.user?.role || '').toUpperCase());
-  if (!visit || visit.patient?.clinicId !== clinicId || (!organizationWide && (branchIds.length === 0 || !branchIds.includes(visit.patient?.branchId || '')))) {
+  const access = await resolveMedicalBranchContext(req);
+  if (!visit || visit.patient?.clinicId !== clinicId || !access
+    || (!access.organizationWide && (access.branchIds.length === 0 || !access.branchIds.includes(visit.patient?.branchId || '')))) {
     res.status(403).json({ ok: false, error: 'Доступ запрещён' });
     return false;
   }
@@ -74,9 +106,9 @@ async function requireTreatmentPlanAccess(req: AuthRequest, res: any, planId: st
     return false;
   }
   const plan = await prisma.treatmentPlan.findUnique({ where: { id: planId }, include: { patient: { select: { clinicId: true, branchId: true } } } });
-  const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
-  const organizationWide = ['SUPERADMIN', 'OWNER', 'ADMIN'].includes(String(req.user?.role || '').toUpperCase());
-  if (!plan || plan.patient?.clinicId !== clinicId || (!organizationWide && (branchIds.length === 0 || !branchIds.includes(plan.patient?.branchId || ''))) ) {
+  const access = await resolveMedicalBranchContext(req);
+  if (!plan || plan.patient?.clinicId !== clinicId || !access
+    || (!access.organizationWide && (access.branchIds.length === 0 || !access.branchIds.includes(plan.patient?.branchId || '')))) {
     res.status(403).json({ ok: false, error: 'Доступ запрещён' });
     return false;
   }
@@ -188,7 +220,7 @@ medicalRouter.get('/visits', requirePermission('patient.read'), async (req: Auth
       return;
     }
     const visits = await prisma.visit.findMany({
-      where: { patient: { clinicId, ...patientBranchScope(req) } },
+      where: { patient: { clinicId, ...(await patientBranchScope(req)) } },
       include: {
         patient: { select: { id: true, firstName: true, lastName: true } },
       },
@@ -490,15 +522,14 @@ medicalRouter.delete('/images/:id', requirePermission('patient.write'), async (r
     const id = req.params.id as string;
     const image = await prisma.patientImage.findUnique({
       where: { id },
-      include: { patient: { select: { clinicId: true } } },
+      include: { patient: { select: { clinicId: true, branchId: true } } },
     });
     if (!image) {
       return res.status(404).json({ ok: false, error: 'Изображение не найдено' });
     }
-    // RBAC: ensure image belongs to current user's clinic
-    if (image.patient?.clinicId && image.patient.clinicId !== req.user?.clinicId) {
-      return res.status(403).json({ ok: false, error: 'Доступ запрещён' });
-    }
+    // Image deletion is a clinical write and must follow the same active
+    // patient/branch authorization as every other card-level operation.
+    if (!image.patient || !(await requirePatientAccess(req, res, image.patientId))) return;
     await prisma.patientImage.delete({ where: { id } });
     await auditFromReq(req, {
       action: 'patient_image.deleted',
