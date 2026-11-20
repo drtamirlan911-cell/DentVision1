@@ -50,7 +50,7 @@ test.describe('Career OS — employer-origin and candidate-origin lifecycle', ()
 
   test.beforeAll(async () => {
     api = await apiRequest.newContext();
-    const employerRegistrationToken = await register(api, employerEmail, 'EMPLOYER');
+    const employerRegistrationToken = await register(api, employerEmail, 'STUDENT');
     const employer = await createEmployer(
       api,
       employerRegistrationToken,
