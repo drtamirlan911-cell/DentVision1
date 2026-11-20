@@ -9,6 +9,7 @@ import {
   rankProductKnowledgeChunks,
   resetProductKnowledgeCacheForTests,
   retrievePatientProductKnowledge,
+  retrieveProductKnowledge,
   splitProductKnowledgeSections,
   type ProductKnowledgeChunk,
 } from './productKnowledge.js';
