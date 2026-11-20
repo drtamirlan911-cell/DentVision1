@@ -84,7 +84,7 @@ export default function MedicalLabWorkspace() {
                 icon={<TestTube2 size={22} />}
                 title="Нет направлений"
                 description="Создайте направление из текущего пациента или клинического кейса."
-                action={<Button size="sm" onClick={() => setCreating(true)}><Plus className="mr-2 h-4 w-4" />Создать направление</Button>}
+                action={!isLaboratoryWorkspace ? <Button size="sm" onClick={() => setCreating(true)}><Plus className="mr-2 h-4 w-4" />Создать направление</Button> : undefined}
                 className="py-10"
               />
             )}
