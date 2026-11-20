@@ -5,10 +5,10 @@
 ## Summary
 
 - Mounted routers: **69**
-- Unique route handlers: **703**
-- Registered HTTP routes after mount: **665**
+- Unique route handlers: **713**
+- Registered HTTP routes after mount: **675**
 - Routes without detected web/mobile consumer: **97**
-- Prisma models: **150**
+- Prisma models: **156**
 - Background jobs: **12**
 - Permission roles: **11**
 
@@ -40,7 +40,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/suppliers | suppliersRouter | 10 | 3 |
 | /api/supplier | supplierWorkspaceRouter | 22 | 0 |
 | /api/lecturer | lecturerRouter | 10 | 0 |
-| /api/school | schoolRouter | 27 | 0 |
+| /api/school | schoolRouter | 28 | 0 |
 | /api/dentcash | dentcashRouter | 4 | 1 |
 | /api/academies | academiesRouter | 5 | 0 |
 | /api/lecturers | lecturersRouter | 6 | 2 |
@@ -63,7 +63,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/community | communityRouter | 12 | 0 |
 | /api/public | publicRouter | 11 | 6 |
 | /api/profile | profileRouter | 13 | 1 |
-| /api/jobs | jobsRouter | 13 | 1 |
+| /api/jobs | jobsRouter | 22 | 1 |
 | /api/ops/suppliers | opsSuppliersRouter | 4 | 0 |
 | /api/ops | opsHubRouter | 11 | 0 |
 | /api/quality | qualityRouter | 1 | 0 |
