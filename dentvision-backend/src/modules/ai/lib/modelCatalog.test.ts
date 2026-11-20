@@ -40,7 +40,7 @@ describe('resolveModels — discovery', () => {
 
     expect(models.full).toBe(FULL_TOP);
     expect(models.mini).toBe(MINI_TOP);
-    expect(models.source).toBe('probe');
+    expect(models.source).toBe('env');
     expect(models.degraded).toBe(false);
   });
 
