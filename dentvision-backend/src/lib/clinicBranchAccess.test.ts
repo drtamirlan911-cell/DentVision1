@@ -104,6 +104,16 @@ describe('resolveClinicBranchAccess — canonical IAM', () => {
     }))).resolves.toMatchObject({ roleScope: 'ORGANIZATION', branchId: 'branch-2' });
   });
 
+  it('maps canonical org_owner membership to the authenticated owner alias', async () => {
+    personFindFirst.mockResolvedValue({
+      id: 'person-1',
+      personRoles: [{ role: { key: 'org_owner' } }],
+    });
+    await expect(resolveClinicBranchAccess(accessInput({ role: 'OWNER' }))).resolves.toMatchObject({
+      roleScope: 'ORGANIZATION',
+    });
+  });
+
   it('maps canonical director membership to the authenticated owner alias', async () => {
     personFindFirst.mockResolvedValue({
       id: 'person-1',

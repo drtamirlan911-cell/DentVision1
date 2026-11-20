@@ -107,7 +107,7 @@ export async function resolveLegacyClinicBranches(
 
 function mapsToEffectiveRole(canonicalRoleKey: string, effectiveRole: string): boolean {
   const key = String(canonicalRoleKey || '').trim().toLowerCase();
-  const mapped = PERSON_ROLE_MAP[key] || key.toUpperCase();
+  const mapped = key === 'org_owner' ? 'OWNER' : (PERSON_ROLE_MAP[key] || key.toUpperCase());
   if (mapped === effectiveRole) return true;
   // Authentication deliberately normalizes DIRECTOR to the legacy OWNER enum.
   return effectiveRole === 'OWNER' && mapped === 'DIRECTOR';
@@ -179,7 +179,7 @@ export async function resolveClinicBranchAccess(
     allowedBranchIds = await resolveLegacyClinicBranches(userId, clinicId, roleScope, membership);
   }
 
-  allowedBranchIds = uniqueIds(allowedBranchIds);
+  allowedBranchIds = [...new Set(allowedBranchIds)];
   const requestedBranchId = String(input.requestedBranchId || '').trim() || null;
   if (requestedBranchId && !allowedBranchIds.includes(requestedBranchId)) return null;
 
