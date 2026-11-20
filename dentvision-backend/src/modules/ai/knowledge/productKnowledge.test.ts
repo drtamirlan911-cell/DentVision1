@@ -102,6 +102,21 @@ describe('Jarvis product guide stays in sync with the agent registry', () => {
   });
 });
 
+describe('product guide runtime asset parity', () => {
+  it('keeps the backend container copy identical to the canonical product guide', () => {
+    const canonical = readFileSync(
+      new URL('../../../../../docs/AI_PRODUCT_KNOWLEDGE.md', import.meta.url),
+      'utf8',
+    );
+    const backendRuntimeAsset = readFileSync(
+      new URL('../../../../../dentvision-backend/docs/AI_PRODUCT_KNOWLEDGE.md', import.meta.url),
+      'utf8',
+    );
+
+    expect(backendRuntimeAsset).toBe(canonical);
+  });
+});
+
 describe('runtime product guide retrieval', () => {
   it('loads the patient section from the shipped guide file', async () => {
     resetProductKnowledgeCacheForTests();
