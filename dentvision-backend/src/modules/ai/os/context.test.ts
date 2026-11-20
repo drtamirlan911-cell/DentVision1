@@ -115,14 +115,7 @@ describe('buildAiContext', () => {
         role: { key: 'supplier' },
       }],
     });
-    branchFindUnique.mockResolvedValueOnce({
-      id: 'legacy-clinic-branch',
-      name: 'Legacy Clinic Branch',
-      code: 'OLD',
-      organizationId: 'org-old-clinic',
-      clinicId: 'clinic-1',
-    });
-
+    // A partner token's stale clinic branch is never queried: the server scope resolver denies it.
     const ctx = await buildAiContext(req({
       clinicId: 'clinic-1',
       organizationId: 'org-supplier',
