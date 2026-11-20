@@ -39,6 +39,7 @@ const SettingsPage = lazyWithRetry(() => import('./pages/Settings'));
 const NotificationPreferences = lazyWithRetry(() => import('./pages/NotificationPreferences'));
 const Profile = lazyWithRetry(() => import('./pages/Profile'));
 const Jobs = lazyWithRetry(() => import('./pages/Jobs'));
+const CareerWorkspace = lazyWithRetry(() => import('./pages/CareerWorkspace'));
 const EmployerWorkspace = lazyWithRetry(() => import('./pages/JobsEmployerWorkspace'));
 const Community = lazyWithRetry(() => import('./pages/Community'));
 const Help = lazyWithRetry(() => import('./pages/Help'));
@@ -96,6 +97,7 @@ const ShopFavorites = lazyWithRetry(() => import('./pages/shop/ShopFavorites'));
 const ShopSuppliers = lazyWithRetry(() => import('./pages/shop/ShopSuppliers'));
 
 const School = lazyWithRetry(() => import('./pages/school/School'));
+const MyLearning = lazyWithRetry(() => import('./pages/school/MyLearning'));
 const SchoolCourse = lazyWithRetry(() => import('./pages/school/SchoolCourse'));
 const SchoolWorkspace = lazyWithRetry(() => import('./pages/school/SchoolWorkspace'));
 
@@ -289,8 +291,9 @@ if (container) {
                 <Route path="professional/credentials" element={<Navigate to="/profile" replace />} />
                 <Route path="professional/portfolio" element={<Navigate to="/profile" replace />} />
                 <Route path="jobs/matches" element={<Navigate to="/jobs" replace />} />
-                <Route path="jobs/applications" element={<Navigate to="/jobs" replace />} />
-                <Route path="jobs/messages" element={<Navigate to="/jobs" replace />} />
+                <Route path="jobs/applications" element={<Navigate to="/career/applications" replace />} />
+                <Route path="jobs/messages" element={<Navigate to="/career" replace />} />
+                <Route path="career/*" element={<Suspense fallback={<PageLoader />}><CareerWorkspace /></Suspense>} />
                 <Route path="employer" element={guarded('employer', <EmployerWorkspace />)} />
                 <Route path="employer/vacancies" element={<Navigate to="/employer" replace />} />
                 <Route path="employer/candidates" element={<Navigate to="/employer" replace />} />
@@ -378,6 +381,8 @@ if (container) {
                 </Route>
                 <Route path="school/courses" element={guarded('school', <Navigate to="/school" replace />)} />
                 <Route path="school" element={guarded('school', <School />)} />
+                <Route path="school/my-learning" element={<Suspense fallback={<PageLoader />}><MyLearning /></Suspense>} />
+                <Route path="school/certificates" element={<Navigate to="/school/my-learning#certificates" replace />} />
                 <Route path="school/course/:id" element={guarded('school', <SchoolCourse />)} />
                 <Route path="school/workspace" element={guarded('school', <SchoolWorkspace />)} />
                 <Route path="school-workspace" element={<Navigate to="/school/workspace" replace />} />
