@@ -248,6 +248,29 @@ jobsRouter.get('/employer/vacancies/:id/applications', authenticate, requirePerm
         createdAt: true,
         updatedAt: true,
         user: { select: { firstName: true, lastName: true } },
+        events: {
+          select: {
+            id: true, eventType: true, fromStatus: true, toStatus: true,
+            candidateVisible: true, message: true, metadata: true, createdAt: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+        interviews: {
+          select: {
+            id: true, scheduledAt: true, durationMinutes: true, timezone: true,
+            mode: true, meetingUrl: true, location: true, agenda: true,
+            status: true, candidateResponse: true, candidateRespondedAt: true,
+          },
+          orderBy: { scheduledAt: 'desc' },
+        },
+        offers: {
+          select: {
+            id: true, title: true, salary: true, currency: true, employmentType: true,
+            expiresAt: true, status: true, version: true, respondedAt: true,
+            candidateMessage: true, createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
