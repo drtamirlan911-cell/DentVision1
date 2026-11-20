@@ -456,7 +456,8 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
     input.branch?.id,
   );
 
-  if (clinicWideShortcutsAllowed) try {
+  if (clinicWideShortcutsAllowed) {
+    try {
     const statsHit = await tryDeterministicStats(input.text, {
       userId: input.userId,
       clinicId: input.clinicId,
@@ -471,8 +472,9 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
       });
       return { ...statsHit, messageId, ...personaMeta };
     }
-  } catch (e) {
-    console.warn('[AI OS] deterministic stats failed', safeErrorKind(e));
+    } catch (e) {
+      console.warn('[AI OS] deterministic stats failed', safeErrorKind(e));
+    }
   }
 
   // CEO executive brief — synthesize Analyst+Finance+Marketing without LLM.

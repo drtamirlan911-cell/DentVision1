@@ -60,6 +60,36 @@ async function enforceGuestAiQuota(req: AuthRequest, res: import('express').Resp
   return true;
 }
 
+/**
+ * Direct Jarvis briefing/proactive routes must not bypass the branch-aware tool
+ * kernel. Digital Twin alert queries are still clinic-wide; allow them only for
+ * a DB-resolved OWNER/ADMIN with no active branch selection.
+ */
+async function canUseClinicWideAiData(req: AuthRequest): Promise<boolean> {
+  try {
+    if (!req.user || req.user.isGuest) return false;
+    const clinicId = activeAiClinicId(req.user);
+    if (!clinicId) return false;
+    const access = await resolveAiToolAccess({
+      userId: req.user.id,
+      clinicId,
+      organizationId: req.user.organizationId,
+      organizationType: req.user.organizationType,
+      supplierId: req.user.supplierId,
+      lecturerId: req.user.lecturerId,
+      isGuest: req.user.isGuest,
+    });
+    const context = await buildAiContext(req, {}).catch(() => null);
+    return canUseClinicWideAiShortcuts(
+      access.role,
+      req.user.branchId || req.user.assignedBranchId || null,
+      context?.branch?.id || null,
+    );
+  } catch {
+    return false;
+  }
+}
+
 const querySchema = z.object({
   body: z.object({
     text: z.string().min(1),
@@ -950,13 +980,18 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
     const timeZone = resolveTimeZone(clientTz, clinicTz, DEFAULT_CLINIC_TZ);
     const greeting = timeGreetingInTz(new Date(), timeZone);
 
-    const alerts = await aiService.getProactiveAlerts({
-      userId: req.user?.id || 'guest',
-      clinicId,
-      role: req.user?.role || 'guest',
-      sessionId: crypto.randomUUID(),
-      metadata: { timeZone },
-    });
+    const allowAlerts = (!req.user || req.user.isGuest)
+      ? Boolean(clinicId)
+      : await canUseClinicWideAiData(req);
+    const alerts = allowAlerts
+      ? await aiService.getProactiveAlerts({
+          userId: req.user?.id || 'guest',
+          clinicId,
+          role: req.user?.role || 'guest',
+          sessionId: crypto.randomUUID(),
+          metadata: { timeZone },
+        })
+      : [];
 
     res.json({
       ok: true,
@@ -975,14 +1010,15 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
 aiRouter.get('/proactive', optionalAuth, async (req: AuthRequest, res) => {
   try {
     const { buildProactiveAlerts } = await import('./core/digitalTwin.js');
-    const alerts = await buildProactiveAlerts({
+    const allowAlerts = await canUseClinicWideAiData(req);
+    const alerts = allowAlerts ? await buildProactiveAlerts({
       userId: req.user?.id || 'guest',
       clinicId: activeAiClinicId(req.user),
       role: req.user?.isGuest ? 'GUEST' : (req.user?.role || 'guest'),
       isGuest: req.user?.isGuest === true,
       organizationType: req.user?.organizationType || null,
       workspaceName: req.user?.organizationType && req.user.organizationType !== 'CLINIC' ? 'активная организация' : null,
-    });
+    }) : [];
     res.json({ ok: true, data: { alerts } });
   } catch (error) {
     console.error('[AI Proactive Error]', safeErrorKind(error));
