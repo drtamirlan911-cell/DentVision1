@@ -11,12 +11,13 @@
 - Current-request capabilities are built from DB/IAM-filtered tools. Product documentation never grants permissions.
 - Partner queue tools recheck active organization type, canonical membership/role and exact organization/entity binding; responses are read-only and minimize patient/candidate/student/customer data.
 - Patient assistant now receives a fixed safe tool-failure message rather than raw exception details; regression tests guard against synthetic patient identifiers and clinical text entering model context.
+- The knowledge guide is also shipped as a byte-identical backend runtime asset; the Docker runner copies `/app/docs`, and regression tests compare the backend copy to the canonical guide and execute patient-section retrieval.
 - AI context and proactive digital-twin fallbacks now use PHI-safe exception classification in all four identified catch/log paths; three context tests and one proactive source-contract test cover the regression.
 - Guide headings are uniquely numbered (1–12); section 9 now lists every non-disabled registered agent by canonical name and bounded tool scope. A test derives the list from `listAgents()` so registry additions cannot silently disappear from Jarvis knowledge. A second test calls the runtime retrieval function against the actual patient section in the guide file.
 - The candidate remains **partial / not release-certified**. No feature is counted complete merely because it has an agent, guide entry, route or tool declaration.
 
 ### Exact-head verification
-- Latest code/test checkpoint before the documentation update: `f81ef0b0b3c9ffa736dac851725718828519e53d` (based on current main with no behind commits). It includes the AI context/proactive logging regression fixes, registry-guide parity test and runtime product-guide retrieval test. Earlier SHA checks were superseded; fresh exact-head CI, Quality Gate, full E2E and Vercel Preview are required after this documentation update.
+- Latest code/test checkpoint before the documentation update: `0d87710415c6a8a98da55f52f433d799c159fbcb` (based on current main with no behind commits). It includes the AI context/proactive logging regression fixes, registry-guide parity test, runtime product-guide retrieval test, and backend container guide-copy/parity correction. Earlier SHA checks were superseded; fresh exact-head CI, Quality Gate, full E2E and Vercel Preview are required after this documentation update.
 - A documentation-only commit then corrected guide section numbering; this checkpoint commit updates the active context, execution log, release blockers and system audit. All checks must be refreshed on the resulting exact branch HEAD. Previous-SHA results are not final evidence.
 - Keep PR #351 Draft until exact-head CI, Quality Gate, full E2E, role/context and visual/mobile checks finish and findings are reviewed.
 
