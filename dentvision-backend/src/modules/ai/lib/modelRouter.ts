@@ -14,6 +14,15 @@ import { counterKeys, incrementDaily, readDaily } from '../../../lib/dailyCounte
 export type ModelTier = 'mini' | 'full';
 export type ModelMode = 'auto' | 'mini' | 'full';
 
+export class VisionModelUnavailableError extends Error {
+  readonly code = 'VISION_MODEL_UNAVAILABLE';
+
+  constructor() {
+    super('No vision-capable model is available for image analysis');
+    this.name = 'VisionModelUnavailableError';
+  }
+}
+
 export interface ModelChoice {
   model: string;
   tier: ModelTier;
@@ -138,6 +147,10 @@ export function pickModel(input: {
   /** Resolved by `modelCatalog`; required, so no stale default can win here. */
   miniModel: string;
   fullModel: string;
+  /** Required for every request containing an image; never fall back to text-only models. */
+  requiresVision?: boolean;
+  visionModel?: string | null;
+  visionTier?: ModelTier;
   reasoningEffort?: 'low' | 'medium' | 'high';
   miniUsed?: number;
   fullUsed?: number;
@@ -173,6 +186,29 @@ export function pickModel(input: {
     maxOutputTokens: maxOut,
     reason,
   });
+
+  // Image input is a hard capability requirement, not a preference. Do this
+  // before cheap-first routing so a text-only mini model can never receive X-rays.
+  if (input.requiresVision) {
+    if (!input.visionModel) throw new VisionModelUnavailableError();
+    return input.visionTier === 'mini'
+      ? {
+          model: input.visionModel,
+          tier: 'mini',
+          reasoningEffort: 'low',
+          supportsReasoning: supportsReasoning(input.visionModel),
+          maxOutputTokens: 1_200,
+          reason: 'required_vision_input',
+        }
+      : {
+          model: input.visionModel,
+          tier: 'full',
+          reasoningEffort: effort,
+          supportsReasoning: supportsReasoning(input.visionModel),
+          maxOutputTokens: 1_200,
+          reason: 'required_vision_input',
+        };
+  }
 
   // Polish / rewrite is always mini — wording only, no clinic planning.
   if (input.task === 'polish') {
@@ -232,9 +268,10 @@ export async function chooseOpenAIModel(input: {
   round?: number;
   toolsUsed?: number;
   escalate?: boolean;
+  requiresVision?: boolean;
 }): Promise<ModelChoice> {
   const { env } = await import('../../../config.js');
-  const { resolveModels } = await import('./modelCatalog.js');
+  const { resolveModels, MINI_LADDER } = await import('./modelCatalog.js');
   configuredMiniBudget = env.OPENAI_DAILY_MINI_TOKENS;
   configuredFullBudget = env.OPENAI_DAILY_FULL_TOKENS;
 
@@ -260,6 +297,9 @@ export async function chooseOpenAIModel(input: {
     mode: env.OPENAI_MODEL_MODE,
     miniModel: models.mini,
     fullModel: models.full,
+    requiresVision: input.requiresVision,
+    visionModel: models.vision,
+    visionTier: models.vision && MINI_LADDER.some((candidate) => candidate.id === models.vision) ? 'mini' : 'full',
     reasoningEffort: env.OPENAI_REASONING_EFFORT,
     ...(sharedMini !== null ? { miniUsed: sharedMini } : {}),
     ...(sharedFull !== null ? { fullUsed: sharedFull } : {}),
