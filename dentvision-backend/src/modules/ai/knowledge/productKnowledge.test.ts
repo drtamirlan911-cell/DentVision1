@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -8,6 +10,7 @@ import {
   splitProductKnowledgeSections,
   type ProductKnowledgeChunk,
 } from './productKnowledge.js';
+import { listAgents } from '../os/registry.js';
 
 const GUIDE_PATH = 'docs/AI_PRODUCT_KNOWLEDGE.md';
 
@@ -78,6 +81,26 @@ describe('patient product knowledge boundary', () => {
     expect(filterPatientProductKnowledge(chunks).map((item) => item.id)).toEqual(['patient']);
   });
 });
+describe('Jarvis product guide stays in sync with the agent registry', () => {
+  it('documents every non-disabled registered agent by its canonical name', () => {
+    const guide = readFileSync(
+      new URL('../../../../../docs/AI_PRODUCT_KNOWLEDGE.md', import.meta.url),
+      'utf8',
+    );
+    const start = guide.indexOf('## 9. AI-агенты и специализации');
+    const end = guide.indexOf('## 10. ', start);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    const section = guide.slice(start, end);
+
+    const agents = listAgents();
+    expect(agents).toHaveLength(27);
+    for (const agent of agents) {
+      expect(section, agent.id).toContain(agent.name);
+    }
+  });
+});
+
 describe('rankProductKnowledgeChunks', () => {
   const chunks = [
     chunk('schedule', 'Расписание и запись пациентов', 'Проверка доступных слотов, создание, перенос и отмена записи пациента.'),
