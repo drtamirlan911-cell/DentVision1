@@ -3,7 +3,7 @@
 **Canonical repo:** `drtamirlan911-cell/DentVision1`  
 **Main snapshot:** `da1257fc650f536c76583bdff570906290b92bcd`  
 **Active candidate:** [PR #351](https://github.com/drtamirlan911-cell/DentVision1/pull/351), Draft / open, branch `feat/user-jarvis-product-knowledge-20261120`.  
-**Latest inspected code/test HEAD:** `4ecd976b991c9bf5779be9176cedd9ea7c2647dc`; 131 commits ahead / 0 behind main; 55 changed files.  
+**Latest inspected code/test HEAD:** `054bee83e0f63306c0d36598532a9b8d0fac4afc`; 141 commits ahead / 0 behind main; 55 changed files.  
 **Normative architecture:** Master Spec §15 — `AI Router → Active Context → Role/Workspace Context → Permission Engine → Tool Registry → Model/Reasoning → Action Validator → Preview → Confirmation when required → Execute → Verify → Audit`.
 
 ### Candidate work completed in source
@@ -11,6 +11,7 @@
 - Jarvis knowledge guide covers all non-disabled registered agents. Local heading-aware retrieval is tested with a natural-language query; patient guide retrieval is isolated to its own section.
 - Runtime packaging is corrected at source level: backend canonical guide copy is byte-identical to the root guide, Docker runner copies `/app/docs`, and `dentvision-backend/.dockerignore` explicitly re-includes the guide after `*.md`. Tests lock file parity, Dockerfile copy and Dockerignore behavior. A full Docker build/deployment is not yet evidenced.
 - Capability inventory is generated from actual DB/IAM-filtered tool names. Product guide is reference-only; it cannot grant access.
+- Guide now explains that the durable AI Employee queue is clinic-only work memory; partner workspaces have only their explicitly enabled read-only summaries. Retrieval is regression-tested with a natural-language question about partner task queues.
 - Patient-agent caught tool failures use a fixed non-diagnostic message. Safe exception classification now covers AI routes, kernel/orchestrator, context resolution, proactive digital-twin signals, task subscriber, EventBus and background AI paths. AI interaction audit stores only an error-presence flag.
 - AI Employee task insertion uses a deterministic clinic-bound idempotency key backed by a partial unique index; legacy tasks receive unique keys without deletion.
 - Task rows no longer accept arbitrary action payloads or free-form result/error content: metadata is allowlisted; results are restricted to fixed status/boolean/aggregate-count keys; old result/action payload/error fields are redacted on service reads. Tests cover sentinel omission.
