@@ -81,6 +81,79 @@ function canManageWaitingListPatient(context: OpsBranchContext, patientId: strin
   return context.organizationWide || Boolean(patientId && context.patientIds?.includes(patientId));
 }
 
+interface BookingBranchContext {
+  organizationWide: boolean;
+  branchId: string | null;
+  doctorIds: string[] | null;
+}
+
+async function resolveBookingBranchContext(req: AuthRequest, clinicId: string): Promise<BookingBranchContext | null> {
+  const context = await resolveOpsBranchContext(req, clinicId);
+  if (!context) return null;
+  if (context.organizationWide) return { organizationWide: true, branchId: null, doctorIds: null };
+  if (!context.branchId) return { organizationWide: false, branchId: null, doctorIds: [] };
+
+  if (req.user?.organizationId) {
+    const persons = await prisma.person.findMany({
+      where: {
+        organizationId: req.user.organizationId,
+        userId: { not: null },
+        branchMemberships: { some: { branchId: context.branchId, active: true } },
+        personRoles: {
+          some: {
+            scopeType: 'organization',
+            scopeId: req.user.organizationId,
+            role: { key: { equals: 'doctor', mode: 'insensitive' } },
+          },
+        },
+      },
+      select: { userId: true },
+    });
+    return {
+      organizationWide: false,
+      branchId: context.branchId,
+      doctorIds: [...new Set(persons.map((person) => person.userId).filter((id): id is string => Boolean(id)))],
+    };
+  }
+
+  const legacyMembers = await prisma.clinicMember.findMany({
+    where: { clinicId, branchId: context.branchId, role: 'DOCTOR' },
+    select: { userId: true },
+  });
+  return {
+    organizationWide: false,
+    branchId: context.branchId,
+    doctorIds: legacyMembers.map((member) => member.userId),
+  };
+}
+
+function bookingScopeWhere(context: BookingBranchContext, clinicId: string): Record<string, unknown> {
+  if (context.organizationWide) return { clinicId };
+  return { clinicId, doctorId: { in: context.doctorIds || [] } };
+}
+
+async function canUseBookingDoctor(
+  req: AuthRequest,
+  clinicId: string,
+  context: BookingBranchContext,
+  doctorId: string | null | undefined,
+  requestedBranchId?: string | null,
+): Promise<boolean> {
+  if (!doctorId) return context.organizationWide;
+  if (!context.organizationWide) return Boolean(context.doctorIds?.includes(doctorId));
+
+  const access = await resolveClinicBranchAccess({
+    userId: doctorId,
+    clinicId,
+    organizationId: req.user?.organizationId,
+    role: 'DOCTOR',
+    requestedBranchId: requestedBranchId ?? req.user?.branchId,
+  });
+  // Even an organization-wide caller may only assign an active clinic doctor.
+  // A doctor with multiple branches needs a selected branch before confirmation.
+  return Boolean(access && (access.branchId || access.allowedBranchIds.length === 1));
+}
+
 // ─── Waiting list ───
 
 crmOpsRouter.get('/waiting-list', requirePermission('patient.read'), async (req: AuthRequest, res) => {
