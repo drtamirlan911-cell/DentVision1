@@ -3059,3 +3059,12 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - The canonical guide and backend copy were fetched from the latest branch and verified byte-identical. This is source and regression-test evidence; do not claim a standalone Docker image build or production deployment unless an exact CI job explicitly performs it.
 - Exact-head CI [44714091779](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44714091779) and Quality Gate [44714091932](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44714091932) were in progress at inspection; Vercel Preview was pending. Fresh exact-head results are required after this documentation update.
 - All changes remain on Draft PR #351. Main, deployment configuration, secrets, databases, migrations, PHI, payment providers and production services were not modified.
+
+
+## 2026-11-20 — AI audit record exception-text regression (PR #351)
+
+- Audited the two /api/ai/query and /api/ai/query/stream failure paths that pass errorMessage into logAIInteraction(). The current auditLogger.ts deliberately does not persist that field; the durable response stores only status and a boolean errorPresent marker alongside token/latency metadata.
+- Added auditLogger.test.ts with a synthetic sentinel in errorMessage and an assertion that no exception text or field name is present in the Prisma create payload. It also asserts the error-presence marker is retained.
+- Separately confirmed EventStore.markFailed() encrypts durable event error text through encodeDurableEventError(); new event payloads/results/errors are encrypted at rest while legacy plaintext remains in compatibility read mode. This is source-level confirmation, not closure of the historical PHI/data-lifecycle blocker.
+- Test commit: 1969aaf1db488c8a0b5af1903aa90d60b8997aee. Exact-head checks are refreshed by this commit and subsequent doc sync; do not treat earlier SHA results as final.
+- No production data, key, database, deployment or main-branch change was performed.
