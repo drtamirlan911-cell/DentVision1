@@ -208,6 +208,13 @@ model User {
   confirmedAiActions            AIActionLog[]                @relation("ConfirmedActions")
   jobVacancies                  JobVacancy[]
   jobApplications               JobApplication[]
+  jobApplicationEventsActed     JobApplicationEvent[] @relation("JobApplicationEventActor")
+  jobInvitationsReceived        JobInvitation[] @relation("JobInvitationCandidate")
+  jobInvitationsSent            JobInvitation[] @relation("JobInvitationSender")
+  jobInterviewsAsCandidate      JobInterview[] @relation("JobInterviewCandidate")
+  jobInterviewsCreated          JobInterview[] @relation("JobInterviewCreator")
+  jobOffersReceived             JobOffer[] @relation("JobOfferCandidate")
+  jobOffersCreated              JobOffer[] @relation("JobOfferCreator")
   diagnosticReferrals           Referral[]
   reviewedReferrals             Referral[]                   @relation("ReferralReviewer")
   uploadedReferralFiles         ReferralFile[]
@@ -2510,6 +2517,8 @@ model JobVacancy {
   employerOrganization  Organization? @relation("EmployerJobVacancies", fields: [employerOrganizationId], references: [id], onDelete: SetNull)
 
   applications JobApplication[]
+  invitations JobInvitation[]
+  offers JobOffer[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -2530,6 +2539,9 @@ model JobApplication {
 
   vacancy JobVacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
   user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events JobApplicationEvent[]
+  interviews JobInterview[]
+  offers JobOffer[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -2537,6 +2549,121 @@ model JobApplication {
   @@index([userId])
   @@index([vacancyId, userId])
   @@map("job_applications")
+}
+
+model JobApplicationEvent {
+  id              String  @id @default(uuid())
+  applicationId   String
+  actorUserId     String?
+  eventType       String
+  fromStatus      String?
+  toStatus        String?
+  candidateVisible Boolean @default(true)
+  message         String?
+  metadata        Json?
+
+  application JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  actor User? @relation("JobApplicationEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([applicationId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("job_application_events")
+}
+
+model JobInvitation {
+  id                     String   @id @default(uuid())
+  candidateUserId        String
+  senderUserId           String
+  employerOrganizationId String?
+  vacancyId              String?
+  employerNameSnapshot   String
+  message                String?
+  status                 String   @default("pending")
+  expiresAt              DateTime?
+  respondedAt            DateTime?
+
+  candidate User @relation("JobInvitationCandidate", fields: [candidateUserId], references: [id], onDelete: Cascade)
+  sender User @relation("JobInvitationSender", fields: [senderUserId], references: [id], onDelete: Cascade)
+  employer Organization? @relation("JobInvitationEmployer", fields: [employerOrganizationId], references: [id], onDelete: SetNull)
+  vacancy JobVacancy? @relation(fields: [vacancyId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([candidateUserId, status, createdAt])
+  @@index([employerOrganizationId, status, createdAt])
+  @@index([vacancyId])
+  @@map("job_invitations")
+}
+
+model JobInterview {
+  id                     String   @id @default(uuid())
+  applicationId          String
+  candidateUserId        String
+  createdByUserId        String
+  employerOrganizationId String?
+  employerNameSnapshot   String
+  scheduledAt            DateTime
+  durationMinutes        Int      @default(30)
+  timezone               String   @default("Asia/Almaty")
+  mode                   String   @default("online")
+  meetingUrl             String?
+  location               String?
+  agenda                 String?
+  status                 String   @default("proposed")
+  candidateResponse      String?
+  candidateRespondedAt   DateTime?
+
+  application JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  candidate User @relation("JobInterviewCandidate", fields: [candidateUserId], references: [id], onDelete: Cascade)
+  createdBy User @relation("JobInterviewCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  employer Organization? @relation("JobInterviewEmployer", fields: [employerOrganizationId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([candidateUserId, scheduledAt])
+  @@index([employerOrganizationId, scheduledAt])
+  @@index([applicationId, scheduledAt])
+  @@map("job_interviews")
+}
+
+model JobOffer {
+  id                     String   @id @default(uuid())
+  applicationId          String?
+  vacancyId              String?
+  candidateUserId        String
+  createdByUserId        String
+  employerOrganizationId String?
+  employerNameSnapshot   String
+  title                  String
+  salary                 String?
+  currency               String   @default("KZT")
+  employmentType         String
+  startAt                DateTime?
+  expiresAt              DateTime
+  status                 String   @default("sent")
+  version                Int      @default(1)
+  terms                  Json?
+  documentUrl            String?
+  respondedAt            DateTime?
+  candidateMessage       String?
+
+  application JobApplication? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  vacancy JobVacancy? @relation(fields: [vacancyId], references: [id], onDelete: SetNull)
+  candidate User @relation("JobOfferCandidate", fields: [candidateUserId], references: [id], onDelete: Cascade)
+  createdBy User @relation("JobOfferCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  employer Organization? @relation("JobOfferEmployer", fields: [employerOrganizationId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([candidateUserId, status, createdAt])
+  @@index([employerOrganizationId, status, createdAt])
+  @@index([applicationId, createdAt])
+  @@map("job_offers")
 }
 
 // --- AI EVENT BUS ---
@@ -3599,6 +3726,9 @@ model Organization {
   invitations OrganizationInvitation[]
   branches     Branch[]
   employerVacancies JobVacancy[] @relation("EmployerJobVacancies")
+  jobInvitations JobInvitation[] @relation("JobInvitationEmployer")
+  jobInterviews JobInterview[] @relation("JobInterviewEmployer")
+  jobOffers JobOffer[] @relation("JobOfferEmployer")
 
   @@unique([originalType, originalId])
   @@index([type])
