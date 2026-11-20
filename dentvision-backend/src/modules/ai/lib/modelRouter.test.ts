@@ -98,7 +98,7 @@ describe('pickModel', () => {
 describe('supportsReasoning', () => {
   // `reasoning` used to be sent on every request, including to gpt-4o, which
   // has no such mode. The predicate is what keeps it off those models.
-  it.each(['o1', 'o1-mini', 'o3', 'gpt-5.4', 'gpt-5.4-mini', 'GPT-5'])(
+  it.each(['o1', 'o1-mini', 'o3', 'gpt-5.4', 'gpt-5.4-mini', 'GPT-5', 'gpt-6.2-astra', 'gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-6-luna'])(
     'recognises %s as a reasoning model',
     (model) => {
       expect(supportsReasoning(model)).toBe(true);
