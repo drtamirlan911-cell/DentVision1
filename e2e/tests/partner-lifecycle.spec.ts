@@ -732,6 +732,20 @@ test.describe('Partner operational lifecycle', () => {
     const clinicId = clinic?.id;
     expect(clinicId).toBeTruthy();
 
+    const clinicPatient = await prisma.patient.findFirst({
+      where: { id: patientId, clinicId: clinicId! },
+      select: { id: true },
+    });
+    expect(clinicPatient?.id, 'the test patient must belong to E2E Clinic A').toBe(patientId);
+    const activeMedicalLab = await prisma.laboratory.findUnique({
+      where: { id: fixtureLabId },
+      select: { id: true, active: true },
+    });
+    expect(activeMedicalLab, 'self-service onboarding must return the canonical laboratory entity ID').toMatchObject({
+      id: fixtureLabId,
+      active: true,
+    });
+
     const orderResponse = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders', {
       headers: auth(ownerToken),
       data: {
@@ -743,8 +757,9 @@ test.describe('Partner operational lifecycle', () => {
         tests: [{ name: 'Глюкоза' }],
       },
     });
-    expect(orderResponse.status()).toBe(201);
-    const order = (await orderResponse.json()).data;
+    const orderPayload = await orderResponse.json();
+    expect(orderResponse.status(), JSON.stringify(orderPayload)).toBe(201);
+    const order = orderPayload.data;
     const orderId = order.id as string;
     medicalLabOrderIds.push(orderId);
     expect(order.status).toBe('ordered');
