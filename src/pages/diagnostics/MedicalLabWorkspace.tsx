@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, CheckCircle2, Clock3, FlaskConical, Plus, ShieldCheck, Sparkles, TestTube2, XCircle } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/ui/ds/StatCard';
 import { QueryError } from '@/components/ui/ds/QueryError';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
-import { createMedicalLabOrder, getMedicalLabOrder, listMedicalLabOrders, saveMedicalLabInterpretation, saveMedicalLabResults, updateMedicalLabStatus, verifyMedicalLabOrder, type MedicalLabStatus } from '@/utils/medicalLabApi';
+import { createMedicalLabOrder, getMedicalLabOrder, listMedicalLabOrders, performMedicalLabQualityControl, saveMedicalLabInterpretation, saveMedicalLabResults, updateMedicalLabStatus, verifyMedicalLabOrder, type MedicalLabStatus } from '@/utils/medicalLabApi';
 
 const STAGES: Array<{ id: MedicalLabStatus; label: string }> = [
   { id: 'ordered', label: 'Направлено' }, { id: 'sample_collected', label: 'Материал взят' }, { id: 'received', label: 'Принято' }, { id: 'processing', label: 'Исследование' }, { id: 'result_ready', label: 'Результат' }, { id: 'verified', label: 'Проверено' },
@@ -24,6 +24,7 @@ export default function MedicalLabWorkspace() {
   const [testName, setTestName] = useState('');
   const [specimenType, setSpecimenType] = useState('');
   const [interpretation, setInterpretation] = useState('');
+  const [resultDrafts, setResultDrafts] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
   const listQuery = useQuery({ queryKey: ['medical-lab-orders', context.patientId, context.caseId], queryFn: () => listMedicalLabOrders({ patientId: context.patientId || undefined, caseId: context.caseId || undefined }) });
   const detailQuery = useQuery({ queryKey: ['medical-lab-order', selectedId], queryFn: () => getMedicalLabOrder(selectedId!), enabled: !!selectedId });
@@ -31,10 +32,27 @@ export default function MedicalLabWorkspace() {
   const statusMutation = useMutation({ mutationFn: ({ id, status }: { id: string; status: MedicalLabStatus }) => updateMedicalLabStatus(id, status), onSuccess: refresh });
   const verifyMutation = useMutation({ mutationFn: (id: string) => verifyMedicalLabOrder(id), onSuccess: refresh });
   const interpretationMutation = useMutation({ mutationFn: ({ id, text }: { id: string; text: string }) => saveMedicalLabInterpretation(id, text, 'human'), onSuccess: () => { setInterpretation(''); refresh(); } });
-  const resultMutation = useMutation({ mutationFn: ({ id, testId, result }: { id: string; testId: string; result: string }) => saveMedicalLabResults(id, [{ id: testId, result }]), onSuccess: refresh });
+  const resultMutation = useMutation({
+    mutationFn: ({ id, results }: { id: string; results: Array<{ id: string; result: string }> }) => saveMedicalLabResults(id, results),
+    onSuccess: refresh,
+  });
+  const qualityMutation = useMutation({
+    mutationFn: ({ id, decision }: { id: string; decision: 'passed' | 'failed' }) => performMedicalLabQualityControl(id, decision),
+    onSuccess: refresh,
+  });
   const createMutation = useMutation({ mutationFn: () => createMedicalLabOrder({ patientId: context.patientId || undefined, treatmentCaseId: context.caseId || undefined, specimenType: specimenType || undefined, tests: [{ name: testName.trim() }] }), onSuccess: (order) => { setSelectedId(order.id); setTestName(''); setSpecimenType(''); setCreating(false); refresh(); } });
   const orders = listQuery.data || [];
   const selected = detailQuery.data;
+  const capabilities = selected?.capabilities || [];
+  const hasCapability = (capability: string) => capabilities.includes(capability);
+  const qualityControl = selected?.order?.metadata && typeof selected.order.metadata === 'object'
+    ? (selected.order.metadata as Record<string, any>).qualityControl
+    : null;
+  useEffect(() => {
+    if (!selected) return;
+    setResultDrafts(Object.fromEntries(selected.tests.map((test) => [test.id, test.result ?? test.resultText ?? ''])));
+    setInterpretation(selected.order.interpretation || '');
+  }, [selected?.order.id, detailQuery.dataUpdatedAt]);
   const counts = useMemo(() => orders.reduce<Record<string, number>>((acc, item) => { acc[item.status] = (acc[item.status] || 0) + 1; return acc; }, {}), [orders]);
   const currentNext = selected?.order.status ? NEXT[selected.order.status] : undefined;
   if (listQuery.isError) return <QueryError error={listQuery.error as Error} onRetry={() => listQuery.refetch()} />;
@@ -65,9 +83,13 @@ export default function MedicalLabWorkspace() {
         </Card>
         <div className="space-y-4">
           {selected ? <>
-            <Card className="border-bdr-subtle bg-surface-1 p-5"><div className="flex items-start justify-between gap-3"><div><div className="text-xs text-txt-muted">Направление</div><div className="mt-1 font-semibold text-txt-primary">{selected.order.id}</div></div><Badge>{statusLabel[selected.order.status]}</Badge></div><div className="mt-5 grid grid-cols-2 gap-3 text-xs"><div><div className="text-txt-muted">Пациент</div><div className="mt-1 text-txt-primary">{selected.order.patientId || '—'}</div></div><div><div className="text-txt-muted">Case</div><div className="mt-1 text-txt-primary">{selected.order.treatmentCaseId || '—'}</div></div></div>{currentNext && <Button className="mt-5 w-full" disabled={statusMutation.isPending} onClick={() => statusMutation.mutate({ id: selected.order.id, status: currentNext })}>{statusLabel[currentNext]} <span className="ml-auto">→</span></Button>}{selected.order.status === 'result_ready' && <Button className="mt-2 w-full" variant="outline" disabled={verifyMutation.isPending} onClick={() => verifyMutation.mutate(selected.order.id)}><CheckCircle2 className="mr-2 h-4 w-4" />Верифицировать результат</Button>}</Card>
-            <Card className="border-bdr-subtle bg-surface-1 p-5"><div className="mb-4 text-sm font-semibold text-txt-primary">Результаты</div><div className="space-y-3">{selected.tests.map((test) => <div key={test.id} className="rounded-xl border border-bdr-subtle p-3"><div className="text-sm font-medium text-txt-primary">{test.name}</div><div className="mt-2 flex gap-2"><input defaultValue={test.result || ''} placeholder="Значение" className="min-w-0 flex-1 rounded-lg border border-bdr-subtle bg-surface-1 px-3 py-2 text-sm text-txt-primary" onBlur={(e) => { if (e.target.value !== (test.result || '')) resultMutation.mutate({ id: selected.order.id, testId: test.id, result: e.target.value }); }} /><span className="flex items-center text-xs text-txt-muted">{test.unit || ''}</span></div>{test.referenceRange && <div className="mt-2 text-xs text-txt-muted">Референс: {test.referenceRange}</div>}</div>)}</div></Card>
-            <Card className="border-bdr-subtle bg-surface-1 p-5"><div className="flex items-center gap-2 text-sm font-semibold text-txt-primary"><Sparkles className="h-4 w-4 text-dv-gold" />Клиническая интерпретация</div><textarea value={interpretation} onChange={(e) => setInterpretation(e.target.value)} placeholder={selected.order.interpretation || 'Зафиксируйте интерпретацию результата для врача...'} className="mt-3 min-h-28 w-full resize-y rounded-xl border border-bdr-subtle bg-surface-1 px-3 py-2 text-sm text-txt-primary" /><Button className="mt-3 w-full" disabled={!interpretation.trim() || interpretationMutation.isPending} onClick={() => interpretationMutation.mutate({ id: selected.order.id, text: interpretation.trim() })}>Сохранить интерпретацию</Button></Card>
+            <Card className="border-bdr-subtle bg-surface-1 p-5"><div className="flex items-start justify-between gap-3"><div><div className="text-xs text-txt-muted">Направление</div><div className="mt-1 font-semibold text-txt-primary">{selected.order.id}</div></div><Badge>{statusLabel[selected.order.status]}</Badge></div><div className="mt-5 grid grid-cols-2 gap-3 text-xs"><div><div className="text-txt-muted">Пациент</div><div className="mt-1 text-txt-primary">{selected.order.patientId || '—'}</div></div><div><div className="text-txt-muted">Case</div><div className="mt-1 text-txt-primary">{selected.order.treatmentCaseId || '—'}</div></div></div>{currentNext && <Button className="mt-5 w-full" disabled={statusMutation.isPending} onClick={() => statusMutation.mutate({ id: selected.order.id, status: currentNext })}>{statusLabel[currentNext]} <span className="ml-auto">→</span></Button>}{selected.order.status === 'result_ready' && qualityControl?.decision && <div className="mt-3 rounded-lg border border-bdr-subtle bg-surface-2 p-3 text-xs text-txt-secondary">QC: <strong>{qualityControl.decision === 'passed' ? 'Пройден' : 'Отклонён'}</strong>{qualityControl.note ? ` · ${qualityControl.note}` : ''}</div>}
+              {selected.order.status === 'result_ready' && hasCapability('quality.perform') && <div className="mt-3 grid grid-cols-2 gap-2"><Button className="w-full" disabled={qualityMutation.isPending || qualityControl?.decision === 'passed'} onClick={() => qualityMutation.mutate({ id: selected.order.id, decision: 'passed' })}><ShieldCheck className="mr-2 h-4 w-4" />QC пройден</Button><Button className="w-full" variant="outline" disabled={qualityMutation.isPending || qualityControl?.decision === 'failed'} onClick={() => qualityMutation.mutate({ id: selected.order.id, decision: 'failed' })}><XCircle className="mr-2 h-4 w-4" />Отклонить QC</Button></div>}
+              {selected.order.status === 'result_ready' && qualityControl?.decision === 'passed' && hasCapability('result.verify') && <Button className="mt-2 w-full" variant="outline" disabled={verifyMutation.isPending} onClick={() => verifyMutation.mutate(selected.order.id)}><CheckCircle2 className="mr-2 h-4 w-4" />Независимо выпустить результат</Button>}
+              </Card>
+            <Card className="border-bdr-subtle bg-surface-1 p-5"><div className="mb-4 flex items-center justify-between gap-3"><div className="text-sm font-semibold text-txt-primary">Результаты</div>{selected.order.status === 'processing' && hasCapability('result.write') && <Badge>Ввод результата</Badge>}</div><div className="space-y-3">{selected.tests.map((test) => <div key={test.id} className="rounded-xl border border-bdr-subtle p-3"><div className="text-sm font-medium text-txt-primary">{test.name}</div><div className="mt-2 flex gap-2">{selected.order.status === 'processing' && hasCapability('result.write') ? <input value={resultDrafts[test.id] ?? ''} onChange={(e) => setResultDrafts((prev) => ({ ...prev, [test.id]: e.target.value }))} placeholder="Значение результата" className="min-w-0 flex-1 rounded-lg border border-bdr-subtle bg-surface-1 px-3 py-2 text-sm text-txt-primary" /> : <div className="min-w-0 flex-1 rounded-lg bg-surface-2 px-3 py-2 text-sm text-txt-primary">{test.result || test.resultText || 'Результат ещё не внесён'}</div>}<span className="flex items-center text-xs text-txt-muted">{test.unit || ''}</span></div>{test.referenceRange && <div className="mt-2 text-xs text-txt-muted">Референс: {test.referenceRange}</div>}</div>)}</div>{selected.order.status === 'processing' && hasCapability('result.write') && <Button className="mt-4 w-full" disabled={resultMutation.isPending || selected.tests.length === 0 || selected.tests.some((test) => !(resultDrafts[test.id] || '').trim())} onClick={() => resultMutation.mutate({ id: selected.order.id, results: selected.tests.map((test) => ({ id: test.id, result: (resultDrafts[test.id] || '').trim() })) })}>{resultMutation.isPending ? 'Сохраняем результаты…' : 'Сохранить полный набор результатов'}</Button>}</Card>
+            {selected.order.status === 'verified' && hasCapability('result.interpret') && <Card className="border-bdr-subtle bg-surface-1 p-5"><div className="flex items-center gap-2 text-sm font-semibold text-txt-primary"><Sparkles className="h-4 w-4 text-dv-gold" />Клиническая интерпретация</div><textarea value={interpretation} onChange={(e) => setInterpretation(e.target.value)} placeholder="Клиническая интерпретация для врача..." className="mt-3 min-h-28 w-full resize-y rounded-xl border border-bdr-subtle bg-surface-1 px-3 py-2 text-sm text-txt-primary" /><Button className="mt-3 w-full" disabled={!interpretation.trim() || interpretationMutation.isPending} onClick={() => interpretationMutation.mutate({ id: selected.order.id, text: interpretation.trim() })}>Подписать интерпретацию</Button></Card>}
+
             <EcosystemRelationRail node={{ type: 'medical-analysis', id: selected.order.id, label: 'Медицинский анализ' }} patientId={selected.order.patientId || undefined} caseId={selected.order.treatmentCaseId || undefined} />
           </> : <Card className="border-bdr-subtle bg-surface-1 p-8 text-sm text-txt-muted">Выберите направление, чтобы открыть полный lifecycle.</Card>}
         </div>
