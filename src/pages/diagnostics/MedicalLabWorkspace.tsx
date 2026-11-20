@@ -10,12 +10,13 @@ import { QueryError } from '@/components/ui/ds/QueryError';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 import { useAuth } from '@/store/auth.store';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
-import { createMedicalLabOrder, getMedicalLabOrder, listMedicalLabOrders, performMedicalLabQualityControl, saveMedicalLabInterpretation, saveMedicalLabResults, updateMedicalLabStatus, verifyMedicalLabOrder, type MedicalLabStatus } from '@/utils/medicalLabApi';
+import { createMedicalLabOrder, getMedicalLabOrder, listMedicalLabOrders, performMedicalLabQualityControl, saveMedicalLabInterpretation, saveMedicalLabResults, updateMedicalLabStatus, verifyMedicalLabOrder, type MedicalLabOrder, type MedicalLabStatus } from '@/utils/medicalLabApi';
 
 const STAGES: Array<{ id: MedicalLabStatus; label: string }> = [
   { id: 'ordered', label: 'Направлено' }, { id: 'sample_collected', label: 'Материал взят' }, { id: 'received', label: 'Принято' }, { id: 'processing', label: 'Исследование' }, { id: 'result_ready', label: 'Результат' }, { id: 'verified', label: 'Проверено' },
 ];
 const NEXT: Partial<Record<MedicalLabStatus, MedicalLabStatus>> = { ordered: 'sample_collected', sample_collected: 'received', received: 'processing' };
+const EMPTY_ORDERS: MedicalLabOrder[] = [];
 const statusLabel: Record<string, string> = { ordered: 'Направлено', sample_collected: 'Материал взят', received: 'Принято', processing: 'В работе', result_ready: 'Результат готов', verified: 'Проверено', cancelled: 'Отменено', draft: 'Черновик' };
 
 export default function MedicalLabWorkspace() {
@@ -45,7 +46,7 @@ export default function MedicalLabWorkspace() {
     onSuccess: () => { setQualityNote(''); refresh(); },
   });
   const createMutation = useMutation({ mutationFn: () => createMedicalLabOrder({ patientId: context.patientId || undefined, treatmentCaseId: context.caseId || undefined, specimenType: specimenType || undefined, tests: [{ name: testName.trim() }] }), onSuccess: (order) => { setSelectedId(order.id); setTestName(''); setSpecimenType(''); setCreating(false); refresh(); } });
-  const orders = listQuery.data || [];
+  const orders = listQuery.data ?? EMPTY_ORDERS;
   const selected = detailQuery.data;
   const capabilities = selected?.capabilities || [];
   const hasCapability = (capability: string) => capabilities.includes(capability);
@@ -57,7 +58,7 @@ export default function MedicalLabWorkspace() {
     if (!selected) return;
     setResultDrafts(Object.fromEntries(selected.tests.map((test) => [test.id, test.result ?? test.resultText ?? ''])));
     setInterpretation(selected.order.interpretation || '');
-  }, [selected?.order.id, detailQuery.dataUpdatedAt]);
+  }, [selected]);
   const counts = useMemo(() => orders.reduce<Record<string, number>>((acc, item) => { acc[item.status] = (acc[item.status] || 0) + 1; return acc; }, {}), [orders]);
   const currentNext = selected?.order.status ? NEXT[selected.order.status] : undefined;
   const currentNextCapability = selected?.order.status === 'ordered' ? 'specimen.collect'
