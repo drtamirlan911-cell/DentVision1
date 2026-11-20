@@ -1,12 +1,15 @@
 /**
  * Cheap-first OpenAI model router.
  *
- * Free-tier pools (typical OpenAI complimentary traffic):
- *   - full  ~250k tok/day
- *   - mini  ~2.5M tok/day
+ * Routing tiers:
+ *   - mini   Luna / fallback: short, high-volume, low-risk tasks
+ *   - full   Sol / fallback: standard complex agent workflows
+ *   - deep   Astra / fallback: hard clinical reasoning and strategic audits
+ *   - vision Terra / verified fallback: any image input, never a text-only model
  *
- * Strategy: route almost everything through mini; escalate to full only for
- * hard clinic tasks, and stop escalating when the soft full-day budget is gone.
+ * Deep shares the full token ledger: elevated reasoning cannot bypass the
+ * existing daily budget. Provider capability metadata is explicit per model,
+ * not inferred from a model-name prefix.
  */
 
 import { counterKeys, incrementDaily, readDaily } from '../../../lib/dailyCounter.js';
