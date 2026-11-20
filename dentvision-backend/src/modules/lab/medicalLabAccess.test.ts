@@ -40,3 +40,21 @@ describe('medical laboratory scoped role capabilities', () => {
       .toEqual(['medical_lab_technician']);
   });
 });
+
+describe('medical laboratory membership fallback', () => {
+  it('accepts exactly one legacy membership', async () => {
+    const { selectUniqueMedicalLabMembershipId } = await import('./medicalLabAccess.js');
+    expect(selectUniqueMedicalLabMembershipId([{ labId: 'lab-a' }])).toBe('lab-a');
+  });
+
+  it('fails closed when there is no membership or more than one', async () => {
+    const { selectUniqueMedicalLabMembershipId } = await import('./medicalLabAccess.js');
+    expect(selectUniqueMedicalLabMembershipId([])).toBeNull();
+    expect(selectUniqueMedicalLabMembershipId([{ labId: 'lab-a' }, { labId: 'lab-b' }])).toBeNull();
+  });
+
+  it('rejects a blank membership identifier', async () => {
+    const { selectUniqueMedicalLabMembershipId } = await import('./medicalLabAccess.js');
+    expect(selectUniqueMedicalLabMembershipId([{ labId: ' ' }])).toBeNull();
+  });
+});
