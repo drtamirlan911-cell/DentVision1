@@ -129,6 +129,17 @@ describe('product guide runtime asset parity', () => {
   });
 });
 
+describe('backend container knowledge asset', () => {
+  it('copies the guide directory into the runtime image at the loader path', () => {
+    const dockerfile = readFileSync(
+      new URL('../../../../../dentvision-backend/Dockerfile', import.meta.url),
+      'utf8',
+    );
+
+    expect(dockerfile).toContain('COPY --from=builder /app/docs ./docs');
+  });
+});
+
 describe('runtime product guide retrieval', () => {
   it('loads the patient section from the shipped guide file', async () => {
     resetProductKnowledgeCacheForTests();
