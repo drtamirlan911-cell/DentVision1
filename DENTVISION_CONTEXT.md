@@ -790,3 +790,9 @@ PARTNER-003 verifies only the current basic handoff and production path. It does
 - The test avoids shared E2E Clinic A and has a finally-based restore attempt if an assertion fails.
 - Test commits: \`65e9c3d49959301d87f704a2216e6e8f6ab4139f\` and \`d062acd90082f6d1bcf3b406508418e32133d9c7\`.
 - Exact-head CI must verify the test. D2 remains OPEN pending E2E and approved staging migration/retention evidence; no database migration or live archive/restore was executed.
+
+### Organization/Branch AI Employee design checkpoint (2026-11-20)
+
+- Added `docs/AI_EMPLOYEE_ORGANIZATION_SCOPE.md` with a source-verified target contract. The active organization id is the canonical tenant; `scopeType/scopeId` preserve the workspace domain identity; branch scope is resolved from active BranchMember/legacy clinic membership and never trusted from JWT claims.
+- The audit found that AI approvals already store `organizationId`, but `activityQuery.ts` and approve/reject routes remain clinic-only; `AiToolAccess` also does not expose verified branch scope; `ActionEvidence` lacks organization/branch scope fields.
+- This is design only. The next code step is a canonical server-side task scope resolver plus cross-tenant/branch negative tests; schema, event producer and partner queue rollout must wait until that resolver passes.
