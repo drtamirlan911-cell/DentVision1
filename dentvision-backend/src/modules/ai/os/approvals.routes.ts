@@ -18,6 +18,7 @@ import { auditFromReq } from '../../compliance/audit.service.js';
 import { resolveAiToolAccess } from './access.js';
 import { runAiAction } from './kernel.js';
 import { buildApprovalFilter } from './activityQuery.js';
+import { resolveAiToolBranchScope, isNarrowAiToolBranchScope } from './aiToolBranchScope.js';
 import {
   decryptAiApprovalDecisionNote,
   decryptAiApprovalParams,
@@ -30,6 +31,32 @@ import type { AiSurface } from './kernel.types.js';
 
 const router = Router();
 
+async function hasOrganizationWideApprovalScope(req: AuthRequest, clinicId: string | null): Promise<boolean> {
+  try {
+    if (!req.user?.id || !clinicId) return false;
+    const access = await resolveAiToolAccess({
+      userId: req.user.id,
+      clinicId,
+      organizationId: req.user.organizationId,
+      organizationType: req.user.organizationType,
+      supplierId: req.user.supplierId,
+      lecturerId: req.user.lecturerId,
+      isGuest: req.user.isGuest,
+    });
+    if (!access.clinicId || access.role === 'SUPERADMIN') return false;
+    const scope = await resolveAiToolBranchScope({
+      userId: req.user.id,
+      clinicId: access.clinicId,
+      organizationId: access.organizationId || req.user.organizationId,
+      role: access.role,
+      requestedBranchId: req.user.branchId || req.user.assignedBranchId || null,
+    });
+    return Boolean(scope && !isNarrowAiToolBranchScope(scope));
+  } catch {
+    return false;
+  }
+}
+
 /** GET /api/ai/approvals — visible to the caller via the same tiered ladder as the Activity Center. */
 router.get('/', authenticate, async (req: AuthRequest, res) => {
   try {
@@ -39,7 +66,9 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
     const status = req.query.status as string | undefined;
     const clinicId = req.user.clinicId || (req.query.clinicId as string) || null;
     const { where, canReadPhi } = await buildApprovalFilter(req.user.id, clinicId);
-    const finalWhere = status ? { ...where, status } : where;
+    const organizationWide = await hasOrganizationWideApprovalScope(req, req.user.clinicId || null);
+    const scopedWhere = organizationWide ? where : { AND: [where, { requestedByUserId: req.user.id }] };
+    const finalWhere = status ? { AND: [scopedWhere, { status }] } : scopedWhere;
 
     const approvals = await prisma.aiApproval.findMany({
       where: finalWhere,
@@ -86,13 +115,21 @@ router.get('/tasks', authenticate, async (req: AuthRequest, res) => {
     }
     const rawLimit = Number(req.query.limit || 30);
     const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 100) : 30;
-    const workspaceRoles = new Set(['OWNER', 'SUPERADMIN', 'MANAGER', 'ADMIN']);
-    const canReadWorkspaceQueue = workspaceRoles.has(String(access.role).toUpperCase());
+    const taskScope = await resolveAiToolBranchScope({
+      userId: req.user.id,
+      clinicId: access.clinicId,
+      organizationId: access.organizationId || req.user.organizationId,
+      role: access.role,
+      requestedBranchId: req.user.branchId || req.user.assignedBranchId || null,
+    });
+    const canReadWorkspaceQueue =
+      ['OWNER', 'ADMIN'].includes(String(access.role).toUpperCase())
+      && Boolean(taskScope && !isNarrowAiToolBranchScope(taskScope));
     const tasks = await listAiEmployeeTasks({
       clinicId: access.clinicId,
       ...(canReadWorkspaceQueue ? {} : {
         userId: req.user.id,
-        includeUnassigned: true,
+        includeUnassigned: false,
         role: access.role,
       }),
       status: typeof req.query.taskStatus === 'string' ? req.query.taskStatus as any : null,
@@ -132,12 +169,20 @@ router.post('/tasks/:id/transition', authenticate, async (req: AuthRequest, res)
     // Only verified workspace owners/managers/superadmins may transition any
     // task in the clinic. Other roles may resolve only their own or unassigned
     // tasks in their verified role queue.
-    const privileged = new Set(['OWNER', 'SUPERADMIN', 'MANAGER', 'ADMIN']);
-    if (!privileged.has(String(access.role || '').toUpperCase())) {
+    const taskScope = await resolveAiToolBranchScope({
+      userId: req.user.id,
+      clinicId: access.clinicId,
+      organizationId: access.organizationId || req.user.organizationId,
+      role: access.role,
+      requestedBranchId: req.user.branchId || req.user.assignedBranchId || null,
+    });
+    const privileged = ['OWNER', 'ADMIN'].includes(String(access.role || '').toUpperCase())
+      && Boolean(taskScope && !isNarrowAiToolBranchScope(taskScope));
+    if (!privileged) {
       const ownRoleQueue = await listAiEmployeeTasks({
         clinicId: access.clinicId,
         userId: req.user.id,
-        includeUnassigned: true,
+        includeUnassigned: false,
         role: access.role,
         limit: 100,
       });
@@ -184,6 +229,9 @@ router.post('/:id/approve', authenticate, async (req: AuthRequest, res) => {
       return res.status(409).json({ ok: false, error: 'Срок действия истёк' });
     }
     if (!assertSameClinic(req, res, approval.clinicId)) return;
+    if (!(await hasOrganizationWideApprovalScope(req, approval.clinicId))) {
+      return res.status(403).json({ ok: false, error: 'Для решения чужих AI-действий требуется организационный доступ' });
+    }
 
     const access = await resolveAiToolAccess({
       userId: req.user.id,
@@ -247,6 +295,9 @@ router.post('/:id/reject', authenticate, async (req: AuthRequest, res) => {
       return res.status(409).json({ ok: false, error: 'Уже обработано' });
     }
     if (!assertSameClinic(req, res, approval.clinicId)) return;
+    if (!(await hasOrganizationWideApprovalScope(req, approval.clinicId))) {
+      return res.status(403).json({ ok: false, error: 'Для решения чужих AI-действий требуется организационный доступ' });
+    }
 
     const access = await resolveAiToolAccess({
       userId: req.user.id,

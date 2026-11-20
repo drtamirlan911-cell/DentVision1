@@ -24,8 +24,37 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest } from '../../types/index.js';
 import { buildActivityFilter, redactPhiRows } from './os/activityQuery.js';
+import { resolveAiToolAccess } from './os/access.js';
+import { resolveAiToolBranchScope, isNarrowAiToolBranchScope } from './os/aiToolBranchScope.js';
 
 const router = Router();
+
+async function isBranchScopedActivityView(req: AuthRequest, clinicId: string | null): Promise<boolean> {
+  try {
+    if (!req.user?.id) return true;
+    const access = await resolveAiToolAccess({
+      userId: req.user.id,
+      clinicId,
+      organizationId: req.user.organizationId,
+      organizationType: req.user.organizationType,
+      supplierId: req.user.supplierId,
+      lecturerId: req.user.lecturerId,
+      isGuest: req.user.isGuest,
+    });
+    if (access.role === 'SUPERADMIN') return false;
+    if (!access.clinicId) return true;
+    const scope = await resolveAiToolBranchScope({
+      userId: req.user.id,
+      clinicId: access.clinicId,
+      organizationId: access.organizationId || req.user.organizationId,
+      role: access.role,
+      requestedBranchId: req.user.branchId || req.user.assignedBranchId || null,
+    });
+    return !scope || isNarrowAiToolBranchScope(scope);
+  } catch {
+    return true;
+  }
+}
 
 /** Enough for tool + patient + approval + produced record, with room to spare. */
 const EVIDENCE_PER_ACTIVITY = 12;
@@ -64,10 +93,15 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
     const dateFrom = req.query.dateFrom as string | undefined;
     const dateTo = req.query.dateTo as string | undefined;
 
-    const { where: visibilityWhere, canReadPhi } = await buildActivityFilter(req.user.id, resolveClinicParam(req));
+    const activeClinicId = resolveClinicParam(req);
+    const { where: visibilityWhere, canReadPhi } = await buildActivityFilter(req.user.id, activeClinicId);
+    const branchScoped = await isBranchScopedActivityView(req, activeClinicId);
+    const safeVisibilityWhere = branchScoped
+      ? { AND: [visibilityWhere, { actorUserId: req.user.id }] }
+      : visibilityWhere;
 
     const where = {
-      ...visibilityWhere,
+      ...safeVisibilityWhere,
       ...(eventType ? { tool: eventType } : {}),
       ...(agent ? { agentId: agent } : {}),
       ...(role ? { actorRole: role } : {}),
@@ -158,7 +192,12 @@ router.get('/stats', authenticate, async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const { where } = await buildActivityFilter(req.user.id, resolveClinicParam(req));
+    const activeClinicId = resolveClinicParam(req);
+    const { where: visibilityWhere } = await buildActivityFilter(req.user.id, activeClinicId);
+    const branchScoped = await isBranchScopedActivityView(req, activeClinicId);
+    const where = branchScoped
+      ? { AND: [visibilityWhere, { actorUserId: req.user.id }] }
+      : visibilityWhere;
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
