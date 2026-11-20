@@ -403,7 +403,7 @@ medicalLabLifecycleRouter.post('/orders/:id/results', async (req: AuthRequest, r
       order.id,
     );
     const validation = validateMedicalLabResultSet(tests, req.body?.results);
-    if (!validation.ok) return res.status(400).json({ ok: false, error: validation.message, code: validation.code });
+    if (validation.ok === false) return res.status(400).json({ ok: false, error: validation.message, code: validation.code });
 
     const submittedAt = new Date().toISOString();
     await prisma.$transaction(async (tx) => {
@@ -473,7 +473,7 @@ medicalLabLifecycleRouter.post('/orders/:id/quality-control', async (req: AuthRe
       resultText: test.resultText,
     }));
     const validation = validateMedicalLabResultSet(tests, existingResults);
-    if (!validation.ok) return res.status(409).json({ ok: false, error: validation.message, code: 'MEDICAL_LAB_RESULTS_INCOMPLETE' });
+    if (validation.ok === false) return res.status(409).json({ ok: false, error: validation.message, code: 'MEDICAL_LAB_RESULTS_INCOMPLETE' });
     const resultAuthors = new Set(tests.map((test) => String(jsonObject(test.metadata).resultEnteredByUserId || '')).filter(Boolean));
     if (resultAuthors.has(req.user!.id)) {
       return res.status(409).json({ ok: false, error: 'Контроль качества должен выполнить другой сотрудник, не вводивший результат', code: 'MEDICAL_LAB_SEPARATION_OF_DUTIES' });
