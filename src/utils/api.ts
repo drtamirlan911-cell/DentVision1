@@ -436,6 +436,9 @@ export async function getSchoolOfficeCourses(): Promise<any> { return collection
 export async function getSchoolTextbooks(): Promise<any> { return collection(await apiRequest('/api/school/textbooks')); }
 export async function registerAcademyProduct(payload: { productId: string; format: 'webinar' | 'office' | 'live' | 'textbook' | 'course' }): Promise<any> { return apiRequest('/api/school/commerce/register', { method: 'POST', body: JSON.stringify(payload) }); }
 export async function getSchoolCertificates(userId: string): Promise<any> { return collection(await apiRequest('/api/school/certificates')); }
+export async function getSchoolCertificateVerification(verificationCode: string): Promise<any> {
+  return apiRequest(`/api/school/certificates/verify/${encodeURIComponent(verificationCode)}`);
+}
 export async function getAcademies(): Promise<any> { return collection(await apiRequest('/api/academies')); }
 export async function getLecturers(params: Record<string, string> = {}): Promise<any> { const q = new URLSearchParams(params).toString(); return collection(await apiRequest(`/api/lecturers${q ? `?${q}` : ''}`)); }
 export async function reviewSchoolHomework(payload: { title?: string; notes?: string; category?: string; imageCount?: number }): Promise<any> { return apiRequest('/api/school/homework/review', { method: 'POST', body: JSON.stringify(payload) }); }
