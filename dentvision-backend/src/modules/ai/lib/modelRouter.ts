@@ -239,7 +239,7 @@ export function pickModel(input: {
           model: input.visionModel,
           tier: 'full',
           reasoningEffort: effort,
-          supportsReasoning: supportsReasoning(input.visionModel),
+          supportsReasoning: input.visionSupportsReasoning ?? supportsReasoning(input.visionModel),
           maxOutputTokens: 1_200,
           reason: 'required_vision_input',
         };
