@@ -80,7 +80,7 @@ const severityClass: Record<string, string> = {
 
 export default function SupplierWorkspace() {
   const toast = useToast()
-  const { user, activeWorkspace } = useAuth()
+  const { activeWorkspace } = useAuth()
   const [loading, setLoading] = useState(true)
   const [contexts, setContexts] = useState<SupplierCtx[]>([])
   const [token, setToken] = useState<string | null>(null)
