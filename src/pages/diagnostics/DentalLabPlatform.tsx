@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, FlaskConical, PackageCheck, RefreshCw, Users, Wrench } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
@@ -96,8 +97,20 @@ function OrderCard({ order, onStatus, onQc, canManageQc, qcBusy }: { order: LabP
 }
 
 export default function DentalLabPlatform() {
-  const [tab, setTab] = useState('board');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const validTab = requestedTab === 'priority' || requestedTab === 'team' ? requestedTab : 'board';
+  const [tab, setTab] = useState(validTab);
   const [filter, setFilter] = useState<string | undefined>();
+
+  const changeTab = (nextTab: string) => {
+    const selected = nextTab === 'priority' || nextTab === 'team' ? nextTab : 'board';
+    setTab(selected);
+    const nextParams = new URLSearchParams(searchParams);
+    if (selected === 'board') nextParams.delete('tab');
+    else nextParams.set('tab', selected);
+    setSearchParams(nextParams, { replace: true });
+  };
   const qc = useQueryClient();
   const context = useEcosystemUrlContext();
   const dashboard = useQuery({ queryKey: ['lab-platform', 'dashboard'], queryFn: getLabPlatformDashboard, refetchInterval: 30_000 });
@@ -143,7 +156,7 @@ export default function DentalLabPlatform() {
           <div className="flex items-center gap-2 text-xs text-txt-muted"><CheckCircle2 size={15} /> {d.totals.all} заказов</div>
         </div>
       </Card>
-      <Tabs tabs={tabs} active={tab} onChange={setTab} />
+      <Tabs tabs={tabs} active={tab} onChange={changeTab} />
       {tab === 'board' && <>
         <div className="flex gap-2 overflow-x-auto pb-1">
           <Button size="sm" variant={!filter ? 'secondary' : 'ghost'} onClick={() => setFilter(undefined)}>Все</Button>
