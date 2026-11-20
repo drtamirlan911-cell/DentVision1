@@ -880,7 +880,7 @@ schoolRouter.get('/certificates/verify/:verificationCode', async (req, res) => {
       where: { verificationCode: String(req.params.verificationCode) },
       include: { course: { select: { title: true, category: true } } },
     });
-    if (!certificate || certificate.status !== 'issued' || certificate.revokedAt) {
+    if (!certificate || certificate.status !== 'issued' || certificate.revokedAt || (certificate.expiresAt && certificate.expiresAt <= new Date())) {
       return res.status(404).json({ ok: false, error: 'Сертификат не найден или недействителен' });
     }
     return res.json({
