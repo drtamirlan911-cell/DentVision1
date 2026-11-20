@@ -127,7 +127,7 @@ describe('getLecturerCoursesOverview — lecturer-owned read-only catalogue', ()
 });
 
 
-describe('getStudentLearningProgress — authenticated student's own enrollments only', () => {
+describe("getStudentLearningProgress — authenticated student's own enrollments only", () => {
   const context = { userId: 'student-user-1', role: 'STUDENT' };
 
   it('returns bounded course progress and aggregate lesson counts without private fields', async () => {
