@@ -384,10 +384,10 @@ schoolRouter.get('/courses/:id', optionalAuth, async (req, res) => {
       }
       const enrollment = await prisma.schoolEnrollment.findUnique({
         where: { userId_courseId: { userId, courseId: course.id } },
-        select: { id: true },
+        select: { id: true, accessStatus: true, accessExpiresAt: true },
       });
-      if (!enrollment) {
-        res.status(403).json({ ok: false, error: 'Требуется запись на курс' });
+      if (!enrollment || enrollment.accessStatus !== 'active' || (enrollment.accessExpiresAt && enrollment.accessExpiresAt <= new Date())) {
+        res.status(403).json({ ok: false, error: 'Доступ к курсу не активен', code: 'LEARNING_ENTITLEMENT_INACTIVE' });
         return;
       }
     }
@@ -551,7 +551,7 @@ schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) =>
     }
 
     const enrollment = await prisma.schoolEnrollment.create({
-      data: { id: uid(), userId, courseId },
+      data: { id: uid(), userId, courseId, acquisitionType: 'free', accessStatus: 'active' },
       include: { course: true },
     });
     await writeAuditLog({
@@ -585,44 +585,63 @@ schoolRouter.get('/enrollments', authenticate, async (req: AuthRequest, res) => 
 
 schoolRouter.patch('/enrollments/:id', authenticate, async (req: AuthRequest, res) => {
   try {
-    const id = req.params.id as string;
-    const { progress, completed, completedLessons } = req.body;
-    const enrollment = await prisma.schoolEnrollment.findUnique({ where: { id } });
+    const id = String(req.params.id);
+    const enrollment = await prisma.schoolEnrollment.findFirst({
+      where: { id, userId: req.user!.id },
+    });
     if (!enrollment) {
-      res.status(404).json({ ok: false, error: 'Enrollment not found' });
-      return;
+      return res.status(404).json({ ok: false, error: 'Enrollment not found' });
     }
-    if (enrollment.userId !== req.user!.id) {
-      res.status(403).json({ ok: false, error: 'Not your enrollment' });
-      return;
+    if (enrollment.accessStatus !== 'active' || (enrollment.accessExpiresAt && enrollment.accessExpiresAt <= new Date())) {
+      return res.status(403).json({ ok: false, error: 'Доступ к курсу не активен', code: 'LEARNING_ENTITLEMENT_INACTIVE' });
     }
-    if (progress !== undefined && (typeof progress !== 'number' || progress < 0 || progress > 100)) {
-      res.status(400).json({ ok: false, error: 'progress must be a number between 0 and 100' });
-      return;
+
+    const requested = req.body?.completedLessons;
+    if (!Array.isArray(requested) || requested.some((item: unknown) => typeof item !== 'string' || !item.trim())) {
+      return res.status(400).json({ ok: false, error: 'completedLessons должен содержать список идентификаторов уроков' });
     }
+    const lessons = await prisma.lesson.findMany({
+      where: { courseId: enrollment.courseId },
+      select: { id: true },
+    });
+    const validLessonIds = new Set(lessons.map((lesson) => lesson.id));
+    const uniqueRequested = Array.from(new Set(requested as string[]));
+    if (uniqueRequested.some((lessonId) => !validLessonIds.has(lessonId))) {
+      return res.status(400).json({ ok: false, error: 'Список содержит урок другого курса или неизвестный урок', code: 'INVALID_COURSE_LESSON' });
+    }
+
+    const previous = Array.isArray(enrollment.completedLessons)
+      ? (enrollment.completedLessons as unknown[]).filter((value): value is string => typeof value === 'string')
+      : [];
+    const completedSet = new Set([...previous, ...uniqueRequested].filter((lessonId) => validLessonIds.has(lessonId)));
+    const completedLessons = Array.from(completedSet);
+    const progress = lessons.length > 0 ? Math.min(99, Math.round((completedLessons.length / lessons.length) * 100)) : 0;
 
     const updated = await prisma.schoolEnrollment.update({
       where: { id },
       data: {
-        ...(progress !== undefined && { progress: Math.round(progress) }),
-        ...(completed !== undefined && { completed }),
-        ...(completedLessons !== undefined && { completedLessons }),
-        ...(completed === true && !enrollment.certificateUrl
-          ? { certificateUrl: `academy-cert://${id}` }
-          : {}),
+        progress: enrollment.completed ? 100 : progress,
+        completedLessons,
+        // Completion and certificate issuance are exam/issuer-controlled.
+        // Client-supplied progress and completed fields are intentionally ignored.
       },
       include: { course: true },
     });
     await writeAuditLog({
-      action: completed === true ? 'ACADEMY_COURSE_COMPLETED' : 'ACADEMY_PROGRESS_UPDATED',
+      action: 'ACADEMY_PROGRESS_UPDATED',
       entity: 'school_enrollment',
       entityId: updated.id,
-      details: { workflow: 'learning', queueKey: 'courses', courseId: updated.courseId, progress: updated.progress, completed: updated.completed, completedLessons: updated.completedLessons },
+      details: {
+        workflow: 'learning', queueKey: 'courses', courseId: updated.courseId,
+        progress: updated.progress, completed: updated.completed,
+        completedLessonCount: completedLessons.length, lessonCount: lessons.length,
+      },
       userId: req.user!.id,
     });
-    res.json({ ok: true, data: updated });
+    return res.json({ ok: true, data: updated });
   } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to update enrollment' });
+    console.error('Update learning progress error:', error);
+    return res.status(500).json({ ok: false, error: 'Failed to update enrollment' });
   }
 });
 
@@ -773,7 +792,7 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
       if (dbProduct) {
         await prisma.schoolEnrollment.upsert({
           where: { userId_courseId: { userId: req.user!.id, courseId: dbProduct.id } },
-          create: { id: uid(), userId: req.user!.id, courseId: dbProduct.id },
+          create: { id: uid(), userId: req.user!.id, courseId: dbProduct.id, acquisitionType: 'free', accessStatus: 'active' },
           update: {},
         });
       }
@@ -844,32 +863,55 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
   }
 });
 
+schoolRouter.get('/certificates/verify/:verificationCode', async (req, res) => {
+  try {
+    const certificate = await prisma.schoolCertificate.findUnique({
+      where: { verificationCode: String(req.params.verificationCode) },
+      include: { course: { select: { title: true, category: true } } },
+    });
+    if (!certificate || certificate.status !== 'issued' || certificate.revokedAt) {
+      return res.status(404).json({ ok: false, error: 'Сертификат не найден или недействителен' });
+    }
+    return res.json({
+      ok: true,
+      data: {
+        certificateNumber: certificate.certificateNumber,
+        status: certificate.status,
+        issuedAt: certificate.issuedAt,
+        issuer: certificate.issuerNameSnapshot,
+        courseTitle: certificate.course.title,
+        category: certificate.course.category,
+      },
+    });
+  } catch {
+    return res.status(500).json({ ok: false, error: 'Не удалось проверить сертификат' });
+  }
+});
+
 schoolRouter.get('/certificates', authenticate, async (req: AuthRequest, res) => {
   try {
-    const rows = await prisma.schoolEnrollment.findMany({
-      where: {
-        userId: req.user!.id,
-        OR: [{ completed: true }, { certificateUrl: { not: null } }],
-      },
+    const rows = await prisma.schoolCertificate.findMany({
+      where: { userId: req.user!.id, status: 'issued', revokedAt: null },
       include: { course: { select: { id: true, title: true, category: true, author: true } } },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { issuedAt: 'desc' },
     });
-    res.json({
+    return res.json({
       ok: true,
-      data: rows.map((e) => ({
-        id: e.id,
-        courseId: e.courseId,
-        title: e.course.title,
-        category: e.course.category,
-        instructor: e.course.author,
-        issuedAt: e.updatedAt,
-        certificateUrl: e.certificateUrl || `academy-cert://${e.id}`,
-        certificateNumber: `AOS-${e.id.slice(0, 8).toUpperCase()}`,
-        status: 'issued',
+      data: rows.map((certificate) => ({
+        id: certificate.id,
+        courseId: certificate.courseId,
+        title: certificate.course.title,
+        category: certificate.course.category,
+        instructor: certificate.course.author,
+        issuedAt: certificate.issuedAt,
+        certificateUrl: `/school/certificates/verify/${certificate.verificationCode}`,
+        certificateNumber: certificate.certificateNumber,
+        verificationCode: certificate.verificationCode,
+        status: certificate.status,
       })),
     });
   } catch {
-    res.status(500).json({ ok: false, error: 'Failed to fetch certificates' });
+    return res.status(500).json({ ok: false, error: 'Failed to fetch certificates' });
   }
 });
 
