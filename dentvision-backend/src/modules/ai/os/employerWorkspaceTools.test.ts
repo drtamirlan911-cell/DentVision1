@@ -155,8 +155,15 @@ describe('getEmployerVacancyOverview — own employer vacancies only', () => {
     expect(jobVacancyFindMany).not.toHaveBeenCalled();
   });
 
-  it('requires jobs.read in the verified organization scope', async () => {
+  it('accepts jobs.write because the shared IAM action ladder includes read access', async () => {
     resolveUserPermissions.mockResolvedValueOnce(['jobs.write']);
+    const result = await getEmployerVacancyOverview(context);
+    expect(result.ok).toBe(true);
+    expect(jobVacancyFindMany).toHaveBeenCalled();
+  });
+
+  it('rejects a permission set unrelated to Jobs in the verified organization scope', async () => {
+    resolveUserPermissions.mockResolvedValueOnce(['billing.read']);
     const result = await getEmployerVacancyOverview(context);
     expect(result.ok).toBe(false);
     expect(jobVacancyFindMany).not.toHaveBeenCalled();
