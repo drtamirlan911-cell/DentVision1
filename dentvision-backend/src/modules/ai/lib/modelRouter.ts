@@ -61,6 +61,22 @@ export interface ModelUsageSnapshot {
 const COMPLEX_RE =
   /анализ|стратег|сравни|почему|разбер|объясни подробно|план\s+лечен|дифференц|прогноз|аудит|оптимиз|риск|многошаг|комплексн|сводн(ый|ая)\s+отч[её]т|deep\s*dive|analyze|compare|why\b|treatment\s+plan/i;
 
+const DEEP_REASONING_RE =
+  /дифференц|консилиум|глубок(ий|ого)\s+(анализ|аудит|разбор)|план\s+лечен|критич|высок(ий|ого)\s+риск|комплаенс|безопасност|инцидент|deep\s*research|comprehensive\s+(audit|review)|root\s*cause/i;
+
+export function isDeepReasoningQuery(
+  text: string,
+  opts?: { historyTurns?: number; round?: number; toolsUsed?: number },
+): boolean {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  if (value.length >= 1_200) return true;
+  if ((value.match(/\?/g) || []).length >= 3) return true;
+  if ((opts?.historyTurns || 0) >= 16) return true;
+  if ((opts?.round || 0) >= 3 && (opts?.toolsUsed || 0) >= 3) return true;
+  return DEEP_REASONING_RE.test(value);
+}
+
 const DEFAULT_MINI_BUDGET = 2_400_000;
 const DEFAULT_FULL_BUDGET = 240_000;
 
@@ -151,11 +167,14 @@ export function pickModel(input: {
   /** Resolved by `modelCatalog`; required, so no stale default can win here. */
   miniModel: string;
   fullModel: string;
+  /** Dedicated flagship model for deep, high-stakes reasoning. */
+  deepModel?: string;
   /** Required for every request containing an image; never fall back to text-only models. */
   requiresVision?: boolean;
   visionModel?: string | null;
   visionTier?: ModelTier;
   fullSupportsReasoning?: boolean;
+  deepSupportsReasoning?: boolean;
   miniSupportsReasoning?: boolean;
   visionSupportsReasoning?: boolean;
   reasoningEffort?: 'low' | 'medium' | 'high';
@@ -190,6 +209,15 @@ export function pickModel(input: {
     tier: 'full',
     reasoningEffort: effort,
     supportsReasoning: input.fullSupportsReasoning ?? supportsReasoning(fullModel),
+    maxOutputTokens: maxOut,
+    reason,
+  });
+  const deepModel = input.deepModel || fullModel;
+  const asDeep = (reason: string, maxOut: number): ModelChoice => ({
+    model: deepModel,
+    tier: 'full',
+    reasoningEffort: effort,
+    supportsReasoning: input.deepSupportsReasoning ?? supportsReasoning(deepModel),
     maxOutputTokens: maxOut,
     reason,
   });
@@ -242,18 +270,26 @@ export function pickModel(input: {
     isGuest: input.isGuest,
     historyTurns: input.historyTurns,
   });
-  const deepToolLoop = (input.round || 0) >= 2 && (input.toolsUsed || 0) >= 2;
-  const wantFull = Boolean(input.escalate) || complex || deepToolLoop;
+  const deepToolLoop = (input.round || 0) >= 3 && (input.toolsUsed || 0) >= 3;
+  const wantDeep = Boolean(input.escalate) || isDeepReasoningQuery(input.text, {
+    historyTurns: input.historyTurns,
+    round: input.round,
+    toolsUsed: input.toolsUsed,
+  }) || deepToolLoop;
+  const wantFull = wantDeep || complex;
 
-  if (wantFull && fullLeft) {
-    return asFull(
+  if (wantDeep && fullLeft) {
+    return asDeep(
       input.escalate
         ? 'escalate_after_weak_mini'
         : deepToolLoop
           ? 'deep_tool_loop'
-          : 'complex_clinic_query',
-      1200,
+          : 'deep_reasoning_query',
+      1800,
     );
+  }
+  if (wantFull && fullLeft) {
+    return asFull('complex_clinic_query', 1200);
   }
 
   if (!miniLeft && fullLeft) {
@@ -304,10 +340,12 @@ export async function chooseOpenAIModel(input: {
     mode: env.OPENAI_MODEL_MODE,
     miniModel: models.mini,
     fullModel: models.full,
+    deepModel: models.deep,
     requiresVision: input.requiresVision,
     visionModel: models.vision,
     visionTier: models.vision && MINI_LADDER.some((candidate) => candidate.id === models.vision) ? 'mini' : 'full',
     fullSupportsReasoning: models.fullSupportsReasoning,
+    deepSupportsReasoning: models.deepSupportsReasoning,
     miniSupportsReasoning: models.miniSupportsReasoning,
     visionSupportsReasoning: models.visionSupportsReasoning,
     reasoningEffort: env.OPENAI_REASONING_EFFORT,
