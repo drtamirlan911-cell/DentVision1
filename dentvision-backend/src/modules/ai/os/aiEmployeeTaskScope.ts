@@ -192,7 +192,7 @@ export async function resolveAiEmployeeTaskScope(user: AuthUser): Promise<AiEmpl
     if (!person) return null;
     const hasCurrentRole = person.personRoles.some(
       (entry) => String(entry.role.key).toUpperCase() === roleKey,
-    ) || person.personType.toUpperCase() === roleKey;
+    );
     if (!hasCurrentRole) return null;
   }
 
@@ -237,6 +237,11 @@ export async function resolveAiEmployeeTaskScope(user: AuthUser): Promise<AiEmpl
 
   const selectedBranchId = requestedBranchId
     || (roleScope !== 'ORGANIZATION' && allowedBranchIds.length === 1 ? allowedBranchIds[0] : null);
+
+  // Null branch scope is reserved for a verified organization-wide role.
+  // Branch/assigned/own roles need exactly one active selected branch; a
+  // multi-branch membership without a current selection is ambiguous and denied.
+  if (roleScope !== 'ORGANIZATION' && !selectedBranchId) return null;
 
   return {
     scopeType,
