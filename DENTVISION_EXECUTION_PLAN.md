@@ -9,7 +9,7 @@
 ### Candidate work completed in source
 
 - Jarvis knowledge guide covers all non-disabled registered agents. Local heading-aware retrieval is tested with a natural-language query; patient guide retrieval is isolated to its own section.
-- Runtime packaging is corrected: backend canonical guide copy is byte-identical to the root guide, Docker runner copies `/app/docs`, and tests lock the file parity and copy instruction.
+- Runtime packaging is corrected at source level: backend canonical guide copy is byte-identical to the root guide, Docker runner copies `/app/docs`, and `dentvision-backend/.dockerignore` explicitly re-includes the guide after `*.md`. Tests lock file parity, Dockerfile copy and Dockerignore behavior. A full Docker build/deployment is not yet evidenced.
 - Capability inventory is generated from actual DB/IAM-filtered tool names. Product guide is reference-only; it cannot grant access.
 - Patient-agent caught tool failures use a fixed non-diagnostic message. Safe exception classification now covers AI routes, kernel/orchestrator, context resolution, proactive digital-twin signals, task subscriber, EventBus and background AI paths. AI interaction audit stores only an error-presence flag.
 - AI Employee task insertion uses a deterministic clinic-bound idempotency key backed by a partial unique index; legacy tasks receive unique keys without deletion.
