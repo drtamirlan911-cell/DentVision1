@@ -10,6 +10,13 @@ describe('patients route branch scope contract', () => {
     expect(source).toContain('resolvePatientBranchContext');
     expect(source).toContain('getPatientIdsForBranchScope');
   });
+  it('requires staff.write to create or revoke patient assignments', () => {
+    expect(source).toContain("patientsRouter.post('/:id/assignments',requirePermission('staff.write')");
+    expect(source).toContain("patientsRouter.delete('/:id/assignments/:assignmentId',requirePermission('staff.write')");
+    expect(source).not.toContain("patientsRouter.post('/:id/assignments',requirePermission('patient.write')");
+    expect(source).not.toContain("patientsRouter.delete('/:id/assignments/:assignmentId',requirePermission('patient.write')");
+  });
+
   it('binds assignment removal to the patient in the route', () => {
     const routeStart = source.indexOf("patientsRouter.delete('/:id/assignments/:assignmentId'");
     expect(routeStart).toBeGreaterThanOrEqual(0);
