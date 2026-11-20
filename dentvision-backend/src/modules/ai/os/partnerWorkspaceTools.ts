@@ -59,7 +59,12 @@ function metaOf(files: unknown): Record<string, unknown> {
 
 function safeText(value: unknown, max = 100): string | null {
   if (typeof value !== 'string') return null;
-  const text = value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+  let sanitized = '';
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    sanitized += code <= 0x1f || code === 0x7f ? ' ' : character;
+  }
+  const text = sanitized.trim();
   return text ? text.slice(0, max) : null;
 }
 
