@@ -50,3 +50,54 @@ describe('medical laboratory result completeness and order binding', () => {
     if (result.ok) expect(result.results[0].result).toBe('0');
   });
 });
+
+describe('medical laboratory rework snapshots', () => {
+  it('archives the previous result and attribution before clearing active values', async () => {
+    const { resetMedicalLabResultForRework } = await import('./medicalLabResults.js');
+    const reset = resetMedicalLabResultForRework({
+      id: 'cbc',
+      name: 'Общий анализ крови',
+      result: '4.5',
+      resultText: null,
+      unit: '10^9/L',
+      referenceRange: '4.0–10.0',
+      flag: 'normal',
+      metadata: { resultEnteredByUserId: 'technician-1', resultEnteredAt: '2026-11-20T10:00:00.000Z' },
+    }, 'manager-1', '2026-11-20T11:00:00.000Z');
+
+    expect(reset).toMatchObject({
+      result: null,
+      resultText: null,
+      unit: null,
+      referenceRange: null,
+      flag: null,
+    });
+    expect(reset.metadata.resultEnteredByUserId).toBeUndefined();
+    expect(reset.metadata.resultHistory).toEqual([{
+      result: '4.5',
+      resultText: null,
+      unit: '10^9/L',
+      referenceRange: '4.0–10.0',
+      flag: 'normal',
+      recordedByUserId: 'technician-1',
+      recordedAt: '2026-11-20T10:00:00.000Z',
+      archivedAt: '2026-11-20T11:00:00.000Z',
+      archivedByUserId: 'manager-1',
+    }]);
+  });
+
+  it('preserves earlier attempts and does not create empty history entries', async () => {
+    const { resetMedicalLabResultForRework } = await import('./medicalLabResults.js');
+    const previousAttempt = { result: '2.1', archivedAt: '2026-11-19T10:00:00.000Z' };
+    const reset = resetMedicalLabResultForRework({
+      id: 'glucose',
+      result: null,
+      resultText: null,
+      unit: null,
+      referenceRange: null,
+      flag: null,
+      metadata: { resultHistory: [previousAttempt] },
+    }, 'manager-2', '2026-11-20T11:00:00.000Z');
+    expect(reset.metadata.resultHistory).toEqual([previousAttempt]);
+  });
+});
