@@ -122,6 +122,22 @@ export function isComplexQuery(
 }
 
 /**
+ * Public API price ratios converted into conservative budget units relative to
+ * the standard Sol tier. This is a routing guardrail, not a billing estimate:
+ * actual invoices remain authoritative and prices can change.
+ */
+const MODEL_BUDGET_MULTIPLIERS: Readonly<Record<string, number>> = {
+  'gpt-6.2-astra': 5,
+  'gpt-6-astra': 5,
+  'gpt-5.6-sol': 2,
+  'gpt-6.1-terra': 0.5,
+};
+
+export function modelBudgetMultiplier(model: string): number {
+  return MODEL_BUDGET_MULTIPLIERS[String(model || '').trim().toLowerCase()] ?? 1;
+}
+
+/**
  * Record what a call cost.
  *
  * Written to the shared daily counter when Redis is available, so the budget
@@ -129,12 +145,13 @@ export function isComplexQuery(
  * restart. The in-memory tally is kept in step regardless — it is the fallback
  * and what `getModelUsageSnapshot` reports.
  */
-export async function recordModelUsage(tier: ModelTier, tokens: number): Promise<void> {
+export async function recordModelUsage(tier: ModelTier, tokens: number, model = ''): Promise<void> {
   ensureDay();
   const n = Math.max(0, Math.floor(tokens));
-  if (tier === 'full') fullUsed += n;
-  else miniUsed += n;
-  await incrementDaily(counterKeys.modelBudget(tier), n);
+  const budgetUnits = Math.ceil(n * modelBudgetMultiplier(model));
+  if (tier === 'full') fullUsed += budgetUnits;
+  else miniUsed += budgetUnits;
+  await incrementDaily(counterKeys.modelBudget(tier), budgetUnits);
 }
 
 export function getModelUsageSnapshot(): ModelUsageSnapshot {
