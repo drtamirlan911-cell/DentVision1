@@ -13,6 +13,7 @@ import { PERSON_ROLE_MAP } from '../../../lib/orgContext.js';
 import { PARTNER_ROLE_DEFINITIONS, type RoleScope } from '../../../lib/roleAccessRegistry.js';
 import { resolveAiToolAccess } from './access.js';
 import type { ScopeType } from '../../iam/contexts.js';
+import { resolveLegacyClinicBranches, resolveOrganizationBranches } from '../../../lib/clinicBranchAccess.js';
 
 export interface AiEmployeeTaskScope {
   scopeType: ScopeType;
@@ -76,64 +77,6 @@ function roleScopeFor(roleKey: string, scopeType: ScopeType): RoleScope | null {
   // Unknown workspace/role combinations have no queue scope until a
   // canonical role policy is added and reviewed.
   return null;
-}
-
-function uniqueIds(rows: Array<{ id: string }>): string[] {
-  return [...new Set(rows.map((row) => String(row.id)).filter(Boolean))];
-}
-
-export async function resolveOrganizationBranches(
-  organizationId: string,
-  roleScope: RoleScope,
-  person: ActivePerson | null,
-): Promise<string[]> {
-  if (roleScope === 'ORGANIZATION') {
-    const rows = await prisma.branch.findMany({
-      where: { organizationId, active: true },
-      select: { id: true },
-    });
-    return uniqueIds(rows);
-  }
-
-  if (!person) return [];
-  const rows = await prisma.branch.findMany({
-    where: {
-      organizationId,
-      active: true,
-      members: { some: { personId: person.id, active: true } },
-    },
-    select: { id: true },
-  });
-  return uniqueIds(rows);
-}
-
-export async function resolveLegacyClinicBranches(
-  userId: string,
-  clinicId: string,
-  roleScope: RoleScope,
-): Promise<string[]> {
-  if (roleScope === 'ORGANIZATION') {
-    const rows = await prisma.branch.findMany({
-      where: { clinicId, active: true },
-      select: { id: true },
-    });
-    return uniqueIds(rows);
-  }
-
-  const membership = await prisma.clinicMember.findUnique({
-    where: { userId_clinicId: { userId, clinicId } },
-    select: { branchId: true },
-  });
-  const branchId = membership?.branchId ? String(membership.branchId) : null;
-  if (!branchId) return [];
-
-  // ClinicMember.branchId is a compatibility source, not proof that the
-  // referenced branch still exists or remains active in this clinic.
-  const branch = await prisma.branch.findFirst({
-    where: { id: branchId, clinicId, active: true },
-    select: { id: true },
-  });
-  return branch?.id ? [String(branch.id)] : [];
 }
 
 /**
@@ -237,7 +180,9 @@ export async function resolveAiEmployeeTaskScope(user: AuthUser): Promise<AiEmpl
 
   // branchId/assignedBranchId are untrusted selectors. branchIds is ignored
   // entirely and can never widen the DB-resolved set.
-  const requestedBranchId = user.branchId || user.assignedBranchId || null;
+  const requestedBranchId = roleScope === 'ORGANIZATION'
+    ? user.branchId || null
+    : user.branchId || user.assignedBranchId || null;
   if (requestedBranchId && !allowedBranchIds.includes(requestedBranchId)) return null;
 
   const selectedBranchId = requestedBranchId
