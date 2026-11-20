@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router } from 'express';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
@@ -378,7 +379,7 @@ async function processQuery(
         ? `Запомнил: ${justLearned.map((p) => p.value).slice(0, 2).join('; ')}`
         : ctx.learnedHint;
     } catch (e) {
-      console.warn('[AI] learning context failed', e);
+      console.warn('[AI] learning context failed', safeErrorKind(e));
     }
   }
 
@@ -440,7 +441,7 @@ async function processQuery(
       // back — the intent router's improveResponseWithLLM calls the same API
       // again, so the user waits through a second round-trip for nothing.
       if (isProviderUnavailableError(error)) {
-        console.error('[AI OS] provider unavailable — answering without the LLM:', error);
+        console.error('[AI OS] provider unavailable — answering without the LLM:', safeErrorKind(error));
         return {
           message:
             'ИИ-ассистент временно недоступен: закончились кредиты у провайдера модели. '
@@ -453,7 +454,7 @@ async function processQuery(
           activeWorkspace,
         };
       }
-      console.error('[AI OS] orchestrator failed, falling back to intent router:', error);
+      console.error('[AI OS] orchestrator failed, falling back to intent router:', safeErrorKind(error));
     }
   }
 
@@ -562,7 +563,7 @@ aiRouter.post(
       // product decision with its own consent.
       return res.json({ ok: true, data: { text: result.text, model: result.model } });
     } catch (error) {
-      console.error('[AI] transcribe', error);
+      console.error('[AI] transcribe', safeErrorKind(error));
       return res.status(500).json({ ok: false, error: 'Не удалось распознать речь' });
     }
   },
@@ -689,7 +690,7 @@ aiRouter.get('/threads', authenticate, async (req: AuthRequest, res) => {
       },
     });
   } catch (error) {
-    console.error('[AI] threads list', error);
+    console.error('[AI] threads list', safeErrorKind(error));
     return res.json({ ok: true, data: { threads: [] } });
   }
 });
@@ -730,7 +731,7 @@ aiRouter.get('/threads/active', authenticate, async (req: AuthRequest, res) => {
       },
     });
   } catch (error) {
-    console.error('[AI] threads active unavailable', error);
+    console.error('[AI] threads active unavailable', safeErrorKind(error));
     return res.status(503).json({
       ok: false,
       error: 'История AI временно недоступна',
@@ -780,7 +781,7 @@ aiRouter.post('/threads/new', authenticate, async (req: AuthRequest, res) => {
     });
     return res.json({ ok: true, data: { threadId: id, sessionId: id } });
   } catch (error) {
-    console.error('[AI] threads new', error);
+    console.error('[AI] threads new', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось создать сессию' });
   }
 });
@@ -892,7 +893,7 @@ aiRouter.get('/history', authenticate, async (req: AuthRequest, res) => {
       })),
     });
   } catch (error) {
-    console.error('[AI History Error]', error);
+    console.error('[AI History Error]', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'History fetch failed' });
   }
 });
@@ -910,7 +911,7 @@ aiRouter.post('/session', async (req: AuthRequest, res) => {
     // Just return a new session ID - actual session created on first query
     res.json({ ok: true, data: { sessionId: context.sessionId } });
   } catch (error) {
-    console.error('[AI Session Error]', error);
+    console.error('[AI Session Error]', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Session creation failed' });
   }
 });
@@ -957,7 +958,7 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
       },
     });
   } catch (error) {
-    console.error('[AI Greeting Error]', error);
+    console.error('[AI Greeting Error]', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Greeting failed' });
   }
 });
@@ -975,7 +976,7 @@ aiRouter.get('/proactive', optionalAuth, async (req: AuthRequest, res) => {
     });
     res.json({ ok: true, data: { alerts } });
   } catch (error) {
-    console.error('[AI Proactive Error]', error);
+    console.error('[AI Proactive Error]', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Proactive failed' });
   }
 });
@@ -1040,7 +1041,7 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
       },
     });
   } catch (error) {
-    console.error('[AI Briefing Error]', error);
+    console.error('[AI Briefing Error]', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Briefing failed' });
   }
 });
@@ -1089,7 +1090,7 @@ aiRouter.post('/confirm', authenticate, async (req: AuthRequest, res) => {
       },
     });
   } catch (error) {
-    console.error('[AI Confirm Error]', error);
+    console.error('[AI Confirm Error]', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Confirm failed' });
   }
 });
@@ -1124,7 +1125,7 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
     } catch { /* optional */ }
     res.json({ ok: true, data: { twin: enrichedTwin, preferences } });
   } catch (error) {
-    console.error('[AI Digital Twin Error]', error);
+    console.error('[AI Digital Twin Error]', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Digital twin failed' });
   }
 });
@@ -1163,7 +1164,7 @@ aiRouter.get('/twin/proactive', optionalAuth, async (req: AuthRequest, res) => {
 
     res.json({ ok: true, data: { suggestions, feed } });
   } catch (error) {
-    console.error('[AI Proactive]', error);
+    console.error('[AI Proactive]', safeErrorKind(error));
     res.json({ ok: true, data: { suggestions: [], feed: [] } });
   }
 });
@@ -1197,7 +1198,7 @@ aiRouter.post('/feedback', authenticate, async (req: AuthRequest, res) => {
       },
     });
   } catch (error) {
-    console.error('[AI Feedback Error]', error);
+    console.error('[AI Feedback Error]', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Feedback failed' });
   }
 });
@@ -1208,7 +1209,7 @@ aiRouter.get('/memory', authenticate, async (req: AuthRequest, res) => {
     const items = await learning.listPrefs(req.user!.id, aiSessionScope(req));
     return res.json({ ok: true, data: { items } });
   } catch (error) {
-    console.error('[AI Memory list]', error);
+    console.error('[AI Memory list]', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Memory list failed' });
   }
 });
@@ -1219,7 +1220,7 @@ aiRouter.delete('/memory/:key', authenticate, async (req: AuthRequest, res) => {
     const removed = await learning.deletePref(req.user!.id, aiSessionScope(req), String(req.params.key));
     return res.json({ ok: true, data: { removed } });
   } catch (error) {
-    console.error('[AI Memory delete]', error);
+    console.error('[AI Memory delete]', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Memory delete failed' });
   }
 });
@@ -1230,7 +1231,7 @@ aiRouter.delete('/memory', authenticate, async (req: AuthRequest, res) => {
     await learning.clearPrefs(req.user!.id, aiSessionScope(req));
     return res.json({ ok: true, data: { cleared: true } });
   } catch (error) {
-    console.error('[AI Memory clear]', error);
+    console.error('[AI Memory clear]', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Memory clear failed' });
   }
 });
@@ -1264,7 +1265,7 @@ aiRouter.get('/skills', authenticate, async (req: AuthRequest, res) => {
     const access = await resolveAiToolAccess(aiAccessInput(req));
     return res.json({ ok: true, data: skillCatalogueFor(access, 'staff') });
   } catch (error) {
-    console.error('[AI Skills] list failed:', error);
+    console.error('[AI Skills] list failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось получить список возможностей' });
   }
 });
@@ -1295,7 +1296,7 @@ aiRouter.get('/insights', authenticate, requirePermission('medical.read'), async
     ]);
     return res.json({ ok: true, data: insights.filter((i) => !dismissed.has(i.id)) });
   } catch (error) {
-    console.error('[AI Insights] list failed:', error);
+    console.error('[AI Insights] list failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось получить подсказки' });
   }
 });
@@ -1309,7 +1310,7 @@ aiRouter.post('/insights/:id/dismiss', authenticate, async (req: AuthRequest, re
     await dismissInsight(String(req.params.id), req.user!.id, clinicId);
     return res.json({ ok: true, data: { dismissed: true } });
   } catch (error) {
-    console.error('[AI Insights] dismiss failed:', error);
+    console.error('[AI Insights] dismiss failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось скрыть подсказку' });
   }
 });

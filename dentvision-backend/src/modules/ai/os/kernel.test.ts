@@ -235,6 +235,63 @@ describe('runAiAction — every outcome is recorded', () => {
     expect(activityCreate.mock.calls[0][0].data).toMatchObject({ status: 'denied', denyReason: 'EXEC_ERROR' });
   });
 
+  it('does not log tool exception messages that may contain patient data', async () => {
+    const privatePayload = 'Patient Dana Example, phone +7 701 555 0101, diagnosis private pulpitis';
+    const logger = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      throwingTool.mockRejectedValueOnce(new Error(privatePayload));
+
+      const result = await runAiAction(PRINCIPAL, { tool: 'getDebtors', args: {} });
+
+      expect(result).toMatchObject({ status: 'denied', reason: 'EXEC_ERROR' });
+      expect(JSON.stringify(logger.mock.calls)).not.toContain(privatePayload);
+      expect(JSON.stringify(logger.mock.calls)).not.toContain('Dana Example');
+      expect(JSON.stringify(logger.mock.calls)).not.toContain('+7 701 555 0101');
+    } finally {
+      logger.mockRestore();
+    }
+  });
+
+  it('does not log exception details when activity or evidence persistence fails', async () => {
+    const privatePayload = 'Patient Dana Example, phone +7 701 555 0101, private diagnosis';
+    const logger = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      activityCreate.mockRejectedValueOnce(new Error(privatePayload));
+      await runAiAction(PRINCIPAL, { tool: 'getSchedule', args: {} });
+
+      evidenceCreateMany.mockRejectedValueOnce(new Error(privatePayload));
+      await runAiAction(PRINCIPAL, { tool: 'getSchedule', args: {} });
+
+      const serializedLogs = JSON.stringify(logger.mock.calls);
+      expect(serializedLogs).not.toContain(privatePayload);
+      expect(serializedLogs).not.toContain('Dana Example');
+      expect(serializedLogs).not.toContain('+7 701 555 0101');
+    } finally {
+      logger.mockRestore();
+    }
+  });
+
+  it('does not log exception details when a high-risk approval cannot be persisted', async () => {
+    const privatePayload = 'Patient Dana Example, phone +7 701 555 0101, private diagnosis';
+    const logger = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      approvalCreate.mockRejectedValueOnce(new Error(privatePayload));
+
+      const result = await runAiAction(PRINCIPAL, {
+        tool: 'createInvoice',
+        args: { confirmed: true, patientId: 'patient-private-id' },
+      });
+
+      expect(result.status).toBe('pending_approval');
+      const serializedLogs = JSON.stringify(logger.mock.calls);
+      expect(serializedLogs).not.toContain(privatePayload);
+      expect(serializedLogs).not.toContain('Dana Example');
+      expect(serializedLogs).not.toContain('+7 701 555 0101');
+    } finally {
+      logger.mockRestore();
+    }
+  });
+
   it('tags PHI-adjacent tools with phi sensitivity in the activity row', async () => {
     await runAiAction(PRINCIPAL, { tool: 'getSchedule', args: {} });
     // getSchedule is appointments.read, not medical.* — standard sensitivity.

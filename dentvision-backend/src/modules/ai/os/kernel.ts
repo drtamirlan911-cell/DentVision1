@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../../lib/safeError.js';
 /**
  * Governance kernel — DentVision Agentic OS.
  *
@@ -200,7 +201,7 @@ async function recordActivity(row: {
       },
     });
   } catch (err) {
-    console.error('[ai kernel] failed to record activity:', err);
+    console.error('[ai kernel] failed to record activity:', safeErrorKind(err));
     // No activity row means no parent for the evidence rows (the FK cascades
     // from it), so there is nothing to attach and nothing to attempt.
     return id;
@@ -228,7 +229,7 @@ async function recordEvidence(
       })),
     });
   } catch (err) {
-    console.error('[ai kernel] failed to record evidence:', err);
+    console.error('[ai kernel] failed to record evidence:', safeErrorKind(err));
   }
 }
 
@@ -510,7 +511,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
           );
         }
       } catch (err) {
-        console.error('[ai kernel] failed to create approval:', err);
+        console.error('[ai kernel] failed to create approval:', safeErrorKind(err));
       }
       const activityId = await recordActivity({
         traceId: inv.traceId,
@@ -586,7 +587,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
       });
       return { status: 'denied', reason: 'NO_CLINIC', error: 'Нет активной клиники — выберите рабочее пространство', activityId };
     }
-    console.error(`[ai kernel] tool ${inv.tool} failed:`, error);
+    console.error(`[ai kernel] tool ${inv.tool} failed:`, safeErrorKind(error));
     const activityId = await recordActivity({
       traceId: inv.traceId,
       surface: p.surface,

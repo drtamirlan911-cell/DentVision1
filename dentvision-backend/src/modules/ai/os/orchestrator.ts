@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../../lib/safeError.js';
 /**
  * AI Orchestrator — DentVision AI OS (Spec §15.3, §15.17).
  *
@@ -424,7 +425,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
       return { ...statsHit, messageId, ...personaMeta };
     }
   } catch (e) {
-    console.warn('[AI OS] deterministic stats failed', e);
+    console.warn('[AI OS] deterministic stats failed', safeErrorKind(e));
   }
 
   // CEO executive brief — synthesize Analyst+Finance+Marketing without LLM.
@@ -457,7 +458,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
         ...personaMeta,
       };
     } catch (e) {
-      console.warn('[AI OS] CEO brief failed, continuing', e);
+      console.warn('[AI OS] CEO brief failed, continuing', safeErrorKind(e));
     }
   }
 
@@ -492,7 +493,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
         ...personaMeta,
       };
     } catch (e) {
-      console.warn('[AI OS] jarvis briefing failed, continuing to LLM', e);
+      console.warn('[AI OS] jarvis briefing failed, continuing to LLM', safeErrorKind(e));
     }
   }
 
@@ -520,7 +521,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
         ...personaMeta,
       };
     } catch (e) {
-      console.warn('[AI OS] clinic load plan failed, continuing to LLM', e);
+      console.warn('[AI OS] clinic load plan failed, continuing to LLM', safeErrorKind(e));
     }
   }
 

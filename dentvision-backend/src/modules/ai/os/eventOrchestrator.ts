@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../../lib/safeError.js';
 import { EventEmitter } from 'node:events';
 import { createHash } from 'node:crypto';
 import { eventBus, eventStore } from '../../events/index.js';
@@ -28,10 +29,6 @@ const DEFAULT_CONFIG: EventOrchestratorConfig = {
   concurrency: 5,
   logLevel: 'info',
 };
-
-function safeErrorKind(error: unknown): 'Error' | 'NonError' {
-  return error instanceof Error ? 'Error' : 'NonError';
-}
 
 const AI_PROVIDER_COOLDOWN_MS = 5 * 60 * 1000;
 let aiProviderUnavailableUntil = 0;
