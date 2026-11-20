@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { queryRaw } = vi.hoisted(() => ({
@@ -26,6 +27,19 @@ describe('AI Employee task SQL matches its durable table schema', () => {
   beforeEach(() => {
     queryRaw.mockReset();
     queryRaw.mockResolvedValue([]);
+  });
+
+  it('backfills legacy task keys without deleting task history and adds a partial unique index', () => {
+    const migration = readFileSync(
+      new URL('../../../../prisma/migrations/20261120_add_ai_employee_task_idempotency_key/migration.sql', import.meta.url),
+      'utf8',
+    );
+
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS idempotency_key TEXT');
+    expect(migration).toContain("SET idempotency_key = 'legacy:' || id::text");
+    expect(migration).toContain('WHERE idempotency_key IS NULL');
+    expect(migration).toMatch(/CREATE UNIQUE INDEX[\s\S]*ON ai_employee_tasks \(idempotency_key\)[\s\S]*WHERE idempotency_key IS NOT NULL/i);
+    expect(migration).not.toMatch(/\bDELETE\s+FROM\s+ai_employee_tasks/i);
   });
 
   it('binds clinic, user and source-event identifiers as text on insert', async () => {
