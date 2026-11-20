@@ -1,3 +1,52 @@
+## Cabinet usability / domain completeness reconciliation — 2026-11-20
+
+**Audited repository:** `drtamirlan911-cell/DentVision1`  
+**Audited main baseline:** `758ffe7f39112848df701a8b988f44af03845597`  
+**Candidate branch:** `fix/partner-workspace-context-ux-20261120`  
+**Normative source:** `docs/DENTVISION_MASTER_SPEC.md` v5.0  
+**Detailed acceptance contract:** `docs/PRODUCT/CABINET_UX_AND_WORKFLOW_STANDARD.md`
+
+This checkpoint records a durable user priority: every existing cabinet must be understandable to its intended role and usable from first entry through workflow close-out. It is not sufficient for a route, tab or dashboard to exist.
+
+### 1. Source inventory evidence
+
+The generated main System Map at this baseline reports 69 mounted routers, 703 unique handlers, 665 registered HTTP routes, 97 routes without a detected web/mobile consumer and 150 Prisma models. This confirms broad technical surface area, not complete user journeys.
+
+The repository contains separate diagnostic-center, medical-laboratory, dental-laboratory, supplier, shop, academy, lecturer, employer, clinic, CRM, patient, finance, BI, community, support, administration and AI modules/workspaces.
+
+### 2. Current depth classification
+
+| Cabinet | Source evidence | Classification |
+|---|---|---|
+| Diagnostic center | Organization-scoped referral workflows, schedule/services/team/finance views, report/sign-off and settlement-related services; current source inventory did not establish a complete DICOM store/query/retrieve, modality worklist and PACS viewer chain | PARTIAL |
+| Medical laboratory | Independent UI/router with ordered, sample_collected, received, processing, result_ready and verified stages | PARTIAL — barcode/accession scans, chain-of-custody, aliquot, QC/calibration, analyzer integration and controlled result amendment/release evidence remain required |
+| Dental laboratory | Independent lab order and production workspace, technician assignment, production statuses and manager-controlled six-point QC; fail state can enter remake | PARTIAL — closed-loop remake authorization/feedback, shipping/tracking/proof-of-delivery and full invoice/settlement/payout close-out remain open per the dental-lab contract |
+| Marketplace / Supplier | Public shop and supplier workspace with catalog, sales, stock, returns, promotions, analytics, checkout and refund-related server logic | PARTIAL — full seller verification, multi-seller fulfillment, carrier delivery evidence, RMA and seller/platform payout reconciliation remain open |
+| Academy / Lecturer | Course catalogue/enrollment/lecturer workspace with courses, analytics and profile, plus payment foundations | PARTIAL — owner/cohort/group roster, attendance, assessment/grading, certificate governance and complete sales/refund/lecturer payout workflows remain open |
+| Student OS | New personal learning workspace and entitlement/assessment/certificate changes exist on candidate branch | CANDIDATE IMPLEMENTATION — not main/release-certified; exact-head CI/E2E and complete cohort/tasks/purchase-history journey remain to verify |
+| Employer / Career | Main has employer context, vacancies and scoped applications; candidate branch adds separate invitation, interview, offer and candidate workspace paths | PARTIAL / CANDIDATE EXTENSION — contract/EDS verification, hired-employee record, onboarding and exact-head security/mobile E2E remain open |
+| Clinic / doctor / reception / patient / finance / BI / community / platform admin / AI | Existing modules and routes are present | AUDIT REQUIRED PER ROLE — no completeness inferred from route existence |
+
+### 3. UX-wide requirements now tracked
+
+- Every workspace needs a persistent organization/branch/role header, contextual Command Center, primary queue, scoped search, complete work-item detail/timeline and next valid action.
+- High-frequency roles need task-first mobile flows, practical scanning/file capture, safe interruption/resume and clear loading/empty/error/offline states.
+- All workflow transitions need server authorization, explicit state machines, idempotency, actor/time evidence, notifications and cross-cabinet handoff.
+- Patient, student, candidate, buyer and seller data remain personal/organization-scoped; switching context never leaks or destroys history.
+- Financial operations must close through shared payment, refund, settlement, payout and reconciliation evidence, not a dashboard-only revenue number.
+- AI may explain, navigate and draft, but it must remain inside the active context and cannot bypass protected clinical, legal or financial confirmation.
+
+### 4. Execution decision
+
+The standing contract is recorded in:
+- `docs/PRODUCT/CABINET_UX_AND_WORKFLOW_STANDARD.md`;
+- `docs/DENTVISION_MASTER_SPEC.md` §5.3 reference;
+- `DENTVISION_EXECUTION_PLAN.md` standing cabinet quality directive.
+
+This is a planning/source-audit checkpoint only. No live DICOM/PACS endpoint, lab analyzer, barcode printer/scanner, carrier, payment provider, EDS signature, production database or patient data was accessed or certified. Each cabinet remains PARTIAL or AUDIT REQUIRED until its exact-head tests, real integration evidence and operator acceptance pass.
+
+---
+
 ## Current source reconciliation — 2026-11-18 (post PR #348 merge)
 
 **Audited repository:** `drtamirlan911-cell/DentVision1`  
