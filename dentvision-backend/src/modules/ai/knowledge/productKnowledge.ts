@@ -8,9 +8,13 @@
  * scorer. Live data and permissions continue to come from canonical tools.
  */
 import { readFile, stat } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
-const PRODUCT_GUIDE_URL = new URL('../../../../../docs/AI_PRODUCT_KNOWLEDGE.md', import.meta.url);
+// Render starts the backend from its package directory; Docker runs from /app.
+// Both ship the guide at ./docs/AI_PRODUCT_KNOWLEDGE.md. Resolving from cwd also
+// keeps tests deterministic when Vitest transforms import.meta.url to a non-file URL.
 const PRODUCT_GUIDE_PATH = 'docs/AI_PRODUCT_KNOWLEDGE.md';
+const PRODUCT_GUIDE_FILE = resolve(process.cwd(), 'docs', 'AI_PRODUCT_KNOWLEDGE.md');
 const MAX_GUIDE_BYTES = 160_000;
 const MAX_CHUNK_CHARS = 2_800;
 const MAX_QUERY_CHARS = 2_000;
@@ -243,7 +247,7 @@ export function rankProductKnowledgeChunks(
 
 async function loadProductKnowledgeChunks(): Promise<ProductKnowledgeChunk[]> {
   try {
-    const fileStats = await stat(PRODUCT_GUIDE_URL);
+    const fileStats = await stat(PRODUCT_GUIDE_FILE);
     if (!fileStats.isFile() || fileStats.size <= 0 || fileStats.size > MAX_GUIDE_BYTES) return [];
     if (
       cachedGuide
@@ -251,7 +255,7 @@ async function loadProductKnowledgeChunks(): Promise<ProductKnowledgeChunk[]> {
       && cachedGuide.size === fileStats.size
     ) return cachedGuide.chunks;
 
-    const markdown = await readFile(PRODUCT_GUIDE_URL, 'utf8');
+    const markdown = await readFile(PRODUCT_GUIDE_FILE, 'utf8');
     const chunks = splitProductKnowledgeSections(markdown);
     cachedGuide = { mtimeMs: fileStats.mtimeMs, size: fileStats.size, chunks };
     return chunks;
