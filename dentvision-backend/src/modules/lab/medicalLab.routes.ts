@@ -44,19 +44,38 @@ type OrderRow = {
 };
 
 async function resolveLaboratoryScopeId(user: AuthRequest['user']): Promise<string | null> {
-  if (!user || (user as any).organizationType !== 'LABORATORY') return null;
-  const contextId = user.organizationOriginalId || (user.organizationId ? String(user.organizationId) : '');
-  if (contextId) {
-    const direct = await prisma.laboratory.findUnique({ where: { id: contextId }, select: { id: true } });
-    if (direct) return direct.id;
+  if (!user?.id || String(user.organizationType || '').toUpperCase() !== 'LABORATORY') return null;
+
+  // The active Organization.originalId is authoritative. Never recover from a
+  // broken active scope by silently selecting the user's first lab membership.
+  const directEntityId = String(user.organizationOriginalId || '').trim();
+  if (directEntityId) {
+    const direct = await prisma.laboratory.findUnique({ where: { id: directEntityId }, select: { id: true } });
+    return direct?.id ?? null;
   }
-  const membership = await prisma.laboratoryMember.findFirst({
+
+  // Older tokens may not carry organizationOriginalId. Resolve the original
+  // entity from the exact active Organization record, not from a global list.
+  const organizationId = String(user.organizationId || '').trim();
+  if (organizationId) {
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { originalId: true, type: true },
+    });
+    if (String(organization?.type || '').toUpperCase() !== 'LABORATORY' || !organization.originalId) return null;
+    const direct = await prisma.laboratory.findUnique({ where: { id: organization.originalId }, select: { id: true } });
+    return direct?.id ?? null;
+  }
+
+  // Legacy compatibility is safe only when membership is unambiguous.
+  const memberships = await prisma.laboratoryMember.findMany({
     where: { userId: user.id },
     select: { labId: true },
+    take: 2,
   });
-  if (!membership?.labId) return null;
+  if (memberships.length !== 1 || !memberships[0]?.labId) return null;
   const memberLab = await prisma.laboratory.findUnique({
-    where: { id: String(membership.labId) },
+    where: { id: String(memberships[0].labId) },
     select: { id: true },
   });
   return memberLab?.id ?? null;
@@ -291,10 +310,51 @@ medicalLabLifecycleRouter.post('/orders/:id/status', async (req: AuthRequest, re
         return res.status(403).json({ ok: false, error: 'После передачи образца дальнейшие действия доступны лаборатории', code: 'MEDICAL_LAB_PARTNER_ACTION_REQUIRED' });
       }
     }
-    if (next === 'sample_collected') await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "status"=$1,"collectedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2`, next, order.id);
-    else if (next === 'received') await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "status"=$1,"receivedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2`, next, order.id);
-    else await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "status"=$1,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2`, next, order.id);
-    await recordEvent(order.id, order.clinicId, order.status, next, req.user!.id, req.body?.note ? String(req.body.note) : undefined);
+    await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRawUnsafe<Array<{ id: string; status: string }>>(
+        `SELECT "id","status" FROM "medical_lab_orders" WHERE "id"=$1 FOR UPDATE`,
+        order.id,
+      );
+      if (!locked[0] || locked[0].status !== order.status) {
+        throw new Error('Medical laboratory order changed. Refresh and retry.');
+      }
+
+      let changed: number;
+      if (next === 'sample_collected') {
+        changed = await tx.$executeRawUnsafe(
+          `UPDATE "medical_lab_orders" SET "status"=$1,"collectedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2 AND "status"=$3`,
+          next, order.id, order.status,
+        );
+      } else if (next === 'received') {
+        changed = await tx.$executeRawUnsafe(
+          `UPDATE "medical_lab_orders" SET "status"=$1,"receivedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2 AND "status"=$3`,
+          next, order.id, order.status,
+        );
+      } else if (next === 'processing' && order.status === 'result_ready') {
+        // A failed QC/rework cycle invalidates the previous QC decision. The
+        // replacement result must pass a fresh independent QC before release.
+        changed = await tx.$executeRawUnsafe(
+          `UPDATE "medical_lab_orders"
+             SET "status"=$1,"resultReadyAt"=NULL,
+                 "metadata"=COALESCE("metadata",'{}'::jsonb) - 'qualityControl',
+                 "updatedAt"=CURRENT_TIMESTAMP
+           WHERE "id"=$2 AND "status"=$3`,
+          next, order.id, order.status,
+        );
+      } else {
+        changed = await tx.$executeRawUnsafe(
+          `UPDATE "medical_lab_orders" SET "status"=$1,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2 AND "status"=$3`,
+          next, order.id, order.status,
+        );
+      }
+      if (changed !== 1) throw new Error('Medical laboratory order changed. Refresh and retry.');
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "medical_lab_events" ("id","orderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt")
+         VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP)`,
+        uid(), order.id, order.clinicId, order.status, next,
+        req.body?.note ? String(req.body.note) : null, req.user!.id,
+      );
+    });
     publish('medicalLabOrder.status_changed', { orderId: order.id, clinicId: order.clinicId, fromStatus: order.status, toStatus: next, userId: req.user!.id });
     return res.json({ ok: true, data: await getOrder(order.id) } satisfies ApiResponse);
   } catch (e: any) { return res.status(400).json({ ok: false, error: e.message || 'Не удалось изменить статус' } satisfies ApiResponse); }
