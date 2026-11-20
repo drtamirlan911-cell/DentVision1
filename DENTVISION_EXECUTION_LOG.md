@@ -1,3 +1,15 @@
+## 2026-11-20 — AI Employee subscriber PHI-free error logging (PR #351)
+
+- Continued on the existing PR #351 branch; no new branch/PR.
+- Source review found `aiEmployeeTaskSubscriber.ts` logging the raw exception object when durable task creation failed. Since event processing can involve clinical events, the exception could contain identifiers or clinical text.
+- Replaced raw exception logging with the shared `safeErrorKind(error)` classifier, which emits only `Error` / `NonError`. Added a regression case injecting a synthetic patient name, phone number and diagnosis into the thrown error and asserting the captured log contains none of them.
+- Source commit: `c5170cd183ebd52d06192224ed647a8a3ad2abf0`; test commit/current code-bearing head: `e79d6c2e2f92c516a7bb057146a815285ad83b47`.
+- Exact-head CI [44710458202](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44710458202) was pending; Quality Gate [44710458253](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44710458253) was in progress at dependency installation; Vercel Preview pending. No check is claimed as passed at this SHA.
+- Verified that the AI Employee task table and all three service operations remain clinicId-only; subscriber skips events without clinicId; approval task routes require a clinic claim. Ecosystem-wide Organization/Branch queue remains a separate architectural implementation, not part of this log-scrubbing fix.
+- Documentation is being reconciled to this finding on the same PR branch. Main remains unchanged; no DB or production operation was performed.
+
+---
+
 ## 2026-11-20 — Jarvis product knowledge and patient-agent failure isolation (PR #351)
 
 - Continued on the existing PR #351 / `feat/user-jarvis-product-knowledge-20261120`; no additional branch or PR was created. Main remains `da1257fc650f536c76583bdff570906290b92bcd`.

@@ -50,6 +50,13 @@ A source-only review of AI Admin persistence/log paths found:
 - The product guide's duplicate section number was corrected; headings now run from 1 through 12.
 - **Unresolved AI architecture gap:** the existing AI Employee durable task system, subscriber and APIs remain clinicId-dependent. Ecosystem-wide task queues for independent Organization contexts are not proven. Legacy clinic-only AI paths remain active. Do not count PR #351 as closing either gap.
 
+### 4B. AI Employee task subscriber error boundary and ecosystem scope
+
+- `aiEmployeeTaskSubscriber.ts` previously passed the raw caught exception object to `console.warn` when task persistence failed. The PR #351 candidate now logs only `safeErrorKind(error)`; its regression test injects synthetic patient name, phone and diagnosis strings and asserts the log output does not contain them. Exact-head CI/Quality Gate remains required.
+- The broader queue is still clinic-only by construction: migration `20260910_add_ai_employee_tasks` declares `clinic_id TEXT NOT NULL`; task create/list/transition and readback SQL use clinic_id as the only tenant key; the wildcard event subscriber skips events with no clinicId; the approval task routes require `req.user.clinicId`; the proactive heartbeat enumerates active clinics and clinic OWNER/SUPERADMIN members.
+- An Organization-first extension must preserve exact tenant and optional branch scope, role/permission checks, source-event idempotency, data minimization, approval/audit behavior and the legacy clinic workflow. Adding a nullable organization column or using role names alone would not establish safe isolation.
+- **Classification:** current clinic AI Employee queue is implemented as a clinic slice; ecosystem-wide task management remains partial/open.
+
 ### 5. Current remaining gaps
 - **RB-029 / P0:** compatibility dual-write for AiAdminSession.externalUserId remains intentional until all legacy webhook/queue workers are drained. No strict cutover or historical backfill was executed. Historical Patient/AI derivative PHI inventory, key rotation/reindex, old-key handling, retention/export/deletion, backup/restore, rollback and approved staging reconciliation remain open.
 - **RB-035:** full patient-route × role × organization × clinic × branch × active/revoked/expired-session negative matrix remains open.

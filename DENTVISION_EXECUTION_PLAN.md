@@ -19,6 +19,17 @@
 - A documentation-only commit then corrected guide section numbering; this checkpoint commit updates the active context, execution log, release blockers and system audit. All checks must be refreshed on the resulting exact branch HEAD. Previous-SHA results are not final evidence.
 - Keep PR #351 Draft until exact-head CI, Quality Gate, full E2E, role/context and visual/mobile checks finish and findings are reviewed.
 
+### 2026-11-20 AI Employee scope finding (verified source gap)
+
+The current task ledger is not ecosystem-wide:
+- migration `20260910_add_ai_employee_tasks`: `clinic_id TEXT NOT NULL`;
+- `createAiEmployeeTask`, `listAiEmployeeTasks`, `transitionAiEmployeeTask` and readback require clinicId and SQL-filter by clinic_id;
+- `aiEmployeeTaskSubscriber` ignores events without clinicId and creates tasks from clinic event rules only;
+- `/api/ai/approvals/tasks` and transition route require `req.user.clinicId`;
+- heartbeat queries active clinics and OWNER/SUPERADMIN clinic membership.
+
+**Implementation constraint:** do not make clinicId nullable and add an optional organizationId as a superficial fix. First define a canonical task scope (Organization, optional Branch, or an explicitly clinic-scoped legacy context), prove membership and permission through current IAM, enforce isolation in list/get/transition/approval queries, preserve event provenance/idempotency, and mount an appropriate work queue in each supported workspace. Keep legacy clinic tasks readable and transitions safe. The current PR #351 only fixes raw exception logging in the subscriber; it does not implement the ecosystem-wide queue.
+
 ### Next execution order
 1. Complete and certify PR #351 on one exact HEAD. Inspect any CI failure and fix the implementation; do not weaken PHI, tenant, branch, membership or confirmation assertions.
 2. Audit the clinic-only AI Employee task model end-to-end (event subscriber → persisted task → APIs → approvals → UI). Design an additive, canonical-Organization/Branch-scoped extension that reuses the current IAM/governance kernel and preserves clinic compatibility. No parallel task table or global role bypass.
