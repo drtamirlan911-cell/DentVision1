@@ -45,7 +45,7 @@ vi.mock('./aiToolBranchScope.js', () => ({
   resolveAiToolBranchScope,
   isNarrowAiToolBranchScope: (scope: { roleScope: string; branchId: string | null }) => scope.roleScope !== 'ORGANIZATION' || scope.branchId !== null,
   CLINIC_BRANCH_INDEPENDENT_AI_TOOLS: new Set(['navigate', 'searchProducts', 'searchCourses']),
-  BRANCH_FILTERED_CLINIC_AI_TOOLS: new Set(['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment', 'getPatientCard']),
+  BRANCH_FILTERED_CLINIC_AI_TOOLS: new Set(['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment', 'getPatientCard', 'getVisits', 'getTreatmentPlans']),
 }));
 vi.mock('../../../services/notification.service.js', () => ({ createNotificationForClinic }));
 vi.mock('../../ai-patient/patientTools.js', () => ({
@@ -77,10 +77,12 @@ vi.mock('./tools.js', () => ({
     getDebtors: { name: 'getDebtors', mutating: false, execute: throwingTool },
     cancelAppointment: { name: 'cancelAppointment', mutating: true, execute: cancelTool },
     getPatientCard: { name: 'getPatientCard', mutating: false, execute: patientCardTool },
+    getVisits: { name: 'getVisits', mutating: false, execute: okTool },
+    getTreatmentPlans: { name: 'getTreatmentPlans', mutating: false, execute: okTool },
     getPromotions: { name: 'getPromotions', mutating: false, execute: okTool },
     getDentalLabWorkQueue: { name: 'getDentalLabWorkQueue', mutating: false, execute: okTool },
   },
-  listToolNames: () => ['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment', 'getPatientCard', 'getPromotions', 'getDentalLabWorkQueue'],
+  listToolNames: () => ['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment', 'getPatientCard', 'getVisits', 'getTreatmentPlans', 'getPromotions', 'getDentalLabWorkQueue'],
 }));
 
 import { runAiAction } from './kernel.js';
@@ -100,7 +102,7 @@ beforeEach(() => {
   resolveAiToolAccess.mockResolvedValue({
     role: 'DOCTOR',
     clinicId: 'clinic-1',
-    allowed: new Set(['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment', 'getPatientCard', 'getPromotions']),
+    allowed: new Set(['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment', 'getPatientCard', 'getVisits', 'getTreatmentPlans', 'getPromotions']),
   });
   approvalCreate.mockResolvedValue({});
   approvalFindUnique.mockResolvedValue(null);
@@ -572,7 +574,7 @@ describe('runAiAction — patient scope (env.AI_PATIENT_SCOPE)', () => {
     expect(result).toMatchObject({ status: 'denied', reason: 'OUT_OF_PATIENT_SCOPE' });
     expect(patientCardTool).not.toHaveBeenCalled();
     expect(patientAssignmentFindFirst).toHaveBeenCalledWith({
-      where: { patientId: 'p-other', userId: 'user-1', active: true },
+      where: { clinicId: 'clinic-1', patientId: 'p-other', userId: 'user-1', active: true },
       select: { id: true },
     });
   });
@@ -587,7 +589,16 @@ describe('runAiAction — patient scope (env.AI_PATIENT_SCOPE)', () => {
     expect(patientCardTool).toHaveBeenCalledTimes(1);
   });
 
-  it('does not gate a tool with an optional patientId (getVisits-style) even when the flag is on — known, documented boundary', async () => {
+  it('denies broad getVisits and getTreatmentPlans calls for assigned clinical roles without an open patient', async () => {
+    const visits = await runAiAction(PRINCIPAL, { tool: 'getVisits', args: {} });
+    const plans = await runAiAction(PRINCIPAL, { tool: 'getTreatmentPlans', args: {} });
+
+    expect(visits).toMatchObject({ status: 'denied', reason: 'OUT_OF_PATIENT_SCOPE' });
+    expect(plans).toMatchObject({ status: 'denied', reason: 'OUT_OF_PATIENT_SCOPE' });
+    expect(okTool).not.toHaveBeenCalled();
+  });
+
+  it('does not gate schedule lookups that do not target a patient', async () => {
     mockEnv.AI_PATIENT_SCOPE = 'on';
 
     // getSchedule carries no entry in TOOL_PATIENT_ARG at all.
@@ -595,6 +606,17 @@ describe('runAiAction — patient scope (env.AI_PATIENT_SCOPE)', () => {
 
     expect(result.status).toBe('ok');
     expect(patientAssignmentFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('checks a patient-specific optional tool against active assignment when the feature flag is enabled', async () => {
+    mockEnv.AI_PATIENT_SCOPE = 'on';
+    patientAssignmentFindFirst.mockResolvedValueOnce({ id: 'pa-2' });
+    const result = await runAiAction(PRINCIPAL, { tool: 'getVisits', args: { patientId: 'p-mine' } });
+    expect(result.status).toBe('ok');
+    expect(patientAssignmentFindFirst).toHaveBeenCalledWith({
+      where: { clinicId: 'clinic-1', patientId: 'p-mine', userId: 'user-1', active: true },
+      select: { id: true },
+    });
   });
 
   it('does not gate roles outside DOCTOR/ASSISTANT even when the flag is on', async () => {

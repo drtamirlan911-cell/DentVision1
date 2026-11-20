@@ -1,4 +1,5 @@
 import { safeErrorKind } from '../../lib/safeError.js';
+import { env } from '../../config.js';
 import { Router } from 'express';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
@@ -1389,6 +1390,13 @@ aiRouter.get('/insights', authenticate, requirePermission('medical.read'), async
     });
     if (!patient) {
       return res.status(404).json({ ok: false, error: 'Пациент не найден' });
+    }
+    if (env.AI_PATIENT_SCOPE === 'on' && ['DOCTOR', 'ASSISTANT'].includes(String(access.role).toUpperCase())) {
+      const assignment = await prisma.patientAssignment.findFirst({
+        where: { clinicId, patientId: entityId, userId: req.user!.id, active: true },
+        select: { id: true },
+      });
+      if (!assignment) return res.status(404).json({ ok: false, error: 'Пациент не найден' });
     }
     const [insights, dismissed] = await Promise.all([
       computePatientInsights(entityId, clinicId),

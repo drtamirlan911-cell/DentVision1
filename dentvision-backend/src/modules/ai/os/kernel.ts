@@ -52,7 +52,7 @@ import {
 import { TOOLS, type ToolContext } from './tools.js';
 import { TOOL_PERMISSIONS } from './toolPermissions.js';
 import { encryptAiApprovalParams, getAiApprovalSummary } from './approvalPrivacy.js';
-import { SURFACE_TOOLS, HIGH_RISK_TOOLS, TOOL_PATIENT_ARG, sanitizeArgs, toolExistsAnywhere } from './dataScope.js';
+import { SURFACE_TOOLS, HIGH_RISK_TOOLS, TOOL_PATIENT_ARG, TOOL_REQUIRES_PATIENT_CONTEXT_FOR_ASSIGNED_ROLES, sanitizeArgs, toolExistsAnywhere } from './dataScope.js';
 import { SKILLS, skillPermissionSatisfied } from './skills.js';
 import { executePatientTool } from '../../ai-patient/patientTools.js';
 import { executeToolCall as executeAdminToolCall } from '../../ai-admin/llm/tools/tools.registry.js';
@@ -458,15 +458,40 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
     }
   }
 
-  // Step 5 — patient scope. AI-only (human REST/UI is unaffected); off
-  // unless env.AI_PATIENT_SCOPE === 'on', and only for the tools in
-  // TOOL_PATIENT_ARG where the target patient is unambiguous.
-  if (env.AI_PATIENT_SCOPE === 'on' && p.surface === 'staff' && (role === 'DOCTOR' || role === 'ASSISTANT')) {
+  // Step 5 — assigned-patient safeguards. Human REST/UI is unaffected.
+  // A DOCTOR/ASSISTANT cannot use optional patientId tools as whole-branch
+  // patient listings. Specific-patient assignment checks remain behind the
+  // migration/backfill flag until all clinics have reliable PatientAssignment rows.
+  if (p.surface === 'staff' && (role === 'DOCTOR' || role === 'ASSISTANT')) {
     const patientArg = TOOL_PATIENT_ARG[inv.tool];
     const targetPatientId = patientArg ? args[patientArg] : undefined;
-    if (targetPatientId) {
+
+    if (TOOL_REQUIRES_PATIENT_CONTEXT_FOR_ASSIGNED_ROLES.has(inv.tool) && !targetPatientId) {
+      const activityId = await recordActivity({
+        traceId: inv.traceId,
+        surface: p.surface,
+        agentId: p.agentId,
+        tool: inv.tool,
+        actorUserId: p.userId,
+        actorRole: role,
+        clinicId,
+        organizationId,
+        patientId: p.patientId,
+        status: 'denied',
+        denyReason: 'OUT_OF_PATIENT_SCOPE',
+        argsRedacted: redactArgs(args, contextFields, p.surface),
+      });
+      return {
+        status: 'denied',
+        reason: 'OUT_OF_PATIENT_SCOPE',
+        error: 'Для этой операции сначала откройте карточку конкретного пациента',
+        activityId,
+      };
+    }
+
+    if (env.AI_PATIENT_SCOPE === 'on' && targetPatientId) {
       const assignment = await prisma.patientAssignment.findFirst({
-        where: { patientId: String(targetPatientId), userId: p.userId, active: true },
+        where: { clinicId, patientId: String(targetPatientId), userId: p.userId, active: true },
         select: { id: true },
       });
       if (!assignment) {

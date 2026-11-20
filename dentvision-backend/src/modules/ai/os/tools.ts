@@ -12,6 +12,7 @@
 
 import type { Prisma, DiagnosticCategory, ReferralPriority } from '@prisma/client';
 import prisma from '../../../lib/prisma.js';
+import { env } from '../../../config.js';
 import { simpleChat } from '../llm/client.js';
 import { getRadiographVisionUnavailableMessage } from './radiographModelAvailability.js';
 import { resolveImageUrl } from '../../../lib/imageUrl.js';
@@ -235,10 +236,19 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
       const query = String(args.query || '').trim();
+      let assignedPatientFilter: Prisma.PatientWhereInput = {};
+      if (env.AI_PATIENT_SCOPE === 'on' && ['DOCTOR', 'ASSISTANT'].includes(String(ctx.role).toUpperCase())) {
+        const assignments = await prisma.patientAssignment.findMany({
+          where: { clinicId, userId: ctx.userId, active: true },
+          select: { patientId: true },
+        });
+        assignedPatientFilter = { id: { in: assignments.map((assignment) => assignment.patientId) } };
+      }
       const patients = await prisma.patient.findMany({
         where: {
           clinicId,
           ...patientBranchWhere(ctx),
+          ...assignedPatientFilter,
           ...(query && {
             OR: [
               { firstName: { contains: query, mode: 'insensitive' } },
