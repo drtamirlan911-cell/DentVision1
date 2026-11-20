@@ -67,6 +67,7 @@ beforeEach(() => {
     id: 'person-1',
     personType: 'RADIOLOGIST',
     originalId: null,
+    personRoles: [{ role: { key: 'DIAGNOSTIC_MANAGER' } }],
   });
   branchFindMany.mockResolvedValue([]);
   branchFindFirst.mockResolvedValue(null);
@@ -156,6 +157,12 @@ describe('AI Employee active task scope resolver', () => {
 
   it('keeps organization-wide authority inside active branches of the same organization', async () => {
     resolveAccess.mockResolvedValueOnce(partnerAccess({ role: 'DIAGNOSTIC_OWNER' }));
+    personFindFirst.mockResolvedValueOnce({
+      id: 'person-1',
+      personType: 'RADIOLOGIST',
+      originalId: null,
+      personRoles: [{ role: { key: 'DIAGNOSTIC_OWNER' } }],
+    });
     branchFindMany.mockResolvedValueOnce([{ id: 'branch-a' }, { id: 'branch-b' }]);
     const scope = await resolveAiEmployeeTaskScope(user({
       organizationId: 'org-1',
@@ -243,7 +250,35 @@ describe('AI Employee active task scope resolver', () => {
     expect(resolvePermissions).not.toHaveBeenCalled();
   });
 
+
+  it('fails closed for a partner role without an explicit canonical task-scope policy', async () => {
+    resolveAccess.mockResolvedValueOnce(partnerAccess({
+      role: 'EMPLOYER_VIEWER',
+      organizationType: 'EMPLOYER',
+    }));
+    organizationFindFirst.mockResolvedValueOnce({
+      id: 'org-1',
+      type: 'EMPLOYER',
+      originalType: null,
+      originalId: null,
+      archivedAt: null,
+    });
+    personFindFirst.mockResolvedValueOnce({
+      id: 'person-1',
+      personType: 'STAFF',
+      originalId: null,
+      personRoles: [{ role: { key: 'EMPLOYER_VIEWER' } }],
+    });
+
+    await expect(resolveAiEmployeeTaskScope(user({
+      organizationId: 'org-1',
+      organizationType: 'EMPLOYER',
+    }))).resolves.toBeNull();
+    expect(branchFindMany).not.toHaveBeenCalled();
+  });
+
   it('denies archived or missing canonical organizations', async () => {
+    resolveAccess.mockResolvedValueOnce(partnerAccess({ organizationId: 'org-archived' }));
     organizationFindFirst.mockResolvedValueOnce(null);
 
     const scope = await resolveAiEmployeeTaskScope(user({
