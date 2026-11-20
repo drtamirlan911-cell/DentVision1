@@ -98,6 +98,7 @@ const ShopSuppliers = lazyWithRetry(() => import('./pages/shop/ShopSuppliers'));
 
 const School = lazyWithRetry(() => import('./pages/school/School'));
 const MyLearning = lazyWithRetry(() => import('./pages/school/MyLearning'));
+const CertificateVerification = lazyWithRetry(() => import('./pages/school/CertificateVerification'));
 const SchoolCourse = lazyWithRetry(() => import('./pages/school/SchoolCourse'));
 const SchoolWorkspace = lazyWithRetry(() => import('./pages/school/SchoolWorkspace'));
 
@@ -382,6 +383,7 @@ if (container) {
                 <Route path="school/courses" element={guarded('school', <Navigate to="/school" replace />)} />
                 <Route path="school" element={guarded('school', <School />)} />
                 <Route path="school/my-learning" element={<Suspense fallback={<PageLoader />}><MyLearning /></Suspense>} />
+                <Route path="school/certificates/verify/:verificationCode" element={<Suspense fallback={<PageLoader />}><CertificateVerification /></Suspense>} />
                 <Route path="school/certificates" element={<Navigate to="/school/my-learning#certificates" replace />} />
                 <Route path="school/course/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
                 <Route path="school/workspace" element={guarded('school', <SchoolWorkspace />)} />
