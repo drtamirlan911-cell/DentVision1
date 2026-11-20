@@ -181,6 +181,54 @@ describe('AI Employee active task scope resolver', () => {
     });
   });
 
+
+  it('denies a canonical member when the active organization-scoped role has been revoked', async () => {
+    personFindFirst.mockResolvedValueOnce({
+      id: 'person-1',
+      personType: 'RADIOLOGIST',
+      originalId: null,
+      personRoles: [{ role: { key: 'DIAGNOSTIC_OPERATOR' } }],
+    });
+
+    await expect(resolveAiEmployeeTaskScope(user({
+      organizationId: 'org-1',
+      organizationType: 'DIAGNOSTIC_CENTER',
+    }))).resolves.toBeNull();
+    expect(resolvePermissions).not.toHaveBeenCalled();
+    expect(branchFindMany).not.toHaveBeenCalled();
+  });
+
+  it('requires one explicit branch when a branch-scoped member has several active branches', async () => {
+    branchFindMany.mockResolvedValueOnce([{ id: 'branch-a' }, { id: 'branch-b' }]);
+
+    await expect(resolveAiEmployeeTaskScope(user({
+      organizationId: 'org-1',
+      organizationType: 'DIAGNOSTIC_CENTER',
+    }))).resolves.toBeNull();
+  });
+
+  it('allows a null branch only for verified organization-wide scope', async () => {
+    resolveAccess.mockResolvedValueOnce(partnerAccess({ role: 'DIAGNOSTIC_OWNER' }));
+    personFindFirst.mockResolvedValueOnce({
+      id: 'person-1',
+      personType: 'RADIOLOGIST',
+      originalId: null,
+      personRoles: [{ role: { key: 'DIAGNOSTIC_OWNER' } }],
+    });
+    branchFindMany.mockResolvedValueOnce([{ id: 'branch-a' }, { id: 'branch-b' }]);
+
+    const scope = await resolveAiEmployeeTaskScope(user({
+      organizationId: 'org-1',
+      organizationType: 'DIAGNOSTIC_CENTER',
+    }));
+
+    expect(scope).toMatchObject({
+      roleScope: 'ORGANIZATION',
+      branchId: null,
+      allowedBranchIds: ['branch-a', 'branch-b'],
+    });
+  });
+
   it('preserves pre-canonical clinic compatibility without fabricating an Organization id', async () => {
     resolveAccess.mockResolvedValueOnce({
       role: 'DOCTOR',
