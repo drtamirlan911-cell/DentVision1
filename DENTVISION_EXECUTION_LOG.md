@@ -3041,3 +3041,10 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Guide commit: `b7f8cc31191a49ad9d86c387765d194a555f65b4`; test alignment commit: `1565dc06478b937596ce610a535dc1d1141bfde5`. Current main remains `da1257fc650f536c76583bdff570906290b92bcd`; PR #351 remains the single Draft candidate.
 - The preceding exact-head CI/Quality Gate attempts were superseded by this source/test update. Fresh exact-head CI, Quality Gate, role/context E2E and Vercel Preview are required; no passing result is claimed from an older SHA.
 - No authorization rule was widened, no agent received additional tools, and no main merge or production/staging operation was performed.
+
+
+## 2026-11-20 — runtime loading test for Jarvis product knowledge (PR #351)
+
+- Added an integration-level retrieval test that calls `retrievePatientProductKnowledge()` and verifies the approved patient section is loaded from the actual `docs/AI_PRODUCT_KNOWLEDGE.md` file, not only from an in-memory test fixture.
+- The assertion checks that retrieval returns the patient portal section and the canonical source label. This exercises the current source/runtime path and fails closed in CI if the guide file is absent or unreadable in the test environment.
+- Test commit: `f81ef0b0b3c9ffa736dac851725718828519e53d`. Exact-head CI [44713904156](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44713904156) was pending and Quality Gate [44713904154](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44713904154) was in progress at the time of this checkpoint. These are not passing results; later documentation commits require refreshed exact-head checks.
