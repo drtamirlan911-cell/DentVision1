@@ -15,6 +15,7 @@ import { WaitingListStatus } from '@prisma/client';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 
 import { splitPatientName } from '../public/bookingSlots.js';
+import { resolveClinicBranchAccess } from '../../lib/clinicBranchAccess.js';
 
 export const crmOpsRouter = Router();
 crmOpsRouter.use(authenticate);
@@ -28,6 +29,37 @@ function requireClinic(req: AuthRequest, res: any): string | null {
     return null;
   }
   return clinicId;
+}
+
+interface ExpenseBranchContext {
+  organizationWide: boolean;
+  branchId: string | null;
+  where: Record<string, unknown>;
+}
+
+async function resolveExpenseBranchContext(
+  req: AuthRequest,
+  clinicId: string,
+  requestedBranchId?: string | null,
+): Promise<ExpenseBranchContext | null> {
+  if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN') {
+    return { organizationWide: true, branchId: requestedBranchId || null, where: { clinicId } };
+  }
+  const access = await resolveClinicBranchAccess({
+    userId: req.user?.id || '',
+    clinicId,
+    organizationId: req.user?.organizationId,
+    role: String(req.user?.role || ''),
+    requestedBranchId: requestedBranchId ?? req.user?.branchId,
+  });
+  if (!access) return null;
+  const organizationWide = access.roleScope === 'ORGANIZATION' && access.branchId === null;
+  const branchId = access.branchId;
+  return {
+    organizationWide,
+    branchId,
+    where: organizationWide ? { clinicId } : { clinicId, branchId },
+  };
 }
 
 // ─── Waiting list ───
@@ -163,11 +195,13 @@ crmOpsRouter.get('/expenses', requirePermission('finance.manage'), async (req: A
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
+    const branchContext = await resolveExpenseBranchContext(req, clinicId);
+    if (!branchContext) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу расходов' } satisfies ApiResponse);
     const from = req.query.from ? new Date(String(req.query.from)) : undefined;
     const to = req.query.to ? new Date(String(req.query.to)) : undefined;
     const rows = await prisma.expense.findMany({
       where: {
-        clinicId,
+        ...branchContext.where,
         ...(from || to
           ? { date: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
           : {}),
@@ -180,6 +214,7 @@ crmOpsRouter.get('/expenses', requirePermission('finance.manage'), async (req: A
       data: rows.map((r) => ({
         id: r.id,
         clinicId: r.clinicId,
+        branchId: r.branchId,
         category: r.category || 'Прочее',
         amount: r.amount,
         notes: r.notes || r.description || '',
@@ -222,24 +257,41 @@ crmOpsRouter.post('/expenses', requirePermission('finance.manage'), async (req: 
         return res.status(409).json({ ok: false, error: 'Расход уже сохраняется, повторите позже' } satisfies ApiResponse);
       }
       if (reserved.status === 'exists') {
-        const prior = await prisma.expense.findFirst({ where: { id: reserved.resultId, clinicId } });
+        const requestedBranchId = b.branchId ? String(b.branchId) : req.user?.branchId || null;
+        const replayScope = await resolveExpenseBranchContext(req, clinicId, requestedBranchId);
+        if (!replayScope) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу расходов' } satisfies ApiResponse);
+        const prior = await prisma.expense.findFirst({ where: { id: reserved.resultId, ...replayScope.where } });
         if (prior) {
           return res.status(200).json({ ok: true, data: prior } satisfies ApiResponse);
         }
-        await deleteIdempotencyKey(idempotencyKey);
+        // IdempotencyRecord.key is global and shared by other modules. A result
+        // outside this clinic/branch may belong to another resource; never
+        // release that foreign key from the current request.
+        return res.status(409).json({
+          ok: false,
+          error: 'Ключ идемпотентности уже использован. Повторите запрос с новым ключом.',
+          code: 'IDEMPOTENCY_KEY_SCOPE_CONFLICT',
+        } satisfies ApiResponse);
       }
     }
+
+    const requestedBranchId = b.branchId ? String(b.branchId) : req.user?.branchId || null;
+    const branchContext = await resolveExpenseBranchContext(req, clinicId, requestedBranchId);
+    if (!branchContext) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу расходов' } satisfies ApiResponse);
 
     const id = b.id || uid();
     const data = {
       clinicId,
+      ...(branchContext.organizationWide && !requestedBranchId
+        ? {}
+        : { branchId: branchContext.branchId }),
       category: b.category || b.categoryId || 'Прочее',
       amount,
       description: b.description || b.notes || null,
       notes: b.notes || null,
       date: b.date ? new Date(b.date) : new Date(),
     };
-    const existing = await prisma.expense.findFirst({ where: { id, clinicId } });
+    const existing = await prisma.expense.findFirst({ where: { id, ...branchContext.where } });
     const row = existing
       ? await prisma.expense.update({ where: { id }, data })
       : await prisma.expense.create({ data: { id, ...data } });
@@ -264,9 +316,11 @@ crmOpsRouter.delete('/expenses/:id', requirePermission('finance.manage'), async 
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
     const id = req.params.id as string;
-    const existing = await prisma.expense.findFirst({ where: { id, clinicId } });
+    const branchContext = await resolveExpenseBranchContext(req, clinicId);
+    if (!branchContext) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу расходов' } satisfies ApiResponse);
+    const existing = await prisma.expense.findFirst({ where: { id, ...branchContext.where } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Не найдено' } satisfies ApiResponse);
-    await prisma.expense.delete({ where: { id } });
+    await prisma.expense.deleteMany({ where: { id, ...branchContext.where } });
     return res.json({ ok: true, data: { id } } satisfies ApiResponse);
   } catch (error) {
     return res.status(500).json({ ok: false, error: 'Не удалось удалить расход' } satisfies ApiResponse);
