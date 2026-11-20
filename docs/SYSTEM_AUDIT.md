@@ -708,3 +708,4 @@ The largest remaining gap is not raw feature count. It is **coherence**: one ide
 The next work should therefore prioritize architectural convergence and vertical workflow completion over adding more isolated screens.
 
 - A focused review of AI query error-audit paths confirmed that logAIInteraction() persists only the boolean errorPresent and not the supplied exception message. PR #351 adds a regression test that inspects the Prisma payload for a synthetic sentinel. The durable event store encrypts new error text through encodeDurableEventError(); legacy plaintext compatibility remains a separate historical-data concern.
+- Jarvis product-knowledge retrieval is now tested against a realistic user question about available AI agents: the local runtime ranker must return the agent catalogue section first. This is paired with the test that every registered agent name appears in the catalogue and the test that the backend container copy equals the canonical guide.
