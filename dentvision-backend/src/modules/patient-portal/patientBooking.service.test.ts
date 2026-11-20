@@ -4,6 +4,9 @@ const {
   clinicFindUnique,
   clinicMemberCount,
   clinicMemberFindFirst,
+  clinicMemberFindMany,
+  organizationFindFirst,
+  personFindMany,
   appointmentFindMany,
   appointmentFindFirst,
   bookingFindMany,
@@ -18,6 +21,9 @@ const {
   clinicFindUnique: vi.fn(),
   clinicMemberCount: vi.fn(),
   clinicMemberFindFirst: vi.fn(),
+  clinicMemberFindMany: vi.fn(),
+  organizationFindFirst: vi.fn(),
+  personFindMany: vi.fn(),
   appointmentFindMany: vi.fn(),
   appointmentFindFirst: vi.fn(),
   bookingFindMany: vi.fn(),
@@ -32,7 +38,9 @@ const {
 
 vi.mock('../../lib/prisma.js', () => ({ default: {
   clinic: { findUnique: clinicFindUnique },
-  clinicMember: { count: clinicMemberCount, findFirst: clinicMemberFindFirst },
+  clinicMember: { count: clinicMemberCount, findFirst: clinicMemberFindFirst, findMany: clinicMemberFindMany },
+  organization: { findFirst: organizationFindFirst },
+  person: { findMany: personFindMany },
   appointment: { findMany: appointmentFindMany, findFirst: appointmentFindFirst },
   booking: { findMany: bookingFindMany, findFirst: bookingFindFirst, create: bookingCreate },
   patient: { findUnique: patientFindUnique },
@@ -71,6 +79,9 @@ const baseInput = {
 beforeEach(() => {
   vi.clearAllMocks();
   branchFindFirst.mockResolvedValue({ id: 'branch-1' });
+  organizationFindFirst.mockResolvedValue(null);
+  clinicMemberFindMany.mockResolvedValue([{ userId: 'doctor-1', role: 'DOCTOR' }]);
+  personFindMany.mockResolvedValue([]);
   resolveClinicBranchAccess.mockResolvedValue({
     roleScope: 'ASSIGNED',
     branchId: 'branch-1',
@@ -100,7 +111,6 @@ describe('getAvailableSlots', () => {
 
   it('filters available slots and occupancy holds to the patient branch', async () => {
     clinicFindUnique.mockResolvedValueOnce(OPEN_CLINIC);
-    clinicMemberCount.mockResolvedValueOnce(1);
     appointmentFindMany.mockResolvedValueOnce([]);
     bookingFindMany.mockResolvedValueOnce([]);
 
@@ -108,7 +118,40 @@ describe('getAvailableSlots', () => {
 
     expect(appointmentFindMany.mock.calls[0][0].where).toMatchObject({ branchId: 'branch-1' });
     expect(bookingFindMany.mock.calls[0][0].where).toMatchObject({ branchId: 'branch-1' });
-    expect(clinicMemberCount.mock.calls[0][0].where).toMatchObject({ branchId: 'branch-1' });
+    expect(clinicMemberFindMany.mock.calls[0][0].where).toMatchObject({
+      clinicId: 'clinic-1',
+      branchId: 'branch-1',
+      role: { in: ['DOCTOR', 'OWNER'] },
+    });
+  });
+
+  it('validates a requested doctor against active membership in the patient branch', async () => {
+    clinicFindUnique.mockResolvedValueOnce(OPEN_CLINIC);
+    clinicMemberFindMany.mockResolvedValueOnce([{ userId: 'doctor-1', role: 'DOCTOR' }]);
+    appointmentFindMany.mockResolvedValueOnce([]);
+    bookingFindMany.mockResolvedValueOnce([]);
+
+    await getAvailableSlots('clinic-1', '2026-08-17', 'doctor-1', 'branch-1');
+
+    expect(resolveClinicBranchAccess).toHaveBeenCalledWith({
+      userId: 'doctor-1',
+      clinicId: 'clinic-1',
+      role: 'DOCTOR',
+      requestedBranchId: 'branch-1',
+    });
+  });
+
+  it('returns no slots when the selected branch has no bookable clinicians', async () => {
+    clinicFindUnique.mockResolvedValueOnce(OPEN_CLINIC);
+    clinicMemberFindMany.mockResolvedValueOnce([]);
+    appointmentFindMany.mockResolvedValueOnce([]);
+    bookingFindMany.mockResolvedValueOnce([]);
+
+    await expect(getAvailableSlots('clinic-1', '2026-08-17', null, 'branch-1')).resolves.toEqual({
+      date: '2026-08-17',
+      workingDay: true,
+      slots: [],
+    });
   });
 
   it('throws NOT_FOUND for an unknown clinic', async () => {
