@@ -53,6 +53,56 @@ export async function cancelAppointment(patientId: string, appointmentId: string
   await (prisma as any).appointment.update({ where: { id: appointmentId }, data: { status: 'cancelled', notes: `${appt.notes || ''}\n[Отмена пациентом через портал]`.trim() } }); return { cancelled: true, date: appt.date, time: appt.time };
 }
 
+type BookableDoctor = { id: string; role: 'DOCTOR' | 'OWNER' };
+
+async function listBookableDoctorsForBranch(clinicId: string, branchId: string): Promise<BookableDoctor[]> {
+  const organization = await (prisma as any).organization.findFirst({
+    where: { originalType: 'Clinic', originalId: clinicId },
+    select: { id: true, archivedAt: true },
+  });
+  if (organization) {
+    if (organization.archivedAt) return [];
+    const persons = await (prisma as any).person.findMany({
+      where: {
+        organizationId: organization.id,
+        userId: { not: null },
+        branchMemberships: { some: { branchId, active: true } },
+        personRoles: {
+          some: {
+            scopeType: 'organization',
+            scopeId: organization.id,
+            role: { key: { in: ['doctor', 'owner', 'org_owner', 'director'] } },
+          },
+        },
+      },
+      select: {
+        userId: true,
+        personRoles: {
+          where: { scopeType: 'organization', scopeId: organization.id },
+          select: { role: { select: { key: true } } },
+        },
+      },
+    });
+    const result = new Map<string, BookableDoctor['role']>();
+    for (const person of persons) {
+      if (!person.userId) continue;
+      const keys = (person.personRoles || []).map((entry: any) => String(entry.role?.key || '').toLowerCase());
+      const role: BookableDoctor['role'] = keys.includes('doctor') ? 'DOCTOR' : 'OWNER';
+      result.set(String(person.userId), role);
+    }
+    return [...result.entries()].map(([id, role]) => ({ id, role }));
+  }
+
+  const members = await (prisma as any).clinicMember.findMany({
+    where: { clinicId, branchId, role: { in: ['DOCTOR', 'OWNER'] } },
+    select: { userId: true, role: true },
+  });
+  return members.map((member: any) => ({
+    id: String(member.userId),
+    role: member.role === 'OWNER' ? 'OWNER' as const : 'DOCTOR' as const,
+  }));
+}
+
 export interface AvailableSlotsResult { date: string; workingDay: boolean; slots: string[]; }
 export async function getAvailableSlots(
   clinicId: string,
@@ -69,11 +119,34 @@ export async function getAvailableSlots(
   const branchFilter = branchId ? { branchId } : {};
   const dayStart = new Date(`${date}T00:00:00.000Z`);
   const dayEnd = new Date(`${date}T23:59:59.999Z`);
-  const doctorCount = doctorId
-    ? 1
-    : (await (prisma as any).clinicMember.count({
-      where: { clinicId, role: { in: ['DOCTOR', 'OWNER'] }, ...branchFilter },
-    })) || 1;
+
+  let doctorCount: number;
+  if (branchId) {
+    const bookableDoctors = await listBookableDoctorsForBranch(clinicId, branchId);
+    if (doctorId) {
+      const selectedDoctor = bookableDoctors.find((doctor) => doctor.id === doctorId);
+      if (!selectedDoctor) throw new PortalActionError('Врач не доступен в филиале пациента', 'NOT_FOUND');
+      const doctorAccess = await resolveClinicBranchAccess({
+        userId: doctorId,
+        clinicId,
+        role: selectedDoctor.role,
+        requestedBranchId: branchId,
+      });
+      if (!doctorAccess || doctorAccess.branchId !== branchId) {
+        throw new PortalActionError('Врач не доступен в филиале пациента', 'NOT_FOUND');
+      }
+      doctorCount = 1;
+    } else {
+      doctorCount = bookableDoctors.length;
+    }
+  } else {
+    doctorCount = doctorId
+      ? 1
+      : (await (prisma as any).clinicMember.count({
+        where: { clinicId, role: { in: ['DOCTOR', 'OWNER'] } },
+      })) || 1;
+  }
+
   const [appointments, bookings] = await Promise.all([
     (prisma as any).appointment.findMany({
       where: {
@@ -103,7 +176,9 @@ export async function getAvailableSlots(
   return {
     date,
     workingDay: true,
-    slots: filterAvailableSlots(buildTimeSlots(settings), occupied, doctorId ?? null, doctorCount),
+    slots: doctorCount > 0
+      ? filterAvailableSlots(buildTimeSlots(settings), occupied, doctorId ?? null, doctorCount)
+      : [],
   };
 }
 
