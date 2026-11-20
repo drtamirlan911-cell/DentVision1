@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Award, BellRing, BriefcaseBusiness, CalendarClock, CheckCircle2, Clock3, FileText, Inbox, MessageCircle, RefreshCw, Search, UserRound, XCircle } from 'lucide-react';
+import { BellRing, BriefcaseBusiness, CalendarClock, CheckCircle2, FileText, Inbox, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Button } from '@/components/ui/ds/Button';
