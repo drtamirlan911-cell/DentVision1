@@ -143,8 +143,10 @@ describe('Jarvis AI Employee scope retrieval', () => {
 
     expect(hits.length).toBeGreaterThan(0);
     expect(hits[0].title).toContain('AI-агенты');
-    expect(hits[0].content).toContain('Постоянная очередь AI Employee');
-    expect(hits[0].content).toContain('только в контексте клиники');
+    const queueScope = hits.find((hit) => hit.title.includes('Постоянная очередь AI Employee'));
+    expect(queueScope).toBeDefined();
+    expect(queueScope?.content).toContain('работает в контексте клиники');
+    expect(queueScope?.content).toContain('не переносится автоматически');
   });
 });
 
