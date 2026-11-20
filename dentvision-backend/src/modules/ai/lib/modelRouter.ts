@@ -40,10 +40,14 @@ export interface ModelChoice {
  * reasoning mode. Kept as a small maintained pattern rather than a per-model
  * table: a new family costs one alternative here.
  */
-const REASONING_MODEL_RE = /^(?:o\d(?:$|[.-])|gpt-[56](?:$|[.-]))/i;
+const REASONING_MODELS = new Set([
+  'o3', 'o4-mini',
+  'gpt-6.2-astra', 'gpt-6-astra', 'gpt-6.1-sol', 'gpt-6.1-terra',
+  'gpt-5.6-sol', 'gpt-5.4', 'gpt-5', 'gpt-5.4-mini', 'gpt-5-mini',
+]);
 
 export function supportsReasoning(model: string): boolean {
-  return REASONING_MODEL_RE.test(String(model || '').trim());
+  return REASONING_MODELS.has(String(model || '').trim().toLowerCase());
 }
 
 export interface ModelUsageSnapshot {
@@ -151,6 +155,9 @@ export function pickModel(input: {
   requiresVision?: boolean;
   visionModel?: string | null;
   visionTier?: ModelTier;
+  fullSupportsReasoning?: boolean;
+  miniSupportsReasoning?: boolean;
+  visionSupportsReasoning?: boolean;
   reasoningEffort?: 'low' | 'medium' | 'high';
   miniUsed?: number;
   fullUsed?: number;
@@ -173,7 +180,7 @@ export function pickModel(input: {
     model: miniModel,
     tier: 'mini',
     reasoningEffort: 'low',
-    supportsReasoning: supportsReasoning(miniModel),
+    supportsReasoning: input.miniSupportsReasoning ?? supportsReasoning(miniModel),
     maxOutputTokens: maxOut,
     reason,
   });
@@ -182,7 +189,7 @@ export function pickModel(input: {
     model: fullModel,
     tier: 'full',
     reasoningEffort: effort,
-    supportsReasoning: supportsReasoning(fullModel),
+    supportsReasoning: input.fullSupportsReasoning ?? supportsReasoning(fullModel),
     maxOutputTokens: maxOut,
     reason,
   });
@@ -196,7 +203,7 @@ export function pickModel(input: {
           model: input.visionModel,
           tier: 'mini',
           reasoningEffort: 'low',
-          supportsReasoning: supportsReasoning(input.visionModel),
+          supportsReasoning: input.visionSupportsReasoning ?? supportsReasoning(input.visionModel),
           maxOutputTokens: 1_200,
           reason: 'required_vision_input',
         }
@@ -300,6 +307,9 @@ export async function chooseOpenAIModel(input: {
     requiresVision: input.requiresVision,
     visionModel: models.vision,
     visionTier: models.vision && MINI_LADDER.some((candidate) => candidate.id === models.vision) ? 'mini' : 'full',
+    fullSupportsReasoning: models.fullSupportsReasoning,
+    miniSupportsReasoning: models.miniSupportsReasoning,
+    visionSupportsReasoning: models.visionSupportsReasoning,
     reasoningEffort: env.OPENAI_REASONING_EFFORT,
     ...(sharedMini !== null ? { miniUsed: sharedMini } : {}),
     ...(sharedFull !== null ? { fullUsed: sharedFull } : {}),
