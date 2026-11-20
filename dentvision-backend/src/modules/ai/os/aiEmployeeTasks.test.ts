@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { basename, resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { queryRaw } = vi.hoisted(() => ({
@@ -11,6 +12,10 @@ vi.mock('../../../lib/prisma.js', () => ({
 }));
 
 import { createAiEmployeeTask, listAiEmployeeTasks, transitionAiEmployeeTask } from './aiEmployeeTasks.js';
+
+const REPO_ROOT = basename(process.cwd()) === 'dentvision-backend'
+  ? resolve(process.cwd(), '..')
+  : process.cwd();
 
 interface CapturedSql {
   sql: string;
@@ -31,7 +36,7 @@ describe('AI Employee task SQL matches its durable table schema', () => {
 
   it('backfills legacy task keys without deleting task history and adds a partial unique index', () => {
     const migration = readFileSync(
-      new URL('../../../../prisma/migrations/20261120_add_ai_employee_task_idempotency_key/migration.sql', import.meta.url),
+      resolve(REPO_ROOT, 'dentvision-backend', 'prisma', 'migrations', '20261120_add_ai_employee_task_idempotency_key', 'migration.sql'),
       'utf8',
     );
 
