@@ -42,6 +42,13 @@ import { env } from '../../../config.js';
 import { uid } from '../../../lib/helpers.js';
 import { resolveOrganizationIdForClinic } from '../../../lib/orgContext.js';
 import { resolveAiToolAccess } from './access.js';
+import {
+  resolveAiToolBranchScope,
+  isNarrowAiToolBranchScope,
+  CLINIC_BRANCH_INDEPENDENT_AI_TOOLS,
+  BRANCH_FILTERED_CLINIC_AI_TOOLS,
+  type AiToolBranchScope,
+} from './aiToolBranchScope.js';
 import { TOOLS, type ToolContext } from './tools.js';
 import { TOOL_PERMISSIONS } from './toolPermissions.js';
 import { encryptAiApprovalParams, getAiApprovalSummary } from './approvalPrivacy.js';
@@ -307,6 +314,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
   let supplierId: string | null = null;
   let lecturerId: string | null = null;
   let allowedTools: Set<string> | null = null;
+  let branchScope: AiToolBranchScope | null = null;
   if (p.surface === 'staff') {
     const access = await resolveAiToolAccess({
       userId: p.userId,
@@ -356,6 +364,53 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
       argsRedacted: redactArgs(args, [], p.surface),
     });
     return { status: 'denied', reason: 'NOT_ALLOWED', error: 'Действие недоступно для вашей роли', activityId };
+  }
+
+  // Step 4a — clinic branch scope. The active branch id is only a selector;
+  // current Organization/PersonRole/BranchMember or legacy ClinicMember
+  // membership is re-resolved here immediately before execution.
+  if (p.surface === 'staff' && clinicId && !CLINIC_BRANCH_INDEPENDENT_AI_TOOLS.has(inv.tool)) {
+    try {
+      branchScope = await resolveAiToolBranchScope({
+        userId: p.userId,
+        clinicId,
+        organizationId,
+        role,
+        requestedBranchId: p.requestedBranchId || null,
+      });
+    } catch (error) {
+      console.warn('[ai kernel] branch scope resolution failed:', safeErrorKind(error));
+      branchScope = null;
+    }
+
+    const branchFilterUnavailable =
+      !!branchScope
+      && isNarrowAiToolBranchScope(branchScope)
+      && !BRANCH_FILTERED_CLINIC_AI_TOOLS.has(inv.tool);
+    if (!branchScope || branchFilterUnavailable) {
+      const activityId = await recordActivity({
+        traceId: inv.traceId,
+        surface: p.surface,
+        agentId: p.agentId,
+        tool: inv.tool,
+        actorUserId: p.userId,
+        actorRole: role,
+        clinicId,
+        organizationId,
+        patientId: p.patientId,
+        status: 'denied',
+        denyReason: 'BRANCH_SCOPE_REQUIRED',
+        argsRedacted: redactArgs(args, [], p.surface),
+      });
+      return {
+        status: 'denied',
+        reason: 'BRANCH_SCOPE_REQUIRED',
+        error: branchScope
+          ? 'Инструмент пока недоступен в выбранном филиальном контексте'
+          : 'Не удалось подтвердить доступ к активному филиалу',
+        activityId,
+      };
+    }
   }
 
   // Step 4b — named skill boundary (optional). A narrower gate on top of the
@@ -549,6 +604,8 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
         organizationOriginalId,
         supplierId,
         lecturerId,
+        requestedBranchId: p.requestedBranchId || null,
+        branchScope,
       };
       toolResult = await TOOLS[inv.tool].execute(args, ctx);
     } else if (p.surface === 'patient') {

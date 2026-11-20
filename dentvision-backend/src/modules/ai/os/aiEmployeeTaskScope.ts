@@ -38,7 +38,7 @@ type ActiveOrganization = {
   originalId: string | null;
 };
 
-type ActivePerson = {
+export type ActivePerson = {
   id: string;
   personType: string;
   originalId: string | null;
@@ -82,7 +82,7 @@ function uniqueIds(rows: Array<{ id: string }>): string[] {
   return [...new Set(rows.map((row) => String(row.id)).filter(Boolean))];
 }
 
-async function resolveOrganizationBranches(
+export async function resolveOrganizationBranches(
   organizationId: string,
   roleScope: RoleScope,
   person: ActivePerson | null,
@@ -107,7 +107,7 @@ async function resolveOrganizationBranches(
   return uniqueIds(rows);
 }
 
-async function resolveLegacyClinicBranches(
+export async function resolveLegacyClinicBranches(
   userId: string,
   clinicId: string,
   roleScope: RoleScope,
