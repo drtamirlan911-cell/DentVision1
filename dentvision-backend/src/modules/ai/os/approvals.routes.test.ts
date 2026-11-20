@@ -3,12 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   userFindUnique, approvalFindMany, approvalFindUnique, approvalUpdate,
   resolveClinicAccess, resolveOrganizationIdForClinic, resolveUserPermissions,
-  assertSameClinic, resolveAiToolAccess, runAiAction, auditFromReq,
+  assertSameClinic, resolveAiToolAccess, resolveAiToolBranchScope, runAiAction, auditFromReq,
   listAiEmployeeTasks, transitionAiEmployeeTask,
 } = vi.hoisted(() => ({
   userFindUnique: vi.fn(), approvalFindMany: vi.fn(), approvalFindUnique: vi.fn(), approvalUpdate: vi.fn(),
   resolveClinicAccess: vi.fn(), resolveOrganizationIdForClinic: vi.fn(), resolveUserPermissions: vi.fn(),
-  assertSameClinic: vi.fn(), resolveAiToolAccess: vi.fn(), runAiAction: vi.fn(), auditFromReq: vi.fn(),
+  assertSameClinic: vi.fn(), resolveAiToolAccess: vi.fn(), resolveAiToolBranchScope: vi.fn(), runAiAction: vi.fn(), auditFromReq: vi.fn(),
   listAiEmployeeTasks: vi.fn(), transitionAiEmployeeTask: vi.fn(),
 }));
 
@@ -26,6 +26,11 @@ vi.mock('../../../lib/orgContext.js', () => ({ resolveClinicAccess, resolveOrgan
 vi.mock('../../../lib/resolvePermissions.js', () => ({ resolveUserPermissions }));
 vi.mock('../../compliance/audit.service.js', () => ({ auditFromReq }));
 vi.mock('./access.js', () => ({ resolveAiToolAccess }));
+vi.mock('./aiToolBranchScope.js', () => ({
+  resolveAiToolBranchScope,
+  isNarrowAiToolBranchScope: (scope: { roleScope: string; branchId: string | null }) =>
+    scope.roleScope !== 'ORGANIZATION' || scope.branchId !== null,
+}));
 vi.mock('./kernel.js', () => ({ runAiAction }));
 vi.mock('./aiEmployeeTasks.js', () => ({ listAiEmployeeTasks, transitionAiEmployeeTask }));
 
@@ -50,19 +55,24 @@ function responseHarness() {
   };
 }
 
-const caller = { id: 'approver-1', clinicId: 'clinic-1', role: 'MANAGER', isGuest: false };
+const caller = { id: 'approver-1', clinicId: 'clinic-1', organizationId: 'org-1', role: 'OWNER', isGuest: false };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  userFindUnique.mockResolvedValue({ role: 'MANAGER' });
-  resolveClinicAccess.mockResolvedValue({ role: 'MANAGER' });
+  userFindUnique.mockResolvedValue({ role: 'OWNER' });
+  resolveClinicAccess.mockResolvedValue({ role: 'OWNER' });
   resolveOrganizationIdForClinic.mockResolvedValue('org-1');
   resolveUserPermissions.mockResolvedValue(['bi.read']);
   approvalFindMany.mockResolvedValue([]);
   approvalFindUnique.mockResolvedValue(null);
   approvalUpdate.mockResolvedValue({});
   assertSameClinic.mockReturnValue(true);
-  resolveAiToolAccess.mockResolvedValue({ allowed: new Set(['cancelAppointment']), role: 'MANAGER', clinicId: 'clinic-1' });
+  resolveAiToolAccess.mockResolvedValue({
+    allowed: new Set(['cancelAppointment']), role: 'OWNER', clinicId: 'clinic-1', organizationId: 'org-1',
+  });
+  resolveAiToolBranchScope.mockResolvedValue({
+    roleScope: 'ORGANIZATION', branchId: null, allowedBranchIds: ['branch-1', 'branch-2'],
+  });
   runAiAction.mockResolvedValue({ status: 'ok', activityId: 'activity-1' });
   auditFromReq.mockResolvedValue(undefined);
   listAiEmployeeTasks.mockResolvedValue([]);
@@ -147,7 +157,16 @@ describe('Approval Center PHI API boundary', () => {
       tool: 'cancelAppointment', params: 'ENC:invalid', riskLevel: 'high', status: 'pending',
       expiresAt: new Date(Date.now() + 60_000),
     });
-    resolveAiToolAccess.mockResolvedValueOnce({ allowed: new Set() });
+    resolveAiToolAccess
+      .mockResolvedValueOnce({
+        allowed: new Set(['cancelAppointment']), role: 'OWNER', clinicId: 'clinic-1', organizationId: 'org-1',
+      })
+      .mockResolvedValueOnce({
+        allowed: new Set(), role: 'OWNER', clinicId: 'clinic-1', organizationId: 'org-1',
+      });
+    resolveAiToolBranchScope.mockResolvedValueOnce({
+      roleScope: 'ORGANIZATION', branchId: null, allowedBranchIds: ['branch-1'],
+    });
     const res = responseHarness();
     await routeHandler('post', '/:id/approve')({
       user: caller, params: { id: 'approval-5' }, body: {},
@@ -158,7 +177,7 @@ describe('Approval Center PHI API boundary', () => {
   });
 
 describe('AI Employee task queue scope', () => {
-  it('lets verified workspace managers read the clinic queue', async () => {
+  it('lets a verified organization-wide owner read the clinic queue', async () => {
     const tasks = [{ id: 'task-doctor-1', role: 'DOCTOR', clinicId: 'clinic-1' }];
     listAiEmployeeTasks.mockResolvedValueOnce(tasks);
     const res = responseHarness();
@@ -179,25 +198,21 @@ describe('AI Employee task queue scope', () => {
     });
   });
 
-  it('shows a staff member their own and unassigned tasks for the verified role queue', async () => {
+  it('withholds clinic-only task rows from a branch-scoped doctor', async () => {
     const doctor = { ...caller, role: 'DOCTOR' };
-    const tasks = [{ id: 'task-doctor-queue', role: 'DOCTOR', clinicId: 'clinic-1', userId: null }];
-    resolveAiToolAccess.mockResolvedValueOnce({ allowed: new Set(), role: 'DOCTOR', clinicId: 'clinic-1' });
-    listAiEmployeeTasks.mockResolvedValueOnce(tasks);
+    resolveAiToolAccess.mockResolvedValueOnce({
+      allowed: new Set(), role: 'DOCTOR', clinicId: 'clinic-1', organizationId: 'org-1',
+    });
+    resolveAiToolBranchScope.mockResolvedValueOnce({
+      roleScope: 'ASSIGNED', branchId: 'branch-1', allowedBranchIds: ['branch-1'],
+    });
     const res = responseHarness();
 
     await routeHandler('get', '/tasks')({ user: doctor, query: { limit: '10' } }, res);
 
     expect(res.statusCode).toBe(200);
-    expect(res.body.data).toEqual(tasks);
-    expect(listAiEmployeeTasks).toHaveBeenCalledWith({
-      clinicId: 'clinic-1',
-      userId: doctor.id,
-      includeUnassigned: true,
-      role: 'DOCTOR',
-      status: null,
-      limit: 10,
-    });
+    expect(res.body.data).toEqual([]);
+    expect(listAiEmployeeTasks).not.toHaveBeenCalled();
   });
 
   it('denies the task queue when active clinic membership cannot be verified', async () => {
@@ -259,41 +274,33 @@ describe('AI Employee task queue scope', () => {
     expect(transitionAiEmployeeTask).not.toHaveBeenCalled();
   });
 
-  it('allows a doctor to transition an unassigned task only inside their verified role queue', async () => {
+  it('denies branch-scoped doctors from transitioning the clinic-only task ledger', async () => {
     const doctor = { ...caller, role: 'DOCTOR' };
-    const task = { id: 'task-doctor-queue', clinicId: 'clinic-1', role: 'DOCTOR', userId: null, status: 'completed' };
-    resolveAiToolAccess.mockResolvedValueOnce({ allowed: new Set(), role: 'DOCTOR', clinicId: 'clinic-1' });
-    listAiEmployeeTasks.mockResolvedValueOnce([{ id: task.id }]);
-    transitionAiEmployeeTask.mockResolvedValueOnce(task);
+    resolveAiToolAccess.mockResolvedValueOnce({
+      allowed: new Set(), role: 'DOCTOR', clinicId: 'clinic-1', organizationId: 'org-1',
+    });
+    resolveAiToolBranchScope.mockResolvedValueOnce({
+      roleScope: 'ASSIGNED', branchId: 'branch-1', allowedBranchIds: ['branch-1'],
+    });
     const res = responseHarness();
 
     await routeHandler('post', '/tasks/:id/transition')({
       user: doctor,
-      params: { id: task.id },
+      params: { id: 'task-doctor-queue' },
       body: { status: 'completed' },
     }, res);
 
-    expect(res.statusCode).toBe(200);
-    expect(listAiEmployeeTasks).toHaveBeenCalledWith({
-      clinicId: 'clinic-1',
-      userId: doctor.id,
-      includeUnassigned: true,
-      role: 'DOCTOR',
-      limit: 100,
-    });
-    expect(transitionAiEmployeeTask).toHaveBeenCalledWith({
-      id: task.id,
-      clinicId: 'clinic-1',
-      status: 'completed',
-      result: undefined,
-      error: undefined,
-    });
+    expect(res.statusCode).toBe(403);
+    expect(listAiEmployeeTasks).not.toHaveBeenCalled();
+    expect(transitionAiEmployeeTask).not.toHaveBeenCalled();
   });
 
   it('does not let a doctor transition another role or another users assigned task', async () => {
     const doctor = { ...caller, role: 'DOCTOR' };
-    resolveAiToolAccess.mockResolvedValueOnce({ allowed: new Set(), role: 'DOCTOR', clinicId: 'clinic-1' });
-    listAiEmployeeTasks.mockResolvedValueOnce([]);
+    resolveAiToolAccess.mockResolvedValueOnce({
+      allowed: new Set(), role: 'DOCTOR', clinicId: 'clinic-1', organizationId: 'org-1',
+    });
+    resolveAiToolBranchScope.mockResolvedValueOnce(null);
     const res = responseHarness();
 
     await routeHandler('post', '/tasks/:id/transition')({
