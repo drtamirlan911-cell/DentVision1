@@ -73,6 +73,16 @@ describe('resolveModels — discovery', () => {
     expect(models.deepSupportsReasoning).toBe(true);
   });
 
+  it('falls back to the verified standard model when no deep model is available', async () => {
+    stubModels(['gpt-6.2-sol', 'gpt-6-luna']);
+
+    const models = await resolveModels({ apiKey: 'k' });
+
+    expect(models.full).toBe('gpt-6.2-sol');
+    expect(models.deep).toBe('gpt-6.2-sol');
+    expect(models.deepSupportsReasoning).toBe(false);
+  });
+
   it('keeps the legacy vision fallback when Terra is not available', async () => {
     stubModels(['gpt-6.2-astra', 'gpt-6-luna', 'gpt-4o']);
 
