@@ -110,7 +110,7 @@ Reuse the current task state machine and `AiApproval` model; do not create a sec
 - Organization approvals must be visible only under the matching active organization. `buildApprovalFilter()` must accept a canonical organization scope, and approve/reject must validate `AiApproval.organizationId` instead of requiring a non-null clinicId.
 - The approver's current role and tool permission must be re-resolved at decision time. Keep dual control for high-risk actions; a requester cannot approve their own prohibited high-risk action.
 - The approved action must re-enter the existing governance kernel with the exact task/approval scope, then verify the resulting record and persist `AgentActivity` plus `ActionEvidence`.
-- Current task `error` text is now stored as a fixed safe marker. The generic task `result` JSON and any future action payload still require PHI minimization/encryption review before partner workflows may store them; do not copy full domain event payloads into task JSONB.
+- New task writes now store no arbitrary `actionPayload`; metadata is restricted to known employee/event fields; result JSON is projected to fixed status/outcome values, a boolean verified flag and bounded aggregate counts; raw error text is replaced with a fixed marker. Create/list/transition/readback also sanitize legacy actionPayload/result/error values before returning them. Historical database content is not rewritten by this candidate and remains subject to separate approved retention/at-rest remediation. Do not copy full domain event payloads into task JSONB.
 
 ## 7. Subscriber and employee contracts
 
@@ -156,3 +156,10 @@ At minimum:
 6. **Release evidence:** staging counts, migration rollback, restore proof, tenant/branch E2E, mobile checks and exact-head CI/Quality Gate are required. No production data migration is part of this design draft.
 
 **Explicit non-goals:** no global role bypass; no automatic organization switching; no model-selected tenant; no fake clinicId for partner tasks; no separate partner task/approval tables; no unverified branch scope; no task execution outside the governance kernel.
+
+## 11. Additional task-result privacy boundary (candidate in PR #351)
+
+- The clinic task service now stores no caller-supplied action payload and allowlists task metadata.
+- Transition result writes are projected to enumerated status/outcome strings, `verified:boolean`, and bounded aggregate count fields only; arbitrary free text, patient/entity identifiers, transcripts and nested provider responses are discarded.
+- Task create/list/transition/readback responses apply the same safe projection to legacy rows; any non-empty stored error is returned only as the fixed failure marker.
+- This is output minimization, not a historical database purge, encryption migration or authorization expansion. Organization/Branch queue remains disabled until the scope resolver and negative tests defined above are implemented.
