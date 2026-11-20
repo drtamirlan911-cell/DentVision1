@@ -64,7 +64,7 @@ function fmtMoney(minor: string | number | undefined): string {
 export default function SchoolWorkspace() {
   const navigate = useNavigate();
   const toast = useToast();
-  const { user } = useAuth();
+  const { user, activeWorkspace } = useAuth();
   const activeUser = user as unknown as { lecturerId?: string; organizationId?: string } | null;
   const [loading, setLoading] = useState(true);
   const [contexts, setContexts] = useState<LecturerCtx[]>([]);
@@ -112,7 +112,10 @@ export default function SchoolWorkspace() {
         const res = await api.getMyContexts();
         const lec = (res.contexts || []).filter((c: any) => c.scopeType === 'LECTURER') as LecturerCtx[];
         setContexts(lec);
-        const preferred = selectWorkspaceContext(lec, { scopeId: activeUser?.lecturerId, organizationId: activeUser?.organizationId });
+        const preferred = selectWorkspaceContext(lec, {
+          scopeId: (activeWorkspace?.scopeType === 'LECTURER' ? activeWorkspace.scopeId : null) || activeUser?.lecturerId,
+          organizationId: (activeWorkspace?.scopeType === 'LECTURER' ? activeWorkspace.organizationId : null) || activeUser?.organizationId,
+        });
         if (preferred) await enter(preferred.scopeId);
       } catch { /* ignore */ } finally {
         setLoading(false);
