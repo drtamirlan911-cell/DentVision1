@@ -236,6 +236,8 @@ Every cabinet has:
 14. Role-based action visibility.
 15. Mobile equivalent.
 
+**Implementation standard:** all cabinets must also pass the role-first, workflow-complete usability contract in [Cabinet UX & End-to-End Workflow Standard](PRODUCT/CABINET_UX_AND_WORKFLOW_STANDARD.md). That subordinate contract expands the practical acceptance criteria and records current domain gaps; this Master Spec remains normative.
+
 ## 6. Canonical route architecture
 
 These are **target canonical routes**. Before implementation, reconcile them against the actual repository route inventory; do not create duplicate routes when an existing canonical route already provides the same function.
