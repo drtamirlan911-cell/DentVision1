@@ -15,6 +15,7 @@
  */
 
 import prisma from '../../../lib/prisma.js';
+import { safeErrorKind } from '../../../lib/safeError.js';
 import { resolveOrganizationIdForClinic, resolveClinicAccess } from '../../../lib/orgContext.js';
 import { stageFromPath } from '../lib/platformMap.js';
 import { roleLabelFor, buildWorkspaceContexts, type WorkspaceContext } from '../../iam/contexts.js';
@@ -85,7 +86,9 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints = {})
       prisma.person.findMany({ where: { userId: user.id }, include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } }, personRoles: { include: { role: true } } } }),
     ]);
     availableWorkspaces = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, diagnosticCenterMemberships, laboratoryMemberships, persons }).map(({ id, scopeType, scopeId, organizationId, name, roleKey, roleLabel }) => ({ id, scopeType, scopeId, organizationId, name, roleKey, roleLabel }));
-  } catch (error) { console.warn('[AI context] workspace inventory resolution failed', error); }
+  } catch (error: unknown) {
+    console.warn('[AI context] workspace inventory resolution failed', safeErrorKind(error));
+  }
 
   let workspace: AiRequestContext['workspace'] = null;
   let branch: AiRequestContext['branch'] = null;
@@ -107,8 +110,8 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints = {})
         ),
       );
       if (branchAllowed) branch = candidate;
-    } catch (error) {
-      console.warn('[AI context] branch resolution failed', error);
+    } catch (error: unknown) {
+      console.warn('[AI context] branch resolution failed', safeErrorKind(error));
     }
   }
   // The active workspace token may retain a legacy clinicId for compatibility.
@@ -172,8 +175,8 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints = {})
         workspace = { name: lecturer.academy.name, scopeType: 'LECTURER', scopeId: lecturer.id, organizationId: person?.organizationId || null, roleLabel: 'Лектор' };
       }
     }
-  } catch (error) {
-    console.warn('[AI context] active workspace resolution failed', error);
+  } catch (error: unknown) {
+    console.warn('[AI context] active workspace resolution failed', safeErrorKind(error));
   }
 
   const pathname = hints.pathname || '';
