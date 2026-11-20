@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS "job_invitations" (
   "senderUserId" TEXT NOT NULL,
   "employerOrganizationId" TEXT,
   "vacancyId" TEXT,
+  "resumeId" TEXT,
   "employerNameSnapshot" TEXT NOT NULL,
   "message" TEXT,
   "status" TEXT NOT NULL DEFAULT 'pending',
@@ -53,6 +54,9 @@ CREATE TABLE IF NOT EXISTS "job_invitations" (
     ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT "job_invitations_vacancyId_fkey"
     FOREIGN KEY ("vacancyId") REFERENCES "job_vacancies"("id")
+    ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT "job_invitations_resumeId_fkey"
+    FOREIGN KEY ("resumeId") REFERENCES "job_vacancies"("id")
     ON DELETE SET NULL ON UPDATE CASCADE
 );
 
@@ -62,6 +66,8 @@ CREATE INDEX IF NOT EXISTS "job_invitations_employerOrganizationId_status_create
   ON "job_invitations"("employerOrganizationId", "status", "createdAt");
 CREATE INDEX IF NOT EXISTS "job_invitations_vacancyId_idx"
   ON "job_invitations"("vacancyId");
+CREATE INDEX IF NOT EXISTS "job_invitations_resumeId_idx"
+  ON "job_invitations"("resumeId");
 
 CREATE TABLE IF NOT EXISTS "job_interviews" (
   "id" TEXT NOT NULL,
