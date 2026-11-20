@@ -94,7 +94,7 @@ async function resolveBookingBranchId(
   doctorId: string | null | undefined,
   requestedBranchId?: string | null,
 ): Promise<string | null | undefined> {
-  if (!doctorId) return context.organizationWide ? null : undefined;
+  if (!doctorId) return context.organizationWide ? (context.branchId || null) : undefined;
   const access = await resolveClinicBranchAccess({
     userId: doctorId,
     clinicId,
@@ -103,7 +103,6 @@ async function resolveBookingBranchId(
     requestedBranchId: requestedBranchId ?? context.branchId ?? req.user?.branchId,
   });
   if (!access) return undefined;
-
   const branchId = access.branchId
     || (access.allowedBranchIds.length === 1 ? access.allowedBranchIds[0] : null);
   if (!branchId) return undefined;
@@ -537,6 +536,7 @@ crmOpsRouter.post('/price-list', requirePermission('patient.write'), async (req:
 function mapBookingRow(r: {
   id: string;
   clinicId: string;
+  branchId: string | null;
   patientName: string;
   phone: string;
   email: string | null;
@@ -553,6 +553,7 @@ function mapBookingRow(r: {
   return {
     id: r.id,
     clinicId: r.clinicId,
+    branchId: r.branchId,
     patientName: r.patientName,
     patientPhone: r.phone,
     phone: r.phone,
