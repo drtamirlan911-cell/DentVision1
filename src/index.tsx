@@ -61,7 +61,6 @@ const DiagnosticStatistics = lazyWithRetry(() => import('./pages/diagnostics/Dia
 const DiagnosticSettings = lazyWithRetry(() => import('./pages/diagnostics/DiagnosticSettings'));
 const CenterDashboard = lazyWithRetry(() => import('./pages/diagnostics/CenterDashboard'));
 const LabDashboard = lazyWithRetry(() => import('./pages/diagnostics/LabDashboard'));
-const DentalLabPlatform = lazyWithRetry(() => import('./pages/diagnostics/DentalLabPlatform'));
 const WorkspaceEntry = lazyWithRetry(() => import('./pages/diagnostics/WorkspaceEntry'));
 const RegistrationRequests = lazyWithRetry(() => import('./pages/diagnostics/RegistrationRequests'));
 
@@ -237,11 +236,11 @@ if (container) {
                 <Route path="medical-lab/analytics" element={<Navigate to="/analytics" replace />} />
                 <Route path="medical-lab/settings" element={<Navigate to="/settings" replace />} />
 
-                <Route path="dental-lab" element={<RequireWorkspaceScope scopeType="LABORATORY"><Suspense fallback={<PageLoader />}><DentalLabPlatform /></Suspense></RequireWorkspaceScope>} />
+                <Route path="dental-lab" element={<RequireWorkspaceScope scopeType="LABORATORY"><Suspense fallback={<PageLoader />}><LabDashboard /></Suspense></RequireWorkspaceScope>} />
                 <Route path="dental-lab/today" element={<Navigate to="/dental-lab" replace />} />
                 <Route path="dental-lab/inbox" element={<Navigate to="/dental-lab" replace />} />
-                <Route path="dental-lab/cases" element={<Navigate to="/crm/lab" replace />} />
-                <Route path="dental-lab/cases/:caseId" element={<Navigate to="/crm/lab" replace />} />
+                <Route path="dental-lab/cases" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/cases/:caseId" element={<Navigate to="/dental-lab" replace />} />
                 <Route path="dental-lab/production" element={<Navigate to="/dental-lab" replace />} />
                 <Route path="dental-lab/workstations" element={<Navigate to="/dental-lab" replace />} />
                 <Route path="dental-lab/design" element={<Navigate to="/dental-lab" replace />} />
@@ -252,12 +251,12 @@ if (container) {
                 <Route path="dental-lab/clients" element={<Navigate to="/dental-lab" replace />} />
                 <Route path="dental-lab/catalog" element={<Navigate to="/shop" replace />} />
                 <Route path="dental-lab/materials" element={<Navigate to="/shop" replace />} />
-                <Route path="dental-lab/inventory" element={<Navigate to="/crm/inventory" replace />} />
-                <Route path="dental-lab/invoices" element={<Navigate to="/crm/cashier" replace />} />
-                <Route path="dental-lab/finance" element={<Navigate to="/diagnostics/workspace" replace />} />
-                <Route path="dental-lab/analytics" element={<Navigate to="/analytics" replace />} />
-                <Route path="dental-lab/staff" element={<Navigate to="/settings" replace />} />
-                <Route path="dental-lab/settings" element={<Navigate to="/settings" replace />} />
+                <Route path="dental-lab/inventory" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/invoices" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/finance" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/analytics" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/staff" element={<Navigate to="/dental-lab?tab=team" replace />} />
+                <Route path="dental-lab/settings" element={<Navigate to="/dental-lab" replace />} />
 
                 <Route path="business/today" element={<Navigate to="/supplier" replace />} />
                 <Route path="business/catalog" element={<Navigate to="/shop" replace />} />
