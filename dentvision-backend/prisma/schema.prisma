@@ -2517,8 +2517,9 @@ model JobVacancy {
   employerOrganization  Organization? @relation("EmployerJobVacancies", fields: [employerOrganizationId], references: [id], onDelete: SetNull)
 
   applications JobApplication[]
-  invitations JobInvitation[]
+  invitations JobInvitation[] @relation("JobInvitationVacancy")
   offers JobOffer[]
+  candidateInvitations JobInvitation[] @relation("JobInvitationResume")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -2578,6 +2579,7 @@ model JobInvitation {
   senderUserId           String
   employerOrganizationId String?
   vacancyId              String?
+  resumeId               String?
   employerNameSnapshot   String
   message                String?
   status                 String   @default("pending")
@@ -2587,7 +2589,8 @@ model JobInvitation {
   candidate User @relation("JobInvitationCandidate", fields: [candidateUserId], references: [id], onDelete: Cascade)
   sender User @relation("JobInvitationSender", fields: [senderUserId], references: [id], onDelete: Cascade)
   employer Organization? @relation("JobInvitationEmployer", fields: [employerOrganizationId], references: [id], onDelete: SetNull)
-  vacancy JobVacancy? @relation(fields: [vacancyId], references: [id], onDelete: SetNull)
+  vacancy JobVacancy? @relation("JobInvitationVacancy", fields: [vacancyId], references: [id], onDelete: SetNull)
+  resume JobVacancy? @relation("JobInvitationResume", fields: [resumeId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime? @updatedAt
