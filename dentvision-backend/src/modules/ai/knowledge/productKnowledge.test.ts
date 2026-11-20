@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { basename, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -16,6 +17,10 @@ import {
 import { listAgents } from '../os/registry.js';
 
 const GUIDE_PATH = 'docs/AI_PRODUCT_KNOWLEDGE.md';
+const REPO_ROOT = basename(process.cwd()) === 'dentvision-backend'
+  ? resolve(process.cwd(), '..')
+  : process.cwd();
+const repoFile = (...parts: string[]) => resolve(REPO_ROOT, ...parts);
 
 function chunk(id: string, title: string, content: string): ProductKnowledgeChunk {
   return { id, title, content, sourcePath: GUIDE_PATH };
@@ -87,7 +92,7 @@ describe('patient product knowledge boundary', () => {
 describe('Jarvis product guide stays in sync with the agent registry', () => {
   it('documents every non-disabled registered agent by its canonical name', () => {
     const guide = readFileSync(
-      new URL('../../../../../docs/AI_PRODUCT_KNOWLEDGE.md', import.meta.url),
+      repoFile('docs', 'AI_PRODUCT_KNOWLEDGE.md'),
       'utf8',
     );
     const start = guide.indexOf('## 9. AI-агенты и специализации');
@@ -118,11 +123,11 @@ describe('Jarvis agent catalogue retrieval', () => {
 describe('product guide runtime asset parity', () => {
   it('keeps the backend container copy identical to the canonical product guide', () => {
     const canonical = readFileSync(
-      new URL('../../../../../docs/AI_PRODUCT_KNOWLEDGE.md', import.meta.url),
+      repoFile('docs', 'AI_PRODUCT_KNOWLEDGE.md'),
       'utf8',
     );
     const backendRuntimeAsset = readFileSync(
-      new URL('../../../../../dentvision-backend/docs/AI_PRODUCT_KNOWLEDGE.md', import.meta.url),
+      repoFile('dentvision-backend', 'docs', 'AI_PRODUCT_KNOWLEDGE.md'),
       'utf8',
     );
 
@@ -146,7 +151,7 @@ describe('Jarvis AI Employee scope retrieval', () => {
 describe('backend Docker build context knowledge asset', () => {
   it('does not ignore the Jarvis guide from the backend build context', () => {
     const dockerignore = readFileSync(
-      new URL('../../../../../dentvision-backend/.dockerignore', import.meta.url),
+      repoFile('dentvision-backend', '.dockerignore'),
       'utf8',
     );
     const patterns = dockerignore.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
@@ -159,7 +164,7 @@ describe('backend Docker build context knowledge asset', () => {
 describe('backend container knowledge asset', () => {
   it('copies the guide directory into the runtime image at the loader path', () => {
     const dockerfile = readFileSync(
-      new URL('../../../../../dentvision-backend/Dockerfile', import.meta.url),
+      repoFile('dentvision-backend', 'Dockerfile'),
       'utf8',
     );
 
