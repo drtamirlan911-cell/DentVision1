@@ -9,7 +9,6 @@ import { z } from 'zod';
 import { aiService } from './core/ai.service.js';
 import { improveResponseWithLLM } from './core/llm.service.js';
 import { orchestrate, orchestratorEnabled, isProviderUnavailableError, canUseClinicWideAiShortcuts } from './os/orchestrator.js';
-import { resolveAiToolAccess } from './os/access.js';
 import { resolveAiToolBranchScope, patientBranchWhere } from './os/aiToolBranchScope.js';
 import type { AIResponse } from './types/ai.types.js';
 import { prisma } from '../../lib/prisma.js';
