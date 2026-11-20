@@ -12,11 +12,11 @@
 - Partner queue tools recheck active organization type, canonical membership/role and exact organization/entity binding; responses are read-only and minimize patient/candidate/student/customer data.
 - Patient assistant now receives a fixed safe tool-failure message rather than raw exception details; regression tests guard against synthetic patient identifiers and clinical text entering model context.
 - AI context and proactive digital-twin fallbacks now use PHI-safe exception classification in all four identified catch/log paths; three context tests and one proactive source-contract test cover the regression.
-- Guide section headings were normalized to unique numbering (1–12).
+- Guide headings are uniquely numbered (1–12); section 9 now lists every non-disabled registered agent by canonical name and bounded tool scope. A test derives the list from `listAgents()` so registry additions cannot silently disappear from Jarvis knowledge.
 - The candidate remains **partial / not release-certified**. No feature is counted complete merely because it has an agent, guide entry, route or tool declaration.
 
 ### Exact-head verification
-- Latest code/test checkpoint before this documentation update: `e46e7d6bfb415500561fae7760bf0ceac3e3607d` (46 commits ahead / 0 behind main). Exact-head CI [44713041911](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44713041911) was pending and Quality Gate [44713042000](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44713042000) was in progress. These are not passing results.
+- Latest code/test checkpoint before the documentation update: `1565dc06478b937596ce610a535dc1d1141bfde5` (54 commits ahead / 0 behind main). It includes the AI context/proactive logging regression fixes and registry-guide parity test. Earlier SHA checks were superseded; fresh exact-head CI, Quality Gate, full E2E and Vercel Preview are required after this documentation update.
 - A documentation-only commit then corrected guide section numbering; this checkpoint commit updates the active context, execution log, release blockers and system audit. All checks must be refreshed on the resulting exact branch HEAD. Previous-SHA results are not final evidence.
 - Keep PR #351 Draft until exact-head CI, Quality Gate, full E2E, role/context and visual/mobile checks finish and findings are reviewed.
 
