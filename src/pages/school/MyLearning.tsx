@@ -20,6 +20,12 @@ type LearningEnrollment = {
   updatedAt?: string;
   completedLessons?: unknown;
   certificateUrl?: string | null;
+  acquisitionType?: string;
+  accessStatus?: string;
+  paidAmountMinor?: string | number | null;
+  currency?: string;
+  purchaseConfirmedAt?: string | null;
+  accessExpiresAt?: string | null;
   course?: {
     id: string;
     title: string;
@@ -43,6 +49,8 @@ type StudentCertificate = {
   certificateNumber?: string;
   issuedAt?: string;
   status?: string;
+  certificateUrl?: string;
+  verificationCode?: string;
 };
 
 type LearningFilter = 'all' | 'in_progress' | 'completed';
@@ -106,7 +114,7 @@ export default function MyLearning() {
     });
   }, [enrollments, filter, search]);
 
-  const completedCount = enrollments.filter((row) => row.completed || Number(row.progress || 0) >= 100).length;
+  const completedCount = enrollments.filter((row) => row.completed === true).length;
   const inProgressCount = Math.max(0, enrollments.length - completedCount);
   const nextLearning = enrollments
     .filter((row) => !row.completed && Number(row.progress || 0) < 100)
@@ -212,8 +220,15 @@ export default function MyLearning() {
             {visibleEnrollments.map((enrollment) => {
               const course = enrollment.course;
               const progress = Math.max(0, Math.min(100, Number(enrollment.progress || 0)));
-              const completed = enrollment.completed === true || progress >= 100;
+              const completed = enrollment.completed === true;
+              const accessActive = enrollment.accessStatus !== 'suspended' && enrollment.accessStatus !== 'refunded' && enrollment.accessStatus !== 'expired';
               const format = formatLabel[String(course?.format || 'course').toLowerCase()] || 'Учебный продукт';
+              const acquisitionLabel = enrollment.acquisitionType === 'purchase'
+                ? 'Покупка подтверждена'
+                : enrollment.acquisitionType === 'free' ? 'Бесплатный доступ'
+                : enrollment.acquisitionType === 'invitation' ? 'Доступ по приглашению'
+                : enrollment.acquisitionType === 'grant' ? 'Доступ предоставлен'
+                : 'История обучения';
               return (
                 <Card key={enrollment.id} padding="md" className="flex min-h-full flex-col gap-3">
                   {course?.imageUrl ? (
@@ -223,7 +238,9 @@ export default function MyLearning() {
                   )}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <Badge>{format}</Badge>
-                    <Badge variant={completed ? 'success' : 'gold'}>{completed ? 'Завершён' : 'Доступ открыт'}</Badge>
+                    <Badge variant={completed ? 'success' : accessActive ? 'gold' : 'warning'}>
+                      {completed ? 'Экзамен сдан' : !accessActive ? 'Доступ не активен' : progress >= 99 ? 'Ожидает итогового экзамена' : 'Доступ открыт'}
+                    </Badge>
                   </div>
                   <div className="min-w-0">
                     <h3 className="line-clamp-2 font-semibold text-txt-primary">{course?.title || 'Учебный продукт'}</h3>
@@ -237,8 +254,13 @@ export default function MyLearning() {
                       <div className="h-full rounded-full bg-dv-gold" style={{ width: `${progress}%` }} />
                     </div>
                     <p className="flex items-center gap-1 text-xs text-txt-muted"><CalendarClock size={13} /> Доступ активирован: {formatDate(enrollment.createdAt)}</p>
-                    <Button className="min-h-11 w-full" onClick={() => navigate(`/school/course/${enrollment.courseId}`)}>
-                      {completed ? 'Открыть курс' : 'Продолжить обучение'} <PlayCircle size={15} />
+                    <p className="text-xs text-txt-muted">{acquisitionLabel}{enrollment.purchaseConfirmedAt ? ` · ${formatDate(enrollment.purchaseConfirmedAt)}` : ''}</p>
+                    {enrollment.paidAmountMinor != null && (
+                      <p className="text-xs text-txt-muted">Оплачено: {(Number(enrollment.paidAmountMinor) / 100).toLocaleString('ru-RU')} {enrollment.currency || 'KZT'}</p>
+                    )}
+                    {enrollment.accessExpiresAt && <p className="text-xs text-txt-muted">Доступ до: {formatDate(enrollment.accessExpiresAt)}</p>}
+                    <Button className="min-h-11 w-full" disabled={!accessActive} onClick={() => navigate(`/school/course/${enrollment.courseId}`)}>
+                      {!accessActive ? 'Доступ приостановлен' : completed ? 'Открыть курс' : 'Продолжить обучение'} <PlayCircle size={15} />
                     </Button>
                   </div>
                 </Card>
@@ -248,7 +270,7 @@ export default function MyLearning() {
         )}
       </section>
 
-      <section className="space-y-3">
+      <section id="certificates" className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold text-txt-primary">Мои сертификаты</h2>
           <p className="mt-1 text-sm text-txt-muted">Сертификаты отображаются отдельно от факта покупки курса.</p>
@@ -264,6 +286,9 @@ export default function MyLearning() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-txt-primary">{certificate.title}</p>
                     <p className="mt-1 text-xs text-txt-muted">{certificate.certificateNumber || 'Сертификат'} · {formatDate(certificate.issuedAt)}</p>
+                    {certificate.certificateUrl && (
+                      <a className="mt-1 inline-block text-xs text-dv-gold underline" href={certificate.certificateUrl}>Проверить подлинность</a>
+                    )}
                   </div>
                 </div>
                 <Badge variant="success">Выдан</Badge>
