@@ -374,25 +374,30 @@ schoolRouter.get('/courses/:id', optionalAuth, async (req, res) => {
       return;
     }
 
-    // Paid course detail contains lesson content. The public catalog may show
-    // price/metadata, but it must never expose the paid curriculum itself.
+    // Public course discovery must work before purchase. Anonymous and
+    // unenrolled visitors receive only the sanitized catalogue projection:
+    // program metadata and price, never lessons, private files or exam content.
+    // A verified active entitlement unlocks the full learning player.
     const userId = (req as AuthRequest).user?.id;
     if (Number(course.price || 0) > 0) {
       if (!userId) {
-        res.status(401).json({ ok: false, error: 'Требуется авторизация для платного курса' });
-        return;
+        return res.json({ ok: true, data: mapCourse(course) });
       }
       const enrollment = await prisma.schoolEnrollment.findUnique({
         where: { userId_courseId: { userId, courseId: course.id } },
         select: { id: true, accessStatus: true, accessExpiresAt: true },
       });
-      if (!enrollment || enrollment.accessStatus !== 'active' || (enrollment.accessExpiresAt && enrollment.accessExpiresAt <= new Date())) {
-        res.status(403).json({ ok: false, error: 'Доступ к курсу не активен', code: 'LEARNING_ENTITLEMENT_INACTIVE' });
-        return;
+      const hasActiveEntitlement = Boolean(
+        enrollment
+        && enrollment.accessStatus === 'active'
+        && (!enrollment.accessExpiresAt || enrollment.accessExpiresAt > new Date()),
+      );
+      if (!hasActiveEntitlement) {
+        return res.json({ ok: true, data: mapCourse(course) });
       }
     }
 
-    res.json({ ok: true, data: mapCourseDetail(course) });
+    return res.json({ ok: true, data: mapCourseDetail(course) });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch course' });
   }
