@@ -4,6 +4,7 @@ const {
   activityCreate,
   evidenceCreateMany,
   resolveAiToolAccess,
+  resolveAiToolBranchScope,
   resolveOrganizationIdForClinic,
   approvalCreate,
   approvalFindUnique,
@@ -12,6 +13,7 @@ const {
   activityCreate: vi.fn(),
   evidenceCreateMany: vi.fn(),
   resolveAiToolAccess: vi.fn(),
+  resolveAiToolBranchScope: vi.fn(),
   resolveOrganizationIdForClinic: vi.fn(),
   approvalCreate: vi.fn(),
   approvalFindUnique: vi.fn(),
@@ -39,6 +41,12 @@ vi.mock('../../../lib/prisma.js', () => ({
 }));
 vi.mock('../../../lib/orgContext.js', () => ({ resolveOrganizationIdForClinic }));
 vi.mock('./access.js', () => ({ resolveAiToolAccess }));
+vi.mock('./aiToolBranchScope.js', () => ({
+  resolveAiToolBranchScope,
+  isNarrowAiToolBranchScope: (scope: { roleScope: string; branchId: string | null }) => scope.roleScope !== 'ORGANIZATION' || scope.branchId !== null,
+  CLINIC_BRANCH_INDEPENDENT_AI_TOOLS: new Set(['navigate', 'searchProducts', 'searchCourses']),
+  BRANCH_FILTERED_CLINIC_AI_TOOLS: new Set(['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment', 'getPatientCard']),
+}));
 vi.mock('../../../services/notification.service.js', () => ({ createNotificationForClinic }));
 vi.mock('../../ai-patient/patientTools.js', () => ({
   executePatientTool: patientExecute,
@@ -69,9 +77,10 @@ vi.mock('./tools.js', () => ({
     getDebtors: { name: 'getDebtors', mutating: false, execute: throwingTool },
     cancelAppointment: { name: 'cancelAppointment', mutating: true, execute: cancelTool },
     getPatientCard: { name: 'getPatientCard', mutating: false, execute: patientCardTool },
+    getPromotions: { name: 'getPromotions', mutating: false, execute: okTool },
     getDentalLabWorkQueue: { name: 'getDentalLabWorkQueue', mutating: false, execute: okTool },
   },
-  listToolNames: () => ['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment', 'getPatientCard', 'getDentalLabWorkQueue'],
+  listToolNames: () => ['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment', 'getPatientCard', 'getPromotions', 'getDentalLabWorkQueue'],
 }));
 
 import { runAiAction } from './kernel.js';
@@ -87,10 +96,11 @@ beforeEach(() => {
   patientExecute.mockResolvedValue({ appointments: [] });
   adminExecuteToolCall.mockResolvedValue({ slots: [] });
   aiAdminSessionFindUnique.mockResolvedValue({ id: 'session-1', clinicId: 'clinic-1', channel: 'whatsapp' });
+  resolveAiToolBranchScope.mockResolvedValue({ roleScope: 'ASSIGNED', branchId: 'branch-1', allowedBranchIds: ['branch-1'] });
   resolveAiToolAccess.mockResolvedValue({
     role: 'DOCTOR',
     clinicId: 'clinic-1',
-    allowed: new Set(['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment', 'getPatientCard']),
+    allowed: new Set(['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment', 'getPatientCard', 'getPromotions']),
   });
   approvalCreate.mockResolvedValue({});
   approvalFindUnique.mockResolvedValue(null);
@@ -108,6 +118,44 @@ describe('runAiAction — every outcome is recorded', () => {
     expect(activityCreate).toHaveBeenCalledTimes(1);
     expect(activityCreate.mock.calls[0][0].data).toMatchObject({ status: 'ok', tool: 'getSchedule', clinicId: 'clinic-1' });
     expect(evidenceCreateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('revalidates the branch selector in the kernel and passes only the verified scope to tools', async () => {
+    await runAiAction({ ...PRINCIPAL, requestedBranchId: 'branch-1' }, { tool: 'getSchedule', args: {} });
+
+    expect(resolveAiToolBranchScope).toHaveBeenCalledWith({
+      userId: 'user-1',
+      clinicId: 'clinic-1',
+      organizationId: 'org-1',
+      role: 'DOCTOR',
+      requestedBranchId: 'branch-1',
+    });
+    expect(okTool).toHaveBeenCalledWith({}, expect.objectContaining({
+      requestedBranchId: 'branch-1',
+      branchScope: { roleScope: 'ASSIGNED', branchId: 'branch-1', allowedBranchIds: ['branch-1'] },
+    }));
+  });
+
+  it('denies a forged or revoked branch selector before tool execution', async () => {
+    resolveAiToolBranchScope.mockResolvedValueOnce(null);
+    const result = await runAiAction(
+      { ...PRINCIPAL, requestedBranchId: 'branch-victim' },
+      { tool: 'getSchedule', args: {} },
+    );
+
+    expect(result).toMatchObject({ status: 'denied', reason: 'BRANCH_SCOPE_REQUIRED' });
+    expect(okTool).not.toHaveBeenCalled();
+    expect(activityCreate.mock.calls[0][0].data).toMatchObject({
+      status: 'denied',
+      denyReason: 'BRANCH_SCOPE_REQUIRED',
+    });
+  });
+
+  it('denies branch-limited roles on clinic tools without audited branch filters', async () => {
+    const result = await runAiAction(PRINCIPAL, { tool: 'getPromotions', args: {} });
+
+    expect(result).toMatchObject({ status: 'denied', reason: 'BRANCH_SCOPE_REQUIRED' });
+    expect(okTool).not.toHaveBeenCalled();
   });
 
   it('denies and still records an activity for an unknown tool', async () => {
