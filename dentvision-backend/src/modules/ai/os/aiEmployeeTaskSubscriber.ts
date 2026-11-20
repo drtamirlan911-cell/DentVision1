@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../../lib/safeError.js';
 import { eventBus } from '../../events/index.js';
 import { matchEventRules } from './eventRules.js';
 import { createAiEmployeeTask } from './aiEmployeeTasks.js';
@@ -83,7 +84,8 @@ export function registerAiEmployeeTaskSubscriber(): void {
       }
     } catch (error) {
       // Task persistence must never block the existing Event OS execution path.
-      console.warn('[AI Employee Tasks] subscriber failed', error);
+      // Never log the raw exception: event processing may involve clinical data.
+      console.warn('[AI Employee Tasks] subscriber failed (' + safeErrorKind(error) + ')');
     }
   });
 }

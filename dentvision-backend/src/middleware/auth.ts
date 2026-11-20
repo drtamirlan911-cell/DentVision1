@@ -75,6 +75,16 @@ export function mergeBranchIds(unifiedBranchIds: readonly string[], legacyBranch
   return Array.from(new Set([...unifiedBranchIds, ...legacyBranchIds].filter(Boolean)));
 }
 
+/** Do not silently choose the first canonical branch when a member has several. */
+export function resolveAssignedBranchId(
+  unifiedBranchIds: readonly string[],
+  legacyBranchId?: string | null,
+): string | undefined {
+  if (unifiedBranchIds.length === 1) return unifiedBranchIds[0];
+  if (unifiedBranchIds.length > 1) return undefined;
+  return legacyBranchId || undefined;
+}
+
 export function resolveActivePersonRole(
   personRoles: Array<{ scopeType: string | null; scopeId: string | null; role: { key: string } }>,
   organizationId: string,
@@ -212,7 +222,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       ?.filter((membership) => membership.clinicId === effectiveClinicId && membership.branchId)
       .map((membership) => membership.branchId as string) || [];
     const branchIds = mergeBranchIds(unifiedBranchIds, legacyBranchIds);
-    const assignedBranchId = unifiedBranchIds[0] || activeMembership?.branchId || undefined;
+    const assignedBranchId = resolveAssignedBranchId(unifiedBranchIds, activeMembership?.branchId);
 
     req.user = {
       id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName,

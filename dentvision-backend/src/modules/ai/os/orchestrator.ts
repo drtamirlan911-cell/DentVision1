@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../../lib/safeError.js';
 /**
  * AI Orchestrator — DentVision AI OS (Spec §15.3, §15.17).
  *
@@ -22,7 +23,7 @@ import prisma from '../../../lib/prisma.js';
 import { encryptAiTranscriptText } from '../lib/transcriptEncryption.js';
 import { agentsForRole } from './registry.js';
 import { resolveAiToolAccess } from './access.js';
-import { executeTool, toolSchemasFor, localizeNavKeysInMessage, type ToolContext } from './tools.js';
+import { executeTool, toolSchemasFor, toolCapabilitiesFor, localizeNavKeysInMessage, type ToolContext } from './tools.js';
 import {
   personaLabel,
   resolveActivePersona,
@@ -49,6 +50,8 @@ import {
 } from '../lib/deterministicShortcuts.js';
 import { sanitizeUserInput, buildSafeInstructions } from '../lib/promptGuard.js';
 import { providerFetch, providerStream } from '../lib/providerFetch.js';
+import { formatAllowedToolCapabilities, formatProductKnowledgeContext, retrieveProductKnowledge } from '../knowledge/productKnowledge.js';
+
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
@@ -92,6 +95,10 @@ export interface OrchestratorInput {
   /** Active workspace selected by the user; distinct from legacy clinicId. */
   workspace?: { name: string; scopeType: string; roleLabel: string; scopeId?: string; organizationId?: string | null } | null;
   availableWorkspaces?: Array<{ name: string; scopeType: string; roleLabel: string }>;
+  /** Branch is present only after server-side IAM + branch membership verification. */
+  branch?: { id: string; name: string; code: string; organizationId: string | null; clinicId: string | null } | null;
+  /** Branch hint forwarded to the kernel; it is revalidated before tool execution. */
+  requestedBranchId?: string | null;
   /** Context focus from workspace (patient / product / …). */
   focusType?: string | null;
   focusId?: string | null;
@@ -149,6 +156,22 @@ export function orchestratorEnabled(): boolean {
   return Boolean(env.OPENAI_API_KEY);
 }
 
+/**
+ * Clinic-wide deterministic shortcuts read several clinic tables outside the
+ * tool kernel. Until those services accept a server-resolved branch predicate,
+ * keep them available only to organization-wide OWNER/ADMIN with no selected
+ * branch. Branch roles must use the kernel-governed, scoped tool path.
+ */
+export function canUseClinicWideAiShortcuts(
+  role: string,
+  requestedBranchId?: string | null,
+  verifiedBranchId?: string | null,
+): boolean {
+  return ['OWNER', 'ADMIN'].includes(String(role || '').toUpperCase())
+    && !requestedBranchId
+    && !verifiedBranchId;
+}
+
 function isJarvisBriefingTrigger(text: string): boolean {
   const t = String(text || '').trim().toLowerCase();
   return (
@@ -160,10 +183,34 @@ function isJarvisBriefingTrigger(text: string): boolean {
   );
 }
 
+/**
+ * Compact, server-resolved workspace context shared with Jarvis.
+ * Keep this factual: workspace inventory and branch identity come from IAM,
+ * while tools remain the only source for tenant business/clinical data.
+ */
+export function formatWorkspaceContext(input: Pick<OrchestratorInput, 'workspace' | 'availableWorkspaces' | 'branch'>): string {
+  const active = input.workspace
+    ? `${input.workspace.name} · тип: ${input.workspace.scopeType} · роль: ${input.workspace.roleLabel}`
+    : 'не определено';
+  const branch = input.branch
+    ? `${input.branch.name} · код: ${input.branch.code}`
+    : 'не выбран или не подтверждён текущими правами';
+  const available = (input.availableWorkspaces || [])
+    .map((workspace) => `${workspace.name} [${workspace.scopeType}; ${workspace.roleLabel}]`)
+    .join(' · ') || '—';
+  return [
+    `Активное рабочее пространство: ${active}.`,
+    `Активный филиал: ${branch}.`,
+    `Доступные рабочие пространства: ${available}.`,
+  ].join('\n');
+}
+
 function systemPrompt(
   input: OrchestratorInput,
   currencyCode: string,
   activePersona: PersonaId,
+  productKnowledgeBlock = '',
+  runtimeCapabilitiesBlock = '',
 ): string {
   if (input.isGuest || String(input.role).toUpperCase() === 'GUEST') {
     const mapBlock = platformMapPromptBlock('GUEST', true);
@@ -172,13 +219,19 @@ function systemPrompt(
 
 ${mapBlock}
 
+${productKnowledgeBlock}
+
+${runtimeCapabilitiesBlock}
+
 ПРАВИЛА:
 1. Отвечай по-русски.
 2. НЕ выдумывай расписание, выручку, долги, пациентов — у гостя нет клиники.
 3. Если просят данные клиники — мягко предложи демо или регистрацию.
 4. Подсвечивай преимущества DentVision.
 5. Открывай разделы через navigate; в тексте — русские названия.
-6. Экономия: коротко, один next step.`;
+6. Если используешь справку о функциях DentVision, называй раздел-источник. Если статус функции не подтверждён, так и скажи.
+7. На вопрос «что ты можешь сделать сейчас?» ориентируйся на актуальные возможности этого запроса. Руководство продукта не выдаёт разрешений.
+8. Экономия: коротко, один next step.`;
   }
 
   const agents = agentsForRole(input.role);
@@ -199,8 +252,7 @@ ${mapBlock}
 Активная персона сейчас: ${personaLabel(activePersona)} (${activePersona}).
 
 Пользователь: ${input.userName || 'пользователь'}, роль: ${input.role}.
-Активное рабочее пространство: ${input.workspace?.name || 'не определено'} · тип: ${input.workspace?.scopeType || 'не определён'} · роль в этом пространстве: ${input.workspace?.roleLabel || input.role}.
-Доступные рабочие пространства: ${(input.availableWorkspaces || []).map((w) => `${w.name} [${w.scopeType}; ${w.roleLabel}]`).join(' · ') || '—'}.
+${formatWorkspaceContext(input)}
 ВАЖНО: активное рабочее пространство — основной текущий контекст. Не называй клинику текущей, если активен другой тип пространства. Клинические данные используй только когда тип пространства CLINIC или инструмент явно работает с клиникой.
 Сейчас на экране: этап «${stage}»${input.pathname ? ` (${input.pathname})` : ''}${input.queue?.key ? `, очередь: ${input.queue.key}` : ''}${input.focusType ? `, фокус: ${input.focusType}${input.focusId ? `/${input.focusId}` : ''}` : ''}.
 Подсказки по этапу: ${stageHints || '—'}.
@@ -211,6 +263,10 @@ ${personaBlock ? `${personaBlock}\n` : ''}
 ${mandates}
 
 ${mapBlock}
+
+${productKnowledgeBlock}
+
+${runtimeCapabilitiesBlock}
 
 ПРАВИЛА:
 1. Отвечай по-русски, коротко. Сначала суть, потом деталь.
@@ -228,6 +284,8 @@ ${mapBlock}
 13. Свобода платформы: можешь вести по CRM + маркет + академия + кабинеты, если роль позволяет.
 14. Экономия: не вызывай лишние инструменты; для «открой X» достаточно navigate.
 15. Marketing: getPromotions / getRecallList / draftPromoCopy — draft only, без авторассылки.
+16. Для фактов о продукте используй только справочный блок и карту доступных разделов. Не объявляй частичную функцию готовой; при использовании справки назови раздел-источник.
+17. На вопрос «что ты можешь сделать сейчас?» ориентируйся на блок актуальных возможностей этого запроса. Справочник продукта не выдаёт разрешений. Не перечисляй недоступные операции как выполнимые.
 ${input.learningInstructions ? `\n${input.learningInstructions}` : ''}`;
 }
 
@@ -275,12 +333,12 @@ async function callModel(
   // What the provider says it billed, not a character count plus a 15% guess.
   const reported = payload.usage?.total_tokens;
   if (Number.isFinite(reported) && (reported as number) > 0) {
-    await recordModelUsage(choice.tier, reported as number);
+    await recordModelUsage(choice.tier, reported as number, choice.model);
   } else {
     const outText =
       (typeof payload.output_text === 'string' ? payload.output_text : '') ||
       JSON.stringify(payload.output || []).slice(0, 4000);
-    await recordModelUsage(choice.tier, estimateTokens(usageHint, outText));
+    await recordModelUsage(choice.tier, estimateTokens(usageHint, outText), choice.model);
   }
   return payload;
 }
@@ -392,27 +450,35 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
     return { ...navHit, messageId, ...personaMeta };
   }
 
-  try {
-    const statsHit = await tryDeterministicStats(input.text, {
-      userId: input.userId,
-      clinicId: input.clinicId,
-      role: input.role,
-      isGuest,
-    });
-    if (statsHit) {
-      const messageId = await saveMessage(input.sessionId, 'assistant', statsHit.message, {
+  const clinicWideShortcutsAllowed = canUseClinicWideAiShortcuts(
+    input.role,
+    input.requestedBranchId,
+    input.branch?.id,
+  );
+
+  if (clinicWideShortcutsAllowed) {
+    try {
+      const statsHit = await tryDeterministicStats(input.text, {
         userId: input.userId,
         clinicId: input.clinicId,
-        prevUserText: input.text,
+        role: input.role,
+        isGuest,
       });
-      return { ...statsHit, messageId, ...personaMeta };
+      if (statsHit) {
+        const messageId = await saveMessage(input.sessionId, 'assistant', statsHit.message, {
+          userId: input.userId,
+          clinicId: input.clinicId,
+          prevUserText: input.text,
+        });
+        return { ...statsHit, messageId, ...personaMeta };
+      }
+    } catch (e) {
+      console.warn('[AI OS] deterministic stats failed', safeErrorKind(e));
     }
-  } catch (e) {
-    console.warn('[AI OS] deterministic stats failed', e);
   }
 
   // CEO executive brief — synthesize Analyst+Finance+Marketing without LLM.
-  if (!isGuest && isCeoBriefTrigger(input.text, activePersona)) {
+  if (!isGuest && clinicWideShortcutsAllowed && isCeoBriefTrigger(input.text, activePersona)) {
     try {
       const { composeCeoBrief } = await import('../core/ceoBrief.js');
       const clinic = input.clinicId
@@ -441,12 +507,12 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
         ...personaMeta,
       };
     } catch (e) {
-      console.warn('[AI OS] CEO brief failed, continuing', e);
+      console.warn('[AI OS] CEO brief failed, continuing', safeErrorKind(e));
     }
   }
 
   // Jarvis entry briefing — deterministic live KPIs, not a chatty LLM opener.
-  if (!isGuest && isJarvisBriefingTrigger(input.text)) {
+  if (!isGuest && clinicWideShortcutsAllowed && isJarvisBriefingTrigger(input.text)) {
     try {
       const { buildJarvisBriefing } = await import('../core/jarvisBriefing.js');
       const clinic = input.clinicId
@@ -476,7 +542,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
         ...personaMeta,
       };
     } catch (e) {
-      console.warn('[AI OS] jarvis briefing failed, continuing to LLM', e);
+      console.warn('[AI OS] jarvis briefing failed, continuing to LLM', safeErrorKind(e));
     }
   }
 
@@ -484,6 +550,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
   if (
     !isGuest
     && input.clinicId
+    && clinicWideShortcutsAllowed
     && isClinicLoadQuery(input.text)
   ) {
     try {
@@ -504,16 +571,39 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
         ...personaMeta,
       };
     } catch (e) {
-      console.warn('[AI OS] clinic load plan failed, continuing to LLM', e);
+      console.warn('[AI OS] clinic load plan failed, continuing to LLM', safeErrorKind(e));
     }
   }
 
   // UNDERSTAND — the concrete tool surface, resolved from the DB above.
   const allowedTools = access.allowed;
   const toolSchemas = toolSchemasFor(allowedTools);
-  const toolCtx: ToolContext = { userId: input.userId, clinicId: input.clinicId, role: input.role, entity: input.entity };
+  const toolCtx: ToolContext = {
+    userId: input.userId,
+    clinicId: input.clinicId,
+    role: input.role,
+    organizationId: access.organizationId,
+    organizationType: access.organizationType,
+    organizationOriginalId: access.organizationOriginalId,
+    requestedBranchId: input.requestedBranchId || input.branch?.id || null,
+    supplierId: access.supplierId,
+    lecturerId: access.lecturerId,
+    entity: input.entity,
+  };
   const currencyCode = await resolveClinicCurrency(input.clinicId);
-  const instructions = buildSafeInstructions(systemPrompt(input, currencyCode, activePersona), input.text);
+  // Product knowledge is retrieved locally from an allow-listed, versioned guide.
+  // Do not send conversational text to a second provider: it may contain PHI.
+  const knowledgeQuery = [
+    ...(input.history || []).filter((item) => item.role === 'user').slice(-2).map((item) => item.content),
+    input.text,
+  ].join(' ').slice(0, 2_000);
+  const productKnowledge = await retrieveProductKnowledge(knowledgeQuery);
+  const productKnowledgeBlock = formatProductKnowledgeContext(productKnowledge);
+  const runtimeCapabilitiesBlock = formatAllowedToolCapabilities(toolCapabilitiesFor(allowedTools));
+  const instructions = buildSafeInstructions(
+    systemPrompt(input, currencyCode, activePersona, productKnowledgeBlock, runtimeCapabilitiesBlock),
+    input.text,
+  );
 
   const fewShotTurns = (input.fewShots || []).flatMap((ex) => [
     { role: 'user', content: `[Пример прошлого успешного запроса]\n${ex.user}` },

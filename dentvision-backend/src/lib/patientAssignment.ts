@@ -68,10 +68,25 @@ export async function ensurePatientAssignment(input: EnsureAssignmentInput): Pro
   }
 }
 
-/** Revoke a link without deleting its history. */
-export async function revokePatientAssignment(clinicId: string, id: string): Promise<boolean> {
+/**
+ * Revoke one patient's link without deleting its history.
+ *
+ * The parent patient is part of the predicate as well as the clinic. A caller
+ * authorized to edit patient A must not be able to revoke a link belonging to
+ * patient B by supplying B's assignment id under A's route.
+ */
+export async function revokePatientAssignment(input: {
+  clinicId: string;
+  patientId: string;
+  assignmentId: string;
+}): Promise<boolean> {
   const result = await prisma.patientAssignment.updateMany({
-    where: { id, clinicId, active: true },
+    where: {
+      id: input.assignmentId,
+      clinicId: input.clinicId,
+      patientId: input.patientId,
+      active: true,
+    },
     data: { active: false },
   });
   return result.count > 0;

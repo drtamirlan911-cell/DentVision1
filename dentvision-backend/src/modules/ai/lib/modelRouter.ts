@@ -1,18 +1,30 @@
 /**
  * Cheap-first OpenAI model router.
  *
- * Free-tier pools (typical OpenAI complimentary traffic):
- *   - full  ~250k tok/day
- *   - mini  ~2.5M tok/day
+ * Routing tiers:
+ *   - mini   Luna / fallback: short, high-volume, low-risk tasks
+ *   - full   Sol / fallback: standard complex agent workflows
+ *   - deep   Astra / fallback: hard clinical reasoning and strategic audits
+ *   - vision Terra / verified fallback: any image input, never a text-only model
  *
- * Strategy: route almost everything through mini; escalate to full only for
- * hard clinic tasks, and stop escalating when the soft full-day budget is gone.
+ * Deep shares the full token ledger: elevated reasoning cannot bypass the
+ * existing daily budget. Provider capability metadata is explicit per model,
+ * not inferred from a model-name prefix.
  */
 
 import { counterKeys, incrementDaily, readDaily } from '../../../lib/dailyCounter.js';
 
 export type ModelTier = 'mini' | 'full';
 export type ModelMode = 'auto' | 'mini' | 'full';
+
+export class VisionModelUnavailableError extends Error {
+  readonly code = 'VISION_MODEL_UNAVAILABLE';
+
+  constructor() {
+    super('No vision-capable model is available for image analysis');
+    this.name = 'VisionModelUnavailableError';
+  }
+}
 
 export interface ModelChoice {
   model: string;
@@ -31,10 +43,14 @@ export interface ModelChoice {
  * reasoning mode. Kept as a small maintained pattern rather than a per-model
  * table: a new family costs one alternative here.
  */
-const REASONING_MODEL_RE = /^(o\d|gpt-5)/i;
+const REASONING_MODELS = new Set([
+  'o3', 'o4-mini',
+  'gpt-6.2-astra', 'gpt-6-astra', 'gpt-6.1-sol', 'gpt-6.1-terra',
+  'gpt-5.6-sol', 'gpt-5.4', 'gpt-5', 'gpt-5.4-mini', 'gpt-5-mini',
+]);
 
 export function supportsReasoning(model: string): boolean {
-  return REASONING_MODEL_RE.test(String(model || '').trim());
+  return REASONING_MODELS.has(String(model || '').trim().toLowerCase());
 }
 
 export interface ModelUsageSnapshot {
@@ -47,6 +63,22 @@ export interface ModelUsageSnapshot {
 
 const COMPLEX_RE =
   /анализ|стратег|сравни|почему|разбер|объясни подробно|план\s+лечен|дифференц|прогноз|аудит|оптимиз|риск|многошаг|комплексн|сводн(ый|ая)\s+отч[её]т|deep\s*dive|analyze|compare|why\b|treatment\s+plan/i;
+
+const DEEP_REASONING_RE =
+  /дифференц|консилиум|глубок(ий|ого)\s+(анализ|аудит|разбор)|план\s+лечен|критич|высок(ий|ого)\s+риск|комплаенс|безопасност|инцидент|deep\s*research|comprehensive\s+(audit|review)|root\s*cause/i;
+
+export function isDeepReasoningQuery(
+  text: string,
+  opts?: { historyTurns?: number; round?: number; toolsUsed?: number },
+): boolean {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  if (value.length >= 1_200) return true;
+  if ((value.match(/\?/g) || []).length >= 3) return true;
+  if ((opts?.historyTurns || 0) >= 16) return true;
+  if ((opts?.round || 0) >= 3 && (opts?.toolsUsed || 0) >= 3) return true;
+  return DEEP_REASONING_RE.test(value);
+}
 
 const DEFAULT_MINI_BUDGET = 2_400_000;
 const DEFAULT_FULL_BUDGET = 240_000;
@@ -90,6 +122,22 @@ export function isComplexQuery(
 }
 
 /**
+ * Public API price ratios converted into conservative budget units relative to
+ * the standard Sol tier. This is a routing guardrail, not a billing estimate:
+ * actual invoices remain authoritative and prices can change.
+ */
+const MODEL_BUDGET_MULTIPLIERS: Readonly<Record<string, number>> = {
+  'gpt-6.2-astra': 5,
+  'gpt-6-astra': 5,
+  'gpt-5.6-sol': 2,
+  'gpt-6.1-terra': 0.5,
+};
+
+export function modelBudgetMultiplier(model: string): number {
+  return MODEL_BUDGET_MULTIPLIERS[String(model || '').trim().toLowerCase()] ?? 1;
+}
+
+/**
  * Record what a call cost.
  *
  * Written to the shared daily counter when Redis is available, so the budget
@@ -97,12 +145,13 @@ export function isComplexQuery(
  * restart. The in-memory tally is kept in step regardless — it is the fallback
  * and what `getModelUsageSnapshot` reports.
  */
-export async function recordModelUsage(tier: ModelTier, tokens: number): Promise<void> {
+export async function recordModelUsage(tier: ModelTier, tokens: number, model = ''): Promise<void> {
   ensureDay();
   const n = Math.max(0, Math.floor(tokens));
-  if (tier === 'full') fullUsed += n;
-  else miniUsed += n;
-  await incrementDaily(counterKeys.modelBudget(tier), n);
+  const budgetUnits = Math.ceil(n * modelBudgetMultiplier(model));
+  if (tier === 'full') fullUsed += budgetUnits;
+  else miniUsed += budgetUnits;
+  await incrementDaily(counterKeys.modelBudget(tier), budgetUnits);
 }
 
 export function getModelUsageSnapshot(): ModelUsageSnapshot {
@@ -138,7 +187,18 @@ export function pickModel(input: {
   /** Resolved by `modelCatalog`; required, so no stale default can win here. */
   miniModel: string;
   fullModel: string;
+  /** Dedicated flagship model for deep, high-stakes reasoning. */
+  deepModel?: string;
+  /** Required for every request containing an image; never fall back to text-only models. */
+  requiresVision?: boolean;
+  visionModel?: string | null;
+  visionTier?: ModelTier;
+  fullSupportsReasoning?: boolean;
+  deepSupportsReasoning?: boolean;
+  miniSupportsReasoning?: boolean;
+  visionSupportsReasoning?: boolean;
   reasoningEffort?: 'low' | 'medium' | 'high';
+  deepReasoningEffort?: 'medium' | 'high';
   miniUsed?: number;
   fullUsed?: number;
   miniBudget?: number;
@@ -148,6 +208,7 @@ export function pickModel(input: {
   const mode = input.mode ?? 'auto';
   const { miniModel, fullModel } = input;
   const effort = input.reasoningEffort ?? 'low';
+  const deepEffort = input.deepReasoningEffort ?? 'high';
   const miniBudget = input.miniBudget ?? configuredMiniBudget;
   const fullBudget = input.fullBudget ?? configuredFullBudget;
   const usedMini = input.miniUsed ?? miniUsed;
@@ -160,7 +221,7 @@ export function pickModel(input: {
     model: miniModel,
     tier: 'mini',
     reasoningEffort: 'low',
-    supportsReasoning: supportsReasoning(miniModel),
+    supportsReasoning: input.miniSupportsReasoning ?? supportsReasoning(miniModel),
     maxOutputTokens: maxOut,
     reason,
   });
@@ -169,10 +230,44 @@ export function pickModel(input: {
     model: fullModel,
     tier: 'full',
     reasoningEffort: effort,
-    supportsReasoning: supportsReasoning(fullModel),
+    supportsReasoning: input.fullSupportsReasoning ?? supportsReasoning(fullModel),
     maxOutputTokens: maxOut,
     reason,
   });
+  const deepModel = input.deepModel || fullModel;
+  const asDeep = (reason: string, maxOut: number): ModelChoice => ({
+    model: deepModel,
+    tier: 'full',
+    reasoningEffort: deepEffort,
+    supportsReasoning: input.deepSupportsReasoning ?? supportsReasoning(deepModel),
+    maxOutputTokens: maxOut,
+    reason,
+  });
+
+  // Image input is a hard capability requirement, not a preference. Do this
+  // before cheap-first routing so a text-only mini model can never receive X-rays.
+  if (input.requiresVision) {
+    if (!input.visionModel) throw new VisionModelUnavailableError();
+    return input.visionTier === 'mini'
+      ? {
+          model: input.visionModel,
+          tier: 'mini',
+          reasoningEffort: deepEffort,
+          supportsReasoning: input.visionSupportsReasoning ?? supportsReasoning(input.visionModel),
+          maxOutputTokens: 1_200,
+          reason: 'required_vision_input',
+        }
+      : {
+          model: input.visionModel,
+          tier: 'full',
+          // Vision tasks include clinical/image interpretation: use the
+          // configured deep effort, never the ordinary chat effort.
+          reasoningEffort: deepEffort,
+          supportsReasoning: input.visionSupportsReasoning ?? supportsReasoning(input.visionModel),
+          maxOutputTokens: 1_200,
+          reason: 'required_vision_input',
+        };
+  }
 
   // Polish / rewrite is always mini — wording only, no clinic planning.
   if (input.task === 'polish') {
@@ -199,18 +294,26 @@ export function pickModel(input: {
     isGuest: input.isGuest,
     historyTurns: input.historyTurns,
   });
-  const deepToolLoop = (input.round || 0) >= 2 && (input.toolsUsed || 0) >= 2;
-  const wantFull = Boolean(input.escalate) || complex || deepToolLoop;
+  const deepToolLoop = (input.round || 0) >= 3 && (input.toolsUsed || 0) >= 3;
+  const wantDeep = Boolean(input.escalate) || isDeepReasoningQuery(input.text, {
+    historyTurns: input.historyTurns,
+    round: input.round,
+    toolsUsed: input.toolsUsed,
+  }) || deepToolLoop;
+  const wantFull = wantDeep || complex;
 
-  if (wantFull && fullLeft) {
-    return asFull(
+  if (wantDeep && fullLeft) {
+    return asDeep(
       input.escalate
         ? 'escalate_after_weak_mini'
         : deepToolLoop
           ? 'deep_tool_loop'
-          : 'complex_clinic_query',
-      1200,
+          : 'deep_reasoning_query',
+      1800,
     );
+  }
+  if (wantFull && fullLeft) {
+    return asFull('complex_clinic_query', 1200);
   }
 
   if (!miniLeft && fullLeft) {
@@ -232,9 +335,10 @@ export async function chooseOpenAIModel(input: {
   round?: number;
   toolsUsed?: number;
   escalate?: boolean;
+  requiresVision?: boolean;
 }): Promise<ModelChoice> {
   const { env } = await import('../../../config.js');
-  const { resolveModels } = await import('./modelCatalog.js');
+  const { resolveModels, MINI_LADDER } = await import('./modelCatalog.js');
   configuredMiniBudget = env.OPENAI_DAILY_MINI_TOKENS;
   configuredFullBudget = env.OPENAI_DAILY_FULL_TOKENS;
 
@@ -260,7 +364,16 @@ export async function chooseOpenAIModel(input: {
     mode: env.OPENAI_MODEL_MODE,
     miniModel: models.mini,
     fullModel: models.full,
+    deepModel: models.deep,
+    requiresVision: input.requiresVision,
+    visionModel: models.vision,
+    visionTier: models.vision && MINI_LADDER.some((candidate) => candidate.id === models.vision) ? 'mini' : 'full',
+    fullSupportsReasoning: models.fullSupportsReasoning,
+    deepSupportsReasoning: models.deepSupportsReasoning,
+    miniSupportsReasoning: models.miniSupportsReasoning,
+    visionSupportsReasoning: models.visionSupportsReasoning,
     reasoningEffort: env.OPENAI_REASONING_EFFORT,
+    deepReasoningEffort: env.OPENAI_DEEP_REASONING_EFFORT,
     ...(sharedMini !== null ? { miniUsed: sharedMini } : {}),
     ...(sharedFull !== null ? { fullUsed: sharedFull } : {}),
   });

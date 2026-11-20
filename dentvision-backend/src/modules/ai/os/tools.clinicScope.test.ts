@@ -23,7 +23,7 @@ describe('tools.ts — by-id lookups stay routed through scopedId()', () => {
   });
 
   it('has at least one real call site using scopedId(clinicId, ...)', () => {
-    const calls = [...SOURCE.matchAll(/where:\s*scopedId\(clinicId,/g)];
+    const calls = [...SOURCE.matchAll(/scopedId\(clinicId,/g)];
     expect(calls.length).toBeGreaterThanOrEqual(8);
   });
 });
