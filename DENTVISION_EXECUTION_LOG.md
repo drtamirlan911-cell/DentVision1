@@ -3124,3 +3124,9 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Added route-level tests proving that a verified `EMPLOYER_OWNER` Organization context cannot use the existing clinic-only AI Employee task read or transition endpoints. Both requests must fail closed with 403 and must not query or mutate task rows.
 - This locks the current safety boundary while Organization/Branch task scope remains design-only; it prevents a future accidental widening based on global role or organization presence alone.
 - Test commit: 4ecd976b991c9bf5779be9176cedd9ea7c2647dc. GitHub had not surfaced fresh exact-head CI/Quality Gate records at the latest inspection; older SHA outcomes are not final evidence. No task schema or approval route was widened.
+
+## 2026-11-20 — Jarvis explanation of AI Employee scope (PR #351)
+
+- Added an explicit user-facing section to guide §9 explaining the existing clinic-only durable task queue, the partner read-only overview boundary, and the rule that a task status change does not execute a domain action. High-risk operations still require the Approval Center and governance kernel.
+- Added a natural-language retrieval regression asking whether suppliers/laboratories have a shared AI Employee queue; the test asserts the relevant AI-agent guide section is returned and that Jarvis states clinic-only scope.
+- Canonical root guide and backend runtime copy were updated together. Commits: guide f51b97927725805c59d001c8de9de5aefa462d66; backend copy a9c0b333998ed2565d9225637d11092f28d65e6e; retrieval test 054bee83e0f63306c0d36598532a9b8d0fac4afc. Exact-head CI/Quality Gate results are required after this change.
