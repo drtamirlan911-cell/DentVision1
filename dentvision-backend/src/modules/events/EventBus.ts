@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { safeErrorKind } from '../../lib/safeError.js';
 import {
   EventType,
   CRMEvent,
@@ -151,8 +152,8 @@ export class EventBus implements IEventBus {
       return true;
     } catch (err) {
       this.stats.failed++;
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[EventBus] Handler error for ${event.type}:`, message);
+      // Event subscribers process patient-linked events. Never log exception text or stacks.
+      console.error(`[EventBus] Handler error for ${event.type} (${safeErrorKind(err)})`);
       return false;
     }
   }
