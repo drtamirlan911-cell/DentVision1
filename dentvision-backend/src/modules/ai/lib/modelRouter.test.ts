@@ -133,6 +133,7 @@ describe('pickModel — standard versus deep reasoning tiers', () => {
     expect(choice.model).toBe('gpt-6.2-astra');
     expect(choice.reason).toBe('deep_reasoning_query');
     expect(choice.supportsReasoning).toBe(true);
+    expect(choice.reasoningEffort).toBe('high');
   });
 });
 
@@ -171,6 +172,7 @@ describe('pickModel — mandatory vision routing', () => {
     expect(choice.model).toBe('gpt-6.1-terra');
     expect(choice.tier).toBe('full');
     expect(choice.reason).toBe('required_vision_input');
+    expect(choice.reasoningEffort).toBe('high');
   });
 
   it('uses a vision-capable mini when that is the best available vision model', () => {
