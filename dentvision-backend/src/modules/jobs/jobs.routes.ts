@@ -752,7 +752,7 @@ jobsRouter.patch('/me/offers/:id/respond', authenticate, async (req: AuthRequest
       return row;
     });
     if (!updated) return res.status(409).json({ ok: false, error: 'Предложение уже изменилось. Обновите список.', code: 'OFFER_CONFLICT' } satisfies ApiResponse);
-    return res.json({ ok: true, data: updated, note: 'EMPLOYMENT_CONTRACT_REQUIRED' } satisfies ApiResponse);
+    return res.json({ ok: true, data: { ...updated, nextStep: 'EMPLOYMENT_CONTRACT_REQUIRED' } } satisfies ApiResponse);
   } catch (error) {
     console.error('Respond to employment offer error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось ответить на предложение' } satisfies ApiResponse);
