@@ -42,16 +42,17 @@ describe('tool capability inventory', () => {
     const capabilities = toolCapabilitiesFor(new Set(['searchProducts', 'createInvoice']));
 
     expect(capabilities).toHaveLength(2);
-    expect(capabilities.map((item) => item.description)).toEqual([
-      expect.stringContaining('Поиск товаров'),
-      expect.stringContaining('Выставить счёт'),
-    ]);
+    expect(capabilities.some((item) => item.description.includes('Поиск товаров'))).toBe(true);
+    expect(capabilities.some((item) => item.description.includes('Выставить счёт'))).toBe(true);
   });
 
-  it('distinguishes read-only tools from state-changing tools', () => {
+  it('distinguishes read-only tools from state-changing tools independent of registry order', () => {
     const capabilities = toolCapabilitiesFor(new Set(['searchProducts', 'createInvoice']));
-    expect(capabilities[0]).toMatchObject({ effect: 'read', confirmation: 'none' });
-    expect(capabilities[1]).toMatchObject({ effect: 'change', confirmation: 'explicit' });
+    const search = capabilities.find((item) => item.description.includes('Поиск товаров'));
+    const invoice = capabilities.find((item) => item.description.includes('Выставить счёт'));
+
+    expect(search).toMatchObject({ effect: 'read', confirmation: 'none' });
+    expect(invoice).toMatchObject({ effect: 'change', confirmation: 'explicit' });
   });
 
   it('does not invent a confirmation contract where the tool does not declare one', () => {
