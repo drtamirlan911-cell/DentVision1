@@ -74,84 +74,41 @@ function expenseScopeWhere(context: OpsBranchContext, clinicId: string): Record<
 function waitingListScopeWhere(context: OpsBranchContext, clinicId: string): Record<string, unknown> {
   return context.organizationWide
     ? { clinicId }
-    : { clinicId, patientId: { in: context.patientIds || [] } };
+    : { clinicId, branchId: context.branchId };
 }
 
 function canManageWaitingListPatient(context: OpsBranchContext, patientId: string | null | undefined): boolean {
-  return context.organizationWide || Boolean(patientId && context.patientIds?.includes(patientId));
+  return context.organizationWide || !patientId || Boolean(context.patientIds?.includes(patientId));
 }
 
-interface BookingBranchContext {
-  organizationWide: boolean;
-  branchId: string | null;
-  doctorIds: string[] | null;
-}
-
-async function resolveBookingBranchContext(req: AuthRequest, clinicId: string): Promise<BookingBranchContext | null> {
-  const context = await resolveOpsBranchContext(req, clinicId);
-  if (!context) return null;
-  if (context.organizationWide) return { organizationWide: true, branchId: null, doctorIds: null };
-  if (!context.branchId) return { organizationWide: false, branchId: null, doctorIds: [] };
-
-  if (req.user?.organizationId) {
-    const persons = await prisma.person.findMany({
-      where: {
-        organizationId: req.user.organizationId,
-        userId: { not: null },
-        branchMemberships: { some: { branchId: context.branchId, active: true } },
-        personRoles: {
-          some: {
-            scopeType: 'organization',
-            scopeId: req.user.organizationId,
-            role: { key: { equals: 'doctor', mode: 'insensitive' } },
-          },
-        },
-      },
-      select: { userId: true },
-    });
-    return {
-      organizationWide: false,
-      branchId: context.branchId,
-      doctorIds: [...new Set(persons.map((person) => person.userId).filter((id): id is string => Boolean(id)))],
-    };
-  }
-
-  const legacyMembers = await prisma.clinicMember.findMany({
-    where: { clinicId, branchId: context.branchId, role: 'DOCTOR' },
-    select: { userId: true },
-  });
-  return {
-    organizationWide: false,
-    branchId: context.branchId,
-    doctorIds: legacyMembers.map((member) => member.userId),
-  };
-}
+type BookingBranchContext = OpsBranchContext;
 
 function bookingScopeWhere(context: BookingBranchContext, clinicId: string): Record<string, unknown> {
-  if (context.organizationWide) return { clinicId };
-  return { clinicId, doctorId: { in: context.doctorIds || [] } };
+  return context.organizationWide ? { clinicId } : { clinicId, branchId: context.branchId };
 }
 
-async function canUseBookingDoctor(
+async function resolveBookingBranchId(
   req: AuthRequest,
   clinicId: string,
   context: BookingBranchContext,
   doctorId: string | null | undefined,
   requestedBranchId?: string | null,
-): Promise<boolean> {
-  if (!doctorId) return context.organizationWide;
-  if (!context.organizationWide) return Boolean(context.doctorIds?.includes(doctorId));
-
+): Promise<string | null | undefined> {
+  if (!doctorId) return context.organizationWide ? null : undefined;
   const access = await resolveClinicBranchAccess({
     userId: doctorId,
     clinicId,
     organizationId: req.user?.organizationId,
     role: 'DOCTOR',
-    requestedBranchId: requestedBranchId ?? req.user?.branchId,
+    requestedBranchId: requestedBranchId ?? context.branchId ?? req.user?.branchId,
   });
-  // Even an organization-wide caller may only assign an active clinic doctor.
-  // A doctor with multiple branches needs a selected branch before confirmation.
-  return Boolean(access && (access.branchId || access.allowedBranchIds.length === 1));
+  if (!access) return undefined;
+
+  const branchId = access.branchId
+    || (access.allowedBranchIds.length === 1 ? access.allowedBranchIds[0] : null);
+  if (!branchId) return undefined;
+  if (!context.organizationWide && context.branchId !== branchId) return undefined;
+  return branchId;
 }
 
 // ─── Waiting list ───
