@@ -23,6 +23,7 @@ export interface MedicalLabDetail {
   tests: MedicalLabTest[];
   events: MedicalLabEvent[];
   capabilities?: string[];
+  isLaboratoryWorkspace?: boolean;
 }
 
 export const listMedicalLabOrders = (params: { patientId?: string; caseId?: string; status?: string } = {}) => {
