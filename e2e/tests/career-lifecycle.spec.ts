@@ -265,7 +265,7 @@ test.describe('Career OS — employer-origin and candidate-origin lifecycle', ()
       data: { response: 'accepted', message: 'Принимаю предложенные условия.' },
     });
     expect(acceptedOffer.status()).toBe(200);
-    expect((await acceptedOffer.json()).note).toBe('EMPLOYMENT_CONTRACT_REQUIRED');
+    expect((await acceptedOffer.json()).data.nextStep).toBe('EMPLOYMENT_CONTRACT_REQUIRED');
 
     const finalApplications = await api.get(`${API}/api/jobs/me/applications`, { headers: auth(candidateToken) });
     const finalApplication = (await finalApplications.json()).find((row: any) => row.id === applicationId);
