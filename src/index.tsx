@@ -383,7 +383,7 @@ if (container) {
                 <Route path="school" element={guarded('school', <School />)} />
                 <Route path="school/my-learning" element={<Suspense fallback={<PageLoader />}><MyLearning /></Suspense>} />
                 <Route path="school/certificates" element={<Navigate to="/school/my-learning#certificates" replace />} />
-                <Route path="school/course/:id" element={guarded('school', <SchoolCourse />)} />
+                <Route path="school/course/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
                 <Route path="school/workspace" element={guarded('school', <SchoolWorkspace />)} />
                 <Route path="school-workspace" element={<Navigate to="/school/workspace" replace />} />
                 <Route path="admin/shop" element={guarded('admin', <ShopAdmin />)} />
