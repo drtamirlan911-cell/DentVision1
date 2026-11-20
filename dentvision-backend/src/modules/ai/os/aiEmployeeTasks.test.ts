@@ -103,6 +103,25 @@ describe('AI Employee task SQL matches its durable table schema', () => {
     expect(readback.values).toContain('clinic-text-id');
   });
 
+  it('does not persist raw task exception details in the durable error column', async () => {
+    queryRaw
+      .mockResolvedValueOnce([{ status: 'executing' }])
+      .mockResolvedValueOnce([]);
+
+    const sensitive = 'SENSITIVE_CLINICAL_SENTINEL_7f93a1b2';
+    await transitionAiEmployeeTask({
+      id: '00000000-0000-4000-8000-000000000001',
+      clinicId: 'clinic-text-id',
+      status: 'failed',
+      error: sensitive,
+    });
+
+    expect(queryRaw).toHaveBeenCalledTimes(2);
+    const update = statement(1);
+    expect(update.values).not.toContain(sensitive);
+    expect(update.values).toContain('Task failed; details omitted');
+  });
+
   it('includes unassigned tasks only when requested for a role queue', async () => {
     await listAiEmployeeTasks({
       clinicId: 'clinic-text-id',
