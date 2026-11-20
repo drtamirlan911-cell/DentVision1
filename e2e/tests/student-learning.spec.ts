@@ -10,9 +10,13 @@ function auth(token: string) {
 
 test.describe('Student OS — personal learning, assessment and credentials', () => {
   let api: APIRequestContext;
-  const email = `student-os-${Date.now()}@test.com`;
+  const stamp = Date.now();
+  const email = `student-os-${stamp}@test.com`;
+  const otherEmail = `student-os-other-${stamp}@test.com`;
   let studentToken = '';
+  let otherStudentToken = '';
   let courseId = '';
+  let courseTitle = '';
   let lessonId = '';
   let enrollmentId = '';
 
@@ -27,9 +31,18 @@ test.describe('Student OS — personal learning, assessment and credentials', ()
     studentToken = registrationBody.data?.accessToken || registrationBody.accessToken;
     expect(studentToken).toBeTruthy();
 
+    const otherRegistration = await api.post(`${API}/api/auth/register`, {
+      data: { email: otherEmail, password: PASSWORD, firstName: 'Other', lastName: 'Learner', role: 'STUDENT' },
+    });
+    expect(otherRegistration.status()).toBe(201);
+    const otherBody = await otherRegistration.json();
+    otherStudentToken = otherBody.data?.accessToken || otherBody.accessToken;
+    expect(otherStudentToken).toBeTruthy();
+
+    courseTitle = `Student OS E2E Course ${stamp}`;
     const course = await prisma.course.create({
       data: {
-        title: `Student OS E2E Course ${Date.now()}`,
+        title: courseTitle,
         author: 'DentVision Academy Test',
         description: 'Synthetic learning lifecycle fixture',
         category: 'E2E',
@@ -55,6 +68,7 @@ test.describe('Student OS — personal learning, assessment and credentials', ()
       await prisma.course.deleteMany({ where: { id: courseId } }).catch(() => {});
     }
     await cleanupTestUser(email).catch(() => {});
+    await cleanupTestUser(otherEmail).catch(() => {});
   });
 
   test('STUDENT-OS-001: personal enrollment, protected progress, exam, certificate and privacy', async () => {
@@ -156,7 +170,7 @@ test.describe('Student OS — personal learning, assessment and credentials', ()
     const verified = (await verification.json()).data;
     expect(verified).toMatchObject({
       certificateNumber: certificate.certificateNumber,
-      courseTitle: `Student OS E2E Course ${courseId ? '' : 'not-found'}`.trim(),
+      courseTitle,
       status: 'issued',
     });
     expect(verified).not.toHaveProperty('userId');
@@ -167,8 +181,20 @@ test.describe('Student OS — personal learning, assessment and credentials', ()
     expect(attempts[0].passed).toBe(true);
 
     const otherLearnerEnrollments = await api.get(`${API}/api/school/enrollments`, {
-      headers: auth(studentToken),
+      headers: auth(otherStudentToken),
     });
-    expect((await otherLearnerEnrollments.json()).data.every((row: any) => row.userId === enrollment.userId)).toBe(true);
+    expect((await otherLearnerEnrollments.json()).data.some((row: any) => row.id === enrollmentId)).toBe(false);
+
+    const otherLearnerCannotReadEnrollment = await api.patch(`${API}/api/school/enrollments/${enrollmentId}`, {
+      headers: auth(otherStudentToken),
+      data: { completedLessons: [lessonId] },
+    });
+    expect(otherLearnerCannotReadEnrollment.status()).toBe(404);
+
+    const otherLearnerCannotSubmitExam = await api.post(`${API}/api/school/lessons/${encodeURIComponent(examId)}/exam/submit`, {
+      headers: auth(otherStudentToken),
+      data: { answers: { q1: 1, q2: 2, q3: 1, q4: 2 } },
+    });
+    expect(otherLearnerCannotSubmitExam.status()).toBe(403);
   });
 });
