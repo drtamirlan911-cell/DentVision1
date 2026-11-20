@@ -272,7 +272,7 @@ medicalLabLifecycleRouter.get('/orders/:id', async (req: AuthRequest, res) => {
       resolveMedicalLabRoleKeys(req.user),
     ]);
     const capabilities = medicalLabCapabilitiesForRoles(roleKeys);
-    return res.json({ ok: true, data: { order, tests, events, capabilities } } satisfies ApiResponse);
+    return res.json({ ok: true, data: { order, tests, events, capabilities, isLaboratoryWorkspace: String(req.user?.organizationType || '').toUpperCase() === 'LABORATORY' } } satisfies ApiResponse);
   } catch (e: any) { return res.status(500).json({ ok: false, error: e.message || 'Ошибка направления' } satisfies ApiResponse); }
 });
 
@@ -449,12 +449,20 @@ medicalLabLifecycleRouter.post('/orders/:id/quality-control', async (req: AuthRe
       performedAt: new Date().toISOString(),
     };
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(
+      const locked = await tx.$queryRawUnsafe<Array<{ id: string; status: string }>>(
+        `SELECT "id","status" FROM "medical_lab_orders" WHERE "id"=$1 FOR UPDATE`,
+        order.id,
+      );
+      if (!locked[0] || locked[0].status !== 'result_ready') {
+        throw new Error('Medical laboratory order changed before QC was recorded');
+      }
+      const changed = await tx.$executeRawUnsafe(
         `UPDATE "medical_lab_orders"
            SET "metadata"=jsonb_set(COALESCE("metadata",'{}'::jsonb),'{qualityControl}',$1::jsonb,true),"updatedAt"=CURRENT_TIMESTAMP
          WHERE "id"=$2 AND "status"='result_ready'`,
         JSON.stringify(qualityControl), order.id,
       );
+      if (changed !== 1) throw new Error('Medical laboratory order changed before QC was recorded');
       await tx.$executeRawUnsafe(
         `INSERT INTO "medical_lab_events" ("id","orderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt")
          VALUES ($1,$2,$3,'result_ready',$4,$5,$6,CURRENT_TIMESTAMP)`,
