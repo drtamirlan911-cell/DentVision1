@@ -3048,3 +3048,14 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Added an integration-level retrieval test that calls `retrievePatientProductKnowledge()` and verifies the approved patient section is loaded from the actual `docs/AI_PRODUCT_KNOWLEDGE.md` file, not only from an in-memory test fixture.
 - The assertion checks that retrieval returns the patient portal section and the canonical source label. This exercises the current source/runtime path and fails closed in CI if the guide file is absent or unreadable in the test environment.
 - Test commit: `f81ef0b0b3c9ffa736dac851725718828519e53d`. Exact-head CI [44713904156](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44713904156) was pending and Quality Gate [44713904154](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44713904154) was in progress at the time of this checkpoint. These are not passing results; later documentation commits require refreshed exact-head checks.
+
+
+## 2026-11-20 — bundle Jarvis knowledge into backend container (PR #351)
+
+- Runtime-path audit found that `productKnowledge.ts` resolves the canonical guide under `/app/docs/AI_PRODUCT_KNOWLEDGE.md` in the compiled backend container, while the Docker runner previously copied only `dist`, `node_modules`, `prisma` and `package.json`. The guide would therefore be absent in that container and the optional loader would silently return no product knowledge.
+- Added `dentvision-backend/docs/AI_PRODUCT_KNOWLEDGE.md` as the backend build-context copy of the canonical root guide and added `COPY --from=builder /app/docs ./docs` to the runner image.
+- Added a regression test that compares the backend runtime asset byte-for-byte with the canonical `docs/AI_PRODUCT_KNOWLEDGE.md`. Existing runtime retrieval test calls `retrievePatientProductKnowledge()` against the shipped guide and verifies the patient section is found.
+- Source commits: backend guide asset `6febcc8b3844f749855abb2dcbcf627226be6b23`; Dockerfile `763670095ef689e9b7a1a4b7aba0926802006333`; parity/retrieval test head `0d87710415c6a8a98da55f52f433d799c159fbcb`.
+- The canonical guide and backend copy were fetched from the latest branch and verified byte-identical. This is source and regression-test evidence; do not claim a standalone Docker image build or production deployment unless an exact CI job explicitly performs it.
+- Exact-head CI [44714091779](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44714091779) and Quality Gate [44714091932](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44714091932) were in progress at inspection; Vercel Preview was pending. Fresh exact-head results are required after this documentation update.
+- All changes remain on Draft PR #351. Main, deployment configuration, secrets, databases, migrations, PHI, payment providers and production services were not modified.
