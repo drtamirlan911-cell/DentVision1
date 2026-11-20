@@ -15,8 +15,21 @@ import { auditFromReq } from '../compliance/audit.service.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 import { recordClinicalPaymentTx, reverseClinicalPaymentTx } from '../finance/finance.service.js';
 import { tengeToMinor } from '../../lib/money.js';
+import { financeInvoicePatientWhere, financePatientBranchWhere, financeBranchIdWhere } from '../../lib/financeBranchScope.js';
 
 const billingRouter = Router();
+
+function invoicePatientScope(req: AuthRequest): Record<string, unknown> {
+  return financeInvoicePatientWhere(req.user?.role, req.user?.branchIds ?? []);
+}
+
+function patientBranchScope(req: AuthRequest): Record<string, unknown> {
+  return financePatientBranchWhere(req.user?.role, req.user?.branchIds ?? []);
+}
+
+function branchIdScope(req: AuthRequest): Record<string, unknown> {
+  return financeBranchIdWhere(req.user?.role, req.user?.branchIds ?? []);
+}
 
 billingRouter.use(authenticate);
 billingRouter.use(loadClinicAccess);
@@ -29,7 +42,7 @@ billingRouter.get('/invoices', requirePermission('finance.manage'), async (req: 
     const clinicId = user?.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Clinic ID not found' });
     const { skip, take } = paginate(page ? Number(page) : 1, limit ? Number(limit) : 20);
-    const where: any = { clinicId };
+    const where: any = { clinicId, ...invoicePatientScope(req) };
     if (status) where.status = status;
     const [invoices, total] = await Promise.all([
       prisma.invoice.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
@@ -52,6 +65,16 @@ billingRouter.post('/invoices', requirePermission('finance.manage'), async (req:
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Clinic ID not found' });
     if (!patientId || !Number.isFinite(amountValue)) return res.status(400).json({ ok: false, error: 'patientId and amount are required' });
 
+    // Resolve the patient's branch from the database, never from a client-supplied
+    // branchId. Archived/foreign-branch patients are not billable in operations.
+    const patient = await prisma.patient.findFirst({
+      where: { id: patientId, clinicId, deletedAt: null, ...patientBranchScope(req) },
+      select: { branchId: true },
+    });
+    if (!patient || (String(user?.role || '').toUpperCase() !== 'SUPERADMIN' && !patient.branchId)) {
+      return res.status(404).json({ ok: false, error: 'Пациент не найден' });
+    }
+
     idempotencyKey = req.headers['idempotency-key'] as string | undefined;
     if (!idempotencyKey) {
       const hash = createHash('sha256').update(`${req.user!.id}:${clinicId}:${JSON.stringify(req.body)}`).digest('hex');
@@ -60,7 +83,7 @@ billingRouter.post('/invoices', requirePermission('finance.manage'), async (req:
     const reserved = await reserveIdempotencyKey(idempotencyKey);
     if (reserved.status === 'in_flight') return res.status(409).json({ ok: false, error: 'Счёт уже создаётся, повторите позже' });
     if (reserved.status === 'exists') {
-      const prior = await prisma.invoice.findUnique({ where: { id: reserved.resultId } });
+      const prior = await prisma.invoice.findFirst({ where: { id: reserved.resultId, clinicId, ...invoicePatientScope(req) } });
       if (prior) return res.status(200).json({ ok: true, data: prior });
       await deleteIdempotencyKey(idempotencyKey);
     }
@@ -70,6 +93,7 @@ billingRouter.post('/invoices', requirePermission('finance.manage'), async (req:
         id: uid(),
         patientId,
         clinicId,
+        branchId: patient.branchId ?? undefined,
         amount: amountValue,
         items: items ?? [],
         notes: [req.body?.payMethod ? `[payMethod:${req.body.payMethod}]` : '', notes || ''].filter(Boolean).join(' ').trim() || null,
@@ -93,7 +117,7 @@ billingRouter.patch('/invoices/:id', requirePermission('finance.manage'), async 
     const clinicId = req.user?.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Выберите клинику' });
     const { status, amount, notes } = req.body;
-    const existing = await prisma.invoice.findFirst({ where: { id, clinicId } });
+    const existing = await prisma.invoice.findFirst({ where: { id, clinicId, ...invoicePatientScope(req) } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Invoice not found' });
     const invoice = await prisma.invoice.update({ where: { id }, data: {
       ...(status !== undefined && { status }),
@@ -112,7 +136,7 @@ billingRouter.get('/invoices/:id', requirePermission('finance.manage'), async (r
     const { id } = req.params as { id: string };
     const clinicId = req.user?.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Выберите клинику' });
-    const invoice = await prisma.invoice.findFirst({ where: { id, clinicId } });
+    const invoice = await prisma.invoice.findFirst({ where: { id, clinicId, ...invoicePatientScope(req) } });
     if (!invoice) return res.status(404).json({ ok: false, error: 'Invoice not found' });
     res.json({ ok: true, data: invoice });
   } catch (error) {
@@ -120,9 +144,9 @@ billingRouter.get('/invoices/:id', requirePermission('finance.manage'), async (r
   }
 });
 
-async function consumePatientPrepaymentTx(tx: Prisma.TransactionClient, clinicId: string, patientId: string, amount: number) {
+async function consumePatientPrepaymentTx(tx: Prisma.TransactionClient, clinicId: string, patientId: string, amount: number, branchScope: Record<string, unknown>) {
   if (!Number.isFinite(amount) || amount <= 0) return 0;
-  const patient = await tx.patient.findFirst({ where: { id: patientId, clinicId, deletedAt: null } });
+  const patient = await tx.patient.findFirst({ where: { id: patientId, clinicId, deletedAt: null, ...branchScope } });
   if (!patient || patient.prepaidBalance <= 0) return 0;
   const applied = Math.min(amount, patient.prepaidBalance);
   if (applied <= 0) return 0;
@@ -146,12 +170,12 @@ billingRouter.post('/invoices/:id/pay', requirePermission('finance.manage'), asy
     }
 
     const invoice = await prisma.$transaction(async (tx) => {
-      const current = await tx.invoice.findUnique({ where: { id } });
-      if (!current || current.clinicId !== clinicId) throw new Error('Invoice not found');
+      const current = await tx.invoice.findFirst({ where: { id, clinicId, ...invoicePatientScope(req) } });
+      if (!current) throw new Error('Invoice not found');
       const outstanding = Math.max(0, current.amount - current.paidAmount);
       if (outstanding <= 0 || current.status === 'paid') throw new Error('Invoice is already paid');
       const requestedPayment = requestedAmount ?? outstanding;
-      const prepaymentApplied = await consumePatientPrepaymentTx(tx, clinicId, current.patientId, requestedPayment);
+      const prepaymentApplied = current.patientId ? await consumePatientPrepaymentTx(tx, clinicId, current.patientId, requestedPayment, patientBranchScope(req)) : 0;
       const paymentAmount = Math.min(requestedPayment, outstanding);
       const cashPaymentAmount = Math.max(0, paymentAmount - prepaymentApplied);
       const newPaidAmount = current.paidAmount + paymentAmount;
@@ -199,8 +223,8 @@ billingRouter.post('/invoices/:id/refund', requirePermission('finance.manage'), 
     const requested = req.body?.amount !== undefined ? Number(req.body.amount) : undefined;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Выберите клинику' });
     const invoice = await prisma.$transaction(async (tx) => {
-      const current = await tx.invoice.findUnique({ where: { id } });
-      if (!current || current.clinicId !== clinicId) throw new Error('Invoice not found');
+      const current = await tx.invoice.findFirst({ where: { id, clinicId, ...invoicePatientScope(req) } });
+      if (!current) throw new Error('Invoice not found');
       const existingReversal = await tx.transaction.findFirst({ where: { type: 'clinical_payment_reversal', refType: 'clinical_payment_reversal', refId: `invoice:${id}:refund:${idempotencyKey}` } });
       if (existingReversal) return current;
       if (current.paidAmount <= 0) throw new Error('Invoice has no paid amount');
@@ -245,7 +269,7 @@ billingRouter.post('/patients/:patientId/prepayment', requirePermission('finance
     if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ ok: false, error: 'Сумма предоплаты должна быть положительной' });
 
     const result = await prisma.$transaction(async (tx) => {
-      const patient = await tx.patient.findFirst({ where: { id: patientId, clinicId, deletedAt: null } });
+      const patient = await tx.patient.findFirst({ where: { id: patientId, clinicId, deletedAt: null, ...patientBranchScope(req) } });
       if (!patient) throw new Error('Patient not found');
       const updated = await tx.patient.update({
         where: { id: patientId },
@@ -286,7 +310,7 @@ billingRouter.post('/patients/:patientId/prepayment/refund', requirePermission('
     if (!idempotencyKey) return res.status(400).json({ ok: false, error: 'Idempotency-Key обязателен для возврата' });
     if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ ok: false, error: 'Некорректная сумма возврата' });
     const patient = await prisma.$transaction(async (tx) => {
-      const current = await tx.patient.findFirst({ where: { id: patientId, clinicId, deletedAt: null } });
+      const current = await tx.patient.findFirst({ where: { id: patientId, clinicId, deletedAt: null, ...patientBranchScope(req) } });
       if (!current) throw new Error('Patient not found');
       const existingReversal = await tx.transaction.findFirst({ where: { type: 'clinical_payment_reversal', refType: 'clinical_payment_reversal', refId: `prepayment:${patientId}:refund:${idempotencyKey}` } });
       if (existingReversal) return current;
@@ -321,10 +345,10 @@ billingRouter.delete('/invoices/:id', requirePermission('finance.manage'), async
   try {
     const { id } = req.params as { id: string };
     const clinicId = req.user?.clinicId;
-    const existing = await prisma.invoice.findUnique({ where: { id } });
+    const existing = await prisma.invoice.findFirst({ where: { id, clinicId: clinicId || undefined, ...invoicePatientScope(req) } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Invoice not found' });
-    if (clinicId && existing.clinicId !== clinicId) return res.status(403).json({ ok: false, error: 'Нет доступа к этому счёту' });
-    await prisma.invoice.delete({ where: { id } });
+    const deleted = await prisma.invoice.deleteMany({ where: { id, clinicId: existing.clinicId, ...invoicePatientScope(req) } });
+    if (!deleted.count) return res.status(404).json({ ok: false, error: 'Invoice not found' });
     await auditFromReq(req, { action: 'invoice.deleted', entity: 'invoice', entityId: id, details: { amount: existing.amount } });
     return res.json({ ok: true, data: { id } });
   } catch (error) {
@@ -340,9 +364,9 @@ billingRouter.get('/summary', requirePermission('finance.manage'), async (req: A
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
     const [totalRevenue, unpaidTotal, paidThisMonth] = await Promise.all([
-      prisma.invoice.aggregate({ where: { clinicId, status: 'paid' }, _sum: { amount: true } }),
-      prisma.invoice.aggregate({ where: { clinicId, status: { in: ['pending', 'partial', 'overdue'] } }, _sum: { amount: true } }),
-      prisma.invoice.aggregate({ where: { clinicId, status: 'paid', paidAt: { gte: startOfMonth, lte: endOfMonth } }, _sum: { amount: true } }),
+      prisma.invoice.aggregate({ where: { clinicId, ...invoicePatientScope(req), status: 'paid' }, _sum: { amount: true } }),
+      prisma.invoice.aggregate({ where: { clinicId, ...invoicePatientScope(req), status: { in: ['pending', 'partial', 'overdue'] } }, _sum: { amount: true } }),
+      prisma.invoice.aggregate({ where: { clinicId, ...invoicePatientScope(req), status: 'paid', paidAt: { gte: startOfMonth, lte: endOfMonth } }, _sum: { amount: true } }),
     ]);
     res.json({ ok: true, data: { totalRevenue: totalRevenue._sum.amount || 0, unpaid: unpaidTotal._sum.amount || 0, paidThisMonth: paidThisMonth._sum.amount || 0 } });
   } catch (error) {
@@ -364,7 +388,7 @@ billingRouter.get('/my-payroll', async (req: AuthRequest, res) => {
       resolveStaffCompensation(userId, clinicId),
     ]);
     if (!access) return res.status(404).json({ ok: false, error: 'Участник клиники не найден' } satisfies ApiResponse);
-    const completedAppts = await prisma.appointment.findMany({ where: { clinicId, doctorId: userId, status: 'completed', date: { gte: from, lte: to } }, include: { patient: { select: { firstName: true, lastName: true } } }, orderBy: [{ date: 'desc' }, { time: 'desc' }] });
+    const completedAppts = await prisma.appointment.findMany({ where: { clinicId, ...branchIdScope(req), doctorId: userId, status: 'completed', date: { gte: from, lte: to } }, include: { patient: { select: { firstName: true, lastName: true } } }, orderBy: [{ date: 'desc' }, { time: 'desc' }] });
     const clinicRow = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { settings: true } });
     const commissionBase = (clinicRow?.settings as any)?.payrollBase === 'gross' ? 'gross' : 'net';
     const payroll = buildDoctorPayroll({ userId, name: `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim(), role: access.role, percent: compensation.commissionPercent, baseSalary: compensation.baseSalary, payType: compensation.payType, commissionBase, from, to, appointments: completedAppts });
@@ -381,7 +405,7 @@ billingRouter.get('/reports', requirePermission('finance.manage'), async (req: A
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Clinic ID not found' });
     const from = req.query.from ? new Date(String(req.query.from)) : new Date(new Date().setHours(0, 0, 0, 0));
     const to = req.query.to ? new Date(String(req.query.to)) : new Date();
-    const invoices = await prisma.invoice.findMany({ where: { clinicId, createdAt: { gte: from, lte: to } }, orderBy: { createdAt: 'desc' } });
+    const invoices = await prisma.invoice.findMany({ where: { clinicId, ...invoicePatientScope(req), createdAt: { gte: from, lte: to } }, orderBy: { createdAt: 'desc' } });
     const paid = invoices.filter((i) => i.status === 'paid');
     const unpaid = invoices.filter((i) => ['pending', 'unpaid', 'partial', 'overdue'].includes(i.status));
     const byDay: Record<string, { revenue: number; count: number }> = {};
@@ -418,10 +442,10 @@ billingRouter.get('/reports', requirePermission('finance.manage'), async (req: A
       byMethod[method].revenue += inv.amount || 0;
       byMethod[method].count += 1;
     }
-    const completedAppts = await prisma.appointment.findMany({ where: { clinicId, status: 'completed', date: { gte: from, lte: to } }, include: { patient: { select: { firstName: true, lastName: true } } } });
+    const completedAppts = await prisma.appointment.findMany({ where: { clinicId, ...branchIdScope(req), status: 'completed', date: { gte: from, lte: to } }, include: { patient: { select: { firstName: true, lastName: true } } } });
     const members = await listClinicStaff(clinicId);
-    const expenseAgg = await prisma.expense.aggregate({ where: { clinicId, date: { gte: from, lte: to } }, _sum: { amount: true }, _count: true });
-    const expensesByCategory = await prisma.expense.groupBy({ by: ['category'], where: { clinicId, date: { gte: from, lte: to } }, _sum: { amount: true }, _count: true });
+    const expenseAgg = await prisma.expense.aggregate({ where: { clinicId, ...branchIdScope(req), date: { gte: from, lte: to } }, _sum: { amount: true }, _count: true });
+    const expensesByCategory = await prisma.expense.groupBy({ by: ['category'], where: { clinicId, ...branchIdScope(req), date: { gte: from, lte: to } }, _sum: { amount: true }, _count: true });
     const clinicRow = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { settings: true } });
     const commissionBase = (clinicRow?.settings as any)?.payrollBase === 'gross' ? 'gross' : 'net';
     const compensations = await Promise.all(members.map((m) => resolveStaffCompensation(m.userId, clinicId)));

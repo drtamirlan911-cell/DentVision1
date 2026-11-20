@@ -213,6 +213,23 @@ async function ensureE2EPatientFixture(clinicId: string, patientUser: { id: stri
     },
   });
 
+  // Keep the deterministic portal patient on the same active default branch
+  // used by owner-created patients and the clinic's seeded staff assignments.
+  const defaultBranch = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT id FROM branches
+    WHERE clinic_id = ${clinicId} AND active = true
+    ORDER BY "isDefault" DESC, created_at ASC
+    LIMIT 1
+  `;
+  if (!defaultBranch[0]?.id) {
+    throw new Error(`[SEED:E2E] No active default branch exists for clinic ${clinicId}`);
+  }
+  await prisma.$executeRaw`
+    UPDATE patients
+    SET branch_id = ${defaultBranch[0].id}
+    WHERE id = ${patient.id} AND "clinicId" = ${clinicId}
+  `;
+
   const doctor = await prisma.user.findUnique({ where: { email: 'doctor-a@test.com' }, select: { id: true } });
   if (!doctor) return patient;
 

@@ -11,6 +11,12 @@ describe('dental lab branch isolation contract', () => {
     expect(source).toContain('__NO_BRANCH_ACCESS__');
   });
 
+  it('keeps clinic OWNER/ADMIN lab order access on active branches instead of a wildcard', () => {
+    expect(source).toContain("if (role === 'SUPERADMIN') return {}");
+    expect(source).not.toContain("if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {}");
+    expect(source).toContain("const branchIds = role === 'SUPERADMIN' ? null : (req.user?.branchIds ?? []).filter(Boolean)");
+  });
+
   it('scopes list, transactional upsert, status and delete operations', () => {
     expect(source).toContain('where: { clinicId, ...branchScopedLabOrder(req) }');
     const upsertStart = source.indexOf("labRouter.post('/',");

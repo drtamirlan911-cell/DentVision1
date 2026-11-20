@@ -22,34 +22,67 @@ export async function resolvePatientBranchContext(
   userId: string,
   clinicId: string,
   role: string,
+  authorizedBranchIds: readonly string[] = [],
+  assignedBranchId?: string | null,
 ): Promise<PatientBranchContext> {
-  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null }>>`
-    SELECT branch_id
-    FROM clinic_members
-    WHERE "userId" = ${userId} AND "clinicId" = ${clinicId}
+  // Start from the branch allow-list rebuilt by authenticate from canonical
+  // BranchMember + active legacy assignments. Recheck the exact legacy clinic
+  // membership here as a compatibility path for older E2E/deployed sessions
+  // whose claim did not yet hydrate branchIds. Archived branches never enter it.
+  const membership = await prisma.$queryRaw<Array<{
+    branch_id: string | null;
+    branch_active: boolean;
+  }>>`
+    SELECT cm."branch_id",
+      CASE WHEN cm."branch_id" IS NULL THEN false ELSE COALESCE(b."active", false) END AS branch_active
+    FROM "clinic_members" cm
+    LEFT JOIN "branches" b ON b."id" = cm."branch_id"
+    WHERE cm."userId" = ${userId} AND cm."clinicId" = ${clinicId}
     LIMIT 1
   `;
-  const memberBranchId = membership[0]?.branch_id ?? null;
+  const legacyBranchId = membership[0]?.branch_active ? membership[0].branch_id : null;
+  // assignedBranchId is only a selected-branch hint. It is trusted when it is
+  // part of the freshly verified allow-list or the active exact-clinic fallback;
+  // a stale JWT claim cannot reintroduce a branch removed by archive/revocation.
+  const verifiedAssignedBranchId = assignedBranchId
+    && (authorizedBranchIds.includes(assignedBranchId) || assignedBranchId === legacyBranchId)
+    ? assignedBranchId
+    : null;
+  let allowed = Array.from(new Set(
+    [...authorizedBranchIds, verifiedAssignedBranchId, legacyBranchId]
+      .filter((id): id is string => typeof id === 'string' && id.length > 0),
+  ));
 
-  if (ORGANIZATION_ROLES.has(role)) {
-    const branches = await prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT id
-      FROM branches
-      WHERE clinic_id = ${clinicId} AND active = true
+  // OWNER/ADMIN can see every active clinic branch only after a clinic-scoped
+  // membership or an already-authenticated canonical allow-list proves access.
+  if (ORGANIZATION_ROLES.has(role) && (membership[0] || allowed.length > 0)) {
+    const activeBranches = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM "branches"
+      WHERE "clinic_id" = ${clinicId} AND "active" = true
       ORDER BY "isDefault" DESC, "created_at" ASC
     `;
-    return { clinicId, userId, role, branchId: memberBranchId, scope: { kind: 'organization', branchIds: branches.map((b) => b.id) } };
+    allowed = Array.from(new Set([...allowed, ...activeBranches.map((branch) => branch.id)]));
+  }
+
+  const activeBranchId = assignedBranchId && allowed.includes(assignedBranchId)
+    ? assignedBranchId
+    : legacyBranchId && allowed.includes(legacyBranchId)
+      ? legacyBranchId
+      : allowed[0] ?? null;
+
+  if (ORGANIZATION_ROLES.has(role)) {
+    return { clinicId, userId, role, branchId: activeBranchId, scope: { kind: 'organization', branchIds: allowed } };
   }
 
   if (BRANCH_ROLES.has(role)) {
-    return { clinicId, userId, role, branchId: memberBranchId, scope: { kind: 'branch', branchIds: memberBranchId ? [memberBranchId] : [] } };
+    return { clinicId, userId, role, branchId: activeBranchId, scope: { kind: 'branch', branchIds: allowed } };
   }
 
   if (ASSIGNED_ROLES.has(role)) {
-    return { clinicId, userId, role, branchId: memberBranchId, scope: { kind: 'assigned', branchIds: memberBranchId ? [memberBranchId] : [] } };
+    return { clinicId, userId, role, branchId: activeBranchId, scope: { kind: 'assigned', branchIds: allowed } };
   }
 
-  return { clinicId, userId, role, branchId: memberBranchId, scope: { kind: 'assigned', branchIds: [] } };
+  return { clinicId, userId, role, branchId: activeBranchId, scope: { kind: 'assigned', branchIds: [] } };
 }
 
 export function canAccessPatientBranch(context: PatientBranchContext, branchId: string | null): boolean {
@@ -84,13 +117,32 @@ export async function getPatientIdsForBranchScope(clinicId: string, branchIds: r
   return rows.map((row) => row.id);
 }
 
-export async function assertPatientBranchBelongsToClinic(branchId: string, clinicId: string): Promise<boolean> {
+export async function assertPatientBranchBelongsToClinic(
+  branchId: string,
+  clinicId: string,
+  organizationId: string,
+): Promise<boolean> {
+  if (!branchId || !clinicId || !organizationId) return false;
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT id
     FROM branches
     WHERE id = ${branchId}
-      AND clinic_id = ${clinicId}
       AND active = true
+      AND (
+        organization_id = ${organizationId}
+        OR (organization_id IS NULL AND clinic_id = ${clinicId})
+        OR (
+          organization_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1
+            FROM "organizations" o
+            WHERE o."id" = branches."organization_id"
+              AND o."type" = 'CLINIC'
+              AND o."originalId" = ${clinicId}
+              AND o."archivedAt" IS NULL
+          )
+        )
+      )
     LIMIT 1
   `;
   return rows.length > 0;

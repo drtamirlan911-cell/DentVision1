@@ -62,9 +62,12 @@ describe('refundPayment', () => {
     const platformStart = routeSource.indexOf("// Platform Kaspi", clinicCashStart);
     const clinicCashBlock = routeSource.slice(clinicCashStart, platformStart);
     expect(clinicCashBlock).toContain("prisma.appointment.findFirst");
-    expect(clinicCashBlock).toContain("where: { id: String(refId), clinicId }");
+    expect(clinicCashBlock).toContain("id: String(refId)");
+    expect(clinicCashBlock).toContain("clinicId,");
+    expect(clinicCashBlock).toContain("branchId: { in: activeBranchIds }");
     expect(clinicCashBlock).toContain("prisma.invoice.findFirst");
-    expect(clinicCashBlock).toContain("where: { id: String(refId), clinicId, deletedAt: null }");
+    expect(clinicCashBlock).toContain("deletedAt: null");
+    expect(clinicCashBlock).toContain("patient: { branchId: { in: activeBranchIds } }");
     expect(clinicCashBlock).toContain("minor > outstandingMinor");
     expect(clinicCashBlock.indexOf("prisma.invoice.findFirst")).toBeLessThan(clinicCashBlock.indexOf("reserveForPayment"));
   });
@@ -89,7 +92,8 @@ describe('refundPayment', () => {
     expect(routeSource).toContain('const clinicScopedPayment = payment.provider === \'clinic_kaspi\'');
     expect(routeSource).toContain('if (clinicScopedPayment)');
     expect(routeSource).toContain('if (!clinicId) return false;');
-    expect(routeSource).toContain('return canManageClinicBillingMutation(req.user!, clinicId);');
+    expect(routeSource).toContain('if (!(await canManageClinicBillingMutation(req.user!, clinicId))) return false;');
+    expect(routeSource).toContain('return assertClinicPaymentBranchAccess(req, payment, clinicId);');
     const clinicCashStart = routeSource.indexOf("if (isClinicCashier)");
     const clinicCashEnd = routeSource.indexOf("// Platform Kaspi", clinicCashStart);
     const clinicCashBlock = routeSource.slice(clinicCashStart, clinicCashEnd);

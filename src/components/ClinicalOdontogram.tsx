@@ -142,7 +142,7 @@ export function ClinicalOdontogram({
         </div>
         <div className="flex gap-1 rounded-lg border border-bdr-subtle p-0.5">
           {(['permanent', 'primary'] as const).map((mode) => (
-            <button key={mode} type="button" aria-pressed={dentition === mode} onClick={() => onDentitionChange?.(mode)} className={cn('rounded-md px-3 py-1.5 text-[11px]', dentition === mode ? 'bg-surface-2 text-txt-primary' : 'text-txt-muted')}>
+            <button key={mode} type="button" aria-pressed={dentition === mode} onClick={() => onDentitionChange?.(mode)} className={cn('min-h-9 rounded-md px-3 py-1.5 text-[11px]', dentition === mode ? 'bg-surface-2 text-txt-primary' : 'text-txt-muted')}>
               {mode === 'permanent' ? 'Постоянные' : 'Молочные'}
             </button>
           ))}
@@ -172,7 +172,7 @@ export function ClinicalOdontogram({
 
                     <div className="mt-7 flex flex-wrap justify-center gap-1.5">
             {STATUS_TOOLS.map((s) => (
-              <button key={s} type="button" aria-pressed={tool === s} onClick={() => setTool(tool === s ? null : s)} className={cn('rounded-lg border px-2 py-1.5 text-[10px] transition-colors', tool === s ? 'border-dv-gold/50 bg-dv-gold/10 text-txt-primary' : 'border-bdr-subtle text-txt-secondary hover:bg-surface-2')}>
+              <button key={s} type="button" aria-pressed={tool === s} onClick={() => setTool(tool === s ? null : s)} className={cn('min-h-9 rounded-lg border px-2 py-1.5 text-[10px] transition-colors', tool === s ? 'border-dv-gold/50 bg-dv-gold/10 text-txt-primary' : 'border-bdr-subtle text-txt-secondary hover:bg-surface-2')}>
                 <i className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ background: STATUS_META[s]?.color }} />
                 {STATUS_META[s]?.label || statusLabel(s)}
               </button>
@@ -187,7 +187,7 @@ export function ClinicalOdontogram({
         <aside className={cn('border-t border-bdr-subtle bg-surface-1/40 xl:border-l xl:border-t-0', !open && 'hidden xl:block')}>
           <div className="flex items-center justify-between border-b border-bdr-subtle px-4 py-3">
             <div className="flex items-center gap-2"><Activity size={15} className="text-dv-gold" /><span className="text-xs font-semibold">Клинический контекст</span></div>
-            <button type="button" onClick={() => setOpen(!open)} aria-label="Свернуть"><ChevronDown size={15} className={cn(open && 'rotate-180')} /></button>
+            <button type="button" onClick={() => setOpen(!open)} aria-label="Свернуть" aria-expanded={open} className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md"><ChevronDown size={15} className={cn(open && 'rotate-180')} /></button>
           </div>
 
           {!selectedTooth ? (

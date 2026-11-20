@@ -30,11 +30,38 @@ async function ensureBranch(clinicId: string, code: string, name: string) {
   // E2E identities are deterministic: every clinic member must be assigned to
   // the clinic's deterministic branch, not only members that happen to have a
   // NULL assignment from an earlier fixture.
+  const defaultColumn = await prisma.$queryRaw<Array<{ exists: boolean }>>`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = 'branches'
+        AND column_name = 'isDefault'
+    ) AS exists
+  `;
+  if (defaultColumn[0]?.exists) {
+    await prisma.$executeRaw`
+      UPDATE branches
+      SET "isDefault" = (id = ${branchId}), updated_at = NOW()
+      WHERE clinic_id = ${clinicId}
+    `;
+  }
+
   await prisma.$executeRaw`
     UPDATE clinic_members
     SET branch_id = ${branchId}
     WHERE "clinicId" = ${clinicId}
   `;
+
+  const invalidAssignments = await prisma.$queryRaw<Array<{ userId: string }>>`
+    SELECT "userId"
+    FROM clinic_members
+    WHERE "clinicId" = ${clinicId}
+      AND (branch_id IS NULL OR branch_id <> ${branchId})
+    LIMIT 1
+  `;
+  if (invalidAssignments.length) {
+    throw new Error(`[SEED:E2E:BRANCHES] Clinic member branch assignment mismatch in ${clinicId}`);
+  }
 
   return branchId;
 }

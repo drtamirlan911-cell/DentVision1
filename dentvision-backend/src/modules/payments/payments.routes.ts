@@ -29,12 +29,13 @@ import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billi
 import { canTransitionOrder } from '../../lib/orderStatus.js';
 import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
+import { canAccessClinicPaymentBranch } from '../../lib/clinicPaymentBranchPolicy.js';
 
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
 export const paymentsRouter = Router();
 
 const SERVER_OWNED_PAYMENT_META_KEYS = new Set([
-  'userid', 'clinicid', 'merchantscope', 'clinicpaymode', 'qr',
+  'userid', 'clinicid', 'merchantscope', 'clinicpaymode', 'branchid', 'qr',
 ]);
 
 function clientSafePaymentMeta(value: unknown): Record<string, unknown> {
@@ -47,23 +48,44 @@ function clientSafePaymentMeta(value: unknown): Record<string, unknown> {
   );
 }
 
-async function medicalLabOrderAmountMinor(
+type MedicalLabOrderContext = {
+  clinicId: string;
+  labId: string;
+  branchId: string | null;
+};
+
+/**
+ * Load only the minimum order ownership/context fields needed for authorization.
+ * Do not read test prices or payment amounts until the caller is authorized for
+ * the order's active clinic/branch.
+ */
+async function medicalLabOrderContext(
   orderId: string,
   db: Prisma.TransactionClient | typeof prisma = prisma,
-): Promise<{ clinicId: string; labId: string; amountMinor: bigint; branchId: string | null } | null> {
+): Promise<MedicalLabOrderContext | null> {
   const orders = await db.$queryRawUnsafe<Array<{ clinicId: string; labId: string | null; branchId: string | null }>>(
-    `SELECT "clinicId", "labId", (SELECT "branchId" FROM "patients" p WHERE p."id"=o."patientId") AS "branchId" FROM "medical_lab_orders" o WHERE o."id"=$1 LIMIT 1`,
+    `SELECT "clinicId", "labId", (SELECT "branchId" FROM "patients" p WHERE p."id"=o."patientId" AND p."clinicId"=o."clinicId" AND p."deletedAt" IS NULL) AS "branchId" FROM "medical_lab_orders" o WHERE o."id"=$1 LIMIT 1`,
     orderId,
   );
   const order = orders[0];
   if (!order?.clinicId || !order.labId) return null;
+  return { clinicId: order.clinicId, labId: order.labId, branchId: order.branchId };
+}
+
+async function medicalLabOrderAmountMinor(
+  orderId: string,
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+  authorizedOrder?: MedicalLabOrderContext,
+): Promise<(MedicalLabOrderContext & { amountMinor: bigint }) | null> {
+  const order = authorizedOrder ?? await medicalLabOrderContext(orderId, db);
+  if (!order) return null;
   const rows = await db.$queryRawUnsafe<Array<{ priceMinor: bigint | number | string | null; price: unknown }>>(
     `SELECT ot."priceMinor" AS "priceMinor", lt."price" AS "price" FROM "medical_lab_order_tests" ot LEFT JOIN "laboratory_tests" lt ON lt."id"=ot."testId" WHERE ot."orderId"=$1`,
     orderId,
   );
   let amountMinor = 0n;
   for (const row of rows) amountMinor += row.priceMinor != null ? BigInt(row.priceMinor) : tengeToMinor(Number(row.price ?? 0) || 0);
-  return { clinicId: order.clinicId, labId: order.labId, amountMinor, branchId: order.branchId };
+  return { ...order, amountMinor };
 }
 
 async function settleMedicalLabOrderPayment(
@@ -494,6 +516,47 @@ async function canManageClinicBillingMutation(user: AuthRequest['user'], clinicI
   return permissionsSatisfy(new Set(permissions), 'billing.manage');
 }
 
+async function assertClinicPaymentBranchAccess(
+  req: AuthRequest,
+  payment: { meta: unknown; refType: string | null; refId: string | null },
+  clinicId: string,
+): Promise<boolean> {
+  const role = req.user?.role;
+  if (role === 'SUPERADMIN') return true;
+  const activeBranchIds = req.user?.branchIds ?? [];
+  const meta = (payment.meta || {}) as { branchId?: string };
+  try {
+    if (payment.refType === 'appointment' && payment.refId) {
+      const appointment = await prisma.appointment.findFirst({
+        where: { id: payment.refId, clinicId, branchId: { in: activeBranchIds } },
+        select: { branchId: true },
+      });
+      // An unresolved or archived canonical reference must not fall back to
+      // stale metadata from when the payment was first created.
+      return canAccessClinicPaymentBranch({ role, activeBranchIds, referenceBranchId: appointment?.branchId ?? null });
+    }
+    if (payment.refType === 'crm_invoice' && payment.refId) {
+      const invoice = await prisma.invoice.findFirst({
+        where: {
+          id: payment.refId,
+          clinicId,
+          deletedAt: null,
+          patient: { branchId: { in: activeBranchIds } },
+        },
+        select: { patient: { select: { branchId: true } } },
+      });
+      return canAccessClinicPaymentBranch({ role, activeBranchIds, referenceBranchId: invoice?.patient?.branchId ?? null });
+    }
+    return canAccessClinicPaymentBranch({
+      role,
+      activeBranchIds,
+      persistedBranchId: meta.branchId ?? null,
+    });
+  } catch {
+    return false;
+  }
+}
+
 async function assertPaymentOwner(
   req: AuthRequest,
   payment: { provider: string; meta: unknown; refType: string | null; refId: string | null },
@@ -510,13 +573,31 @@ async function assertPaymentOwner(
   if (clinicScopedPayment) {
     const clinicId = clinicPaymentScope(payment);
     if (!clinicId) return false;
-    return canManageClinicBillingMutation(req.user!, clinicId);
+    if (!(await canManageClinicBillingMutation(req.user!, clinicId))) return false;
+    return assertClinicPaymentBranchAccess(req, payment, clinicId);
   }
 
   // Orders are canonical ownership records. Historical payment metadata was
   // client-writable before the metadata hardening, so it must never override an
   // order's actual owner when reading, confirming, refunding, or replaying a
   // payment. Fail closed if the referenced order is missing or DB lookup fails.
+  if (payment.refType === 'medical_lab_order') {
+    if (!payment.refId) return false;
+    if (req.user?.role === 'SUPERADMIN') return true;
+    if (!meta.userId || meta.userId !== req.user!.id) return false;
+    try {
+      const order = await medicalLabOrderContext(payment.refId);
+      return Boolean(
+        order &&
+        order.clinicId === req.user?.clinicId &&
+        order.branchId &&
+        (req.user?.branchIds ?? []).includes(order.branchId),
+      );
+    } catch {
+      return false;
+    }
+  }
+
   if (payment.refType === 'order' || payment.refType === 'shop_order') {
     if (!payment.refId) return false;
     try {
@@ -711,9 +792,19 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     }
 
     if (refType === 'medical_lab_order' && refId) {
-      const medicalOrder = await medicalLabOrderAmountMinor(refId);
+      const medicalOrderContext = await medicalLabOrderContext(refId);
+      if (!medicalOrderContext) return res.status(404).json({ ok: false, error: 'Медицинский лабораторный заказ не найден или не назначен лаборатории' } satisfies ApiResponse);
+      if (!(await assertClinicOrgAccess(req.user!, medicalOrderContext.clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к этому медицинскому заказу' } satisfies ApiResponse);
+      if (req.user?.role !== 'SUPERADMIN' && (
+        req.user?.clinicId !== medicalOrderContext.clinicId ||
+        !medicalOrderContext.branchId ||
+        !(req.user?.branchIds ?? []).includes(medicalOrderContext.branchId)
+      )) {
+        return res.status(403).json({ ok: false, error: 'Нет доступа к активному филиалу медицинского заказа' } satisfies ApiResponse);
+      }
+      // Price rows are read only after the active clinic/branch boundary passes.
+      const medicalOrder = await medicalLabOrderAmountMinor(refId, prisma, medicalOrderContext);
       if (!medicalOrder) return res.status(404).json({ ok: false, error: 'Медицинский лабораторный заказ не найден или не назначен лаборатории' } satisfies ApiResponse);
-      if (!(await assertClinicOrgAccess(req.user!, medicalOrder.clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к этому медицинскому заказу' } satisfies ApiResponse);
       if (medicalOrder.amountMinor <= 0n) return res.status(400).json({ ok: false, error: 'В медицинском заказе отсутствуют оплачиваемые анализы' } satisfies ApiResponse);
       if (medicalOrder.amountMinor !== minor) return res.status(409).json({ ok: false, error: `Сумма не совпадает с медицинским заказом: ожидалось ${medicalOrder.amountMinor}, получено ${minor}` } satisfies ApiResponse);
     }
@@ -788,7 +879,13 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       }
     }
 
-    const clinicId = String(metaObj.clinicId || req.body?.clinicId || '');
+    const requestedClinicId = String(metaObj.clinicId || req.body?.clinicId || '');
+    // Clinic cashier branchIds come from the authenticated active clinic
+    // context. Do not let client metadata switch the clinic while retaining a
+    // different clinic's branch allow-list.
+    const clinicId = req.user?.role === 'SUPERADMIN'
+      ? requestedClinicId
+      : String(req.user?.clinicId || '');
     // Platform-owned references always use the platform merchant. A client
     // cannot reroute SaaS, Academy, Shop or medical-lab payments by setting
     // domain=crm, clinicId or merchantScope in the request.
@@ -799,8 +896,13 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     const isClinicCashier = !platformRefTypes.has(String(refType || '')) &&
       (domain === 'crm' || refType === 'appointment' || refType === 'crm_invoice');
 
+    let trustedClinicBranchId: string | null = null;
+
     // CRM cashier → clinic's own Kaspi/bank (never platform merchant).
     if (isClinicCashier) {
+      if (req.user?.role !== 'SUPERADMIN' && requestedClinicId && requestedClinicId !== clinicId) {
+        return res.status(403).json({ ok: false, error: 'Кассовая операция не соответствует активной клинике' } satisfies ApiResponse);
+      }
       if (!clinicId) {
         return res.status(400).json({
           ok: false,
@@ -816,26 +918,47 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
 
       // A referenced clinical object must belong to this exact clinic. A valid
       // cashier role alone must not allow cross-clinic payment via a substituted refId.
+      const activeBranchIds = req.user?.branchIds ?? [];
+      if (req.user?.role !== 'SUPERADMIN' && activeBranchIds.length === 0) {
+        return res.status(403).json({ ok: false, error: 'Нет активных филиалов для кассовой операции' } satisfies ApiResponse);
+      }
+      const selectedBranchId = [req.user?.branchId, req.user?.assignedBranchId]
+        .find((id): id is string => Boolean(id && activeBranchIds.includes(id)));
+      trustedClinicBranchId = selectedBranchId ?? (activeBranchIds.length === 1 ? activeBranchIds[0] : null);
+
+      // A referenced clinical object must belong to this exact clinic and an
+      // active branch visible to the caller.
       if (refType === 'appointment' && refId) {
         const appointment = await prisma.appointment.findFirst({
-          where: { id: String(refId), clinicId },
-          select: { id: true, clinicId: true },
+          where: {
+            id: String(refId),
+            clinicId,
+            ...(req.user?.role === 'SUPERADMIN' ? {} : { branchId: { in: activeBranchIds } }),
+          },
+          select: { id: true, clinicId: true, branchId: true },
         });
         if (!appointment) {
-          return res.status(404).json({ ok: false, error: 'Приём не найден в выбранной клинике' } satisfies ApiResponse);
+          return res.status(404).json({ ok: false, error: 'Приём не найден в выбранном активном филиале' } satisfies ApiResponse);
         }
+        trustedClinicBranchId = appointment.branchId;
       }
 
       // Invoice balances are stored in whole KZT, payments in minor units.
       // Permit partial payments, but never collect above the canonical balance.
       if ((refType === 'crm_invoice' || (!refType && domain === 'crm')) && refId) {
         const invoice = await prisma.invoice.findFirst({
-          where: { id: String(refId), clinicId, deletedAt: null },
-          select: { id: true, clinicId: true, amount: true, paidAmount: true, status: true },
+          where: {
+            id: String(refId),
+            clinicId,
+            deletedAt: null,
+            ...(req.user?.role === 'SUPERADMIN' ? {} : { patient: { branchId: { in: activeBranchIds } } }),
+          },
+          select: { id: true, clinicId: true, amount: true, paidAmount: true, status: true, patient: { select: { branchId: true } } },
         });
         if (!invoice) {
           return res.status(404).json({ ok: false, error: 'Счёт не найден в выбранной клинике' } satisfies ApiResponse);
         }
+        trustedClinicBranchId = invoice.patient?.branchId ?? null;
         const outstandingTenge = Math.max(0, Number(invoice.amount) - Number(invoice.paidAmount || 0));
         const outstandingMinor = tengeToMinor(outstandingTenge);
         if (invoice.status === 'paid' || outstandingMinor <= 0n) {
@@ -847,6 +970,11 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         if (minor > outstandingMinor) {
           return res.status(409).json({ ok: false, error: 'Сумма превышает остаток по счёту' } satisfies ApiResponse);
         }
+      }
+
+      if (req.user?.role !== 'SUPERADMIN' &&
+        (!trustedClinicBranchId || !activeBranchIds.includes(trustedClinicBranchId))) {
+        return res.status(403).json({ ok: false, error: 'Выберите активный филиал кассы' } satisfies ApiResponse);
       }
 
       if (!(await reserveForPayment())) return;
@@ -877,6 +1005,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
             clinicId,
             merchantScope: 'clinic',
             clinicPayMode: created.mode,
+            branchId: trustedClinicBranchId,
           },
         },
       });

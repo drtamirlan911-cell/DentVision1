@@ -10,16 +10,37 @@ export type FinanceBranchContext = {
 
 const ORGANIZATION_ROLES = new Set(['OWNER', 'ADMIN', 'ACCOUNTANT']);
 
+export function financeAllowedBranchIds(role: string | null | undefined, branchIds: readonly string[] | null | undefined): string[] | null {
+  if (String(role || '').toUpperCase() === 'SUPERADMIN') return null;
+  return [...new Set((branchIds ?? []).filter((id): id is string => typeof id === 'string' && id.length > 0))];
+}
+
+/** Patient-linked clinic invoices follow the patient's active operational branch. */
+export function financeInvoicePatientWhere(role: string | null | undefined, branchIds: readonly string[] | null | undefined): Record<string, unknown> {
+  const allowed = financeAllowedBranchIds(role, branchIds);
+  return allowed === null ? {} : { patient: { branchId: { in: allowed } } };
+}
+
+export function financePatientBranchWhere(role: string | null | undefined, branchIds: readonly string[] | null | undefined): Record<string, unknown> {
+  const allowed = financeAllowedBranchIds(role, branchIds);
+  return allowed === null ? {} : { branchId: { in: allowed } };
+}
+
+export function financeBranchIdWhere(role: string | null | undefined, branchIds: readonly string[] | null | undefined): Record<string, unknown> {
+  const allowed = financeAllowedBranchIds(role, branchIds);
+  return allowed === null ? {} : { branchId: { in: allowed } };
+}
+
 /** Resolve the financial visibility boundary before invoices/expenses are queried. */
 export async function resolveFinanceBranchContext(
   userId: string,
   clinicId: string,
   role: string,
 ): Promise<FinanceBranchContext> {
-  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null; role: string | null }>>`
-    SELECT branch_id, role
-    FROM clinic_members
-    WHERE "userId" = ${userId} AND "clinicId" = ${clinicId}
+  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null; role: string | null; branch_active: boolean }>>`
+    SELECT cm."branch_id", cm."role", CASE WHEN cm."branch_id" IS NULL THEN true ELSE COALESCE(b."active", false) END AS branch_active
+    FROM "clinic_members" cm LEFT JOIN "branches" b ON b."id" = cm."branch_id"
+    WHERE cm."userId" = ${userId} AND cm."clinicId" = ${clinicId}
     LIMIT 1
   `;
 
@@ -29,7 +50,7 @@ export async function resolveFinanceBranchContext(
     return { clinicId, role, organizationWide: false, branchId: null, branchIds: [] };
   }
 
-  const branchId = membership[0].branch_id ?? null;
+  const branchId = membership[0].branch_active ? (membership[0].branch_id ?? null) : null;
 
   if (ORGANIZATION_ROLES.has(role)) {
     const branches = await prisma.$queryRaw<Array<{ id: string }>>`

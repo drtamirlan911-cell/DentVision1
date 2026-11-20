@@ -60,7 +60,7 @@ export function isDentalLabTransitionAllowed(from: string, to: string): boolean 
 
 function branchScopedLabOrder(req: AuthRequest): Record<string, unknown> {
   const role = String(req.user?.role || '').toUpperCase();
-  if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {};
+  if (role === 'SUPERADMIN') return {};
   const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
   return branchIds.length > 0
     ? { patient: { branchId: { in: branchIds } } }
@@ -171,7 +171,7 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
     }
 
     const role = String(req.user?.role || '').toUpperCase();
-    const branchIds = ['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role) ? null : (req.user?.branchIds ?? []).filter(Boolean);
+    const branchIds = role === 'SUPERADMIN' ? null : (req.user?.branchIds ?? []).filter(Boolean);
     const writeBody = { ...body, status: id ? body.status : 'pending', laboratoryId: undefined, technicianId: undefined };
     let order: any;
 

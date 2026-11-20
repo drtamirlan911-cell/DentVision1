@@ -5,8 +5,10 @@ import { resolve } from 'node:path';
 describe('medical lab branch isolation contract', () => {
   const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/lab/medicalLab.routes.ts'), 'utf8');
 
-  it('checks branch membership for clinic medical-lab orders', () => {
+  it('checks branch membership for clinic medical-lab orders, including OWNER/ADMIN', () => {
     expect(source).toContain('user?.branchIds ?? []');
+    expect(source).toContain("if (role !== 'SUPERADMIN')");
+    expect(source).not.toContain("if (['OWNER', 'ADMIN'].includes(role)) return true");
     expect(source).toContain('o."clinicId" = $1');
     expect(source).not.toContain('o."clinicId" = ${args.length}');
     expect(source).toContain('o."labId" = $1');
@@ -26,12 +28,16 @@ describe('medical lab branch isolation contract', () => {
   });
 
 
-  it('uses the canonical Clinic.id → Organization.id resolver for clinic-scoped access', () => {
+  it('requires the active clinic context and branch allow-list for clinic-originated order reads', () => {
+    const start = source.indexOf('async function canAccessOrder');
+    const end = source.indexOf('async function recordEvent', start);
+    const policy = source.slice(start, end);
+    expect(policy).toContain('order.clinicId !== user?.clinicId');
+    expect(policy).toContain('user?.branchIds ?? []');
+    expect(policy).toContain('branchIds.length === 0');
+    expect(policy).not.toContain('assertClinicOrgAccess');
     expect(source).toContain("import { assertClinicOrgAccess } from '../../lib/orgContext.js';");
-    expect(source).toContain('assertClinicOrgAccess(user!, order.clinicId)');
     expect(source).toContain('assertClinicOrgAccess(req.user!, clinicId)');
-    expect(source).not.toContain('assertOrgAccess(user!, order.clinicId)');
-    expect(source).not.toContain('assertOrgAccess(req.user!, clinicId)');
   });
 
   it('resolves laboratory scope from the original organization entity id', () => {

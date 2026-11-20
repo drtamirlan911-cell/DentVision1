@@ -14,7 +14,7 @@ function branchScopedPatientFilter(req: AuthRequest): { clinicId: string; patien
   const clinicId = effectiveClinicId(req)
   const role = String(req.user?.role || '').toUpperCase()
   if (!clinicId) return { clinicId: '' }
-  if (['SUPERADMIN', 'OWNER', 'ADMIN', 'ACCOUNTANT'].includes(role)) return { clinicId }
+  if (role === 'SUPERADMIN') return { clinicId }
   const branchIds = (req.user?.branchIds ?? []).filter(Boolean)
   return branchIds.length > 0 ? { clinicId, patient: { branchId: { in: branchIds } } } : { clinicId, patient: { branchId: { in: ['__NO_BRANCH_ACCESS__'] } } }
 }
