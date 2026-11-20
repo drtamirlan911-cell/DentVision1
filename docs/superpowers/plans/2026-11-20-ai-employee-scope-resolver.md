@@ -25,7 +25,7 @@ Implement the first safe prerequisite for an ecosystem-wide AI Employee queue: a
 - forged branch claim, stale/revoked PersonRole and BranchMember denial;
 - ambiguity denial for branch-scoped members without a single selected branch;
 - cross-organization branch exclusion;
-- legacy clinic compatibility without inventing Organization IDs;
+- canonical clinic role aliases resolved through the shared PERSON_ROLE_MAP, plus pre-canonical clinic compatibility without inventing Organization IDs;
 - missing membership and platform/guest denial;
 - exact organization and role supplied to permission resolution.
 

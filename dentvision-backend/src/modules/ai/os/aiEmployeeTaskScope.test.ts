@@ -229,6 +229,50 @@ describe('AI Employee active task scope resolver', () => {
     });
   });
 
+  it('accepts canonical clinic roles through the same PERSON_ROLE_MAP used by clinic IAM', async () => {
+    resolveAccess.mockResolvedValueOnce({
+      role: 'ADMIN',
+      clinicId: 'clinic-1',
+      organizationId: 'org-1',
+      organizationType: 'CLINIC',
+      organizationOriginalId: 'clinic-1',
+      allowed: new Set<string>(),
+      employee: { role: 'ADMIN', title: 'Admin', autonomy: 'suggest_only' },
+    });
+    organizationFindFirst.mockResolvedValueOnce({
+      id: 'org-1',
+      type: 'CLINIC',
+      originalType: 'Clinic',
+      originalId: 'clinic-1',
+      archivedAt: null,
+    });
+    personFindFirst.mockResolvedValueOnce({
+      id: 'person-1',
+      personType: 'STAFF',
+      originalId: null,
+      personRoles: [{ role: { key: 'org_admin' } }],
+    });
+    branchFindMany.mockResolvedValueOnce([{ id: 'branch-a' }, { id: 'branch-b' }]);
+
+    const scope = await resolveAiEmployeeTaskScope(user({
+      clinicId: 'clinic-1',
+      organizationId: 'org-1',
+      organizationType: 'CLINIC',
+    }));
+
+    expect(scope).toMatchObject({
+      scopeType: 'CLINIC',
+      scopeId: 'clinic-1',
+      organizationId: 'org-1',
+      clinicId: 'clinic-1',
+      branchId: null,
+      roleKey: 'ADMIN',
+      roleScope: 'ORGANIZATION',
+      allowedBranchIds: ['branch-a', 'branch-b'],
+    });
+    expect(resolvePermissions).toHaveBeenCalledWith('user-1', 'org-1', 'ADMIN');
+  });
+
   it('preserves pre-canonical clinic compatibility without fabricating an Organization id', async () => {
     resolveAccess.mockResolvedValueOnce({
       role: 'DOCTOR',
