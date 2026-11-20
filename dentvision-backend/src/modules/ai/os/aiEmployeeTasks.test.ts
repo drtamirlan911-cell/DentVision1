@@ -16,7 +16,9 @@ interface CapturedSql {
 }
 
 function statement(index = 0): CapturedSql {
-  return queryRaw.mock.calls[index][0] as CapturedSql;
+  const call = queryRaw.mock.calls[index];
+  if (!call) throw new Error(`Missing captured SQL statement at index ${index}`);
+  return call[0] as CapturedSql;
 }
 
 describe('AI Employee task SQL matches its durable table schema', () => {
@@ -38,8 +40,8 @@ describe('AI Employee task SQL matches its durable table schema', () => {
     const query = statement();
     expect(query.sql).toMatch(/INSERT INTO ai_employee_tasks/i);
     expect(query.sql).toMatch(/VALUES\s*\(CAST\(\? AS uuid\),\s*\?,\s*\?,/i);
-    expect(query.sql).not.toMatch(/CAST\(\? AS uuid\).*clinic_id/i);
-    expect(query.sql).not.toMatch(/CAST\(\? AS uuid\).*source_event_id/i);
+    // Only the UUID primary key is cast; tenant, user and event columns are TEXT.
+    expect(query.sql.match(/CAST\(\? AS uuid\)/gi) || []).toHaveLength(1);
     expect(query.values).toContain('clinic-text-id');
     expect(query.values).toContain('user-text-id');
     expect(query.values).toContain('event-text-id');
