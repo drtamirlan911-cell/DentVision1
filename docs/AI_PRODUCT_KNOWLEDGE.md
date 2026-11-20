@@ -154,6 +154,8 @@ Jarvis может объяснить назначение этих раздел�
 
 Пользователь общается с одним Jarvis. Реестр AI OS содержит отдельные специализированные профили; оркестратор выбирает применимые к текущей роли и контексту. Название агента не выдаёт ему дополнительных разрешений: набор его инструментов ограничен реестром, а доступ к данным повторно проверяется серверным IAM и governance kernel.
 
+В активном реестре 27 агентов: Patient Agent; Treatment Planner; Reception Agent; Dental Agent; Radiology Agent; Endodontic Agent; Orthopedic Agent; Orthodontic Agent; Laboratory Agent; Financial Agent; Analytics Agent; Marketing Agent; CEO Agent; Shop Agent; Inventory Agent; Buyer Agent; Supplier Agent; School Agent; Student Coach; Lecturer Agent; Guest Concierge; Diagnostics Workspace Agent; Employer Workspace Agent; Diagnostic Center Agent; Medical Laboratory Agent; Dental Laboratory Agent; Platform Admin Agent. Фактический доступ к каждому определяется активной ролью и серверными разрешениями.
+
 ### Клиника и клиническая помощь
 
 - **Patient Agent:** поиск пациента, чтение доступной карточки и истории визитов для персонала. Это не пациентский портал: пациентский ассистент использует отдельный изолированный реестр инструментов.
