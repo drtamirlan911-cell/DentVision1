@@ -457,8 +457,11 @@ medicalLabLifecycleRouter.post('/orders/:id/quality-control', async (req: AuthRe
       });
     }
 
-    const decision = String(req.body?.decision || '').trim().toLowerCase();
-    if (!['passed', 'failed'].includes(decision)) return res.status(400).json({ ok: false, error: 'decision должен быть passed или failed' });
+    const decisionValue = String(req.body?.decision || '').trim().toLowerCase();
+    if (decisionValue !== 'passed' && decisionValue !== 'failed') {
+      return res.status(400).json({ ok: false, error: 'decision должен быть passed или failed' });
+    }
+    const decision: 'passed' | 'failed' = decisionValue;
     const qualityNote = String(req.body?.note || '').trim();
     if (decision === 'failed' && !qualityNote) {
       return res.status(400).json({ ok: false, error: 'При отклонении QC необходимо указать причину', code: 'MEDICAL_LAB_QC_REASON_REQUIRED' });
@@ -530,7 +533,7 @@ medicalLabLifecycleRouter.post('/orders/:id/verify', async (req: AuthRequest, re
     const validation = validateMedicalLabResultSet(tests, tests.map((test) => ({
       id: test.id, result: test.result, resultText: test.resultText,
     })));
-    if (!validation.ok) return res.status(409).json({ ok: false, error: validation.message, code: 'MEDICAL_LAB_RESULTS_INCOMPLETE' });
+    if (validation.ok === false) return res.status(409).json({ ok: false, error: validation.message, code: 'MEDICAL_LAB_RESULTS_INCOMPLETE' });
 
     const qualityControl = jsonObject(jsonObject(order.metadata).qualityControl);
     if (qualityControl.decision !== 'passed' || !qualityControl.performedByUserId) {
