@@ -1,3 +1,15 @@
+## Standing cabinet quality directive — 2026-11-20
+
+- **Persistent user requirement:** every existing DentVision cabinet must be easy for its intended role, complete across its real domain workflow, safe across organization/branch boundaries and usable on mobile. This is a continuing product priority, not a one-time feature request.
+- **Normative parent:** `docs/DENTVISION_MASTER_SPEC.md` v5.0. The practical acceptance contract is `docs/PRODUCT/CABINET_UX_AND_WORKFLOW_STANDARD.md`. This contract covers diagnostic center/RIS-PACS, medical LIS, dental-lab production/CAD-CAM/QC/delivery, marketplace/supplier commerce, Academy/cohorts/assessment/certificates, employer/hiring/contract, and every other existing cabinet (clinic, doctor, reception, patient, finance, BI, community, platform admin and AI).
+- **Audit rule:** evaluate a complete role journey — entry → context → permission → Command Center → queue → entity detail → happy path → exception path → persistence → notification/handoff → finance/document/result → audit → mobile. A route, page, dashboard tile or Prisma model is inventory evidence only, never completion proof.
+- **Current-source classification recorded:** Diagnostic Center PARTIAL; Medical Laboratory PARTIAL; Dental Laboratory PARTIAL; Marketplace/Supplier PARTIAL; Academy/Lecturer PARTIAL; Student OS and expanded Career OS are candidate-branch implementation; remaining existing cabinets require the same role-by-role journey audit. See the table in the cabinet standard. Do not claim a production-ready RIS/PACS, LIS, delivery/payout, accredited credential or EDS employment process without external and exact-head evidence.
+- **Implementation sequence:** P0 identity/context, RBAC, tenant isolation and audit; P1 role-first Command Center, queues, detail, notifications and mobile; P2 domain integrations and operational/economic closure; P3 AI optimization and personalization. Do not polish around missing P0/P1 controls.
+- **Design constraint:** progressive disclosure, task-first screens, contextual next actions, one canonical record per business object, explicit statuses and complete event histories. Avoid dashboard clutter, duplicate menus, redundant forms and cross-cabinet navigation for ordinary work.
+- **Before starting any new cabinet task:** re-read the Master Spec, current Execution Plan, this standard and relevant domain execution contract; inspect existing page/API/schema/tests before changing implementation.
+
+---
+
 ## Partner workspace UX parity — 2026-11-20 (active remediation)
 
 - **Audited source baseline:** `main` at `758ffe7f39112848df701a8b988f44af03845597`; normative product contract: `docs/DENTVISION_MASTER_SPEC.md` v5.0.
