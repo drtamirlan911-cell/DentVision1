@@ -103,4 +103,19 @@ describe('AI Employee task SQL matches its durable table schema', () => {
     expect(readback.values).toContain('clinic-text-id');
   });
 
+  it('includes unassigned tasks only when requested for a role queue', async () => {
+    await listAiEmployeeTasks({
+      clinicId: 'clinic-text-id',
+      userId: 'doctor-user-id',
+      role: 'DOCTOR',
+      includeUnassigned: true,
+    });
+
+    const query = statement();
+    expect(query.sql).toMatch(/user_id\\s*=\\s*\\?/i);
+    expect(query.sql).toMatch(/\\?\\s*=\\s*TRUE\\s+AND\\s+user_id\\s+IS\\s+NULL/i);
+    expect(query.values).toContain('doctor-user-id');
+    expect(query.values).toContain(true);
+    expect(query.values).toContain('DOCTOR');
+  });
 });
