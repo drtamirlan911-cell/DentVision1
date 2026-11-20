@@ -287,6 +287,18 @@ describe('AI context error logging', () => {
   });
 });
 
+describe('AI proactive context error logging', () => {
+  it('logs only the safe classification for clinic-load signal failures', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/ai/core/digitalTwin.ts'),
+      'utf8',
+    );
+
+    expect(source).toContain("console.warn('[proactive] clinic load signals failed', safeErrorKind(error));");
+    expect(source).not.toContain("console.warn('[proactive] clinic load signals failed', e)");
+  });
+});
+
 describe('AI partner workspace proactive context', () => {
   it('keeps partner workspace explicit and never guesses a clinic when no active clinic is supplied', async () => {
     const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/ai/core/digitalTwin.ts'), 'utf8');
