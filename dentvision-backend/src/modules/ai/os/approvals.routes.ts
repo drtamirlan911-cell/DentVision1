@@ -67,15 +67,34 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
 /** GET /api/ai/approvals/tasks — durable AI Employee work queue for the workspace. */
 router.get('/tasks', authenticate, async (req: AuthRequest, res) => {
   try {
-    if (!req.user?.id || !req.user.clinicId) {
-      return res.status(401).json({ ok: false, error: 'Требуется авторизация и клиника' });
+    if (!req.user?.id) {
+      return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
+    }
+    // Resolve the current membership/role from the database. JWT role and
+    // clinic claims alone are not an authorization source for the task queue.
+    const access = await resolveAiToolAccess({
+      userId: req.user.id,
+      clinicId: req.user.clinicId,
+      organizationId: req.user.organizationId,
+      organizationType: req.user.organizationType,
+      supplierId: req.user.supplierId,
+      lecturerId: req.user.lecturerId,
+      isGuest: req.user.isGuest,
+    });
+    if (!access.clinicId) {
+      return res.status(403).json({ ok: false, error: 'Рабочая очередь доступна только в подтверждённом контексте клиники' });
     }
     const rawLimit = Number(req.query.limit || 30);
     const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 100) : 30;
+    const workspaceRoles = new Set(['OWNER', 'SUPERADMIN', 'MANAGER', 'ADMIN']);
+    const canReadWorkspaceQueue = workspaceRoles.has(String(access.role).toUpperCase());
     const tasks = await listAiEmployeeTasks({
-      clinicId: req.user.clinicId,
-      userId: req.user.id,
-      role: req.user.role,
+      clinicId: access.clinicId,
+      ...(canReadWorkspaceQueue ? {} : {
+        userId: req.user.id,
+        includeUnassigned: true,
+        role: access.role,
+      }),
       status: typeof req.query.taskStatus === 'string' ? req.query.taskStatus as any : null,
       limit,
     });
@@ -89,8 +108,20 @@ router.get('/tasks', authenticate, async (req: AuthRequest, res) => {
 /** POST /api/ai/approvals/tasks/:id/transition — lifecycle control for the durable task ledger. */
 router.post('/tasks/:id/transition', authenticate, async (req: AuthRequest, res) => {
   try {
-    if (!req.user?.id || !req.user.clinicId) {
-      return res.status(401).json({ ok: false, error: 'Требуется авторизация и клиника' });
+    if (!req.user?.id) {
+      return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
+    }
+    const access = await resolveAiToolAccess({
+      userId: req.user.id,
+      clinicId: req.user.clinicId,
+      organizationId: req.user.organizationId,
+      organizationType: req.user.organizationType,
+      supplierId: req.user.supplierId,
+      lecturerId: req.user.lecturerId,
+      isGuest: req.user.isGuest,
+    });
+    if (!access.clinicId) {
+      return res.status(403).json({ ok: false, error: 'Рабочая очередь доступна только в подтверждённом контексте клиники' });
     }
     const status = String(req.body?.status || '');
     const allowedStatuses = new Set(['observing', 'proposed', 'awaiting_approval', 'executing', 'verified', 'completed', 'failed', 'cancelled']);
@@ -98,19 +129,26 @@ router.post('/tasks/:id/transition', authenticate, async (req: AuthRequest, res)
       return res.status(400).json({ ok: false, error: 'Недопустимый статус задачи' });
     }
 
-    // Only workspace owners/managers/superadmins may force a lifecycle transition
-    // on behalf of an employee. Normal users may only resolve their own queue.
+    // Only verified workspace owners/managers/superadmins may transition any
+    // task in the clinic. Other roles may resolve only their own or unassigned
+    // tasks in their verified role queue.
     const privileged = new Set(['OWNER', 'SUPERADMIN', 'MANAGER', 'ADMIN']);
-    if (!privileged.has(String(req.user.role || '').toUpperCase())) {
-      const own = await listAiEmployeeTasks({ clinicId: req.user.clinicId, userId: req.user.id, limit: 100 });
-      if (!own.some((task) => task.id === String(req.params.id))) {
+    if (!privileged.has(String(access.role || '').toUpperCase())) {
+      const ownRoleQueue = await listAiEmployeeTasks({
+        clinicId: access.clinicId,
+        userId: req.user.id,
+        includeUnassigned: true,
+        role: access.role,
+        limit: 100,
+      });
+      if (!ownRoleQueue.some((task) => task.id === String(req.params.id))) {
         return res.status(403).json({ ok: false, error: 'Недостаточно прав для изменения этой задачи' });
       }
     }
 
     const task = await transitionAiEmployeeTask({
       id: String(req.params.id),
-      clinicId: req.user.clinicId,
+      clinicId: access.clinicId,
       status: status as any,
       result: req.body?.result,
       error: typeof req.body?.error === 'string' ? req.body.error : undefined,
