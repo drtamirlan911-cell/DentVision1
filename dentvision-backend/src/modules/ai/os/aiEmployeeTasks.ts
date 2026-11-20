@@ -147,12 +147,17 @@ export async function transitionAiEmployeeTask(input: {
   }
 
   const result = input.result == null ? null : JSON.stringify(input.result);
+  // The request may contain exception text copied from clinical/provider errors.
+  // Task rows are not an exception vault: retain the failure signal, not the raw details.
+  const safeError = typeof input.error === 'string' && input.error.trim()
+    ? 'Task failed; details omitted'
+    : null;
   const completed = ['completed', 'failed', 'cancelled'].includes(input.status);
   const rows = await prisma.$queryRaw<AiEmployeeTask[]>(Prisma.sql`
     UPDATE ai_employee_tasks
     SET status = ${input.status},
         result = COALESCE(${result}::jsonb, result),
-        error = CASE WHEN ${input.error || null}::text IS NULL THEN error ELSE ${input.error || null} END,
+        error = CASE WHEN ${safeError}::text IS NULL THEN error ELSE ${safeError} END,
         completed_at = CASE WHEN ${completed} THEN NOW() ELSE completed_at END,
         updated_at = NOW()
     WHERE id = CAST(${input.id} AS uuid) AND clinic_id = ${input.clinicId} AND status = ${current}
