@@ -3031,3 +3031,13 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Context source/test commits: `f4f243aa83eec1c6ee383297233d9e768ba5bb72` and `d1d61cd8a01a27bccb42edb38750266a96af56ba`. Proactive digital-twin source/test commits: `d9fc3893e07072ca84ee94b900fbfe44fcbf5c9a` and `e46e7d6bfb415500561fae7760bf0ceac3e3607d`.
 - Code/test checkpoint: `e46e7d6bfb415500561fae7760bf0ceac3e3607d`. Exact-head CI [44713041911](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44713041911) was pending and Quality Gate [44713042000](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44713042000) was in progress when checked. These are not passing results; documentation commits require refreshed exact-head checks.
 - All changes remain on the existing Draft PR #351 branch. Main, production/staging databases, PHI, keys/secrets, payments and deployments were not modified.
+
+
+## 2026-11-20 — Jarvis agent-registry knowledge parity (PR #351)
+
+- Compared `docs/AI_PRODUCT_KNOWLEDGE.md` section 9 with the live `os/registry.ts` definitions. The prior guide named only eight broad persona categories and omitted multiple registered partner, clinical-specialty and workspace agents.
+- Expanded the guide to document every non-disabled registered agent by canonical name, grouped by clinic/clinical work, business operations, marketplace/learning, partner workspaces and platform administration. Descriptions are bounded to the tools each agent actually receives; read-only queues, draft-only workflows, patient-data boundaries and unfinished partner lifecycle steps are stated explicitly.
+- Added a registry-parity regression test to `productKnowledge.test.ts`: it loads `listAgents()` and fails when any non-disabled registered agent name is missing from guide section 9. The test is extensible and does not hard-code the current agent count.
+- Guide commit: `b7f8cc31191a49ad9d86c387765d194a555f65b4`; test alignment commit: `1565dc06478b937596ce610a535dc1d1141bfde5`. Current main remains `da1257fc650f536c76583bdff570906290b92bcd`; PR #351 remains the single Draft candidate.
+- The preceding exact-head CI/Quality Gate attempts were superseded by this source/test update. Fresh exact-head CI, Quality Gate, role/context E2E and Vercel Preview are required; no passing result is claimed from an older SHA.
+- No authorization rule was widened, no agent received additional tools, and no main merge or production/staging operation was performed.
