@@ -15,7 +15,7 @@ import {
   selectUniqueMedicalLabMembershipId,
   type MedicalLabCapability,
 } from './medicalLabAccess.js';
-import { validateMedicalLabResultSet } from './medicalLabResults.js';
+import { resetMedicalLabResultForRework, validateMedicalLabResultSet } from './medicalLabResults.js';
 
 export const medicalLabLifecycleRouter = Router();
 medicalLabLifecycleRouter.use(authenticate);
@@ -346,29 +346,14 @@ medicalLabLifecycleRouter.post('/orders/:id/status', async (req: AuthRequest, re
         );
         const reworkAt = new Date().toISOString();
         for (const test of previousTests) {
-          const previous = jsonObject(test.metadata);
-          const history = Array.isArray(previous.resultHistory) ? previous.resultHistory : [];
-          const hasPreviousResult = Boolean(test.result?.trim() || test.resultText?.trim());
-          const snapshot = hasPreviousResult ? [{
-            result: test.result,
-            resultText: test.resultText,
-            unit: test.unit,
-            referenceRange: test.referenceRange,
-            flag: test.flag,
-            recordedByUserId: previous.resultEnteredByUserId || null,
-            recordedAt: previous.resultEnteredAt || null,
-            archivedAt: reworkAt,
-            archivedByUserId: req.user!.id,
-          }] : [];
-          const metadata = { ...previous, resultHistory: [...history, ...snapshot] };
-          delete metadata.resultEnteredByUserId;
-          delete metadata.resultEnteredAt;
+          const reset = resetMedicalLabResultForRework(test, req.user!.id, reworkAt);
           await tx.$executeRawUnsafe(
             `UPDATE "medical_lab_order_tests"
-               SET "result"=NULL,"resultText"=NULL,"unit"=NULL,"referenceRange"=NULL,"flag"=NULL,
-                   "metadata"=$1::jsonb,"updatedAt"=CURRENT_TIMESTAMP
-             WHERE "id"=$2 AND "orderId"=$3`,
-            JSON.stringify(metadata), test.id, order.id,
+               SET "result"=$1,"resultText"=$2,"unit"=$3,"referenceRange"=$4,"flag"=$5,
+                   "metadata"=$6::jsonb,"updatedAt"=CURRENT_TIMESTAMP
+             WHERE "id"=$7 AND "orderId"=$8`,
+            reset.result, reset.resultText, reset.unit, reset.referenceRange, reset.flag,
+            JSON.stringify(reset.metadata), test.id, order.id,
           );
         }
         changed = await tx.$executeRawUnsafe(
