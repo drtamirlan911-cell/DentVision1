@@ -111,7 +111,7 @@ export interface ResolvedModels {
   embedding: string;
   /** Best available speech-to-text model. */
   transcription: string;
-  /** `env` when an operator pinned the ids, `probe` when they were discovered. */
+  /** `env` when at least one chat tier was explicitly pinned; otherwise `probe`. */
   source: 'env' | 'probe';
   /** True when the probe failed and the ladder floor is standing in. */
   degraded: boolean;

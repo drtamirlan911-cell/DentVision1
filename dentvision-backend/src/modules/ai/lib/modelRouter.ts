@@ -260,7 +260,9 @@ export function pickModel(input: {
       : {
           model: input.visionModel,
           tier: 'full',
-          reasoningEffort: effort,
+          // Vision tasks include clinical/image interpretation: use the
+          // configured deep effort, never the ordinary chat effort.
+          reasoningEffort: deepEffort,
           supportsReasoning: input.visionSupportsReasoning ?? supportsReasoning(input.visionModel),
           maxOutputTokens: 1_200,
           reason: 'required_vision_input',

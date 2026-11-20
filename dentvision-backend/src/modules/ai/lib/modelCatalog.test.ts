@@ -40,7 +40,8 @@ describe('resolveModels — discovery', () => {
 
     expect(models.full).toBe(FULL_TOP);
     expect(models.mini).toBe(MINI_TOP);
-    expect(models.source).toBe('env');
+    // No operator pin was supplied; both chat tiers came from account discovery.
+    expect(models.source).toBe('probe');
     expect(models.degraded).toBe(false);
   });
 
@@ -183,7 +184,9 @@ describe('resolveModels — operator pin', () => {
 
     expect(models.full).toBe('pinned-full');
     expect(models.mini).toBe(MINI_TOP);
-    expect(models.source).toBe('probe');
+    // The full tier is pinned, so the aggregate source is `env`; the unpinned
+    // mini tier is still selected from the provider's live catalogue.
+    expect(models.source).toBe('env');
   });
 });
 

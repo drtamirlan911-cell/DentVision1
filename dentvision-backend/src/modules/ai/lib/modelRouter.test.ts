@@ -191,6 +191,24 @@ describe('pickModel — mandatory vision routing', () => {
     expect(choice.reasoningEffort).toBe('high');
   });
 
+  it('uses the configured deep effort rather than ordinary chat effort for full-tier vision', () => {
+    const choice = pickModel({
+      task: 'orchestrate',
+      text: 'проанализируй снимок',
+      miniModel: 'gpt-6-luna',
+      fullModel: 'gpt-6.2-astra',
+      requiresVision: true,
+      visionModel: 'gpt-6.1-terra',
+      visionTier: 'full',
+      reasoningEffort: 'low',
+      deepReasoningEffort: 'medium',
+      visionSupportsReasoning: true,
+    });
+
+    expect(choice.reasoningEffort).toBe('medium');
+    expect(choice.supportsReasoning).toBe(true);
+  });
+
   it('uses a vision-capable mini when that is the best available vision model', () => {
     const choice = pickModel({
       task: 'orchestrate',
