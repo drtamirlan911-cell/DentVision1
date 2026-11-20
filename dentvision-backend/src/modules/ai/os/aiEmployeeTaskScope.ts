@@ -41,6 +41,7 @@ type ActivePerson = {
   id: string;
   personType: string;
   originalId: string | null;
+  personRoles: Array<{ role: { key: string } }>;
 };
 
 const ORGANIZATION_SCOPE_TYPES: Record<string, ScopeType> = {
@@ -59,7 +60,7 @@ const ORGANIZATION_SCOPE_TYPES: Record<string, ScopeType> = {
  * mirrors branches.routes.ts roleScope() and is intentionally not reused for
  * partner roles that have an explicit definition above.
  */
-function roleScopeFor(roleKey: string, scopeType: ScopeType): RoleScope {
+function roleScopeFor(roleKey: string, scopeType: ScopeType): RoleScope | null {
   const partnerDefinition = PARTNER_ROLE_DEFINITIONS.find(
     (definition) => definition.key.toUpperCase() === roleKey,
   );
@@ -71,8 +72,9 @@ function roleScopeFor(roleKey: string, scopeType: ScopeType): RoleScope {
     if (['DOCTOR', 'ASSISTANT', 'CASHIER', 'RECEPTIONIST'].includes(roleKey)) return 'ASSIGNED';
   }
 
-  // Unknown workspace/role combinations never inherit a broad scope.
-  return 'OWN';
+  // Unknown workspace/role combinations have no queue scope until a
+  // canonical role policy is added and reviewed.
+  return null;
 }
 
 function uniqueIds(rows: Array<{ id: string }>): string[] {
@@ -157,6 +159,9 @@ export async function resolveAiEmployeeTaskScope(user: AuthUser): Promise<AiEmpl
   if (!access || access.role === 'GUEST' || access.role === 'SUPERADMIN') return null;
   if (!access.clinicId && !access.organizationId) return null;
 
+  const roleKey = String(access.role || '').trim().toUpperCase();
+  if (!roleKey) return null;
+
   let organization: ActiveOrganization | null = null;
   let person: ActivePerson | null = null;
 
@@ -171,12 +176,25 @@ export async function resolveAiEmployeeTaskScope(user: AuthUser): Promise<AiEmpl
 
     person = await prisma.person.findFirst({
       where: { userId: user.id, organizationId: organization.id },
-      select: { id: true, personType: true, originalId: true },
+      select: {
+        id: true,
+        personType: true,
+        originalId: true,
+        personRoles: {
+          where: { scopeType: 'organization', scopeId: organization.id },
+          select: { role: { select: { key: true } } },
+        },
+      },
     });
+    // Canonical Organization work requires a current Person row and a current
+    // organization-scoped role (or a role explicitly represented by PersonType).
+    // Legacy supplier/lecturer compatibility must not silently widen task scope.
+    if (!person) return null;
+    const hasCurrentRole = person.personRoles.some(
+      (entry) => String(entry.role.key).toUpperCase() === roleKey,
+    ) || person.personType.toUpperCase() === roleKey;
+    if (!hasCurrentRole) return null;
   }
-
-  const roleKey = String(access.role || '').trim().toUpperCase();
-  if (!roleKey) return null;
 
   const scopeType: ScopeType | null = access.clinicId
     ? 'CLINIC'
@@ -198,6 +216,7 @@ export async function resolveAiEmployeeTaskScope(user: AuthUser): Promise<AiEmpl
   if (!scopeId) return null;
 
   const roleScope = roleScopeFor(roleKey, scopeType);
+  if (!roleScope) return null;
   const tenantId = organizationId || clinicId;
   if (!tenantId) return null;
 
