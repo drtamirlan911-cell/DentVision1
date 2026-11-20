@@ -210,6 +210,55 @@ describe('AI Employee task queue scope', () => {
     expect(listAiEmployeeTasks).not.toHaveBeenCalled();
   });
 
+  it('fails closed for a verified employer organization until organization task scope is implemented', async () => {
+    resolveAiToolAccess.mockResolvedValueOnce({
+      allowed: new Set(),
+      role: 'EMPLOYER_OWNER',
+      clinicId: null,
+      organizationId: 'employer-org-1',
+      organizationType: 'EMPLOYER',
+    });
+    const res = responseHarness();
+
+    await routeHandler('get', '/tasks')({ user: {
+      id: 'employer-user',
+      role: 'OWNER',
+      organizationId: 'employer-org-1',
+      organizationType: 'EMPLOYER',
+      isGuest: false,
+    }, query: {} }, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(listAiEmployeeTasks).not.toHaveBeenCalled();
+  });
+
+  it('fails closed for organization task transitions until organization approval scope is implemented', async () => {
+    resolveAiToolAccess.mockResolvedValueOnce({
+      allowed: new Set(),
+      role: 'EMPLOYER_OWNER',
+      clinicId: null,
+      organizationId: 'employer-org-1',
+      organizationType: 'EMPLOYER',
+    });
+    const res = responseHarness();
+
+    await routeHandler('post', '/tasks/:id/transition')({
+      user: {
+        id: 'employer-user',
+        role: 'OWNER',
+        organizationId: 'employer-org-1',
+        organizationType: 'EMPLOYER',
+        isGuest: false,
+      },
+      params: { id: 'task-in-employer-org' },
+      body: { status: 'completed' },
+    }, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(listAiEmployeeTasks).not.toHaveBeenCalled();
+    expect(transitionAiEmployeeTask).not.toHaveBeenCalled();
+  });
+
   it('allows a doctor to transition an unassigned task only inside their verified role queue', async () => {
     const doctor = { ...caller, role: 'DOCTOR' };
     const task = { id: 'task-doctor-queue', clinicId: 'clinic-1', role: 'DOCTOR', userId: null, status: 'completed' };
