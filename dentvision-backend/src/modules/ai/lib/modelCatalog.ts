@@ -195,7 +195,7 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
       .find((candidate) => candidate !== undefined);
 
     const selectedFull = FULL_LADDER.find((candidate) => candidate.id === envFull) ?? floorOf(FULL_LADDER);
-    const selectedDeep = DEEP_LADDER.find((candidate) => candidate.id === envFull) ?? DEEP_LADDER[0];
+    const selectedDeep = [...DEEP_LADDER, ...FULL_LADDER].find((candidate) => candidate.id === envFull) ?? selectedFull;
     const selectedMini = MINI_LADDER.find((candidate) => candidate.id === envMini) ?? floorOf(MINI_LADDER);
     const fallbackVision = pinnedVision ?? floorOf(FULL_LADDER);
 
@@ -238,19 +238,19 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
         ? [...FULL_LADDER, ...MINI_LADDER].find((candidate) => candidate.id === envFull)
         : full;
       const selectedDeep = envFull
-        ? [...DEEP_LADDER, ...FULL_LADDER].find((candidate) => candidate.id === envFull)
-        : deep;
+        ? [...DEEP_LADDER, ...FULL_LADDER].find((candidate) => candidate.id === envFull) ?? selectedFull
+        : deep ?? full;
       const selectedMini = envMini
         ? [...FULL_LADDER, ...MINI_LADDER].find((candidate) => candidate.id === envMini)
         : mini;
 
       const resolved: ResolvedModels = {
         full: envFull || full?.id || floorOf(FULL_LADDER).id,
-        deep: envFull || deep?.id || DEEP_LADDER[0].id,
+        deep: envFull || deep?.id || full?.id || floorOf(FULL_LADDER).id,
         mini: envMini || mini?.id || floorOf(MINI_LADDER).id,
         vision: visionCandidate?.id ?? null,
         fullSupportsReasoning: selectedFull?.reasoning ?? false,
-        deepSupportsReasoning: selectedDeep?.reasoning ?? false,
+        deepSupportsReasoning: selectedDeep?.reasoning ?? selectedFull?.reasoning ?? false,
         miniSupportsReasoning: selectedMini?.reasoning ?? false,
         visionSupportsReasoning: visionCandidate?.reasoning ?? false,
         embedding:
