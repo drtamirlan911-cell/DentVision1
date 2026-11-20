@@ -213,6 +213,71 @@ test.describe('Partner operational lifecycle', () => {
     const labAccessToken = labPayload.data?.accessToken || labPayload.accessToken;
     expect(labAccessToken).toBeTruthy();
     labOwnerToken = labAccessToken;
+    const labOwnerClaims = JSON.parse(Buffer.from(labOwnerToken.split('.')[1], 'base64url').toString('utf8')) as { organizationId?: string; organizationType?: string };
+    fixtureLabOrganizationId = String(labOwnerClaims.organizationId || '');
+    expect(labOwnerClaims.organizationType).toBe('LABORATORY');
+    expect(fixtureLabOrganizationId).toBeTruthy();
+
+    const createMedicalLabRole = async (label: string, roleKey: string) => {
+      const user = await createTestUser({
+        email: 'medical-lab-' + label + '-' + Date.now() + '@test.dentvision',
+        firstName: 'Medical Lab',
+        lastName: label,
+        role: 'STUDENT' as any,
+      });
+      medicalLabUserIds.push(user.id);
+      const person = await prisma.person.upsert({
+        where: { userId_organizationId: { userId: user.id, organizationId: fixtureLabOrganizationId } },
+        update: { fullName: 'Medical Lab ' + label, personType: 'STAFF', email: user.email },
+        create: {
+          id: randomUUID(), fullName: 'Medical Lab ' + label, personType: 'STAFF',
+          organizationId: fixtureLabOrganizationId, userId: user.id, email: user.email,
+        },
+      });
+      const role = await prisma.role.findUnique({ where: { key: roleKey }, select: { id: true } });
+      expect(role?.id, 'canonical partner role ' + roleKey).toBeTruthy();
+      const scopeKey = 'organization:' + fixtureLabOrganizationId;
+      await prisma.personRole.upsert({
+        where: { personId_roleId_scopeKey: { personId: person.id, roleId: role!.id, scopeKey } },
+        update: { scopeType: 'organization', scopeId: fixtureLabOrganizationId },
+        create: {
+          id: randomUUID(), personId: person.id, roleId: role!.id,
+          scopeType: 'organization', scopeId: fixtureLabOrganizationId, scopeKey,
+        },
+      });
+      await prisma.laboratoryMember.upsert({
+        where: { labId_userId: { labId: fixtureLabId, userId: user.id } },
+        update: { role: 'technician' },
+        create: { id: randomUUID(), labId: fixtureLabId, userId: user.id, role: 'technician' },
+      });
+      const baseToken = await login(api, user.email);
+      const contextsResponse = await api.get(BASE + '/api/iam/me/contexts', { headers: auth(baseToken) });
+      expect(contextsResponse.status()).toBe(200);
+      const contexts = (await contextsResponse.json()).data?.contexts || [];
+      const context = contexts.find((item: any) => item.scopeType === 'LABORATORY' && item.organizationId === fixtureLabOrganizationId);
+      expect(context, 'medical lab context for ' + roleKey).toBeTruthy();
+      const switched = await api.post(BASE + '/api/iam/switch-context', {
+        headers: auth(baseToken),
+        data: { scopeType: 'LABORATORY', scopeId: fixtureLabId },
+      });
+      expect(switched.status()).toBe(200);
+      const token = (await switched.json()).data.accessToken as string;
+      expect(token).toBeTruthy();
+      return { id: user.id, token };
+    };
+
+    const medicalTechnician = await createMedicalLabRole('technician', 'medical_lab_technician');
+    medicalLabTechnicianId = medicalTechnician.id;
+    medicalLabTechnicianToken = medicalTechnician.token;
+    const medicalQuality = await createMedicalLabRole('quality', 'medical_lab_quality');
+    medicalLabQualityId = medicalQuality.id;
+    medicalLabQualityToken = medicalQuality.token;
+    const medicalValidator = await createMedicalLabRole('validator', 'medical_lab_validator');
+    medicalLabValidatorId = medicalValidator.id;
+    medicalLabValidatorToken = medicalValidator.token;
+    const medicalDoctor = await createMedicalLabRole('doctor', 'medical_lab_doctor');
+    medicalLabDoctorId = medicalDoctor.id;
+    medicalLabDoctorToken = medicalDoctor.token;
 
     const dentalLabOwner = await createTestUser({ email: `dental-lab-owner-${Date.now()}@test.dentvision`, firstName: 'Dental Lab', lastName: 'Owner' });
     const dentalLabBaseToken = await login(api, dentalLabOwner.email);
