@@ -442,6 +442,13 @@ jobsRouter.patch('/me/invitations/:id/respond', authenticate, async (req: AuthRe
     const invitation = await prisma.jobInvitation.findFirst({ where: { id: String(req.params.id), candidateUserId: req.user!.id } });
     if (!invitation) return res.status(404).json({ ok: false, error: 'Приглашение не найдено' } satisfies ApiResponse);
     if (invitation.status !== 'pending') return res.status(409).json({ ok: false, error: 'На это приглашение уже ответили', code: 'INVITATION_ALREADY_RESPONDED' } satisfies ApiResponse);
+    if (response === 'accepted' && invitation.vacancyId) {
+      const vacancy = await prisma.jobVacancy.findFirst({
+        where: { id: invitation.vacancyId, kind: 'vacancy', status: 'open' },
+        select: { id: true },
+      });
+      if (!vacancy) return res.status(409).json({ ok: false, error: 'Вакансия из приглашения уже закрыта', code: 'INVITED_VACANCY_CLOSED' } satisfies ApiResponse);
+    }
     if (invitation.expiresAt && invitation.expiresAt <= new Date()) {
       await prisma.jobInvitation.updateMany({ where: { id: invitation.id, status: 'pending' }, data: { status: 'expired' } });
       return res.status(410).json({ ok: false, error: 'Срок приглашения истёк', code: 'INVITATION_EXPIRED' } satisfies ApiResponse);
@@ -454,6 +461,36 @@ jobsRouter.patch('/me/invitations/:id/respond', authenticate, async (req: AuthRe
       if (changed.count !== 1) return null;
       const row = await tx.jobInvitation.findUnique({ where: { id: invitation.id } });
       if (!row) throw new Error('Updated invitation could not be read');
+      if (response === 'accepted' && invitation.vacancyId) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invitation.vacancyId}), hashtext(${req.user!.id}))`;
+        const existingApplication = await tx.jobApplication.findFirst({
+          where: { vacancyId: invitation.vacancyId, userId: req.user!.id },
+        });
+        if (!existingApplication) {
+          const application = await tx.jobApplication.create({
+            data: {
+              id: uid(), vacancyId: invitation.vacancyId, userId: req.user!.id,
+              userName: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' ') || req.user!.email,
+              coverNote: 'Отклик создан после принятия приглашения работодателя.',
+              status: 'new',
+            },
+          });
+          await tx.jobApplicationEvent.create({
+            data: {
+              id: uid(), applicationId: application.id, actorUserId: req.user!.id,
+              eventType: 'invitation_accepted', toStatus: 'new', candidateVisible: true,
+              message: 'Вы приняли приглашение работодателя. На его основе создан отклик на вакансию.',
+              metadata: { invitationId: invitation.id, source: 'employer_invitation' },
+            },
+          });
+          await auditFromReq(req, {
+            action: 'jobs.application.created',
+            entity: 'job_application',
+            entityId: application.id,
+            details: { vacancyId: invitation.vacancyId, source: 'employer_invitation', invitationId: invitation.id },
+          }, tx);
+        }
+      }
       await tx.notification.create({
         data: {
           id: uid(), userId: invitation.senderUserId, type: 'JOB_INVITATION_RESPONSE',
