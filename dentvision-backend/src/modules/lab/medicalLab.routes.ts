@@ -8,6 +8,13 @@ import { tengeToMinor } from '../../lib/money.js';
 import { assertClinicOrgAccess } from '../../lib/orgContext.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { publish } from '../../lib/events.js';
+import {
+  medicalLabCapabilitiesForRoles,
+  medicalLabRoleAllows,
+  medicalLabRolesForWorkspace,
+  type MedicalLabCapability,
+} from './medicalLabAccess.js';
+import { validateMedicalLabResultSet } from './medicalLabResults.js';
 
 export const medicalLabLifecycleRouter = Router();
 medicalLabLifecycleRouter.use(authenticate);
@@ -53,6 +60,34 @@ async function resolveLaboratoryScopeId(user: AuthRequest['user']): Promise<stri
     select: { id: true },
   });
   return memberLab?.id ?? null;
+}
+
+async function resolveMedicalLabRoleKeys(user: AuthRequest['user']): Promise<string[]> {
+  if (!user?.id || String(user.organizationType || '').toUpperCase() !== 'LABORATORY' || !user.organizationId) return [];
+  const person = await prisma.person.findFirst({
+    where: { userId: user.id, organizationId: user.organizationId },
+    select: {
+      personRoles: {
+        where: { scopeType: 'organization', scopeId: user.organizationId },
+        select: { role: { select: { key: true } } },
+      },
+    },
+  });
+  return medicalLabRolesForWorkspace(person?.personRoles.map((assignment) => assignment.role.key) || []);
+}
+
+async function requireMedicalLabCapability(
+  user: AuthRequest['user'],
+  capability: MedicalLabCapability,
+): Promise<boolean> {
+  const roles = await resolveMedicalLabRoleKeys(user);
+  return medicalLabRoleAllows(roles, capability);
+}
+
+function jsonObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }
 
 async function getOrder(id: string): Promise<OrderRow | null> {
@@ -212,11 +247,13 @@ medicalLabLifecycleRouter.get('/orders/:id', async (req: AuthRequest, res) => {
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
     if (!(await canAccessOrder(req.user!, order))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
-    const [tests, events] = await Promise.all([
+    const [tests, events, roleKeys] = await Promise.all([
       prisma.$queryRawUnsafe(`SELECT * FROM "medical_lab_order_tests" WHERE "orderId"=$1 ORDER BY "createdAt" ASC`, order.id),
       prisma.$queryRawUnsafe(`SELECT * FROM "medical_lab_events" WHERE "orderId"=$1 ORDER BY "createdAt" ASC`, order.id),
+      resolveMedicalLabRoleKeys(req.user),
     ]);
-    return res.json({ ok: true, data: { order, tests, events } } satisfies ApiResponse);
+    const capabilities = medicalLabCapabilitiesForRoles(roleKeys);
+    return res.json({ ok: true, data: { order, tests, events, capabilities } } satisfies ApiResponse);
   } catch (e: any) { return res.status(500).json({ ok: false, error: e.message || 'Ошибка направления' } satisfies ApiResponse); }
 });
 
@@ -227,11 +264,35 @@ medicalLabLifecycleRouter.post('/orders/:id/status', async (req: AuthRequest, re
     if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
     if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId))) return;
     const next = String(req.body?.status || '');
-    if (!STATUSES.includes(next as any) || !isMedicalLabTransitionAllowed(order.status, next)) return res.status(400).json({ ok: false, error: `Недопустимый переход ${order.status} → ${next}` });
+    if (!STATUSES.includes(next as any) || !isMedicalLabTransitionAllowed(order.status, next)) {
+      return res.status(400).json({ ok: false, error: `Недопустимый переход ${order.status} → ${next}` });
+    }
+    const isLabWorkspace = String(req.user?.organizationType || '').toUpperCase() === 'LABORATORY';
+    // Final result and verification are dedicated, evidence-backed endpoints.
+    // A generic status PATCH must never bypass result completeness, QC or sign-off.
+    if (next === 'result_ready' || next === 'verified') {
+      return res.status(409).json({ ok: false, error: 'Результат и его выпуск проходят через отдельные защищённые этапы', code: 'LAB_RESULT_RELEASE_WORKFLOW_REQUIRED' });
+    }
+    if (isLabWorkspace) {
+      const requiredCapability: MedicalLabCapability | null =
+        next === 'sample_collected' ? 'specimen.collect'
+          : next === 'received' ? 'specimen.receive'
+            : next === 'processing' ? 'order.process'
+              : next === 'cancelled' ? 'order.cancel'
+                : null;
+      if (!requiredCapability || !(await requireMedicalLabCapability(req.user, requiredCapability))) {
+        return res.status(403).json({ ok: false, error: 'Для этого этапа нужна соответствующая роль медицинской лаборатории', code: 'MEDICAL_LAB_CAPABILITY_REQUIRED' });
+      }
+    } else {
+      // The referring clinic can record collection and cancel an order before
+      // the laboratory accepts the specimen; all subsequent work belongs to
+      // the receiving laboratory.
+      if (!((order.status === 'ordered' && (next === 'sample_collected' || next === 'cancelled')))) {
+        return res.status(403).json({ ok: false, error: 'После передачи образца дальнейшие действия доступны лаборатории', code: 'MEDICAL_LAB_PARTNER_ACTION_REQUIRED' });
+      }
+    }
     if (next === 'sample_collected') await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "status"=$1,"collectedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2`, next, order.id);
     else if (next === 'received') await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "status"=$1,"receivedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2`, next, order.id);
-    else if (next === 'result_ready') await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "status"=$1,"resultReadyAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2`, next, order.id);
-    else if (next === 'verified') await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "status"=$1,"verifiedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2`, next, order.id);
     else await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "status"=$1,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2`, next, order.id);
     await recordEvent(order.id, order.clinicId, order.status, next, req.user!.id, req.body?.note ? String(req.body.note) : undefined);
     publish('medicalLabOrder.status_changed', { orderId: order.id, clinicId: order.clinicId, fromStatus: order.status, toStatus: next, userId: req.user!.id });
@@ -244,20 +305,106 @@ medicalLabLifecycleRouter.post('/orders/:id/results', async (req: AuthRequest, r
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
     if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
-    if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId))) return;
-    const rows = Array.isArray(req.body?.results) ? req.body.results : [];
-    if (!rows.length) return res.status(400).json({ ok: false, error: 'Результаты не переданы' });
-    for (const result of rows) {
-      if (!result.id) continue;
-      await prisma.$executeRawUnsafe(`UPDATE "medical_lab_order_tests" SET "result"=$1,"unit"=$2,"referenceRange"=$3,"flag"=$4,"resultText"=$5,"metadata"=$6,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$7 AND "orderId"=$8`, result.result ?? null, result.unit ?? null, result.referenceRange ?? null, result.flag ?? null, result.resultText ?? null, result.metadata ?? null, String(result.id), order.id);
+    if (String(req.user?.organizationType || '').toUpperCase() !== 'LABORATORY'
+      || !(await requireMedicalLabCapability(req.user, 'result.write'))) {
+      return res.status(403).json({ ok: false, error: 'Ввод результатов доступен только уполномоченному сотруднику лаборатории', code: 'MEDICAL_LAB_RESULT_ENTRY_FORBIDDEN' });
     }
-    if (order.status === 'processing' || order.status === 'received') {
-      await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "status"='result_ready',"resultReadyAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1`, order.id);
-      await recordEvent(order.id, order.clinicId, order.status, 'result_ready', req.user!.id);
+    if (order.status !== 'processing') {
+      return res.status(409).json({ ok: false, error: 'Сначала переведите образец в этап исследования', code: 'MEDICAL_LAB_NOT_PROCESSING' });
     }
+
+    const tests = await prisma.$queryRawUnsafe<Array<{ id: string; name: string; result: string | null; resultText: string | null; metadata: unknown }>>(
+      `SELECT "id","name","result","resultText","metadata" FROM "medical_lab_order_tests" WHERE "orderId"=$1 ORDER BY "createdAt" ASC`,
+      order.id,
+    );
+    const validation = validateMedicalLabResultSet(tests, req.body?.results);
+    if (!validation.ok) return res.status(400).json({ ok: false, error: validation.message, code: validation.code });
+
+    const submittedAt = new Date().toISOString();
+    await prisma.$transaction(async (tx) => {
+      for (const result of validation.results) {
+        const existing = tests.find((test) => test.id === result.id);
+        const metadata = {
+          ...jsonObject(existing?.metadata),
+          resultEnteredByUserId: req.user!.id,
+          resultEnteredAt: submittedAt,
+        };
+        await tx.$executeRawUnsafe(
+          `UPDATE "medical_lab_order_tests"
+             SET "result"=$1,"unit"=$2,"referenceRange"=$3,"flag"=$4,"resultText"=$5,"metadata"=$6::jsonb,"updatedAt"=CURRENT_TIMESTAMP
+           WHERE "id"=$7 AND "orderId"=$8`,
+          result.result, result.unit, result.referenceRange, result.flag, result.resultText,
+          JSON.stringify(metadata), result.id, order.id,
+        );
+      }
+      const changed = await tx.$executeRawUnsafe(
+        `UPDATE "medical_lab_orders" SET "status"='result_ready',"resultReadyAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "status"='processing'`,
+        order.id,
+      );
+      if (changed !== 1) throw new Error('Medical laboratory order changed while results were being saved');
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "medical_lab_events" ("id","orderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt")
+         VALUES ($1,$2,$3,'processing','result_ready',$4,$5,CURRENT_TIMESTAMP)`,
+        uid(), order.id, order.clinicId, 'Полный набор результатов сохранён; ожидает независимого QC.', req.user!.id,
+      );
+    });
     publish('medicalLabResult.ready', { orderId: order.id, clinicId: order.clinicId, patientId: order.patientId, treatmentCaseId: order.treatmentCaseId, userId: req.user!.id });
     return res.json({ ok: true, data: await getOrder(order.id) } satisfies ApiResponse);
   } catch (e: any) { return res.status(400).json({ ok: false, error: e.message || 'Не удалось сохранить результаты' } satisfies ApiResponse); }
+});
+
+medicalLabLifecycleRouter.post('/orders/:id/quality-control', async (req: AuthRequest, res) => {
+  try {
+    const order = await getOrder(req.params.id as string);
+    if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
+    if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+    if (String(req.user?.organizationType || '').toUpperCase() !== 'LABORATORY'
+      || !(await requireMedicalLabCapability(req.user, 'quality.perform'))) {
+      return res.status(403).json({ ok: false, error: 'Контроль качества доступен только уполномоченной роли лаборатории', code: 'MEDICAL_LAB_QC_FORBIDDEN' });
+    }
+    if (order.status !== 'result_ready') return res.status(409).json({ ok: false, error: 'Контроль качества возможен после внесения всех результатов' });
+
+    const decision = String(req.body?.decision || '').trim().toLowerCase();
+    if (!['passed', 'failed'].includes(decision)) return res.status(400).json({ ok: false, error: 'decision должен быть passed или failed' });
+    const tests = await prisma.$queryRawUnsafe<Array<{ id: string; name: string; result: string | null; resultText: string | null; metadata: unknown }>>(
+      `SELECT "id","name","result","resultText","metadata" FROM "medical_lab_order_tests" WHERE "orderId"=$1 ORDER BY "createdAt" ASC`,
+      order.id,
+    );
+    const existingResults = tests.map((test) => ({
+      id: test.id,
+      result: test.result,
+      resultText: test.resultText,
+    }));
+    const validation = validateMedicalLabResultSet(tests, existingResults);
+    if (!validation.ok) return res.status(409).json({ ok: false, error: validation.message, code: 'MEDICAL_LAB_RESULTS_INCOMPLETE' });
+    const resultAuthors = new Set(tests.map((test) => String(jsonObject(test.metadata).resultEnteredByUserId || '')).filter(Boolean));
+    if (resultAuthors.has(req.user!.id)) {
+      return res.status(409).json({ ok: false, error: 'Контроль качества должен выполнить другой сотрудник, не вводивший результат', code: 'MEDICAL_LAB_SEPARATION_OF_DUTIES' });
+    }
+
+    const qualityControl = {
+      decision,
+      note: String(req.body?.note || '').trim() || null,
+      performedByUserId: req.user!.id,
+      performedAt: new Date().toISOString(),
+    };
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `UPDATE "medical_lab_orders"
+           SET "metadata"=jsonb_set(COALESCE("metadata",'{}'::jsonb),'{qualityControl}',$1::jsonb,true),"updatedAt"=CURRENT_TIMESTAMP
+         WHERE "id"=$2 AND "status"='result_ready'`,
+        JSON.stringify(qualityControl), order.id,
+      );
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "medical_lab_events" ("id","orderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt")
+         VALUES ($1,$2,$3,'result_ready',$4,$5,$6,CURRENT_TIMESTAMP)`,
+        uid(), order.id, order.clinicId, decision === 'passed' ? 'qc_passed' : 'qc_failed',
+        qualityControl.note, req.user!.id,
+      );
+    });
+    publish('medicalLabQuality.completed', { orderId: order.id, clinicId: order.clinicId, patientId: order.patientId, decision, userId: req.user!.id });
+    return res.json({ ok: true, data: await getOrder(order.id) } satisfies ApiResponse);
+  } catch (e: any) { return res.status(400).json({ ok: false, error: e.message || 'Не удалось выполнить контроль качества' } satisfies ApiResponse); }
 });
 
 medicalLabLifecycleRouter.post('/orders/:id/verify', async (req: AuthRequest, res) => {
@@ -265,11 +412,49 @@ medicalLabLifecycleRouter.post('/orders/:id/verify', async (req: AuthRequest, re
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
     if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
-    if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId))) return;
-    if (order.status !== 'result_ready') return res.status(400).json({ ok: false, error: 'Результат ещё не готов к верификации' });
-    await prisma.$executeRawUnsafe(`UPDATE "medical_lab_order_tests" SET "verifiedAt"=CURRENT_TIMESTAMP,"verifiedByUserId"=$1,"updatedAt"=CURRENT_TIMESTAMP WHERE "orderId"=$2`, req.user!.id, order.id);
-    await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "status"='verified',"verifiedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1`, order.id);
-    await recordEvent(order.id, order.clinicId, 'result_ready', 'verified', req.user!.id);
+    if (String(req.user?.organizationType || '').toUpperCase() !== 'LABORATORY'
+      || !(await requireMedicalLabCapability(req.user, 'result.verify'))) {
+      return res.status(403).json({ ok: false, error: 'Выпуск результата доступен только лабораторному валидатору', code: 'MEDICAL_LAB_VALIDATOR_REQUIRED' });
+    }
+    if (order.status !== 'result_ready') return res.status(409).json({ ok: false, error: 'Результат ещё не готов к верификации' });
+
+    const tests = await prisma.$queryRawUnsafe<Array<{ id: string; name: string; result: string | null; resultText: string | null; metadata: unknown }>>(
+      `SELECT "id","name","result","resultText","metadata" FROM "medical_lab_order_tests" WHERE "orderId"=$1 ORDER BY "createdAt" ASC`,
+      order.id,
+    );
+    const validation = validateMedicalLabResultSet(tests, tests.map((test) => ({
+      id: test.id, result: test.result, resultText: test.resultText,
+    })));
+    if (!validation.ok) return res.status(409).json({ ok: false, error: validation.message, code: 'MEDICAL_LAB_RESULTS_INCOMPLETE' });
+
+    const qualityControl = jsonObject(jsonObject(order.metadata).qualityControl);
+    if (qualityControl.decision !== 'passed' || !qualityControl.performedByUserId) {
+      return res.status(409).json({ ok: false, error: 'До выпуска результата необходимо пройти независимый контроль качества', code: 'MEDICAL_LAB_QC_REQUIRED' });
+    }
+    if (qualityControl.performedByUserId === req.user!.id) {
+      return res.status(409).json({ ok: false, error: 'Валидатор не может выпускать результат, который он сам проверял по QC', code: 'MEDICAL_LAB_SEPARATION_OF_DUTIES' });
+    }
+    const resultAuthors = new Set(tests.map((test) => String(jsonObject(test.metadata).resultEnteredByUserId || '')).filter(Boolean));
+    if (resultAuthors.has(req.user!.id)) {
+      return res.status(409).json({ ok: false, error: 'Валидатор не может выпустить собственный результат', code: 'MEDICAL_LAB_SEPARATION_OF_DUTIES' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const changed = await tx.$executeRawUnsafe(
+        `UPDATE "medical_lab_orders" SET "status"='verified',"verifiedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "status"='result_ready'`,
+        order.id,
+      );
+      if (changed !== 1) throw new Error('Medical laboratory order changed while being verified');
+      await tx.$executeRawUnsafe(
+        `UPDATE "medical_lab_order_tests" SET "verifiedAt"=CURRENT_TIMESTAMP,"verifiedByUserId"=$1,"updatedAt"=CURRENT_TIMESTAMP WHERE "orderId"=$2`,
+        req.user!.id, order.id,
+      );
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "medical_lab_events" ("id","orderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt")
+         VALUES ($1,$2,$3,'result_ready','verified',$4,$5,CURRENT_TIMESTAMP)`,
+        uid(), order.id, order.clinicId, 'Результат прошёл QC и независимую клиническую верификацию.', req.user!.id,
+      );
+    });
     publish('medicalLabResult.verified', { orderId: order.id, clinicId: order.clinicId, patientId: order.patientId, treatmentCaseId: order.treatmentCaseId, userId: req.user!.id });
     return res.json({ ok: true, data: await getOrder(order.id) } satisfies ApiResponse);
   } catch (e: any) { return res.status(400).json({ ok: false, error: e.message || 'Не удалось подтвердить результат' } satisfies ApiResponse); }
@@ -280,11 +465,22 @@ medicalLabLifecycleRouter.post('/orders/:id/interpretation', async (req: AuthReq
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
     if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
-    if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId))) return;
+    if (String(req.user?.organizationType || '').toUpperCase() !== 'LABORATORY'
+      || !(await requireMedicalLabCapability(req.user, 'result.interpret'))) {
+      return res.status(403).json({ ok: false, error: 'Клиническая интерпретация доступна только уполномоченному врачу лаборатории', code: 'MEDICAL_LAB_DOCTOR_REQUIRED' });
+    }
+    if (order.status !== 'verified') return res.status(409).json({ ok: false, error: 'Интерпретация выполняется только после верификации лабораторного результата' });
     const interpretation = String(req.body?.interpretation || '').trim();
     if (!interpretation) return res.status(400).json({ ok: false, error: 'Интерпретация не может быть пустой' });
-    await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "interpretation"=$1,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2`, interpretation, order.id);
-    publish('medicalLabResult.interpreted', { orderId: order.id, clinicId: order.clinicId, patientId: order.patientId, treatmentCaseId: order.treatmentCaseId, userId: req.user!.id, source: req.body?.source || 'human' });
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "interpretation"=$1,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2 AND "status"='verified'`, interpretation, order.id);
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "medical_lab_events" ("id","orderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt")
+         VALUES ($1,$2,$3,'verified','interpreted',$4,$5,CURRENT_TIMESTAMP)`,
+        uid(), order.id, order.clinicId, interpretation, req.user!.id,
+      );
+    });
+    publish('medicalLabResult.interpreted', { orderId: order.id, clinicId: order.clinicId, patientId: order.patientId, treatmentCaseId: order.treatmentCaseId, userId: req.user!.id, source: 'human' });
     return res.json({ ok: true, data: await getOrder(order.id) } satisfies ApiResponse);
   } catch (e: any) { return res.status(400).json({ ok: false, error: e.message || 'Не удалось сохранить интерпретацию' } satisfies ApiResponse); }
 });
