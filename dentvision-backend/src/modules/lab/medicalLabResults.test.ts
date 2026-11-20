@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateMedicalLabResultSet } from './medicalLabResults.js';
+import { resetMedicalLabResultForRework, validateMedicalLabResultSet } from './medicalLabResults.js';
 
 const tests = [{ id: 'cbc', name: 'Общий анализ крови' }, { id: 'glucose', name: 'Глюкоза' }];
 
@@ -52,8 +52,7 @@ describe('medical laboratory result completeness and order binding', () => {
 });
 
 describe('medical laboratory rework snapshots', () => {
-  it('archives the previous result and attribution before clearing active values', async () => {
-    const { resetMedicalLabResultForRework } = await import('./medicalLabResults.js');
+  it('archives the previous result and attribution before clearing active values', () => {
     const reset = resetMedicalLabResultForRework({
       id: 'cbc',
       name: 'Общий анализ крови',
@@ -86,8 +85,7 @@ describe('medical laboratory rework snapshots', () => {
     }]);
   });
 
-  it('preserves earlier attempts and does not create empty history entries', async () => {
-    const { resetMedicalLabResultForRework } = await import('./medicalLabResults.js');
+  it('preserves earlier attempts and does not create empty history entries', () => {
     const previousAttempt = { result: '2.1', archivedAt: '2026-11-19T10:00:00.000Z' };
     const reset = resetMedicalLabResultForRework({
       id: 'glucose',
