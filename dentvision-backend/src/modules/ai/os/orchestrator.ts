@@ -458,20 +458,20 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
 
   if (clinicWideShortcutsAllowed) {
     try {
-    const statsHit = await tryDeterministicStats(input.text, {
-      userId: input.userId,
-      clinicId: input.clinicId,
-      role: input.role,
-      isGuest,
-    });
-    if (statsHit) {
-      const messageId = await saveMessage(input.sessionId, 'assistant', statsHit.message, {
+      const statsHit = await tryDeterministicStats(input.text, {
         userId: input.userId,
         clinicId: input.clinicId,
-        prevUserText: input.text,
+        role: input.role,
+        isGuest,
       });
-      return { ...statsHit, messageId, ...personaMeta };
-    }
+      if (statsHit) {
+        const messageId = await saveMessage(input.sessionId, 'assistant', statsHit.message, {
+          userId: input.userId,
+          clinicId: input.clinicId,
+          prevUserText: input.text,
+        });
+        return { ...statsHit, messageId, ...personaMeta };
+      }
     } catch (e) {
       console.warn('[AI OS] deterministic stats failed', safeErrorKind(e));
     }
