@@ -25,6 +25,8 @@ type TabId = 'overview' | 'sales' | 'stock' | 'returns' | 'ads' | 'analytics' | 
 interface SupplierCtx {
   scopeId: string
   organizationId?: string
+  name?: string
+  roleLabel?: string
   role: string
   supplier?: { id: string; name: string; status: string }
 }
@@ -83,6 +85,7 @@ export default function SupplierWorkspace() {
   const [loading, setLoading] = useState(true)
   const [contexts, setContexts] = useState<SupplierCtx[]>([])
   const [token, setToken] = useState<string | null>(null)
+  const [contextSwitching, setContextSwitching] = useState(false)
   const [tab, setTab] = useState<TabId>('overview')
 
   const [me, setMe] = useState<any>(null)
@@ -126,12 +129,17 @@ export default function SupplierWorkspace() {
   }, [])
 
   const enterSupplier = useCallback(async (scopeId: string) => {
+    setContextSwitching(true)
+    setToken(null)
     try {
       const res = await api.switchContext('SUPPLIER', scopeId)
       setToken(res.accessToken)
       await loadAll(res.accessToken)
     } catch {
-      toast.error('Не удалось войти в кабинет поставщика')
+      setToken(null)
+      toast.error('Не удалось войти в выбранную организацию поставщика')
+    } finally {
+      setContextSwitching(false)
     }
   }, [loadAll, toast])
 
@@ -384,6 +392,35 @@ export default function SupplierWorkspace() {
   if (loading) {
     return (
       <ListSkeleton count={6} />
+    )
+  }
+
+  if (contexts.length > 0 && !token) {
+    return (
+      <div className="mx-auto max-w-[900px] space-y-4 overflow-x-hidden p-4 sm:p-6">
+        <PageHeader
+          title="Выберите организацию"
+          subtitle="У вас есть доступ к нескольким рабочим пространствам поставщиков. Выберите, с каким бизнесом продолжить."
+          icon={<Store size={22} />}
+        />
+        <div className="grid gap-3">
+          {contexts.map((context) => (
+            <Card key={context.scopeId}>
+              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-txt-primary">
+                    {context.name || context.supplier?.name || 'Организация поставщика'}
+                  </p>
+                  <p className="mt-1 text-xs text-txt-muted">{context.roleLabel || context.role || 'Участник'}</p>
+                </div>
+                <Button className="min-h-11" disabled={contextSwitching} onClick={() => void enterSupplier(context.scopeId)}>
+                  {contextSwitching ? 'Открываем…' : 'Открыть кабинет'}
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
     )
   }
 

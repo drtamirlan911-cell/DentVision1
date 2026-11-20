@@ -89,7 +89,7 @@ export interface WorkspaceSelectionIdentity {
 /**
  * Preserve the workspace the user explicitly selected. The active legacy
  * entity scope is the strongest match; Organization.id is the canonical
- * fallback. The first context is used only when no active identity matches.
+ * fallback. Never silently choose among multiple organizations.
  */
 export function selectWorkspaceContext<T extends WorkspaceSelectionCandidate>(
   contexts: readonly T[],
@@ -109,7 +109,10 @@ export function selectWorkspaceContext<T extends WorkspaceSelectionCandidate>(
     if (byOrganization) return byOrganization
   }
 
-  return contexts[0] ?? null
+  const hasActiveIdentity = Boolean(activeScopeId || activeOrganizationId)
+  if (hasActiveIdentity) return null
+
+  return contexts.length === 1 ? contexts[0] : null
 }
 
 export function workspaceContextFrom(source: WorkspaceContextSource, fallbackPermissions: string[] = []): WorkspaceContextContract {
