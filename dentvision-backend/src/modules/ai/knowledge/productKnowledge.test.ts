@@ -7,6 +7,8 @@ import {
   formatAllowedToolCapabilities,
   formatProductKnowledgeContext,
   rankProductKnowledgeChunks,
+  resetProductKnowledgeCacheForTests,
+  retrievePatientProductKnowledge,
   splitProductKnowledgeSections,
   type ProductKnowledgeChunk,
 } from './productKnowledge.js';
@@ -97,6 +99,18 @@ describe('Jarvis product guide stays in sync with the agent registry', () => {
     for (const agent of agents) {
       expect(section, agent.id).toContain(agent.name);
     }
+  });
+});
+
+describe('runtime product guide retrieval', () => {
+  it('loads the patient section from the shipped guide file', async () => {
+    resetProductKnowledgeCacheForTests();
+
+    const hits = await retrievePatientProductKnowledge('личный кабинет пациента визиты');
+
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.some((hit) => hit.title.includes('Личный кабинет пациента'))).toBe(true);
+    expect(hits.every((hit) => hit.sourcePath === GUIDE_PATH)).toBe(true);
   });
 });
 
