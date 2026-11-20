@@ -62,6 +62,17 @@ describe('resolveModels — discovery', () => {
     expect(models.visionSupportsReasoning).toBe(true);
   });
 
+  it('separates standard agent work from deep reasoning when both models are available', async () => {
+    stubModels(['gpt-6.2-sol', 'gpt-6.2-astra', 'gpt-6.1-terra', 'gpt-6-luna']);
+
+    const models = await resolveModels({ apiKey: 'k' });
+
+    expect(models.full).toBe('gpt-6.2-sol');
+    expect(models.deep).toBe('gpt-6.2-astra');
+    expect(models.mini).toBe('gpt-6-luna');
+    expect(models.deepSupportsReasoning).toBe(true);
+  });
+
   it('keeps the legacy vision fallback when Terra is not available', async () => {
     stubModels(['gpt-6.2-astra', 'gpt-6-luna', 'gpt-4o']);
 
