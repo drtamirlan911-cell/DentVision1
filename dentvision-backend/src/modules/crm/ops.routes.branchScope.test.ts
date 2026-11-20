@@ -17,14 +17,16 @@ describe('CRM operations selected-branch authorization contract', () => {
     expect(source).toContain("access.roleScope === 'ORGANIZATION' && access.branchId === null");
   });
 
-  it('restricts waiting-list reads, updates and deletes to patients in the active branch', () => {
-    expect(source).toContain("from '../../lib/patientBranchScope.js'");
-    expect(source).toContain('await getPatientIdsForBranchScope(clinicId, branchIds)');
-    expect(source).toContain('patientId: { in: context.patientIds || [] }');
+  it('restricts waiting-list records to the persisted selected branch', () => {
+    expect(source).toContain('function waitingListScopeWhere(context: OpsBranchContext, clinicId: string)');
+    expect(source).toContain('return context.organizationWide');
+    expect(source).toContain('{ clinicId, branchId: context.branchId }');
     expect(source).toContain("if (!canManageWaitingListPatient(branchContext, patientId))");
     expect(source).toContain("if (!canManageWaitingListPatient(branchContext, nextPatientId))");
+    expect(source).toContain('branchId: branchContext.organizationWide && b.branchId === undefined');
     expect(source).toContain('where: waitingListScopeWhere(branchContext, clinicId)');
     expect(source).toContain('deleteMany({ where: { id, ...waitingListScopeWhere(branchContext, clinicId) } })');
+    expect(source).toContain('await getPatientIdsForBranchScope(clinicId, branchIds)');
   });
 
   it('scopes expense listing, updates, and deletion to the selected branch', () => {
@@ -44,5 +46,17 @@ describe('CRM operations selected-branch authorization contract', () => {
     expect(replay).toContain("code: 'IDEMPOTENCY_KEY_SCOPE_CONFLICT'");
     expect(replay).toContain('where: { id: reserved.resultId, ...expenseScopeWhere(replayScope, clinicId) }');
     expect(replay).not.toContain('deleteIdempotencyKey');
+  });
+
+  it('uses persisted booking branch keys for list, upsert, confirm and cancellation', () => {
+    expect(source).toContain('function bookingScopeWhere(context: BookingBranchContext, clinicId: string)');
+    expect(source).toContain('return context.organizationWide ? { clinicId } : { clinicId, branchId: context.branchId }');
+    expect(source).toContain('const bookingBranchId = await resolveBookingBranchId(');
+    expect(source).toContain('branchId: bookingBranchId');
+    expect(source).toContain('branchId: appointmentBranchId');
+    expect(source).toContain('branchId: context.branchId');
+    expect(source).toContain('await resolveBookingBranchId(');
+    expect(source).toContain('where: { id, ...bookingScopeWhere(branchContext, clinicId) }');
+    expect(source).toContain("data: { status: 'cancelled' }");
   });
 });
