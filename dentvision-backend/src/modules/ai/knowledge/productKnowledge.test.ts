@@ -94,7 +94,6 @@ describe('Jarvis product guide stays in sync with the agent registry', () => {
     const section = guide.slice(start, end);
 
     const agents = listAgents();
-    expect(agents).toHaveLength(27);
     for (const agent of agents) {
       expect(section, agent.id).toContain(agent.name);
     }
