@@ -57,6 +57,9 @@ describe('resolveModels — discovery', () => {
     expect(models.full).toBe('gpt-6.2-astra');
     expect(models.mini).toBe('gpt-6-luna');
     expect(models.vision).toBe('gpt-6.1-terra');
+    expect(models.fullSupportsReasoning).toBe(true);
+    expect(models.miniSupportsReasoning).toBe(false);
+    expect(models.visionSupportsReasoning).toBe(true);
   });
 
   it('keeps the legacy vision fallback when Terra is not available', async () => {
