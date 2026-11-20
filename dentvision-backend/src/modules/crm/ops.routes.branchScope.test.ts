@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { resolve as resolvePath } from 'node:path';
 
 describe('CRM operations selected-branch authorization contract', () => {
   const source = readFileSync(
@@ -46,6 +47,24 @@ describe('CRM operations selected-branch authorization contract', () => {
     expect(replay).toContain("code: 'IDEMPOTENCY_KEY_SCOPE_CONFLICT'");
     expect(replay).toContain('where: { id: reserved.resultId, ...expenseScopeWhere(replayScope, clinicId) }');
     expect(replay).not.toContain('deleteIdempotencyKey');
+  });
+
+  it('persists booking and waiting-list branch IDs with a safe, idempotent backfill', () => {
+    const schema = readFileSync(resolvePath(process.cwd(), 'dentvision-backend/prisma/schema.prisma'), 'utf8');
+    const migration = readFileSync(resolvePath(
+      process.cwd(),
+      'dentvision-backend/prisma/migrations/20261120_add_crm_ops_branch_scope/migration.sql',
+    ), 'utf8');
+    const waitingList = schema.slice(schema.indexOf('model WaitingList {'), schema.indexOf('model Expense {'));
+    const booking = schema.slice(schema.indexOf('model Booking {'), schema.indexOf('model ClinicMember {'));
+
+    expect(waitingList).toContain('branchId         String?');
+    expect(booking).toContain('branchId    String?');
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS branch_id TEXT');
+    expect(migration).toContain('HAVING COUNT(DISTINCT cm.branch_id) = 1');
+    expect(migration).toContain('HAVING COUNT(DISTINCT bm."branchId") = 1');
+    expect(migration).toContain('branch_id = p.branch_id');
+    expect(migration).not.toMatch(/DELETE\\s+FROM|DROP\\s+TABLE|TRUNCATE/i);
   });
 
   it('uses persisted booking branch keys for list, upsert, confirm and cancellation', () => {
