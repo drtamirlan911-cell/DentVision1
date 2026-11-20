@@ -118,6 +118,7 @@ describe('chatCompletion — Responses API request shape', () => {
   });
 
   it('requires a vision-capable model whenever a message contains an image', async () => {
+    captureFetch();
     await chatCompletion({
       messages: [{ role: 'user', content: 'опиши снимок', imageUrl: 'https://example.test/x.png' }],
       task: 'orchestrate',
@@ -130,6 +131,7 @@ describe('chatCompletion — Responses API request shape', () => {
   });
 
   it('does not request a vision model for text-only conversations', async () => {
+    captureFetch();
     await chatCompletion({
       messages: [{ role: 'user', content: 'Покажи расписание' }],
       task: 'orchestrate',
