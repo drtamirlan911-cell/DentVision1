@@ -3130,3 +3130,11 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Added an explicit user-facing section to guide §9 explaining the existing clinic-only durable task queue, the partner read-only overview boundary, and the rule that a task status change does not execute a domain action. High-risk operations still require the Approval Center and governance kernel.
 - Added a natural-language retrieval regression asking whether suppliers/laboratories have a shared AI Employee queue; the test asserts the relevant AI-agent guide section is returned and that Jarvis states clinic-only scope.
 - Canonical root guide and backend runtime copy were updated together. Commits: guide f51b97927725805c59d001c8de9de5aefa462d66; backend copy a9c0b333998ed2565d9225637d11092f28d65e6e; retrieval test 054bee83e0f63306c0d36598532a9b8d0fac4afc. Exact-head CI/Quality Gate results are required after this change.
+
+## 2026-11-20 — advanced model routing and deep reasoning tier (PR #351)
+
+- Reworked the model catalogue/router into purpose-specific Luna (mini/high-volume), Sol (standard agent work), Astra (deep reasoning) and Terra (vision) routes. Candidate IDs are always intersected with the account's live /v1/models list; the provisional gpt-6.2-sol ID is not assumed to exist if the account does not expose it.
+- Added a dedicated DEEP_LADDER with account-verified fallback to the selected standard full model. Deep clinical/strategic prompts, sustained context, multi-question requests, weak-mini escalation and sufficiently deep tool loops can select Astra. This shares the existing full token budget.
+- Added OPENAI_DEEP_REASONING_EFFORT (default high, allowed medium/high). Standard full work still uses OPENAI_REASONING_EFFORT (default low). Vision-capable reasoning uses elevated effort. Capability metadata is explicit; non-reasoning models do not receive the Responses API reasoning parameter.
+- Any image request forces a discovered vision model before normal tier selection; no image is sent to a text-only model. The radiograph tool maps a missing vision model to a fixed, non-diagnostic user message that explicitly warns that no AI result does not imply a normal radiograph.
+- Added docs/AI_MODEL_ROUTING.md to document the model/capability contract, budget, privacy and governance boundaries. Exact-head CI and E2E remain pending.
