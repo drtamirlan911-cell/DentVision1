@@ -7,6 +7,8 @@ import {
   Megaphone, Tag, Star, Truck, ArrowRight, Box, Percent, Camera, ImageIcon,
 } from 'lucide-react'
 import * as api from '@/utils/api'
+import { useAuth } from '@/store/auth.store'
+import { selectWorkspaceContext } from '@/lib/workspaceContext'
 import { useToast } from '@/components/ui/ds/Toast'
 import { Button } from '@/components/ui/ds/Button'
 import { Input } from '@/components/ui/ds/Input'
@@ -22,6 +24,7 @@ type TabId = 'overview' | 'sales' | 'stock' | 'returns' | 'ads' | 'analytics' | 
 
 interface SupplierCtx {
   scopeId: string
+  organizationId?: string
   role: string
   supplier?: { id: string; name: string; status: string }
 }
@@ -75,6 +78,8 @@ const severityClass: Record<string, string> = {
 
 export default function SupplierWorkspace() {
   const toast = useToast()
+  const { user } = useAuth()
+  const activeUser = user as unknown as { supplierId?: string; organizationId?: string } | null
   const [loading, setLoading] = useState(true)
   const [contexts, setContexts] = useState<SupplierCtx[]>([])
   const [token, setToken] = useState<string | null>(null)
@@ -134,20 +139,34 @@ export default function SupplierWorkspace() {
     ;(async () => {
       try {
         const res = await api.getMyContexts()
-        const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER')
+        const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER') as SupplierCtx[]
         setContexts(sup)
-        if (sup.length > 0) await enterSupplier(sup[0].scopeId)
+        const preferred = selectWorkspaceContext(sup, { scopeId: activeUser?.supplierId, organizationId: activeUser?.organizationId })
+        if (preferred) await enterSupplier(preferred.scopeId)
       } catch { /* ignore */ } finally {
         setLoading(false)
       }
     })()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    const handleWorkspaceSwitch = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string; scopeId?: string; scopeType?: string }>).detail
+      if (detail?.scopeType !== 'SUPPLIER') return
+      const prefix = 'SUPPLIER:'
+      const scopeId = detail.scopeId || (String(detail.id || '').startsWith(prefix) ? String(detail.id).slice(prefix.length) : '')
+      if (scopeId) void enterSupplier(scopeId)
+    }
+    window.addEventListener('dentvision:workspace-switched', handleWorkspaceSwitch)
+    return () => window.removeEventListener('dentvision:workspace-switched', handleWorkspaceSwitch)
+  }, [enterSupplier])
+
   const reloadContexts = async () => {
     const res = await api.getMyContexts()
-    const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER')
+    const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER') as SupplierCtx[]
     setContexts(sup)
-    if (sup.length > 0) await enterSupplier(sup[0].scopeId)
+    const preferred = selectWorkspaceContext(sup, { scopeId: activeUser?.supplierId, organizationId: activeUser?.organizationId })
+    if (preferred) await enterSupplier(preferred.scopeId)
   }
 
   const handleRegister = async () => {

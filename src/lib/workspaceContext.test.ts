@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { contextRequestHeaders, workflowContext, workspaceContextFrom } from './workspaceContext'
+import { contextRequestHeaders, selectWorkspaceContext, workflowContext, workspaceContextFrom } from './workspaceContext'
 
 describe('workspace context contract', () => {
   const source = {

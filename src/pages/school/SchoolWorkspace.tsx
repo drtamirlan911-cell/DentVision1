@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GraduationCap, BookOpen, Wallet, BarChart3, Plus, Trash2, Users, Award, Building2, Camera, ImageIcon, Radio, BookMarked } from 'lucide-react';
 import * as api from '@/utils/api';
+import { useAuth } from '@/store/auth.store';
+import { selectWorkspaceContext } from '@/lib/workspaceContext';
 import { useToast } from '@/components/ui/ds/Toast';
 import { Button } from '@/components/ui/ds/Button';
 import { Input, Select } from '@/components/ui/ds/Input';
@@ -15,7 +17,7 @@ import { PageHeader } from '@/components/ui/ds/StatCard';
 import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload';
 import { LECTURER_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits';
 
-interface LecturerCtx { scopeId: string; level?: string; academy?: { id: string; name: string } | null }
+interface LecturerCtx { scopeId: string; organizationId?: string; level?: string; academy?: { id: string; name: string } | null }
 
 type OfferFormat = 'course' | 'webinar' | 'textbook' | 'office'
 
@@ -62,6 +64,8 @@ function fmtMoney(minor: string | number | undefined): string {
 export default function SchoolWorkspace() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { user } = useAuth();
+  const activeUser = user as unknown as { lecturerId?: string; organizationId?: string } | null;
   const [loading, setLoading] = useState(true);
   const [contexts, setContexts] = useState<LecturerCtx[]>([]);
   const [token, setToken] = useState<string | null>(null);
@@ -106,15 +110,28 @@ export default function SchoolWorkspace() {
     (async () => {
       try {
         const res = await api.getMyContexts();
-        const lec = (res.contexts || []).filter((c: any) => c.scopeType === 'LECTURER');
+        const lec = (res.contexts || []).filter((c: any) => c.scopeType === 'LECTURER') as LecturerCtx[];
         setContexts(lec);
-        if (lec.length > 0) await enter(lec[0].scopeId);
+        const preferred = selectWorkspaceContext(lec, { scopeId: activeUser?.lecturerId, organizationId: activeUser?.organizationId });
+        if (preferred) await enter(preferred.scopeId);
       } catch { /* ignore */ } finally {
         setLoading(false);
       }
     })();
     // mount-only — enter() is scoped to the initial contexts; re-calling on deps change is not desired
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const handleWorkspaceSwitch = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string; scopeId?: string; scopeType?: string }>).detail;
+      if (detail?.scopeType !== 'LECTURER') return;
+      const prefix = 'LECTURER:';
+      const scopeId = detail.scopeId || (String(detail.id || '').startsWith(prefix) ? String(detail.id).slice(prefix.length) : '');
+      if (scopeId) void enter(scopeId);
+    };
+    window.addEventListener('dentvision:workspace-switched', handleWorkspaceSwitch);
+    return () => window.removeEventListener('dentvision:workspace-switched', handleWorkspaceSwitch);
+  }, [enter]);
 
   const becomeLecturer = async () => {
     setRegistering(true);

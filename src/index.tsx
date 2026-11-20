@@ -61,6 +61,7 @@ const DiagnosticStatistics = lazyWithRetry(() => import('./pages/diagnostics/Dia
 const DiagnosticSettings = lazyWithRetry(() => import('./pages/diagnostics/DiagnosticSettings'));
 const CenterDashboard = lazyWithRetry(() => import('./pages/diagnostics/CenterDashboard'));
 const LabDashboard = lazyWithRetry(() => import('./pages/diagnostics/LabDashboard'));
+const DentalLabPlatform = lazyWithRetry(() => import('./pages/diagnostics/DentalLabPlatform'));
 const WorkspaceEntry = lazyWithRetry(() => import('./pages/diagnostics/WorkspaceEntry'));
 const RegistrationRequests = lazyWithRetry(() => import('./pages/diagnostics/RegistrationRequests'));
 
@@ -236,6 +237,7 @@ if (container) {
                 <Route path="medical-lab/analytics" element={<Navigate to="/analytics" replace />} />
                 <Route path="medical-lab/settings" element={<Navigate to="/settings" replace />} />
 
+                <Route path="dental-lab" element={<RequireWorkspaceScope scopeType="LABORATORY"><Suspense fallback={<PageLoader />}><DentalLabPlatform /></Suspense></RequireWorkspaceScope>} />
                 <Route path="dental-lab/today" element={<Navigate to="/dental-lab" replace />} />
                 <Route path="dental-lab/inbox" element={<Navigate to="/dental-lab" replace />} />
                 <Route path="dental-lab/cases" element={<Navigate to="/crm/lab" replace />} />

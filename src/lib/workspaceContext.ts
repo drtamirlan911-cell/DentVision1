@@ -76,6 +76,42 @@ const normalize = (value?: string | null) => {
   return v || null
 }
 
+export interface WorkspaceSelectionCandidate {
+  scopeId: string
+  organizationId?: string | null
+}
+
+export interface WorkspaceSelectionIdentity {
+  scopeId?: string | null
+  organizationId?: string | null
+}
+
+/**
+ * Preserve the workspace the user explicitly selected. The active legacy
+ * entity scope is the strongest match; Organization.id is the canonical
+ * fallback. The first context is used only when no active identity matches.
+ */
+export function selectWorkspaceContext<T extends WorkspaceSelectionCandidate>(
+  contexts: readonly T[],
+  active: WorkspaceSelectionIdentity = {},
+): T | null {
+  if (contexts.length === 0) return null
+
+  const activeScopeId = normalize(active.scopeId)
+  if (activeScopeId) {
+    const byScope = contexts.find((context) => context.scopeId === activeScopeId)
+    if (byScope) return byScope
+  }
+
+  const activeOrganizationId = normalize(active.organizationId)
+  if (activeOrganizationId) {
+    const byOrganization = contexts.find((context) => context.organizationId === activeOrganizationId)
+    if (byOrganization) return byOrganization
+  }
+
+  return contexts[0] ?? null
+}
+
 export function workspaceContextFrom(source: WorkspaceContextSource, fallbackPermissions: string[] = []): WorkspaceContextContract {
   const organizationId = normalize(source.organizationId)
   const branchId = normalize(source.branchId)

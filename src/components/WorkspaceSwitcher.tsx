@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Building2, Check, ChevronDown, FlaskConical, GraduationCap, Loader2, Plus, Store, GitBranch } from 'lucide-react'
+import { BriefcaseBusiness, Building2, Check, ChevronDown, FlaskConical, GraduationCap, Loader2, Plus, Store, GitBranch } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { getRoleDisplayLabel, useAuth, useAuthStore } from '@/store/auth.store'
@@ -13,7 +13,7 @@ import { useWorkspaceStore } from '@/store/workspace.store'
 import { workspaceContextFrom } from '@/lib/workspaceContext'
 import * as api from '@/utils/api'
 
-type ScopeType = 'CLINIC' | 'DIAGNOSTIC_CENTER' | 'LABORATORY' | 'SUPPLIER' | 'LECTURER' | 'ACADEMY' | 'PARTNER'
+type ScopeType = 'CLINIC' | 'DIAGNOSTIC_CENTER' | 'LABORATORY' | 'SUPPLIER' | 'LECTURER' | 'ACADEMY' | 'PARTNER' | 'EMPLOYER'
 
 interface WorkspaceContext {
   id: string
@@ -39,6 +39,7 @@ const TYPE_ICON: Record<ScopeType, typeof Building2> = {
   LECTURER: GraduationCap,
   ACADEMY: GraduationCap,
   PARTNER: Building2,
+  EMPLOYER: BriefcaseBusiness,
 }
 
 const GROUPS: Array<{ label: string; types: ScopeType[] }> = [
@@ -47,6 +48,7 @@ const GROUPS: Array<{ label: string; types: ScopeType[] }> = [
   { label: 'Поставщики', types: ['SUPPLIER'] },
   { label: 'Академия', types: ['LECTURER', 'ACADEMY'] },
   { label: 'Партнёры', types: ['PARTNER'] },
+  { label: 'Работодатели', types: ['EMPLOYER'] },
 ]
 
 export function WorkspaceSwitcher({ className }: { className?: string }) {
@@ -252,6 +254,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         case 'LECTURER':
         case 'ACADEMY': navigate('/school'); break
         case 'PARTNER': navigate('/shop'); break
+        case 'EMPLOYER': navigate('/employer'); break
       }
     } catch (e) {
       toast.error((e as Error)?.message || t('platform.clinic_switch_error'))
@@ -287,7 +290,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         ),
       )
       setContextFocus('workspace', selected.id, { organizationId: selected.organizationId || null, branchId: branch.id, roleKey: selected.roleKey || selected.role || null, scopeType: selected.scopeType })
-      window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: selected.id, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: branch.id, name: selected.name, roleLabel: selected.roleLabel, roleKey: selected.roleKey || null } }))
+      window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: selected.id, scopeId: selected.scopeId, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: branch.id, name: selected.name, roleLabel: selected.roleLabel, roleKey: selected.roleKey || null } }))
       toast.success(`Филиал: ${branch.name}`)
       setOpen(false)
       void queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
