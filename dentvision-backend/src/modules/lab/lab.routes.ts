@@ -86,13 +86,19 @@ async function branchScopedLabOrder(req: AuthRequest, clinicId: string): Promise
     };
   }
 
+  const organizationWide = access.roleScope === 'ORGANIZATION' && access.branchId === null;
   const branchIds = access.branchId ? [access.branchId] : access.allowedBranchIds;
   return {
-    where: branchIds.length
-      ? { patient: { branchId: { in: branchIds } } }
-      : { patient: { branchId: '__NO_BRANCH_ACCESS__' } },
+    // Preserve clinic-wide visibility for a verified organization role with
+    // no selected branch, including legacy patientless orders. Once a branch is
+    // selected, even OWNER/ADMIN reads become branch-bound.
+    where: organizationWide
+      ? {}
+      : branchIds.length
+        ? { patient: { branchId: { in: branchIds } } }
+        : { patient: { branchId: '__NO_BRANCH_ACCESS__' } },
     branchIds,
-    configured: branchIds.length > 0,
+    configured: organizationWide || branchIds.length > 0,
   };
 }
 
