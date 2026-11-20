@@ -3111,3 +3111,10 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Every create/list/transition/readback response passes through a common sanitizer. It omits legacy actionPayload, projects legacy result fields to the same safe allowlist and replaces any stored error string with a fixed marker. This protects API reads without destructively rewriting legacy rows; historical at-rest cleanup remains separate.
 - Added regression tests for action-payload and metadata sentinel omission, result SQL-bind projection, and legacy-row read sanitization. Source commit: a51341b4905719277a42ec77c405cbd5dbd70283; test commit: dbd7229a4d0d17152b8bc9253be196cf5e40b5c4.
 - Exact-head CI [44717762427](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44717762427) was pending and Quality Gate [44717762435](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44717762435) was in progress before this source/test update. Fresh exact-head checks are required. No migration was executed against staging/production.
+
+## 2026-11-20 — Dockerignore allowlist for Jarvis product guide (PR #351)
+
+- A further container audit found `dentvision-backend/.dockerignore` excluded `*.md`, which would remove the backend copy of `docs/AI_PRODUCT_KNOWLEDGE.md` from the Docker build context even though the Dockerfile runner copied `/app/docs`.
+- Added explicit negation rules `!docs/` and `!docs/AI_PRODUCT_KNOWLEDGE.md` after the Markdown exclusion. The `docker-compose.yml` backend build context is `./dentvision-backend`, so this is the relevant ignore file.
+- Added a regression test that checks the canonical guide path is re-included after the `*.md` rule. Commits: dockerignore `e63641d3a1ce6c498bf648f245c12b45fd36d56c`; test `4c2cba265b47fb2a2ad756360900fc748c97de69`.
+- This closes the source-level Docker build-context omission. It does not prove that a Docker image was built or deployed; exact-head CI remains required.
