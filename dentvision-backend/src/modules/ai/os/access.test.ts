@@ -192,6 +192,7 @@ describe('resolveAiToolAccess — organization workspaces', () => {
       clinicId: null,
       organizationId: ORG_ID,
       organizationType: 'DIAGNOSTIC_CENTER',
+      organizationOriginalId: 'center-1',
       supplierId: null,
       lecturerId: null,
     });

@@ -19,6 +19,7 @@ describe('TOOL_PERMISSIONS coverage', () => {
 
   it('keeps the partner dental-lab queue explicitly self-authorized, not silently unclassified', () => {
     expect(UNGATED_TOOLS).toContain('getDentalLabWorkQueue');
+    expect(UNGATED_TOOLS).toContain('getDiagnosticCenterWorkQueue');
     expect(TOOL_PERMISSIONS).not.toHaveProperty('getDentalLabWorkQueue');
   });
 

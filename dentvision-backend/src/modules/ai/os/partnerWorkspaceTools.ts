@@ -68,6 +68,77 @@ function safeText(value: unknown, max = 100): string | null {
   return text ? text.slice(0, max) : null;
 }
 
+
+/**
+ * Read-only diagnostic-center worklist. The assistant receives operational
+ * metadata only; patient identity, clinical notes, report text and file URLs
+ * stay inside the clinical source of truth.
+ */
+export interface DiagnosticCenterWorkQueueContext {
+  userId: string;
+  organizationId: string | null;
+  organizationType: string | null;
+  organizationOriginalId: string | null;
+}
+
+const DIAGNOSTIC_QUEUE_ROLES = new Set([
+  'owner', 'admin', 'manager', 'radiologist', 'operator', 'reception', 'quality',
+]);
+
+export async function getDiagnosticCenterWorkQueue(context: DiagnosticCenterWorkQueueContext) {
+  if (!context.userId || !context.organizationId || context.organizationType !== 'DIAGNOSTIC_CENTER' || !context.organizationOriginalId) {
+    return { ok: false as const, error: 'Нет подтверждённого рабочего пространства диагностического центра' };
+  }
+  try {
+    const organization = await prisma.organization.findUnique({
+      where: { id: context.organizationId },
+      select: { id: true, type: true, originalType: true, originalId: true, archivedAt: true },
+    });
+    if (!organization || organization.archivedAt || organization.type !== 'DIAGNOSTIC_CENTER'
+      || organization.originalType !== 'DiagnosticCenter' || organization.originalId !== context.organizationOriginalId) {
+      return { ok: false as const, error: 'Текущее рабочее пространство не является активным диагностическим центром' };
+    }
+    const membership = await prisma.diagnosticCenterMember.findFirst({
+      where: { centerId: context.organizationOriginalId, userId: context.userId },
+      select: { role: true, center: { select: { id: true, name: true, active: true } } },
+    });
+    if (!membership?.center?.active || !DIAGNOSTIC_QUEUE_ROLES.has(String(membership.role || '').trim().toLowerCase())) {
+      return { ok: false as const, error: 'У вас нет доступа к очереди диагностического центра' };
+    }
+    const where = { centerId: context.organizationOriginalId };
+    const [total, rows, grouped] = await Promise.all([
+      prisma.referral.count({ where }),
+      prisma.referral.findMany({
+        where,
+        select: { id: true, category: true, studyType: true, priority: true, status: true, scheduledDate: true, createdAt: true, updatedAt: true },
+        orderBy: [{ scheduledDate: 'asc' }, { createdAt: 'desc' }],
+        take: 51,
+      }),
+      prisma.referral.groupBy({ by: ['status'], where, _count: { _all: true } }),
+    ]);
+    const items = rows.slice(0, 50).map((row) => ({
+      id: row.id,
+      category: String(row.category),
+      studyType: safeText(row.studyType, 100) || 'Исследование',
+      priority: String(row.priority),
+      status: String(row.status),
+      scheduledDate: row.scheduledDate,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }));
+    const byStatus = grouped.reduce<Record<string, number>>((result, item) => {
+      result[String(item.status)] = item._count._all;
+      return result;
+    }, {});
+    return { ok: true as const, data: {
+      center: { id: membership.center.id, name: safeText(membership.center.name, 120) || 'Диагностический центр' },
+      total, returned: items.length, hasMore: total > items.length, byStatus, referrals: items,
+    } };
+  } catch {
+    return { ok: false as const, error: 'Не удалось безопасно загрузить очередь диагностического центра' };
+  }
+}
+
 export async function getDentalLabWorkQueue(
   context: DentalLabWorkQueueContext,
 ): Promise<DentalLabWorkQueueResult> {

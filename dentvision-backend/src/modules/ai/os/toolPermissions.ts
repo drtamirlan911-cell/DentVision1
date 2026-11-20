@@ -78,6 +78,8 @@ export const UNGATED_TOOLS: readonly string[] = [
   // The dental-lab queue self-authorizes via the verified DENTAL_LAB organization,
   // LaboratoryMember membership and manager/assigned-technician row scope.
   'getDentalLabWorkQueue',
+  // Read-only diagnostic queue rechecks DiagnosticCenterMember + organization link.
+  'getDiagnosticCenterWorkQueue',
 ];
 
 // The action ladder lives in lib/permissions.ts — the AI intent router needs

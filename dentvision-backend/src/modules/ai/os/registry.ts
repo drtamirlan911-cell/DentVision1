@@ -351,6 +351,27 @@ const AGENTS: AgentDefinition[] = [
       'Ты работаешь внутри текущего партнёрского рабочего пространства. Не выдавай его за клинику и не используй клинические данные другой организации. Веди пользователя по доступным функциям текущего кабинета.',
   },
   {
+    id: 'agent.partner.diagnostic-center',
+    name: 'Diagnostic Center Agent',
+    domain: 'business',
+    version: '1.0.0',
+    requiredPermissions: [
+      'DIAGNOSTIC_OWNER',
+      'DIAGNOSTIC_ADMIN',
+      'DIAGNOSTIC_MANAGER',
+      'DIAGNOSTIC_OPERATOR',
+      'DIAGNOSTIC_RECEPTION',
+      'DIAGNOSTIC_RADIOLOGIST',
+      'DIAGNOSTIC_QUALITY',
+    ],
+    allowedTools: ['getDiagnosticCenterWorkQueue', 'navigate'],
+    owner: 'partner-team',
+    status: 'active',
+    persona: 'analyst',
+    mandate:
+      'Ты помощник диагностического центра. Показывай только производственную очередь и её операционные метаданные текущего центра. Не раскрывай данные пациента, жалобы, диагнозы, заключения или файлы. Не меняй статус, не подписывай результаты и не принимай оплату через read-only очередь.',
+  },
+  {
     id: 'agent.partner.dental-lab',
     name: 'Dental Laboratory Agent',
     domain: 'business',

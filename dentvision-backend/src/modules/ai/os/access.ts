@@ -137,9 +137,10 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
 
     organizationId = org.id;
     organizationType = String(org.type);
-    organizationOriginalId = org.originalType === 'Laboratory' && org.originalId
-      ? String(org.originalId)
-      : null;
+    organizationOriginalId = (
+      (org.type === 'LABORATORY' && org.originalType === 'Laboratory')
+      || (org.type === 'DIAGNOSTIC_CENTER' && org.originalType === 'DiagnosticCenter')
+    ) && org.originalId ? String(org.originalId) : null;
     const person = await prisma.person.findFirst({
       where: { userId: input.userId, organizationId: org.id },
       include: { personRoles: { include: { role: true } } },
