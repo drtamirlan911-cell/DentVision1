@@ -156,6 +156,22 @@ export function orchestratorEnabled(): boolean {
   return Boolean(env.OPENAI_API_KEY);
 }
 
+/**
+ * Clinic-wide deterministic shortcuts read several clinic tables outside the
+ * tool kernel. Until those services accept a server-resolved branch predicate,
+ * keep them available only to organization-wide OWNER/ADMIN with no selected
+ * branch. Branch roles must use the kernel-governed, scoped tool path.
+ */
+export function canUseClinicWideAiShortcuts(
+  role: string,
+  requestedBranchId?: string | null,
+  verifiedBranchId?: string | null,
+): boolean {
+  return ['OWNER', 'ADMIN'].includes(String(role || '').toUpperCase())
+    && !requestedBranchId
+    && !verifiedBranchId;
+}
+
 function isJarvisBriefingTrigger(text: string): boolean {
   const t = String(text || '').trim().toLowerCase();
   return (
@@ -434,7 +450,13 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
     return { ...navHit, messageId, ...personaMeta };
   }
 
-  try {
+  const clinicWideShortcutsAllowed = canUseClinicWideAiShortcuts(
+    input.role,
+    input.requestedBranchId,
+    input.branch?.id,
+  );
+
+  if (clinicWideShortcutsAllowed) try {
     const statsHit = await tryDeterministicStats(input.text, {
       userId: input.userId,
       clinicId: input.clinicId,
@@ -454,7 +476,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
   }
 
   // CEO executive brief — synthesize Analyst+Finance+Marketing without LLM.
-  if (!isGuest && isCeoBriefTrigger(input.text, activePersona)) {
+  if (!isGuest && clinicWideShortcutsAllowed && isCeoBriefTrigger(input.text, activePersona)) {
     try {
       const { composeCeoBrief } = await import('../core/ceoBrief.js');
       const clinic = input.clinicId
@@ -488,7 +510,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
   }
 
   // Jarvis entry briefing — deterministic live KPIs, not a chatty LLM opener.
-  if (!isGuest && isJarvisBriefingTrigger(input.text)) {
+  if (!isGuest && clinicWideShortcutsAllowed && isJarvisBriefingTrigger(input.text)) {
     try {
       const { buildJarvisBriefing } = await import('../core/jarvisBriefing.js');
       const clinic = input.clinicId
@@ -526,6 +548,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
   if (
     !isGuest
     && input.clinicId
+    && clinicWideShortcutsAllowed
     && isClinicLoadQuery(input.text)
   ) {
     try {

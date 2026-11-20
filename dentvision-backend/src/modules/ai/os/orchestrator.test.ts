@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatWorkspaceContext, stripModelConfirmation } from './orchestrator.js';
+import { canUseClinicWideAiShortcuts, formatWorkspaceContext, stripModelConfirmation } from './orchestrator.js';
 
 describe('stripModelConfirmation', () => {
   it('removes a confirmation the model set itself', () => {
@@ -66,5 +66,19 @@ describe('formatWorkspaceContext', () => {
     expect(context).toContain('Активное рабочее пространство: не определено');
     expect(context).toContain('Активный филиал: не выбран или не подтверждён текущими правами');
     expect(context).toContain('Доступные рабочие пространства: —');
+  });
+});
+
+describe('canUseClinicWideAiShortcuts', () => {
+  it('allows organization-wide OWNER and ADMIN only when no branch is selected', () => {
+    expect(canUseClinicWideAiShortcuts('OWNER')).toBe(true);
+    expect(canUseClinicWideAiShortcuts('ADMIN', null, null)).toBe(true);
+  });
+
+  it('does not let branch roles or selected branch contexts use clinic-wide shortcuts', () => {
+    expect(canUseClinicWideAiShortcuts('MANAGER')).toBe(false);
+    expect(canUseClinicWideAiShortcuts('DOCTOR')).toBe(false);
+    expect(canUseClinicWideAiShortcuts('OWNER', 'branch-1', null)).toBe(false);
+    expect(canUseClinicWideAiShortcuts('ADMIN', null, 'branch-1')).toBe(false);
   });
 });
