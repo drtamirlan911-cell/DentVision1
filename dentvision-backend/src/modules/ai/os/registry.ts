@@ -384,10 +384,6 @@ const AGENTS: AgentDefinition[] = [
     requiredPermissions: [
       'DIAGNOSTIC_OWNER',
       'DIAGNOSTIC_ADMIN',
-      'DIAGNOSTIC_MANAGER',
-      'DIAGNOSTIC_OPERATOR',
-      'DIAGNOSTIC_RECEPTION',
-      'DIAGNOSTIC_RADIOLOGIST',
       'DIAGNOSTIC_QUALITY',
     ],
     allowedTools: ['getDiagnosticCenterWorkQueue', 'navigate'],
@@ -398,6 +394,19 @@ const AGENTS: AgentDefinition[] = [
       'Ты помощник диагностического центра. Показывай только производственную очередь и её операционные метаданные текущего центра. Не раскрывай данные пациента, жалобы, диагнозы, заключения или файлы. Не меняй статус, не подписывай результаты и не принимай оплату через read-only очередь.',
   },
   {
+    id: 'agent.partner.medical-lab',
+    name: 'Medical Laboratory Agent',
+    domain: 'business',
+    version: '1.0.0',
+    requiredPermissions: ['MEDICAL_LAB_OWNER', 'MEDICAL_LAB_ADMIN', 'MEDICAL_LAB_QUALITY'],
+    allowedTools: ['getMedicalLabReferralQueue', 'navigate'],
+    owner: 'partner-team',
+    status: 'active',
+    persona: 'analyst',
+    mandate:
+      'Ты помощник медицинской лаборатории. Показывай только очередь своей активной лаборатории и безопасные операционные метаданные. Не раскрывай сведения о пациентах, диагнозы, комментарии, результаты и файлы. Не валидируй и не подписывай результаты, не меняй статусы через read-only очередь.',
+  },
+  {
     id: 'agent.partner.dental-lab',
     name: 'Dental Laboratory Agent',
     domain: 'business',
@@ -405,8 +414,10 @@ const AGENTS: AgentDefinition[] = [
     requiredPermissions: [
       'DENTAL_LAB_OWNER',
       'DENTAL_LAB_ADMIN',
-      'DENTAL_LAB_MANAGER',
       'DENTAL_TECHNICIAN',
+      'CAD_DESIGNER',
+      'CERAMIST',
+      'ORTHODONTIC_TECHNICIAN',
     ],
     allowedTools: ['getDentalLabWorkQueue', 'navigate'],
     owner: 'partner-team',

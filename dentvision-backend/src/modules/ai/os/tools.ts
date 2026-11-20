@@ -25,7 +25,7 @@ import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
 import { scrubToolOutput } from '../lib/piiScrubber.js';
 import { createReferral } from '../../diagnostics/diagnostics.service.js';
 import { prepareLabOrderWrite, VALID_STATUSES as VALID_LAB_STATUSES } from '../../lab/lab.routes.js';
-import { getDentalLabWorkQueue, getDiagnosticCenterWorkQueue, getSupplierInventoryOverview } from './partnerWorkspaceTools.js';
+import { getDentalLabWorkQueue, getDiagnosticCenterWorkQueue, getMedicalLabReferralQueue, getSupplierInventoryOverview } from './partnerWorkspaceTools.js';
 import { getLecturerCoursesOverview, getStudentLearningProgress } from './educationWorkspaceTools.js';
 import { getEmployerVacancyOverview } from './employerWorkspaceTools.js';
 import {
@@ -1004,6 +1004,24 @@ export const TOOLS: Record<string, ToolSpec> = {
         organizationId: ctx.organizationId || null,
         organizationType: ctx.organizationType || null,
         organizationOriginalId: ctx.organizationOriginalId || null,
+        role: ctx.role,
+      });
+      if (!result.ok) return { ok: false, error: result.error };
+      return { ok: true, data: result.data };
+    },
+  },
+
+  getMedicalLabReferralQueue: {
+    name: 'getMedicalLabReferralQueue',
+    description: 'Очередь медицинской лаборатории: категория анализа, приоритет, статус и даты. Доступна только владельцу, администратору и специалисту по качеству с областью ORGANIZATION и правом lab.read; персональные и клинические сведения не выбираются.',
+    parameters: { type: 'object', properties: {} },
+    async execute(_args, ctx) {
+      const result = await getMedicalLabReferralQueue({
+        userId: ctx.userId,
+        organizationId: ctx.organizationId || null,
+        organizationType: ctx.organizationType || null,
+        organizationOriginalId: ctx.organizationOriginalId || null,
+        role: ctx.role,
       });
       if (!result.ok) return { ok: false, error: result.error };
       return { ok: true, data: result.data };
@@ -1021,6 +1039,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         organizationId: ctx.organizationId || null,
         organizationType: ctx.organizationType || null,
         organizationOriginalId: ctx.organizationOriginalId || null,
+        role: ctx.role,
       });
       if (!result.ok) return { ok: false, error: result.error || 'Не удалось загрузить очередь лаборатории' };
       return { ok: true, data: result.data };

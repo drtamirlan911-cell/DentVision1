@@ -45,13 +45,14 @@ vi.mock('../../../lib/prisma.js', () => ({
   },
 }));
 
-import { getDentalLabWorkQueue, getDiagnosticCenterWorkQueue, getSupplierInventoryOverview } from './partnerWorkspaceTools.js';
+import { getDentalLabWorkQueue, getDiagnosticCenterWorkQueue, getMedicalLabReferralQueue, getSupplierInventoryOverview } from './partnerWorkspaceTools.js';
 
 const context = {
   userId: 'tech-1',
   organizationId: 'org-lab-1',
   organizationType: 'LABORATORY',
   organizationOriginalId: 'lab-1',
+  role: 'DENTAL_LAB_OWNER',
 };
 
 const readyOrganization = {
@@ -69,7 +70,7 @@ const readyOrganization = {
 beforeEach(() => {
   vi.clearAllMocks();
   organizationFindUnique.mockResolvedValue(readyOrganization);
-  diagnosticCenterMemberFindFirst.mockResolvedValue({ role: 'radiologist', center: { id: 'center-1', name: 'Center One', active: true } });
+  diagnosticCenterMemberFindFirst.mockResolvedValue({ role: 'admin', center: { id: 'center-1', name: 'Center One', active: true } });
   referralCount.mockResolvedValue(1);
   referralFindMany.mockResolvedValue([{
     id: 'referral-1', category: 'CBCT', studyType: 'КТ челюсти', priority: 'URGENT', status: 'IN_PROGRESS',
@@ -195,8 +196,9 @@ describe('getSupplierInventoryOverview — supplier-only stock visibility', () =
 
 describe('getDiagnosticCenterWorkQueue — scoped read-only worklist', () => {
   const diagnosticContext = {
-    userId: 'radiologist-1', organizationId: 'org-center-1',
+    userId: 'diagnostic-owner-1', organizationId: 'org-center-1',
     organizationType: 'DIAGNOSTIC_CENTER', organizationOriginalId: 'center-1',
+    role: 'DIAGNOSTIC_OWNER',
   };
 
   beforeEach(() => {
@@ -241,11 +243,15 @@ describe('getDiagnosticCenterWorkQueue — scoped read-only worklist', () => {
     diagnosticCenterMemberFindFirst.mockResolvedValueOnce(null);
     const missing = await getDiagnosticCenterWorkQueue(diagnosticContext);
     diagnosticCenterMemberFindFirst.mockResolvedValueOnce({
-      role: 'finance', center: { id: 'center-1', name: 'Center One', active: true },
+      role: 'operator', center: { id: 'center-1', name: 'Center One', active: true },
     });
-    const finance = await getDiagnosticCenterWorkQueue(diagnosticContext);
+    const branchOperator = await getDiagnosticCenterWorkQueue(diagnosticContext);
     expect(missing.ok).toBe(false);
-    expect(finance.ok).toBe(false);
+    expect(branchOperator.ok).toBe(false);
+    const wrongScopedRole = await getDiagnosticCenterWorkQueue({
+      ...diagnosticContext, role: 'DIAGNOSTIC_MANAGER',
+    });
+    expect(wrongScopedRole.ok).toBe(false);
     expect(referralFindMany).not.toHaveBeenCalled();
   });
 });
@@ -289,7 +295,7 @@ describe('getDentalLabWorkQueue — organization isolation', () => {
       lab: { id: 'lab-1', name: 'DentLab', active: true },
     });
 
-    const result = await getDentalLabWorkQueue(context);
+    const result = await getDentalLabWorkQueue({ ...context, role: 'DENTAL_TECHNICIAN' });
 
     expect(result.ok).toBe(true);
     expect(result.data?.visibility).toBe('assigned_to_me');
@@ -349,6 +355,16 @@ describe('getDentalLabWorkQueue — organization isolation', () => {
     expect(labOrderFindMany).not.toHaveBeenCalled();
   });
 
+  it('rejects branch-scoped managers until a branch filter is available', async () => {
+    laboratoryMemberFindFirst.mockResolvedValueOnce({
+      role: 'manager',
+      lab: { id: 'lab-1', name: 'DentLab', active: true },
+    });
+    const result = await getDentalLabWorkQueue({ ...context, role: 'DENTAL_LAB_MANAGER' });
+    expect(result.ok).toBe(false);
+    expect(labOrderFindMany).not.toHaveBeenCalled();
+  });
+
   it('rejects a finance or other non-production laboratory role', async () => {
     laboratoryMemberFindFirst.mockResolvedValueOnce({
       role: 'lab_finance',
@@ -377,5 +393,141 @@ describe('getDentalLabWorkQueue — organization isolation', () => {
     expect(result.data?.hasMore).toBe(true);
     expect(result.data?.total).toBe(120);
     expect(labOrderFindMany).toHaveBeenCalledWith(expect.objectContaining({ take: 51 }));
+  });
+});
+
+
+const medicalLabContext = {
+  userId: 'medical-owner-1',
+  organizationId: 'org-med-lab-1',
+  organizationType: 'LABORATORY',
+  organizationOriginalId: 'medical-lab-1',
+  role: 'MEDICAL_LAB_OWNER',
+};
+
+const readyMedicalLabOrganization = {
+  id: 'org-med-lab-1',
+  type: 'LABORATORY',
+  originalType: 'Laboratory',
+  originalId: 'medical-lab-1',
+  archivedAt: null,
+  settings: { laboratoryType: 'MEDICAL_LAB', selfServiceType: 'medical_lab' },
+};
+
+describe('getMedicalLabReferralQueue — PHI-minimized medical laboratory worklist', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    organizationFindUnique.mockResolvedValue(readyMedicalLabOrganization);
+    laboratoryMemberFindFirst.mockResolvedValue({
+      role: 'owner',
+      lab: { id: 'medical-lab-1', name: 'Medical Lab One', active: true },
+    });
+    referralCount.mockResolvedValue(1);
+    referralFindMany.mockResolvedValue([{
+      id: 'referral-med-1',
+      category: 'BLOOD',
+      priority: 'URGENT',
+      status: 'SENT',
+      scheduledDate: new Date('2026-11-21T09:00:00.000Z'),
+      createdAt: new Date('2026-11-20T06:00:00.000Z'),
+      updatedAt: new Date('2026-11-20T06:30:00.000Z'),
+      patientId: 'private-patient-id',
+      patientName: 'Private Patient',
+      patientIin: '990101123456',
+      patientPhone: '+7 777 123 45 67',
+      complaints: 'Sensitive complaint',
+      preliminaryDx: 'Sensitive diagnosis',
+      commentForLab: 'Private instruction',
+      result: { reportText: 'Private test result' },
+      files: [{ fileUrl: 'https://private.example/file' }],
+    }]);
+    referralGroupBy.mockResolvedValue([{ status: 'SENT', _count: { _all: 1 } }]);
+  });
+
+  it('returns only workflow metadata and does not select patient/clinical fields', async () => {
+    const result = await getMedicalLabReferralQueue(medicalLabContext);
+    expect(result.ok).toBe(true);
+    expect(result.data).toMatchObject({
+      laboratory: { id: 'medical-lab-1', name: 'Medical Lab One' },
+      total: 1, returned: 1, hasMore: false, byStatus: { SENT: 1 },
+      referrals: [{ id: 'referral-med-1', category: 'BLOOD', priority: 'URGENT', status: 'SENT' }],
+    });
+    expect(laboratoryMemberFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { labId: 'medical-lab-1', userId: 'medical-owner-1' },
+    }));
+    expect(referralFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { labId: 'medical-lab-1' },
+      take: 51,
+      select: {
+        id: true, category: true, priority: true, status: true,
+        scheduledDate: true, createdAt: true, updatedAt: true,
+      },
+    }));
+    const serialized = JSON.stringify(result.data);
+    for (const value of [
+      'private-patient-id', 'Private Patient', '990101123456',
+      '+7 777 123 45 67', 'Sensitive complaint', 'Sensitive diagnosis',
+      'Private instruction', 'Private test result', 'private.example',
+    ]) expect(serialized).not.toContain(value);
+  });
+
+  it('rejects branch/assigned roles before reading the whole laboratory queue', async () => {
+    for (const role of [
+      'MEDICAL_LAB_MANAGER', 'MEDICAL_LAB_RECEPTION', 'MEDICAL_LAB_TECHNICIAN',
+      'MEDICAL_LAB_VALIDATOR', 'MEDICAL_LAB_DOCTOR', 'MEDICAL_LAB_FINANCE',
+    ]) {
+      const result = await getMedicalLabReferralQueue({ ...medicalLabContext, role });
+      expect(result.ok).toBe(false);
+    }
+    expect(organizationFindUnique).not.toHaveBeenCalled();
+    expect(referralFindMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects dental-lab, archived and mismatched organization links', async () => {
+    organizationFindUnique.mockResolvedValueOnce({
+      ...readyMedicalLabOrganization,
+      settings: { laboratoryType: 'DENTAL_LAB', selfServiceType: 'dental_lab' },
+    });
+    const dentalLab = await getMedicalLabReferralQueue(medicalLabContext);
+    organizationFindUnique.mockResolvedValueOnce({ ...readyMedicalLabOrganization, archivedAt: new Date() });
+    const archived = await getMedicalLabReferralQueue(medicalLabContext);
+    organizationFindUnique.mockResolvedValueOnce({ ...readyMedicalLabOrganization, originalId: 'another-lab' });
+    const mismatched = await getMedicalLabReferralQueue(medicalLabContext);
+    expect(dentalLab.ok).toBe(false);
+    expect(archived.ok).toBe(false);
+    expect(mismatched.ok).toBe(false);
+    expect(laboratoryMemberFindFirst).not.toHaveBeenCalled();
+    expect(referralFindMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects absent, inactive or non-organization membership', async () => {
+    laboratoryMemberFindFirst.mockResolvedValueOnce(null);
+    const absent = await getMedicalLabReferralQueue(medicalLabContext);
+    laboratoryMemberFindFirst.mockResolvedValueOnce({
+      role: 'owner', lab: { id: 'medical-lab-1', name: 'Medical Lab One', active: false },
+    });
+    const inactive = await getMedicalLabReferralQueue(medicalLabContext);
+    laboratoryMemberFindFirst.mockResolvedValueOnce({
+      role: 'technician',
+      lab: { id: 'medical-lab-1', name: 'Medical Lab One', active: true },
+    });
+    const branchMember = await getMedicalLabReferralQueue(medicalLabContext);
+    expect(absent.ok).toBe(false);
+    expect(inactive.ok).toBe(false);
+    expect(branchMember.ok).toBe(false);
+    expect(referralFindMany).not.toHaveBeenCalled();
+  });
+
+  it('limits the result to 50 rows and preserves total count', async () => {
+    referralCount.mockResolvedValueOnce(51);
+    referralFindMany.mockResolvedValueOnce(Array.from({ length: 51 }, (_, index) => ({
+      id: 'referral-' + index, category: 'BLOOD', priority: 'NORMAL', status: 'SENT',
+      scheduledDate: null, createdAt: new Date('2026-11-20T06:00:00.000Z'), updatedAt: null,
+    })));
+    const result = await getMedicalLabReferralQueue(medicalLabContext);
+    expect(result.ok).toBe(true);
+    expect(result.data.returned).toBe(50);
+    expect(result.data.total).toBe(51);
+    expect(result.data.hasMore).toBe(true);
   });
 });

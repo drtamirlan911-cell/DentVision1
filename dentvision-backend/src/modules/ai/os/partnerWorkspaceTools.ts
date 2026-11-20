@@ -12,14 +12,20 @@
  */
 import type { Prisma } from '@prisma/client';
 import prisma from '../../../lib/prisma.js';
-import { canLabMemberReadOrders, isLabManagerRole, labMemberOrderReadScope } from '../../lab/labPlatform.authorization.js';
+import { isLabTechnicianRole, labMemberOrderReadScope } from '../../lab/labPlatform.authorization.js';
 
 export interface DentalLabWorkQueueContext {
   userId: string;
   organizationId: string | null;
   organizationType: string | null;
   organizationOriginalId: string | null;
+  role: string;
 }
+
+const DENTAL_LAB_AI_ORG_ROLES = new Set(['DENTAL_LAB_OWNER', 'DENTAL_LAB_ADMIN']);
+const DENTAL_LAB_AI_ASSIGNED_ROLES = new Set([
+  'DENTAL_TECHNICIAN', 'CAD_DESIGNER', 'CERAMIST', 'ORTHODONTIC_TECHNICIAN',
+]);
 
 export interface DentalLabWorkQueueResult {
   ok: boolean;
@@ -79,14 +85,25 @@ export interface DiagnosticCenterWorkQueueContext {
   organizationId: string | null;
   organizationType: string | null;
   organizationOriginalId: string | null;
+  role: string;
 }
 
-const DIAGNOSTIC_QUEUE_ROLES = new Set([
-  'owner', 'admin', 'manager', 'radiologist', 'operator', 'reception', 'quality',
+// Whole-center queue visibility is limited to roles whose canonical registry
+// declares ORGANIZATION scope. Branch/assigned roles remain closed until their
+// exact row scope can be enforced.
+const DIAGNOSTIC_CENTER_AI_ROLES = new Set([
+  'DIAGNOSTIC_OWNER', 'DIAGNOSTIC_ADMIN', 'DIAGNOSTIC_QUALITY',
 ]);
+const DIAGNOSTIC_CENTER_MEMBER_ROLES = new Set(['owner', 'admin', 'quality']);
 
 export async function getDiagnosticCenterWorkQueue(context: DiagnosticCenterWorkQueueContext) {
-  if (!context.userId || !context.organizationId || context.organizationType !== 'DIAGNOSTIC_CENTER' || !context.organizationOriginalId) {
+  if (
+    !context.userId
+    || !context.organizationId
+    || context.organizationType !== 'DIAGNOSTIC_CENTER'
+    || !context.organizationOriginalId
+    || !DIAGNOSTIC_CENTER_AI_ROLES.has(String(context.role || '').trim().toUpperCase())
+  ) {
     return { ok: false as const, error: 'Нет подтверждённого рабочего пространства диагностического центра' };
   }
   try {
@@ -102,7 +119,7 @@ export async function getDiagnosticCenterWorkQueue(context: DiagnosticCenterWork
       where: { centerId: context.organizationOriginalId, userId: context.userId },
       select: { role: true, center: { select: { id: true, name: true, active: true } } },
     });
-    if (!membership?.center?.active || !DIAGNOSTIC_QUEUE_ROLES.has(String(membership.role || '').trim().toLowerCase())) {
+    if (!membership?.center?.active || !DIAGNOSTIC_CENTER_MEMBER_ROLES.has(String(membership.role || '').trim().toLowerCase())) {
       return { ok: false as const, error: 'У вас нет доступа к очереди диагностического центра' };
     }
     const where = { centerId: context.organizationOriginalId };
@@ -294,6 +311,8 @@ export async function getDentalLabWorkQueue(
     || !context.organizationId
     || context.organizationType !== 'LABORATORY'
     || !context.organizationOriginalId
+    || (!DENTAL_LAB_AI_ORG_ROLES.has(String(context.role || '').trim().toUpperCase())
+      && !DENTAL_LAB_AI_ASSIGNED_ROLES.has(String(context.role || '').trim().toUpperCase()))
   ) {
     return { ok: false, error: 'Нет подтверждённого рабочего пространства зуботехнической лаборатории' };
   }
@@ -321,7 +340,15 @@ export async function getDentalLabWorkQueue(
         lab: { select: { id: true, name: true, active: true } },
       },
     });
-    if (!membership?.lab?.active || !canLabMemberReadOrders(membership.role)) {
+    const memberRole = String(membership?.role || '').trim().toLowerCase();
+    const isOrganizationQueueRole = DENTAL_LAB_AI_ORG_ROLES.has(String(context.role || '').trim().toUpperCase());
+    const hasOrganizationMembership = ['owner', 'admin'].includes(memberRole);
+    const hasAssignedProductionMembership = isLabTechnicianRole(memberRole);
+    if (
+      !membership?.lab?.active
+      || (isOrganizationQueueRole && !hasOrganizationMembership)
+      || (!isOrganizationQueueRole && !hasAssignedProductionMembership)
+    ) {
       return { ok: false, error: 'У вас нет доступа к производственной очереди этой лаборатории' };
     }
 
@@ -363,7 +390,7 @@ export async function getDentalLabWorkQueue(
       ok: true,
       data: {
         laboratory: { id: membership.lab.id, name: safeText(membership.lab.name, 120) || 'Зуботехническая лаборатория' },
-        visibility: isLabManagerRole(membership.role) ? 'laboratory_queue' : 'assigned_to_me',
+        visibility: isOrganizationQueueRole ? 'laboratory_queue' : 'assigned_to_me',
         total,
         returned: orders.length,
         hasMore: total > orders.length,
@@ -374,5 +401,127 @@ export async function getDentalLabWorkQueue(
   } catch {
     // Keep errors free of patient identifiers, query values and database details.
     return { ok: false, error: 'Не удалось безопасно загрузить производственную очередь лаборатории' };
+  }
+}
+
+
+/**
+ * Read-only referral queue for an active medical-laboratory workspace.
+ * Referral rows contain patient identity, IIN, contacts, symptoms, diagnoses,
+ * instructions and result payloads. This projection selects only enum workflow
+ * metadata and dates.
+ */
+export interface MedicalLabReferralQueueContext {
+  userId: string;
+  organizationId: string | null;
+  organizationType: string | null;
+  organizationOriginalId: string | null;
+  role: string;
+}
+
+const MEDICAL_LAB_AI_ROLES = new Set([
+  'MEDICAL_LAB_OWNER',
+  'MEDICAL_LAB_ADMIN',
+  'MEDICAL_LAB_QUALITY',
+]);
+const MEDICAL_LAB_MEMBER_ROLES = new Set([
+  'owner', 'admin', 'quality',
+  'medical_lab_owner', 'medical_lab_admin', 'medical_lab_quality',
+]);
+
+function medicalLabSettingsReady(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const settings = value as Record<string, unknown>;
+  return settings.laboratoryType === 'MEDICAL_LAB'
+    && settings.selfServiceType === 'medical_lab';
+}
+
+export async function getMedicalLabReferralQueue(context: MedicalLabReferralQueueContext) {
+  const role = String(context.role || '').trim().toUpperCase();
+  if (
+    !context.userId
+    || !context.organizationId
+    || context.organizationType !== 'LABORATORY'
+    || !context.organizationOriginalId
+    || !MEDICAL_LAB_AI_ROLES.has(role)
+  ) {
+    return { ok: false as const, error: 'Нет подтверждённого рабочего пространства медицинской лаборатории' };
+  }
+
+  try {
+    const organization = await prisma.organization.findUnique({
+      where: { id: context.organizationId },
+      select: { id: true, type: true, originalType: true, originalId: true, archivedAt: true, settings: true },
+    });
+    if (
+      !organization
+      || organization.archivedAt
+      || organization.type !== 'LABORATORY'
+      || organization.originalType !== 'Laboratory'
+      || organization.originalId !== context.organizationOriginalId
+      || !medicalLabSettingsReady(organization.settings)
+    ) {
+      return { ok: false as const, error: 'Текущее рабочее пространство не является активной медицинской лабораторией' };
+    }
+
+    const membership = await prisma.laboratoryMember.findFirst({
+      where: { labId: context.organizationOriginalId, userId: context.userId },
+      select: { role: true, lab: { select: { id: true, name: true, active: true } } },
+    });
+    const memberRole = String(membership?.role || '').trim().toLowerCase();
+    if (!membership?.lab?.active || !MEDICAL_LAB_MEMBER_ROLES.has(memberRole)) {
+      return { ok: false as const, error: 'У вас нет доступа к очереди медицинской лаборатории' };
+    }
+
+    const where = { labId: context.organizationOriginalId };
+    const [total, rows, grouped] = await Promise.all([
+      prisma.referral.count({ where }),
+      prisma.referral.findMany({
+        where,
+        select: {
+          id: true,
+          category: true,
+          priority: true,
+          status: true,
+          scheduledDate: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: [{ scheduledDate: 'asc' }, { createdAt: 'desc' }],
+        take: 51,
+      }),
+      prisma.referral.groupBy({ by: ['status'], where, _count: { _all: true } }),
+    ]);
+
+    const referrals = rows.slice(0, 50).map((row) => ({
+      id: row.id,
+      category: String(row.category),
+      priority: String(row.priority),
+      status: String(row.status),
+      scheduledDate: row.scheduledDate,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }));
+    const byStatus = grouped.reduce<Record<string, number>>((result, item) => {
+      result[String(item.status)] = Number(item._count._all) || 0;
+      return result;
+    }, {});
+
+    return {
+      ok: true as const,
+      data: {
+        laboratory: {
+          id: membership.lab.id,
+          name: safeText(membership.lab.name, 120) || 'Медицинская лаборатория',
+        },
+        total,
+        returned: referrals.length,
+        hasMore: total > referrals.length,
+        byStatus,
+        referrals,
+      },
+    };
+  } catch {
+    return { ok: false as const, error: 'Не удалось безопасно загрузить очередь медицинской лаборатории' };
   }
 }

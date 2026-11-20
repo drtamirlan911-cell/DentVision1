@@ -60,6 +60,7 @@ export const TOOL_PERMISSIONS: Record<string, string> = {
   updateLabOrderStatus: 'appointment.write',
   // Employer vacancy overview mirrors the Jobs REST route's organization-scoped read permission.
   getEmployerVacancyOverview: 'jobs.read',
+  getMedicalLabReferralQueue: 'lab.read',
 };
 
 /**

@@ -60,11 +60,26 @@ describe('AI OS agent registry', () => {
 
   it('exposes the diagnostic-center queue only to diagnostic-center roles', () => {
     expect(toolsForRole('DIAGNOSTIC_OWNER').has('getDiagnosticCenterWorkQueue')).toBe(true);
-    expect(toolsForRole('DIAGNOSTIC_OPERATOR').has('getDiagnosticCenterWorkQueue')).toBe(true);
-    expect(toolsForRole('DIAGNOSTIC_RADIOLOGIST').has('getDiagnosticCenterWorkQueue')).toBe(true);
-    expect(toolsForRole('MEDICAL_LAB_TECHNICIAN').has('getDiagnosticCenterWorkQueue')).toBe(false);
+    expect(toolsForRole('DIAGNOSTIC_ADMIN').has('getDiagnosticCenterWorkQueue')).toBe(true);
+    expect(toolsForRole('DIAGNOSTIC_QUALITY').has('getDiagnosticCenterWorkQueue')).toBe(true);
+    expect(toolsForRole('DIAGNOSTIC_MANAGER').has('getDiagnosticCenterWorkQueue')).toBe(false);
+    expect(toolsForRole('DIAGNOSTIC_OPERATOR').has('getDiagnosticCenterWorkQueue')).toBe(false);
+    expect(toolsForRole('DIAGNOSTIC_RECEPTION').has('getDiagnosticCenterWorkQueue')).toBe(false);
+    expect(toolsForRole('RADIOLOGIST').has('getDiagnosticCenterWorkQueue')).toBe(false);
     expect(toolsForRole('DIAGNOSTIC_FINANCE').has('getDiagnosticCenterWorkQueue')).toBe(false);
+    expect(toolsForRole('MEDICAL_LAB_OWNER').has('getDiagnosticCenterWorkQueue')).toBe(false);
     expect(toolsForRole('DENTAL_LAB_OWNER').has('getDiagnosticCenterWorkQueue')).toBe(false);
+  });
+
+  it('exposes the medical-lab queue only to organization-scope roles', () => {
+    for (const role of ['MEDICAL_LAB_OWNER', 'MEDICAL_LAB_ADMIN', 'MEDICAL_LAB_QUALITY']) {
+      expect(agentsForRole(role).some((agent) => agent.id === 'agent.partner.medical-lab')).toBe(true);
+      expect(toolsForRole(role).has('getMedicalLabReferralQueue')).toBe(true);
+    }
+    for (const role of [
+      'MEDICAL_LAB_MANAGER', 'MEDICAL_LAB_RECEPTION', 'MEDICAL_LAB_TECHNICIAN',
+      'MEDICAL_LAB_VALIDATOR', 'MEDICAL_LAB_DOCTOR', 'MEDICAL_LAB_FINANCE', 'DENTAL_LAB_OWNER',
+    ]) expect(toolsForRole(role).has('getMedicalLabReferralQueue')).toBe(false);
   });
 
   it('exposes supplier inventory only in the supplier workspace', () => {
@@ -82,8 +97,11 @@ describe('AI OS agent registry', () => {
 
     expect(ownerTools.has('getDentalLabWorkQueue')).toBe(true);
     expect(adminTools.has('getDentalLabWorkQueue')).toBe(true);
-    expect(managerTools.has('getDentalLabWorkQueue')).toBe(true);
+    expect(managerTools.has('getDentalLabWorkQueue')).toBe(false);
     expect(technicianTools.has('getDentalLabWorkQueue')).toBe(true);
+    expect(toolsForRole('CAD_DESIGNER').has('getDentalLabWorkQueue')).toBe(true);
+    expect(toolsForRole('CERAMIST').has('getDentalLabWorkQueue')).toBe(true);
+    expect(toolsForRole('ORTHODONTIC_TECHNICIAN').has('getDentalLabWorkQueue')).toBe(true);
     expect(toolsForRole('MEDICAL_LAB_TECHNICIAN').has('getDentalLabWorkQueue')).toBe(false);
     expect(toolsForRole('DIAGNOSTIC_OPERATOR').has('getDentalLabWorkQueue')).toBe(false);
     expect(toolsForRole('SUPPLIER').has('getDentalLabWorkQueue')).toBe(false);
