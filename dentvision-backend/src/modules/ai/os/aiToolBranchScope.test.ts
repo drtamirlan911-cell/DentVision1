@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { organizationFindFirst, personFindFirst, resolveOrganizationBranches, resolveLegacyClinicBranches } = vi.hoisted(() => ({
+const { organizationFindFirst, personFindFirst, clinicMemberFindUnique, resolveOrganizationBranches, resolveLegacyClinicBranches } = vi.hoisted(() => ({
   organizationFindFirst: vi.fn(),
   personFindFirst: vi.fn(),
+  clinicMemberFindUnique: vi.fn(),
   resolveOrganizationBranches: vi.fn(),
   resolveLegacyClinicBranches: vi.fn(),
 }));
@@ -11,6 +12,7 @@ vi.mock('../../../lib/prisma.js', () => ({
   default: {
     organization: { findFirst: organizationFindFirst },
     person: { findFirst: personFindFirst },
+    clinicMember: { findUnique: clinicMemberFindUnique },
   },
 }));
 vi.mock('../../../lib/orgContext.js', () => ({
@@ -51,6 +53,7 @@ beforeEach(() => {
   });
   resolveOrganizationBranches.mockResolvedValue(['branch-1']);
   resolveLegacyClinicBranches.mockResolvedValue(['branch-1']);
+  clinicMemberFindUnique.mockResolvedValue({ role: 'DOCTOR' });
 });
 
 describe('resolveAiToolBranchScope', () => {
@@ -134,13 +137,28 @@ describe('resolveAiToolBranchScope', () => {
     await expect(resolveAiToolBranchScope(input())).resolves.toBeNull();
   });
 
-  it('uses legacy ClinicMember branch resolution only without canonical organization', async () => {
+  it('uses legacy ClinicMember branch resolution only without canonical organization and when the raw role matches', async () => {
     await expect(resolveAiToolBranchScope(input({ organizationId: null }))).resolves.toMatchObject({
       roleScope: 'ASSIGNED',
       branchId: 'branch-1',
     });
+    expect(clinicMemberFindUnique).toHaveBeenCalledWith({
+      where: { userId_clinicId: { userId: 'user-1', clinicId: 'clinic-1' } },
+      select: { role: true },
+    });
     expect(resolveLegacyClinicBranches).toHaveBeenCalledWith('user-1', 'clinic-1', 'ASSIGNED');
     expect(personFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('does not promote a legacy cashier to organization-wide ADMIN scope', async () => {
+    clinicMemberFindUnique.mockResolvedValue({ role: 'CASHIER' });
+    await expect(resolveAiToolBranchScope(input({ organizationId: null, role: 'ADMIN' }))).resolves.toBeNull();
+    expect(resolveLegacyClinicBranches).not.toHaveBeenCalled();
+  });
+
+  it('rejects a legacy member when the effective role differs from ClinicMember.role', async () => {
+    clinicMemberFindUnique.mockResolvedValue({ role: 'DOCTOR' });
+    await expect(resolveAiToolBranchScope(input({ organizationId: null, role: 'MANAGER' }))).resolves.toBeNull();
   });
 
   it('denies unsupported and platform roles', async () => {

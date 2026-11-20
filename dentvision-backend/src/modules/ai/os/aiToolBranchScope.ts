@@ -98,7 +98,18 @@ export async function resolveAiToolBranchScope(
 
     allowedBranchIds = await resolveOrganizationBranches(organization.id, roleScope, person);
   } else {
-    // Pre-canonical clinics use the active ClinicMember.branchId compatibility source.
+    // Pre-canonical clinics have no PersonRole. Re-read raw ClinicMember.role
+    // before using legacy branch membership; cashier -> ADMIN must not widen scope.
+    const legacyMembership = await prisma.clinicMember.findUnique({
+      where: { userId_clinicId: { userId: input.userId, clinicId: input.clinicId } },
+      select: { role: true },
+    });
+    if (!legacyMembership) return null;
+    const legacyRoleKey = String(legacyMembership.role || '').trim().toLowerCase();
+    const legacyEffectiveRole = PERSON_ROLE_MAP[legacyRoleKey] || legacyRoleKey.toUpperCase();
+    if (legacyEffectiveRole !== roleKey) return null;
+    if (roleKey === 'ADMIN' && !['admin', 'org_admin'].includes(legacyRoleKey)) return null;
+
     allowedBranchIds = await resolveLegacyClinicBranches(input.userId, input.clinicId, roleScope);
   }
 
