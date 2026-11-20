@@ -44,7 +44,7 @@ describe('resolveModels — discovery', () => {
     expect(models.degraded).toBe(false);
   });
 
-  it('prefers the current GPT-6 flagship and high-volume tiers when the account exposes them', async () => {
+  it('routes standard, deep, visual and high-volume work to their intended GPT-6 tiers', async () => {
     stubModels([
       'gpt-6.2-astra',
       'gpt-6.1-sol',
@@ -54,10 +54,12 @@ describe('resolveModels — discovery', () => {
 
     const models = await resolveModels({ apiKey: 'k' });
 
-    expect(models.full).toBe('gpt-6.2-astra');
+    expect(models.full).toBe('gpt-6.1-sol');
+    expect(models.deep).toBe('gpt-6.2-astra');
     expect(models.mini).toBe('gpt-6-luna');
     expect(models.vision).toBe('gpt-6.1-terra');
     expect(models.fullSupportsReasoning).toBe(true);
+    expect(models.deepSupportsReasoning).toBe(true);
     expect(models.miniSupportsReasoning).toBe(false);
     expect(models.visionSupportsReasoning).toBe(true);
   });
