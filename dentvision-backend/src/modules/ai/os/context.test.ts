@@ -226,6 +226,67 @@ describe('buildAiContext', () => {
   });
 });
 
+describe('AI context error logging', () => {
+  it('redacts personal and clinical details from workspace inventory failures', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      clinicMemberFindMany.mockRejectedValueOnce(
+        new Error('patient Иван Тестов phone +7 700 000 00 00 diagnosis pulpitis'),
+      );
+
+      await buildAiContext(req(), {});
+
+      expect(warning).toHaveBeenCalledWith(
+        '[AI context] workspace inventory resolution failed',
+        'Error',
+      );
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('Иван Тестов');
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('+7 700 000 00 00');
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('pulpitis');
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  it('redacts branch lookup exception details', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      branchFindUnique.mockRejectedValueOnce(
+        new Error('branch query included patient Иван Тестов and IIN 000000000000'),
+      );
+
+      await buildAiContext(req({ branchId: 'branch-1' }), {});
+
+      expect(warning).toHaveBeenCalledWith('[AI context] branch resolution failed', 'Error');
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('Иван Тестов');
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('000000000000');
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  it('redacts active workspace resolution exception details', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      organizationFindUnique.mockRejectedValueOnce(
+        new Error('organization lookup leaked patient Иван Тестов diagnosis pulpitis'),
+      );
+
+      await buildAiContext(req({
+        clinicId: null,
+        organizationId: 'org-1',
+        organizationType: 'SUPPLIER_COMPANY',
+      }), {});
+
+      expect(warning).toHaveBeenCalledWith('[AI context] active workspace resolution failed', 'Error');
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('Иван Тестов');
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('pulpitis');
+    } finally {
+      warning.mockRestore();
+    }
+  });
+});
+
 describe('AI partner workspace proactive context', () => {
   it('keeps partner workspace explicit and never guesses a clinic when no active clinic is supplied', async () => {
     const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/ai/core/digitalTwin.ts'), 'utf8');
