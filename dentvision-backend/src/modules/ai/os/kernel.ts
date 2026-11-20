@@ -302,6 +302,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
   let clinicId: string | null;
   let organizationId: string | null = null;
   let organizationType: string | null = null;
+  let organizationOriginalId: string | null = null;
   let supplierId: string | null = null;
   let lecturerId: string | null = null;
   let allowedTools: Set<string> | null = null;
@@ -319,6 +320,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
     clinicId = access.clinicId;
     organizationId = access.organizationId || (clinicId ? await resolveOrganizationIdForClinic(clinicId) : null);
     organizationType = access.organizationType;
+    organizationOriginalId = access.organizationOriginalId;
     supplierId = access.supplierId;
     lecturerId = access.lecturerId;
     allowedTools = access.allowed;
@@ -543,6 +545,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
         role,
         organizationId,
         organizationType,
+        organizationOriginalId,
         supplierId,
         lecturerId,
       };

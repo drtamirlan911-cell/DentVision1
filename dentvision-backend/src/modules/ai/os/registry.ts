@@ -351,6 +351,24 @@ const AGENTS: AgentDefinition[] = [
       'Ты работаешь внутри текущего партнёрского рабочего пространства. Не выдавай его за клинику и не используй клинические данные другой организации. Веди пользователя по доступным функциям текущего кабинета.',
   },
   {
+    id: 'agent.partner.dental-lab',
+    name: 'Dental Laboratory Agent',
+    domain: 'business',
+    version: '1.0.0',
+    requiredPermissions: [
+      'DENTAL_LAB_OWNER',
+      'DENTAL_LAB_ADMIN',
+      'DENTAL_LAB_MANAGER',
+      'DENTAL_TECHNICIAN',
+    ],
+    allowedTools: ['getDentalLabWorkQueue', 'navigate'],
+    owner: 'partner-team',
+    status: 'active',
+    persona: 'analyst',
+    mandate:
+      'Ты помощник зуботехнической лаборатории. Отвечай по производственной очереди только в пределах текущей лаборатории и назначенных работ. Не показывай персональные данные пациентов. Не подтверждай QC, доставку, оплату или изменение статуса без отдельного инструмента и полномочий.',
+  },
+  {
     id: 'agent.platform.superadmin',
     name: 'Platform Admin Agent',
     domain: 'compliance',

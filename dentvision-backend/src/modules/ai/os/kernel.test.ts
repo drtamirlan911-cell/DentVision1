@@ -69,8 +69,9 @@ vi.mock('./tools.js', () => ({
     getDebtors: { name: 'getDebtors', mutating: false, execute: throwingTool },
     cancelAppointment: { name: 'cancelAppointment', mutating: true, execute: cancelTool },
     getPatientCard: { name: 'getPatientCard', mutating: false, execute: patientCardTool },
+    getDentalLabWorkQueue: { name: 'getDentalLabWorkQueue', mutating: false, execute: okTool },
   },
-  listToolNames: () => ['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment', 'getPatientCard'],
+  listToolNames: () => ['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment', 'getPatientCard', 'getDentalLabWorkQueue'],
 }));
 
 import { runAiAction } from './kernel.js';
@@ -188,6 +189,36 @@ describe('runAiAction — every outcome is recorded', () => {
       organizationId: 'diagnostic-org-1',
       actorRole: 'DIAGNOSTIC_MANAGER',
     });
+  });
+
+  it('passes the database-verified Laboratory.id into the dental-lab tool context', async () => {
+    const principal = {
+      surface: 'staff' as const,
+      userId: 'user-1',
+      requestedClinicId: null,
+      requestedOrganizationId: 'dental-lab-org',
+      requestedOrganizationType: 'LABORATORY',
+    };
+    resolveAiToolAccess.mockResolvedValueOnce({
+      role: 'DENTAL_TECHNICIAN',
+      clinicId: null,
+      organizationId: 'dental-lab-org',
+      organizationType: 'LABORATORY',
+      organizationOriginalId: 'lab-42',
+      supplierId: null,
+      lecturerId: null,
+      allowed: new Set(['getDentalLabWorkQueue']),
+    });
+
+    const result = await runAiAction(principal, { tool: 'getDentalLabWorkQueue', args: {} });
+
+    expect(result.status).toBe('ok');
+    expect(okTool).toHaveBeenCalledWith({}, expect.objectContaining({
+      clinicId: null,
+      organizationId: 'dental-lab-org',
+      organizationType: 'LABORATORY',
+      organizationOriginalId: 'lab-42',
+    }));
   });
 
   it('maps a thrown NO_CLINIC into a structured denial and records it', async () => {

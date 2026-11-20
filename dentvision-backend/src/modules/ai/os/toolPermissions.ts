@@ -75,6 +75,9 @@ export const UNGATED_TOOLS: readonly string[] = [
   // (`assertOrgAccess`) and nothing more specific — no permission key to
   // mirror here without granting narrower than the REST route itself does.
   'createDiagnosticReferral',
+  // The dental-lab queue self-authorizes via the verified DENTAL_LAB organization,
+  // LaboratoryMember membership and manager/assigned-technician row scope.
+  'getDentalLabWorkQueue',
 ];
 
 // The action ladder lives in lib/permissions.ts — the AI intent router needs

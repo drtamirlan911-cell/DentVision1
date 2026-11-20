@@ -533,6 +533,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
     role: input.role,
     organizationId: access.organizationId,
     organizationType: access.organizationType,
+    organizationOriginalId: access.organizationOriginalId,
     supplierId: access.supplierId,
     lecturerId: access.lecturerId,
     entity: input.entity,

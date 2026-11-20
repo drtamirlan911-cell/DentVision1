@@ -266,6 +266,44 @@ describe('resolveAiToolAccess — organization workspaces', () => {
   });
 });
 
+describe('resolveAiToolAccess — dental lab identity', () => {
+  it('resolves a verified dental-lab original id only for an active organization member', async () => {
+    userFindUnique.mockResolvedValue({ role: 'OWNER' });
+    organizationFindUnique.mockResolvedValue({
+      id: ORG_ID,
+      type: 'LABORATORY',
+      originalType: 'Laboratory',
+      originalId: 'laboratory-1',
+      archivedAt: null,
+    });
+    personFindFirst.mockResolvedValue({
+      id: 'person-lab-1',
+      personType: 'DENTAL_TECHNICIAN',
+      personRoles: [{
+        scopeType: 'organization',
+        scopeId: ORG_ID,
+        role: { key: 'DENTAL_TECHNICIAN' },
+      }],
+    });
+    resolveUserPermissions.mockResolvedValue([]);
+
+    const access = await resolveAiToolAccess({
+      userId: USER_ID,
+      organizationId: ORG_ID,
+      organizationType: 'LABORATORY',
+    });
+
+    expect(access).toMatchObject({
+      role: 'DENTAL_TECHNICIAN',
+      clinicId: null,
+      organizationId: ORG_ID,
+      organizationType: 'LABORATORY',
+      organizationOriginalId: 'laboratory-1',
+    });
+    expect(access.allowed.has('getDentalLabWorkQueue')).toBe(true);
+  });
+});
+
 describe('resolveAiToolAccess — permission gate', () => {
   it('keeps the full surface for a role whose permissions cover it', async () => {
     arrange('OWNER', 'OWNER', PERMS.OWNER);

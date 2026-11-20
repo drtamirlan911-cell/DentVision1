@@ -25,6 +25,7 @@ import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
 import { scrubToolOutput } from '../lib/piiScrubber.js';
 import { createReferral } from '../../diagnostics/diagnostics.service.js';
 import { prepareLabOrderWrite, VALID_STATUSES as VALID_LAB_STATUSES } from '../../lab/lab.routes.js';
+import { getDentalLabWorkQueue } from './partnerWorkspaceTools.js';
 import {
   NAV_PATHS,
   NAV_SECTION_LABELS,
@@ -44,6 +45,8 @@ export interface ToolContext {
   /** Verified organization context is re-resolved inside the governance kernel before execution. */
   organizationId?: string | null;
   organizationType?: string | null;
+  /** Original domain entity id derived from the verified Organization row. */
+  organizationOriginalId?: string | null;
   supplierId?: string | null;
   lecturerId?: string | null;
   /** What's open in the caller's workspace (os/context.ts) — the kernel may use it to fill a missing patientId, never a tool directly. */
@@ -924,6 +927,23 @@ export const TOOLS: Record<string, ToolSpec> = {
       const items = await prisma.inventoryItem.findMany({ where: { clinicId }, orderBy: { name: 'asc' }, take: 100 });
       const filtered = args.lowStockOnly ? items.filter((i) => i.quantity <= i.minimum) : items;
       return { ok: true, data: filtered };
+    },
+  },
+
+  getDentalLabWorkQueue: {
+    name: 'getDentalLabWorkQueue',
+    description:
+      'Очередь зуботехнической лаборатории. Руководитель видит заказы только своей лаборатории; техник — только назначенные ему заказы. Возвращаются производственные метаданные без ФИО и медицинской карты пациента.',
+    parameters: { type: 'object', properties: {} },
+    async execute(_args, ctx) {
+      const result = await getDentalLabWorkQueue({
+        userId: ctx.userId,
+        organizationId: ctx.organizationId || null,
+        organizationType: ctx.organizationType || null,
+        organizationOriginalId: ctx.organizationOriginalId || null,
+      });
+      if (!result.ok) return { ok: false, error: result.error || 'Не удалось загрузить очередь лаборатории' };
+      return { ok: true, data: result.data };
     },
   },
 

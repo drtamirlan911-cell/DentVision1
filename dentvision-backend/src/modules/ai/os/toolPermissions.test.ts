@@ -17,6 +17,11 @@ describe('TOOL_PERMISSIONS coverage', () => {
     expect(stale).toEqual([]);
   });
 
+  it('keeps the partner dental-lab queue explicitly self-authorized, not silently unclassified', () => {
+    expect(UNGATED_TOOLS).toContain('getDentalLabWorkQueue');
+    expect(TOOL_PERMISSIONS).not.toHaveProperty('getDentalLabWorkQueue');
+  });
+
   it('gates every mutating tool', () => {
     for (const tool of [
       'createAppointment',

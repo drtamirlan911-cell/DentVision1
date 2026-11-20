@@ -27,4 +27,19 @@ describe('AI OS agent registry', () => {
     expect(doctorTools.has('analyzeRadiograph')).toBe(true);
     expect(doctorTools.has('createTreatmentPlan')).toBe(true);
   });
+  it('exposes the dental-lab queue only to dental-lab roles', () => {
+    const ownerTools = toolsForRole('DENTAL_LAB_OWNER');
+    const adminTools = toolsForRole('DENTAL_LAB_ADMIN');
+    const managerTools = toolsForRole('DENTAL_LAB_MANAGER');
+    const technicianTools = toolsForRole('DENTAL_TECHNICIAN');
+
+    expect(ownerTools.has('getDentalLabWorkQueue')).toBe(true);
+    expect(adminTools.has('getDentalLabWorkQueue')).toBe(true);
+    expect(managerTools.has('getDentalLabWorkQueue')).toBe(true);
+    expect(technicianTools.has('getDentalLabWorkQueue')).toBe(true);
+    expect(toolsForRole('MEDICAL_LAB_TECHNICIAN').has('getDentalLabWorkQueue')).toBe(false);
+    expect(toolsForRole('DIAGNOSTIC_OPERATOR').has('getDentalLabWorkQueue')).toBe(false);
+    expect(toolsForRole('SUPPLIER').has('getDentalLabWorkQueue')).toBe(false);
+  });
+
 });

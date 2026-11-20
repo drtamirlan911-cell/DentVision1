@@ -38,6 +38,8 @@ export interface AiToolAccess {
   organizationId: string | null;
   /** Canonical organization type read from the database, never the JWT claim. */
   organizationType: string | null;
+  /** Original domain entity ID from a verified Organization link (e.g. Laboratory.id). */
+  organizationOriginalId: string | null;
   /** Legacy supplier entity scope, present only after membership verification. */
   supplierId: string | null;
   /** Lecturer entity scope, present only after ownership verification. */
@@ -70,6 +72,7 @@ function guestAccess(): AiToolAccess {
     clinicId: null,
     organizationId: null,
     organizationType: null,
+    organizationOriginalId: null,
     supplierId: null,
     lecturerId: null,
     allowed: toolsForRole('GUEST'),
@@ -92,6 +95,7 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
       clinicId: input.clinicId || null,
       organizationId: input.organizationId || null,
       organizationType: input.organizationType || null,
+      organizationOriginalId: null,
       supplierId: input.supplierId || null,
       lecturerId: input.lecturerId || null,
       allowed: toolsForRole('SUPERADMIN'),
@@ -106,6 +110,7 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
   let clinicId: string | null = null;
   let organizationId: string | null = null;
   let organizationType: string | null = null;
+  let organizationOriginalId: string | null = null;
   let supplierId: string | null = null;
   let lecturerId: string | null = null;
 
@@ -132,6 +137,9 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
 
     organizationId = org.id;
     organizationType = String(org.type);
+    organizationOriginalId = org.originalType === 'Laboratory' && org.originalId
+      ? String(org.originalId)
+      : null;
     const person = await prisma.person.findFirst({
       where: { userId: input.userId, organizationId: org.id },
       include: { personRoles: { include: { role: true } } },
@@ -145,6 +153,7 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
         key.startsWith('DIAGNOSTIC_')
         || key.startsWith('MEDICAL_LAB_')
         || key.startsWith('DENTAL_LAB_')
+        || key === 'DENTAL_TECHNICIAN'
         || key === 'SUPPLIER'
         || key === 'SELLER'
         || key === 'LECTURER'
@@ -221,10 +230,13 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
     supplierId = input.supplierId;
     const org = await prisma.organization.findFirst({
       where: { originalId: input.supplierId },
-      select: { id: true, type: true },
+      select: { id: true, type: true, originalType: true, originalId: true },
     });
     organizationId = org?.id || null;
     organizationType = org ? String(org.type) : null;
+    organizationOriginalId = org?.originalType === 'Laboratory' && org.originalId
+      ? String(org.originalId)
+      : null;
   } else if (input.lecturerId) {
     const lecturer = await prisma.lecturer.findFirst({
       where: { id: input.lecturerId, userId: input.userId },
@@ -270,6 +282,7 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
     clinicId,
     organizationId,
     organizationType,
+    organizationOriginalId,
     supplierId,
     lecturerId,
     allowed,
