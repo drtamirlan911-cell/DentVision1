@@ -52,7 +52,13 @@ describe('clinical diagnostic sign-off authorization', () => {
           },
         },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        branchMemberships: {
+          where: { active: true, branch: { is: { active: true } } },
+          select: { branchId: true },
+        },
+      },
     });
     expect(canAccessReferralBranch).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -71,7 +77,7 @@ describe('clinical diagnostic sign-off authorization', () => {
   it('preserves the Master Spec OWNER + DOCTOR multi-role capability', async () => {
     // The persisted query deliberately asks whether the person has a scoped
     // doctor role, not which single role resolveClinicAccess ranks first.
-    personFindFirst.mockResolvedValue({ id: 'owner-doctor-person' });
+    personFindFirst.mockResolvedValue({ id: 'owner-doctor-person', branchMemberships: [{ branchId: 'branch-1' }] });
 
     await expect(assertClinicDoctorSignoff({
       userId: 'owner-doctor-1',
