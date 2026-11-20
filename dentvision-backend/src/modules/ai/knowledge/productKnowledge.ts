@@ -57,6 +57,7 @@ const SYNONYM_GROUPS = [
   ['вакансия', 'работа', 'кандидат', 'резюме', 'работодатель', 'jobs'],
   ['деньги', 'финансы', 'выручка', 'долг', 'счет', 'касса', 'finance'],
   ['права', 'роль', 'доступ', 'разрешение', 'permission', 'authorization'],
+  ['возможность', 'действие', 'операция', 'доступно', 'доступные', 'могу', 'можешь', 'выполнить', 'сделать', 'can', 'capability'],
 ];
 
 function normalizeText(value: string): string {
@@ -336,7 +337,7 @@ export function formatAllowedToolCapabilities(
   const changes = capabilities.filter((item) => item.effect === 'change');
   const format = (item: AllowedToolCapability) => {
     const confirmation = item.confirmation === 'explicit'
-      ? ' — изменение: сначала получи предварительный вариант и дождись явного подтверждения пользователя'
+      ? ' — изменение: сначала получи предварительный вариант, дождись явного подтверждения пользователя и дополнительного согласования, если его запросит система'
       : item.confirmation === 'tool-policy'
         ? ' — изменение: строго следуй фактическому контракту инструмента и результату governance-проверки'
         : '';

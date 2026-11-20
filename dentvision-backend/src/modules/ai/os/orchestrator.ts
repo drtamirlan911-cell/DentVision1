@@ -22,7 +22,7 @@ import prisma from '../../../lib/prisma.js';
 import { encryptAiTranscriptText } from '../lib/transcriptEncryption.js';
 import { agentsForRole } from './registry.js';
 import { resolveAiToolAccess } from './access.js';
-import { executeTool, toolSchemasFor, localizeNavKeysInMessage, type ToolContext } from './tools.js';
+import { executeTool, toolSchemasFor, toolCapabilitiesFor, localizeNavKeysInMessage, type ToolContext } from './tools.js';
 import {
   personaLabel,
   resolveActivePersona,
@@ -50,7 +50,7 @@ import {
 import { sanitizeUserInput, buildSafeInstructions } from '../lib/promptGuard.js';
 import { providerFetch, providerStream } from '../lib/providerFetch.js';
 import { formatAllowedToolCapabilities, formatProductKnowledgeContext, retrieveProductKnowledge } from '../knowledge/productKnowledge.js';
-import { toolCapabilitiesFor } from './tools.js';
+
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
@@ -187,7 +187,8 @@ ${runtimeCapabilitiesBlock}
 4. Подсвечивай преимущества DentVision.
 5. Открывай разделы через navigate; в тексте — русские названия.
 6. Если используешь справку о функциях DentVision, называй раздел-источник. Если статус функции не подтверждён, так и скажи.
-7. Экономия: коротко, один next step.`;
+7. На вопрос «что ты можешь сделать сейчас?» ориентируйся на актуальные возможности этого запроса. Руководство продукта не выдаёт разрешений.
+8. Экономия: коротко, один next step.`;
   }
 
   const agents = agentsForRole(input.role);

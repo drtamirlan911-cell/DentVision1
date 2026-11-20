@@ -55,6 +55,7 @@ describe('runtime capability context', () => {
     expect(context).toContain('ЧТЕНИЕ / ПОИСК');
     expect(context).toContain('ИЗМЕНЕНИЕ СОСТОЯНИЯ');
     expect(context).toContain('дождись явного подтверждения пользователя');
+    expect(context).toContain('дополнительного согласования, если его запросит система');
     expect(context).toContain('governance-проверки');
   });
 
@@ -96,6 +97,15 @@ describe('rankProductKnowledgeChunks', () => {
     const result = rankProductKnowledgeChunks('Как оформить заказ в зуботехническую лабораторию?', chunks);
 
     expect(result[0].id).toBe('lab');
+  });
+
+  it('retrieves the live capability section for questions about what Jarvis can do now', () => {
+    const result = rankProductKnowledgeChunks('Что ты можешь сделать сейчас?', [
+      chunk('capabilities', 'Доступные действия в текущем сеансе', 'Серверный список доступных операций определяет, что ассистент действительно может читать или менять прямо сейчас.'),
+      chunk('academy', 'Academy и курсы', 'Поиск курсов и образовательные материалы.'),
+    ]);
+
+    expect(result[0]?.id).toBe('capabilities');
   });
 
   it('can retrieve a section from its heading when detail wording differs', () => {
