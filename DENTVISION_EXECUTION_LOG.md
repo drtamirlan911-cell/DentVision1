@@ -3068,3 +3068,9 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Separately confirmed EventStore.markFailed() encrypts durable event error text through encodeDurableEventError(); new event payloads/results/errors are encrypted at rest while legacy plaintext remains in compatibility read mode. This is source-level confirmation, not closure of the historical PHI/data-lifecycle blocker.
 - Test commit: 1969aaf1db488c8a0b5af1903aa90d60b8997aee. Exact-head checks are refreshed by this commit and subsequent doc sync; do not treat earlier SHA results as final.
 - No production data, key, database, deployment or main-branch change was performed.
+
+## 2026-11-20 — user-query retrieval coverage for Jarvis agents (PR #351)
+
+- Added a runtime retrieval regression for the natural-language query “Какие AI агенты есть в DentVision?”. The test loads the canonical product guide through retrieveProductKnowledge(), asserts the AI-agent section ranks first and verifies that the returned excerpt names a real registered agent.
+- This complements the registry-parity test (every non-disabled listAgents() name must be present) and the runtime asset equality test (backend Docker guide copy must be byte-identical to the canonical root guide).
+- Test commit: 0094c4f2f0e79935132fbdaf1e30644836c50dfe. Exact-head CI/Quality Gate have to be refreshed after the test and documentation commits; earlier run results are superseded.
