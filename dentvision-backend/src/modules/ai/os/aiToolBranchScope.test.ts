@@ -116,6 +116,16 @@ describe('resolveAiToolBranchScope', () => {
     expect(isNarrowAiToolBranchScope(scope!)).toBe(true);
   });
 
+  it('does not treat the legacy cashier-to-ADMIN alias as organization-wide authority', async () => {
+    personFindFirst.mockResolvedValue({
+      id: 'person-1',
+      personType: 'CASHIER',
+      originalId: 'user-1',
+      personRoles: [{ role: { key: 'cashier' } }],
+    });
+    await expect(resolveAiToolBranchScope(input({ role: 'ADMIN' }))).resolves.toBeNull();
+  });
+
   it('rejects archived organizations and revoked current organization roles', async () => {
     organizationFindFirst.mockResolvedValueOnce(null);
     await expect(resolveAiToolBranchScope(input())).resolves.toBeNull();

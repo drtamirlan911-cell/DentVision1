@@ -38,6 +38,7 @@ function clinicToolRoleScope(role: string): RoleScope | null {
     case 'ACCOUNTANT':
       return 'ORGANIZATION';
     case 'MANAGER':
+    case 'LAB':
     case 'INVENTORY_MANAGER':
     case 'MARKETING_MANAGER':
     case 'HR_MANAGER':
@@ -86,11 +87,14 @@ export async function resolveAiToolBranchScope(
     }) as ActivePerson | null;
     if (!person) return null;
 
-    const hasCurrentRole = person.personRoles.some((entry) => {
-      const canonicalKey = String(entry.role.key || '').trim().toLowerCase();
-      return (PERSON_ROLE_MAP[canonicalKey] || canonicalKey.toUpperCase()) === roleKey;
-    });
+    const canonicalRoleKeys = person.personRoles.map((entry) => String(entry.role.key || '').trim().toLowerCase());
+    const hasCurrentRole = canonicalRoleKeys.some((canonicalKey) =>
+      (PERSON_ROLE_MAP[canonicalKey] || canonicalKey.toUpperCase()) === roleKey,
+    );
     if (!hasCurrentRole) return null;
+    // PERSON_ROLE_MAP currently aliases `cashier` to ADMIN for legacy UI
+    // compatibility. That alias must never grant organization-wide AI access.
+    if (roleKey === 'ADMIN' && !canonicalRoleKeys.some((key) => key === 'admin' || key === 'org_admin')) return null;
 
     allowedBranchIds = await resolveOrganizationBranches(organization.id, roleScope, person);
   } else {
