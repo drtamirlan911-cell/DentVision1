@@ -44,6 +44,29 @@ describe('resolveModels — discovery', () => {
     expect(models.degraded).toBe(false);
   });
 
+  it('prefers the current GPT-6 flagship and high-volume tiers when the account exposes them', async () => {
+    stubModels([
+      'gpt-6.2-astra',
+      'gpt-6.1-sol',
+      'gpt-6.1-terra',
+      'gpt-6-luna',
+    ]);
+
+    const models = await resolveModels({ apiKey: 'k' });
+
+    expect(models.full).toBe('gpt-6.2-astra');
+    expect(models.mini).toBe('gpt-6-luna');
+    expect(models.vision).toBe('gpt-6.1-terra');
+  });
+
+  it('keeps the legacy vision fallback when Terra is not available', async () => {
+    stubModels(['gpt-6.2-astra', 'gpt-6-luna', 'gpt-4o']);
+
+    const models = await resolveModels({ apiKey: 'k' });
+
+    expect(models.vision).toBe('gpt-4o');
+  });
+
   it('skips ladder entries this account cannot call', async () => {
     // The whole point of a superset ladder: an id nobody has is inert.
     stubModels([FULL_FLOOR, MINI_FLOOR]);
