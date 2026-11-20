@@ -19,6 +19,8 @@
  * nothing else has to change.
  */
 
+import { safeErrorKind } from '../../../lib/safeError.js';
+
 export interface ModelCandidate {
   /** Exact id sent as `model`. */
   id: string;
