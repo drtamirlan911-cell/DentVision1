@@ -62,7 +62,7 @@ beforeEach(() => {
   approvalFindUnique.mockResolvedValue(null);
   approvalUpdate.mockResolvedValue({});
   assertSameClinic.mockReturnValue(true);
-  resolveAiToolAccess.mockResolvedValue({ allowed: new Set(['cancelAppointment']) });
+  resolveAiToolAccess.mockResolvedValue({ allowed: new Set(['cancelAppointment']), role: 'MANAGER', clinicId: 'clinic-1' });
   runAiAction.mockResolvedValue({ status: 'ok', activityId: 'activity-1' });
   auditFromReq.mockResolvedValue(undefined);
   listAiEmployeeTasks.mockResolvedValue([]);
@@ -156,4 +156,106 @@ describe('Approval Center PHI API boundary', () => {
     expect(runAiAction).not.toHaveBeenCalled();
     expect(approvalUpdate).not.toHaveBeenCalled();
   });
+
+describe('AI Employee task queue scope', () => {
+  it('lets verified workspace managers read the clinic queue', async () => {
+    const tasks = [{ id: 'task-doctor-1', role: 'DOCTOR', clinicId: 'clinic-1' }];
+    listAiEmployeeTasks.mockResolvedValueOnce(tasks);
+    const res = responseHarness();
+
+    await routeHandler('get', '/tasks')({ user: caller, query: {} }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data).toEqual(tasks);
+    expect(resolveAiToolAccess).toHaveBeenCalledWith(expect.objectContaining({
+      userId: caller.id,
+      clinicId: 'clinic-1',
+      isGuest: false,
+    }));
+    expect(listAiEmployeeTasks).toHaveBeenCalledWith({
+      clinicId: 'clinic-1',
+      status: null,
+      limit: 30,
+    });
+  });
+
+  it('shows a staff member their own and unassigned tasks for the verified role queue', async () => {
+    const doctor = { ...caller, role: 'DOCTOR' };
+    const tasks = [{ id: 'task-doctor-queue', role: 'DOCTOR', clinicId: 'clinic-1', userId: null }];
+    resolveAiToolAccess.mockResolvedValueOnce({ allowed: new Set(), role: 'DOCTOR', clinicId: 'clinic-1' });
+    listAiEmployeeTasks.mockResolvedValueOnce(tasks);
+    const res = responseHarness();
+
+    await routeHandler('get', '/tasks')({ user: doctor, query: { limit: '10' } }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data).toEqual(tasks);
+    expect(listAiEmployeeTasks).toHaveBeenCalledWith({
+      clinicId: 'clinic-1',
+      userId: doctor.id,
+      includeUnassigned: true,
+      role: 'DOCTOR',
+      status: null,
+      limit: 10,
+    });
+  });
+
+  it('denies the task queue when active clinic membership cannot be verified', async () => {
+    resolveAiToolAccess.mockResolvedValueOnce({ allowed: new Set(), role: 'GUEST', clinicId: null });
+    const res = responseHarness();
+
+    await routeHandler('get', '/tasks')({ user: caller, query: {} }, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(listAiEmployeeTasks).not.toHaveBeenCalled();
+  });
+
+  it('allows a doctor to transition an unassigned task only inside their verified role queue', async () => {
+    const doctor = { ...caller, role: 'DOCTOR' };
+    const task = { id: 'task-doctor-queue', clinicId: 'clinic-1', role: 'DOCTOR', userId: null, status: 'completed' };
+    resolveAiToolAccess.mockResolvedValueOnce({ allowed: new Set(), role: 'DOCTOR', clinicId: 'clinic-1' });
+    listAiEmployeeTasks.mockResolvedValueOnce([{ id: task.id }]);
+    transitionAiEmployeeTask.mockResolvedValueOnce(task);
+    const res = responseHarness();
+
+    await routeHandler('post', '/tasks/:id/transition')({
+      user: doctor,
+      params: { id: task.id },
+      body: { status: 'completed' },
+    }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(listAiEmployeeTasks).toHaveBeenCalledWith({
+      clinicId: 'clinic-1',
+      userId: doctor.id,
+      includeUnassigned: true,
+      role: 'DOCTOR',
+      limit: 100,
+    });
+    expect(transitionAiEmployeeTask).toHaveBeenCalledWith({
+      id: task.id,
+      clinicId: 'clinic-1',
+      status: 'completed',
+      result: undefined,
+      error: undefined,
+    });
+  });
+
+  it('does not let a doctor transition another role or another users assigned task', async () => {
+    const doctor = { ...caller, role: 'DOCTOR' };
+    resolveAiToolAccess.mockResolvedValueOnce({ allowed: new Set(), role: 'DOCTOR', clinicId: 'clinic-1' });
+    listAiEmployeeTasks.mockResolvedValueOnce([]);
+    const res = responseHarness();
+
+    await routeHandler('post', '/tasks/:id/transition')({
+      user: doctor,
+      params: { id: 'task-finance-or-assigned-to-other' },
+      body: { status: 'completed' },
+    }, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(transitionAiEmployeeTask).not.toHaveBeenCalled();
+  });
+});
+
 });
