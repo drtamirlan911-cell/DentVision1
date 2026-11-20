@@ -183,6 +183,7 @@ model User {
   orders                        Order[]
   enrollments                   SchoolEnrollment[]
   schoolAssessmentAttempts      SchoolAssessmentAttempt[]
+  schoolCertificates             SchoolCertificate[]
   appointments                  Appointment[]
   labOrdersOrdered              LabOrder[]                   @relation("LabOrderDoctor")
   academies                     Academy[]
@@ -1680,6 +1681,7 @@ model Course {
   lessons     Lesson[]
   enrollments SchoolEnrollment[]
   assessmentAttempts SchoolAssessmentAttempt[]
+  certificates SchoolCertificate[]
   lecturer    Lecturer?          @relation(fields: [lecturerId], references: [id], onDelete: SetNull)
   academy     Academy?           @relation(fields: [academyId], references: [id], onDelete: SetNull)
 
@@ -1729,6 +1731,7 @@ model SchoolEnrollment {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
   assessmentAttempts SchoolAssessmentAttempt[]
+  certificate SchoolCertificate?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -1761,6 +1764,32 @@ model SchoolAssessmentAttempt {
   @@index([userId, submittedAt])
   @@index([courseId, submittedAt])
   @@map("school_assessment_attempts")
+}
+
+model SchoolCertificate {
+  id                  String   @id @default(uuid())
+  enrollmentId        String   @unique
+  userId              String
+  courseId            String
+  certificateNumber   String   @unique
+  verificationCode    String   @unique
+  issuerNameSnapshot  String
+  status              String   @default("issued")
+  documentUrl         String?
+  metadata            Json?
+  issuedAt            DateTime @default(now())
+  expiresAt           DateTime?
+  revokedAt           DateTime?
+  revocationReason    String?
+
+  enrollment SchoolEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course     Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([userId, issuedAt])
+  @@index([courseId, issuedAt])
+  @@index([status, issuedAt])
+  @@map("school_certificates")
 }
 
 // --- NOTIFICATIONS ---
