@@ -96,12 +96,12 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
     const activeClinicId = resolveClinicParam(req);
     const { where: visibilityWhere, canReadPhi } = await buildActivityFilter(req.user.id, activeClinicId);
     const branchScoped = await isBranchScopedActivityView(req, activeClinicId);
-    const safeVisibilityWhere = branchScoped
-      ? { AND: [visibilityWhere, { actorUserId: req.user.id }] }
-      : visibilityWhere;
+    if (branchScoped) {
+      return res.json({ ok: true, data: { entries: [], total: 0, limit, offset } });
+    }
 
     const where = {
-      ...safeVisibilityWhere,
+      ...visibilityWhere,
       ...(eventType ? { tool: eventType } : {}),
       ...(agent ? { agentId: agent } : {}),
       ...(role ? { actorRole: role } : {}),
@@ -195,9 +195,10 @@ router.get('/stats', authenticate, async (req: AuthRequest, res: Response) => {
     const activeClinicId = resolveClinicParam(req);
     const { where: visibilityWhere } = await buildActivityFilter(req.user.id, activeClinicId);
     const branchScoped = await isBranchScopedActivityView(req, activeClinicId);
-    const where = branchScoped
-      ? { AND: [visibilityWhere, { actorUserId: req.user.id }] }
-      : visibilityWhere;
+    if (branchScoped) {
+      return res.json({ ok: true, data: { totalEvents: 0, todayEvents: 0, successEvents: 0, failedEvents: 0, successRate: 0 } });
+    }
+    const where = visibilityWhere;
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());

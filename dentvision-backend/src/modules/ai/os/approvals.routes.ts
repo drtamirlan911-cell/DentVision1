@@ -67,8 +67,8 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
     const clinicId = req.user.clinicId || (req.query.clinicId as string) || null;
     const { where, canReadPhi } = await buildApprovalFilter(req.user.id, clinicId);
     const organizationWide = await hasOrganizationWideApprovalScope(req, req.user.clinicId || null);
-    const scopedWhere = organizationWide ? where : { AND: [where, { requestedByUserId: req.user.id }] };
-    const finalWhere = status ? { AND: [scopedWhere, { status }] } : scopedWhere;
+    if (!organizationWide) return res.json({ ok: true, data: [] });
+    const finalWhere = status ? { ...where, status } : where;
 
     const approvals = await prisma.aiApproval.findMany({
       where: finalWhere,
@@ -125,13 +125,9 @@ router.get('/tasks', authenticate, async (req: AuthRequest, res) => {
     const canReadWorkspaceQueue =
       ['OWNER', 'ADMIN'].includes(String(access.role).toUpperCase())
       && Boolean(taskScope && !isNarrowAiToolBranchScope(taskScope));
+    if (!canReadWorkspaceQueue) return res.json({ ok: true, data: [] });
     const tasks = await listAiEmployeeTasks({
       clinicId: access.clinicId,
-      ...(canReadWorkspaceQueue ? {} : {
-        userId: req.user.id,
-        includeUnassigned: false,
-        role: access.role,
-      }),
       status: typeof req.query.taskStatus === 'string' ? req.query.taskStatus as any : null,
       limit,
     });
@@ -179,16 +175,7 @@ router.post('/tasks/:id/transition', authenticate, async (req: AuthRequest, res)
     const privileged = ['OWNER', 'ADMIN'].includes(String(access.role || '').toUpperCase())
       && Boolean(taskScope && !isNarrowAiToolBranchScope(taskScope));
     if (!privileged) {
-      const ownRoleQueue = await listAiEmployeeTasks({
-        clinicId: access.clinicId,
-        userId: req.user.id,
-        includeUnassigned: false,
-        role: access.role,
-        limit: 100,
-      });
-      if (!ownRoleQueue.some((task) => task.id === String(req.params.id))) {
-        return res.status(403).json({ ok: false, error: 'Недостаточно прав для изменения этой задачи' });
-      }
+      return res.status(403).json({ ok: false, error: 'Изменение AI-задач доступно только подтверждённому организационному уровню: в реестре пока нет филиального ключа' });
     }
 
     const task = await transitionAiEmployeeTask({
