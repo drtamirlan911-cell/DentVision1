@@ -13,6 +13,7 @@
 import type { Prisma, DiagnosticCategory, ReferralPriority } from '@prisma/client';
 import prisma from '../../../lib/prisma.js';
 import { simpleChat } from '../llm/client.js';
+import { getRadiographVisionUnavailableMessage } from './radiographModelAvailability.js';
 import { resolveImageUrl } from '../../../lib/imageUrl.js';
 import { decryptMedicalHistory } from '../../../lib/phi.js';
 import { checkImageAnalysisConsent, isImageConsentDenied, IMAGE_CONSENT_MESSAGE } from './imageConsent.js';
@@ -1512,14 +1513,21 @@ export const TOOLS: Record<string, ToolSpec> = {
       }
 
       const imageUrl = await resolveImageUrl(viewable.url);
-      const raw = await simpleChat(
-        'Ты — стоматолог-рентгенолог. Перед тобой снимок пациента. Опиши находки по зубам в нотации FDI. ' +
-          'Указывай ТОЛЬКО то, что видно; если зуб не просматривается — не включай его. ' +
-          'status выбирай из: caries, filled, crown, implant, missing, extracted, fracture, inflammation, root, veneer, endo_ok, endo_fail. ' +
-          'surfaces — только когда поверхность действительно различима: M, O, D, B, L.',
-        `Снимок: ${viewable.type}. Верни находки по зубам.`,
-        { maxTokens: 1200, imageUrl, jsonSchema: RADIOGRAPH_FINDINGS_SCHEMA },
-      );
+      let raw: string;
+      try {
+        raw = await simpleChat(
+          'Ты — стоматолог-рентгенолог. Перед тобой снимок пациента. Опиши находки по зубам в нотации FDI. ' +
+            'Указывай ТОЛЬКО то, что видно; если зуб не просматривается — не включай его. ' +
+            'status выбирай из: caries, filled, crown, implant, missing, extracted, fracture, inflammation, root, veneer, endo_ok, endo_fail. ' +
+            'surfaces — только когда поверхность действительно различима: M, O, D, B, L.',
+          `Снимок: ${viewable.type}. Верни находки по зубам.`,
+          { maxTokens: 1200, imageUrl, jsonSchema: RADIOGRAPH_FINDINGS_SCHEMA },
+        );
+      } catch (error) {
+        const unavailable = getRadiographVisionUnavailableMessage(error);
+        if (unavailable) return { ok: false, error: unavailable };
+        throw error;
+      }
 
       let parsed: { findings?: unknown };
       try {
