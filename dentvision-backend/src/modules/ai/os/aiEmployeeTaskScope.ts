@@ -134,10 +134,18 @@ export async function resolveAiEmployeeTaskScope(user: AuthUser): Promise<AiEmpl
     // organization-scoped role (or a role explicitly represented by PersonType).
     // Legacy supplier/lecturer compatibility must not silently widen task scope.
     if (!person) return null;
-    const hasCurrentRole = person.personRoles.some((entry) =>
-      canonicalRoleMatchesEffectiveRole(String(entry.role.key || ''), roleKey),
+    const canonicalRoleKeys = person.personRoles.map((entry) =>
+      String(entry.role.key || '').trim().toLowerCase(),
+    );
+    const hasCurrentRole = canonicalRoleKeys.some((canonicalKey) =>
+      canonicalRoleMatchesEffectiveRole(canonicalKey, roleKey),
     );
     if (!hasCurrentRole) return null;
+    // Legacy cashier is normalized to ADMIN for UI compatibility, but that
+    // alias must never grant organization-wide AI Employee queue authority.
+    if (roleKey === 'ADMIN' && !canonicalRoleKeys.some((key) => key === 'admin' || key === 'org_admin')) {
+      return null;
+    }
   }
 
   const scopeType: ScopeType | null = access.clinicId

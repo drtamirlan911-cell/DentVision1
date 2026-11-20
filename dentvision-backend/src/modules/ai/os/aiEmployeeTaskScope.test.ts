@@ -316,6 +316,39 @@ describe('AI Employee active task scope resolver', () => {
     },
   );
 
+  it('does not promote a legacy cashier alias into organization-wide AI Employee admin scope', async () => {
+    resolveAccess.mockResolvedValueOnce({
+      role: 'ADMIN',
+      clinicId: 'clinic-1',
+      organizationId: 'org-1',
+      organizationType: 'CLINIC',
+      organizationOriginalId: 'clinic-1',
+      allowed: new Set<string>(),
+      employee: { role: 'ADMIN', title: 'Admin', autonomy: 'suggest_only' },
+    });
+    organizationFindFirst.mockResolvedValueOnce({
+      id: 'org-1',
+      type: 'CLINIC',
+      originalType: 'Clinic',
+      originalId: 'clinic-1',
+      archivedAt: null,
+    });
+    personFindFirst.mockResolvedValueOnce({
+      id: 'person-1',
+      personType: 'STAFF',
+      originalId: null,
+      personRoles: [{ role: { key: 'cashier' } }],
+    });
+
+    await expect(resolveAiEmployeeTaskScope(user({
+      clinicId: 'clinic-1',
+      organizationId: 'org-1',
+      organizationType: 'CLINIC',
+      role: 'ADMIN',
+    }))).resolves.toBeNull();
+    expect(branchFindMany).not.toHaveBeenCalled();
+  });
+
   it('preserves pre-canonical clinic compatibility without fabricating an Organization id', async () => {
     resolveAccess.mockResolvedValueOnce({
       role: 'DOCTOR',
