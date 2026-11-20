@@ -363,7 +363,7 @@ describe('Jobs mutation audit atomicity', () => {
         action: 'jobs.application.created',
         entity: 'job_application',
         entityId: 'application-2',
-        details: { vacancyId: 'vacancy-1' },
+        details: expect.objectContaining({ vacancyId: 'vacancy-1', source: 'candidate_application' }),
       }),
       mocks.tx,
     );
