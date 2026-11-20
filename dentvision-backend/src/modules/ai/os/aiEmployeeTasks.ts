@@ -81,8 +81,8 @@ export async function createAiEmployeeTask(input: CreateAiEmployeeTaskInput): Pr
       (id, clinic_id, user_id, role, employee_title, title, description, status, risk, autonomy,
        source_event_id, source_event_type, action, action_payload, metadata, due_at, created_at, updated_at)
     VALUES
-      (CAST(${id} AS uuid), CAST(${input.clinicId} AS uuid), CAST(${input.userId || null} AS uuid), ${contract.role}, ${contract.title}, ${input.title},
-       ${input.description || null}, ${status}, ${risk}, ${contract.autonomy}, CAST(${input.sourceEventId || null} AS uuid), ${input.sourceEventType || null},
+      (CAST(${id} AS uuid), ${input.clinicId}, ${input.userId || null}, ${contract.role}, ${contract.title}, ${input.title},
+       ${input.description || null}, ${status}, ${risk}, ${contract.autonomy}, ${input.sourceEventId || null}, ${input.sourceEventType || null},
        ${input.action || null}, ${payload}::jsonb, ${metadata}::jsonb, ${input.dueAt || null}, NOW(), NOW())
     ON CONFLICT (source_event_id, action, role)
       WHERE source_event_id IS NOT NULL AND action IS NOT NULL
@@ -109,10 +109,10 @@ export async function listAiEmployeeTasks(input: {
       source_event_type AS "sourceEventType", action, action_payload AS "actionPayload",
       result, error, due_at AS "dueAt", created_at AS "createdAt", updated_at AS "updatedAt", completed_at AS "completedAt"
     FROM ai_employee_tasks
-    WHERE clinic_id = CAST(${input.clinicId} AS uuid)
+    WHERE clinic_id = ${input.clinicId}
       AND (${input.role || null}::text IS NULL OR role = ${input.role || null})
       AND (${input.status || null}::text IS NULL OR status = ${input.status || null})
-      AND (${input.userId || null}::text IS NULL OR user_id = CAST(${input.userId || null} AS uuid))
+      AND (${input.userId || null}::text IS NULL OR user_id = ${input.userId || null})
     ORDER BY CASE WHEN status IN ('awaiting_approval','proposed','queued') THEN 0 ELSE 1 END, created_at DESC
     LIMIT ${limit}
   `);
@@ -130,7 +130,7 @@ export async function transitionAiEmployeeTask(input: {
 
   const currentRows = await prisma.$queryRaw<Array<{ status: AiTaskStatus }>>(Prisma.sql`
     SELECT status FROM ai_employee_tasks
-    WHERE id = CAST(${input.id} AS uuid) AND clinic_id = CAST(${input.clinicId} AS uuid)
+    WHERE id = CAST(${input.id} AS uuid) AND clinic_id = ${input.clinicId}
     LIMIT 1
   `);
   const current = currentRows[0]?.status;
@@ -149,7 +149,7 @@ export async function transitionAiEmployeeTask(input: {
         error = CASE WHEN ${input.error || null}::text IS NULL THEN error ELSE ${input.error || null} END,
         completed_at = CASE WHEN ${completed} THEN NOW() ELSE completed_at END,
         updated_at = NOW()
-    WHERE id = CAST(${input.id} AS uuid) AND clinic_id = CAST(${input.clinicId} AS uuid) AND status = ${current}
+    WHERE id = CAST(${input.id} AS uuid) AND clinic_id = ${input.clinicId} AND status = ${current}
     RETURNING id, clinic_id AS "clinicId", user_id AS "userId", role, employee_title AS "employeeTitle",
       title, description, status, risk, autonomy, source_event_id AS "sourceEventId",
       source_event_type AS "sourceEventType", action, action_payload AS "actionPayload",
@@ -164,7 +164,7 @@ async function getAiEmployeeTask(id: string, clinicId: string): Promise<AiEmploy
       title, description, status, risk, autonomy, source_event_id AS "sourceEventId",
       source_event_type AS "sourceEventType", action, action_payload AS "actionPayload",
       result, error, due_at AS "dueAt", created_at AS "createdAt", updated_at AS "updatedAt", completed_at AS "completedAt"
-    FROM ai_employee_tasks WHERE id = CAST(${id} AS uuid) AND clinic_id = CAST(${clinicId} AS uuid) LIMIT 1
+    FROM ai_employee_tasks WHERE id = CAST(${id} AS uuid) AND clinic_id = ${clinicId} LIMIT 1
   `);
   return rows[0] || null;
 }
