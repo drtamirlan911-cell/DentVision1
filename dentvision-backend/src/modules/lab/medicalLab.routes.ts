@@ -474,6 +474,10 @@ medicalLabLifecycleRouter.post('/orders/:id/quality-control', async (req: AuthRe
 
     const decision = String(req.body?.decision || '').trim().toLowerCase();
     if (!['passed', 'failed'].includes(decision)) return res.status(400).json({ ok: false, error: 'decision должен быть passed или failed' });
+    const qualityNote = String(req.body?.note || '').trim();
+    if (decision === 'failed' && !qualityNote) {
+      return res.status(400).json({ ok: false, error: 'При отклонении QC необходимо указать причину', code: 'MEDICAL_LAB_QC_REASON_REQUIRED' });
+    }
     const tests = await prisma.$queryRawUnsafe<Array<{ id: string; name: string; result: string | null; resultText: string | null; metadata: unknown }>>(
       `SELECT "id","name","result","resultText","metadata" FROM "medical_lab_order_tests" WHERE "orderId"=$1 ORDER BY "createdAt" ASC`,
       order.id,
@@ -492,7 +496,7 @@ medicalLabLifecycleRouter.post('/orders/:id/quality-control', async (req: AuthRe
 
     const qualityControl = {
       decision,
-      note: String(req.body?.note || '').trim() || null,
+      note: qualityNote || null,
       performedByUserId: req.user!.id,
       performedAt: new Date().toISOString(),
     };
