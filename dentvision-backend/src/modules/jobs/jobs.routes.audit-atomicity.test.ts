@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => {
       findFirst: vi.fn(),
       create: vi.fn(),
     },
+    jobApplicationEvent: { create: vi.fn() },
+    notification: { create: vi.fn() },
   };
   return {
     tx,
@@ -169,6 +171,8 @@ beforeEach(() => {
     status: 'new',
   });
   mocks.tx.jobApplication.findUnique.mockResolvedValue({ id: 'application-1', status: 'reviewing' });
+  mocks.tx.jobApplicationEvent.create.mockResolvedValue({ id: 'event-1' });
+  mocks.tx.notification.create.mockResolvedValue({ id: 'notification-1' });
 });
 
 describe('Jobs mutation audit atomicity', () => {
