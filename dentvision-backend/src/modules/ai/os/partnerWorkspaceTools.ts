@@ -139,6 +139,153 @@ export async function getDiagnosticCenterWorkQueue(context: DiagnosticCenterWork
   }
 }
 
+
+export interface SupplierInventoryOverviewContext {
+  userId: string;
+  organizationId: string | null;
+  organizationType: string | null;
+  supplierId: string | null;
+  role: string;
+}
+
+const SUPPLIER_INVENTORY_ROLES = new Set(['SUPPLIER', 'SELLER']);
+
+/**
+ * Read-only view of a supplier's own catalogue and stock.
+ * Organization identity and membership are rechecked before querying products.
+ * Buyer, clinic, delivery, payout, order-note and patient data are never selected.
+ */
+export async function getSupplierInventoryOverview(context: SupplierInventoryOverviewContext) {
+  const role = String(context.role || '').trim().toUpperCase();
+  if (!context.userId || !context.supplierId || !SUPPLIER_INVENTORY_ROLES.has(role)) {
+    return { ok: false as const, error: 'Нет подтверждённого рабочего пространства поставщика' };
+  }
+
+  try {
+    if (context.organizationId) {
+      if (!['SUPPLIER_COMPANY', 'SUPPLIER'].includes(String(context.organizationType || '').toUpperCase())) {
+        return { ok: false as const, error: 'Текущее рабочее пространство не является кабинетом поставщика' };
+      }
+      const organization = await prisma.organization.findUnique({
+        where: { id: context.organizationId },
+        select: { id: true, type: true, originalType: true, originalId: true, archivedAt: true },
+      });
+      if (
+        !organization
+        || organization.archivedAt
+        || !['SUPPLIER_COMPANY', 'SUPPLIER'].includes(String(organization.type || '').toUpperCase())
+        || organization.originalType !== 'Supplier'
+        || organization.originalId !== context.supplierId
+      ) {
+        return { ok: false as const, error: 'Текущее рабочее пространство не связано с этим поставщиком' };
+      }
+    } else if (context.organizationType) {
+      return { ok: false as const, error: 'Не удалось подтвердить организацию поставщика' };
+    }
+
+    const [supplier, legacyMembership, canonicalPerson] = await Promise.all([
+      prisma.supplier.findUnique({
+        where: { id: context.supplierId },
+        select: { id: true, name: true, status: true, isActive: true },
+      }),
+      prisma.supplierMember.findUnique({
+        where: { userId_supplierId: { userId: context.userId, supplierId: context.supplierId } },
+        select: { role: true },
+      }),
+      context.organizationId
+        ? prisma.person.findFirst({
+            where: {
+              userId: context.userId,
+              organizationId: context.organizationId,
+              personType: 'SUPPLIER_REP',
+            },
+            select: { id: true },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    if (!supplier || !supplier.isActive || String(supplier.status).toLowerCase() === 'suspended') {
+      return { ok: false as const, error: 'Поставщик неактивен или недоступен' };
+    }
+    if (!legacyMembership && !canonicalPerson) {
+      return { ok: false as const, error: 'Нет подтверждённого членства в этом кабинете поставщика' };
+    }
+
+    const statsSql = [
+      'SELECT',
+      'COUNT(*)::int AS "totalProducts",',
+      'COUNT(*) FILTER (WHERE "isActive" = TRUE)::int AS "activeProducts",',
+      'COUNT(*) FILTER (WHERE "isActive" = TRUE AND "stock" <= "minStock")::int AS "lowStockProducts",',
+      'COUNT(*) FILTER (WHERE "isActive" = FALSE)::int AS "inactiveProducts"',
+      'FROM "products" WHERE "supplierId" = $1'
+    ].join(' ');
+    const [statsRows, rows] = await Promise.all([
+      prisma.$queryRawUnsafe<Array<{
+        totalProducts: number;
+        activeProducts: number;
+        lowStockProducts: number;
+        inactiveProducts: number;
+      }>>(statsSql, context.supplierId),
+      prisma.product.findMany({
+        where: { supplierId: context.supplierId },
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          category: true,
+          price: true,
+          currency: true,
+          stock: true,
+          minStock: true,
+          isActive: true,
+          updatedAt: true,
+        },
+        orderBy: [{ isActive: 'desc' }, { stock: 'asc' }, { updatedAt: 'desc' }],
+        take: 51,
+      }),
+    ]);
+
+    const stats = statsRows[0] || {
+      totalProducts: 0, activeProducts: 0, lowStockProducts: 0, inactiveProducts: 0,
+    };
+    const products = rows.slice(0, 50).map((product) => ({
+      id: product.id,
+      name: safeText(product.name, 120) || 'Товар без названия',
+      sku: safeText(product.sku, 80),
+      category: safeText(product.category, 80),
+      price: product.price,
+      currency: safeText(product.currency, 8) || 'KZT',
+      stock: product.stock,
+      minStock: product.minStock,
+      lowStock: product.isActive && product.stock <= product.minStock,
+      isActive: product.isActive,
+      updatedAt: product.updatedAt,
+    }));
+
+    return {
+      ok: true as const,
+      data: {
+        supplier: {
+          id: supplier.id,
+          name: safeText(supplier.name, 120) || 'Поставщик',
+          status: safeText(supplier.status, 40) || 'unknown',
+        },
+        summary: {
+          totalProducts: Number(stats.totalProducts) || 0,
+          activeProducts: Number(stats.activeProducts) || 0,
+          lowStockProducts: Number(stats.lowStockProducts) || 0,
+          inactiveProducts: Number(stats.inactiveProducts) || 0,
+        },
+        returned: products.length,
+        hasMore: Number(stats.totalProducts) > products.length,
+        products,
+      },
+    };
+  } catch {
+    return { ok: false as const, error: 'Не удалось безопасно загрузить ассортимент и остатки поставщика' };
+  }
+}
+
 export async function getDentalLabWorkQueue(
   context: DentalLabWorkQueueContext,
 ): Promise<DentalLabWorkQueueResult> {

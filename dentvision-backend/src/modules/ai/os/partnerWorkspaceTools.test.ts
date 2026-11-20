@@ -9,6 +9,11 @@ const {
   laboratoryMemberFindFirst,
   labOrderCount,
   labOrderFindMany,
+  supplierFindUnique,
+  supplierMemberFindUnique,
+  personFindFirst,
+  productFindMany,
+  supplierStatsQuery,
 } = vi.hoisted(() => ({
   organizationFindUnique: vi.fn(),
   diagnosticCenterMemberFindFirst: vi.fn(),
@@ -18,6 +23,11 @@ const {
   laboratoryMemberFindFirst: vi.fn(),
   labOrderCount: vi.fn(),
   labOrderFindMany: vi.fn(),
+  supplierFindUnique: vi.fn(),
+  supplierMemberFindUnique: vi.fn(),
+  personFindFirst: vi.fn(),
+  productFindMany: vi.fn(),
+  supplierStatsQuery: vi.fn(),
 }));
 
 vi.mock('../../../lib/prisma.js', () => ({
@@ -27,10 +37,15 @@ vi.mock('../../../lib/prisma.js', () => ({
     referral: { count: referralCount, findMany: referralFindMany, groupBy: referralGroupBy },
     laboratoryMember: { findFirst: laboratoryMemberFindFirst },
     labOrder: { count: labOrderCount, findMany: labOrderFindMany },
+    supplier: { findUnique: supplierFindUnique },
+    supplierMember: { findUnique: supplierMemberFindUnique },
+    person: { findFirst: personFindFirst },
+    product: { findMany: productFindMany },
+    $queryRawUnsafe: supplierStatsQuery,
   },
 }));
 
-import { getDentalLabWorkQueue, getDiagnosticCenterWorkQueue } from './partnerWorkspaceTools.js';
+import { getDentalLabWorkQueue, getDiagnosticCenterWorkQueue, getSupplierInventoryOverview } from './partnerWorkspaceTools.js';
 
 const context = {
   userId: 'tech-1',
@@ -78,6 +93,104 @@ beforeEach(() => {
     notes: 'Sensitive medical notes must never leave the query result',
     clinicId: 'clinic-1',
   }]);
+  supplierFindUnique.mockResolvedValue({ id: 'supplier-1', name: 'Supplier One', status: 'verified', isActive: true });
+  supplierMemberFindUnique.mockResolvedValue({ role: 'owner' });
+  personFindFirst.mockResolvedValue({ id: 'supplier-person-1' });
+  supplierStatsQuery.mockResolvedValue([{
+    totalProducts: 2, activeProducts: 2, lowStockProducts: 1, inactiveProducts: 0,
+  }]);
+  productFindMany.mockResolvedValue([
+    { id: 'product-1', name: 'Alginate', sku: 'ALG-01', category: 'Materials', price: 2500, currency: 'KZT', stock: 4, minStock: 10, isActive: true, updatedAt: new Date('2026-11-20T06:00:00.000Z'), description: 'private product description' },
+    { id: 'product-2', name: 'Composite', sku: 'CMP-02', category: 'Materials', price: 9000, currency: 'KZT', stock: 30, minStock: 5, isActive: true, updatedAt: new Date('2026-11-19T06:00:00.000Z'), buyerName: 'Private Buyer' },
+  ]);
+});
+
+describe('getSupplierInventoryOverview — supplier-only stock visibility', () => {
+  const supplierContext = {
+    userId: 'supplier-user-1',
+    organizationId: 'org-supplier-1',
+    organizationType: 'SUPPLIER_COMPANY',
+    supplierId: 'supplier-1',
+    role: 'SUPPLIER',
+  };
+
+  it('returns only the supplier catalogue and stock metrics', async () => {
+    organizationFindUnique.mockResolvedValueOnce({
+      id: 'org-supplier-1', type: 'SUPPLIER_COMPANY', originalType: 'Supplier',
+      originalId: 'supplier-1', archivedAt: null,
+    });
+    supplierMemberFindUnique.mockResolvedValueOnce(null);
+    personFindFirst.mockResolvedValueOnce({ id: 'supplier-person-1' });
+
+    const result = await getSupplierInventoryOverview(supplierContext);
+
+    expect(result.ok).toBe(true);
+    expect(result.data).toMatchObject({
+      supplier: { id: 'supplier-1', name: 'Supplier One', status: 'verified' },
+      summary: { totalProducts: 2, activeProducts: 2, lowStockProducts: 1, inactiveProducts: 0 },
+      returned: 2,
+      products: [
+        { id: 'product-1', name: 'Alginate', stock: 4, minStock: 10, lowStock: true },
+        { id: 'product-2', name: 'Composite', stock: 30, minStock: 5, lowStock: false },
+      ],
+    });
+    expect(productFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { supplierId: 'supplier-1' },
+      take: 51,
+      select: {
+        id: true, name: true, sku: true, category: true, price: true, currency: true,
+        stock: true, minStock: true, isActive: true, updatedAt: true,
+      },
+    }));
+    const serialized = JSON.stringify(result.data);
+    expect(serialized).not.toContain('private product description');
+    expect(serialized).not.toContain('Private Buyer');
+    expect(serialized).not.toContain('clinic');
+    expect(serialized).not.toContain('payout');
+  });
+
+  it('rejects mismatched and archived organization links before reading products', async () => {
+    organizationFindUnique.mockResolvedValueOnce({
+      id: 'org-supplier-1', type: 'SUPPLIER_COMPANY', originalType: 'Supplier',
+      originalId: 'another-supplier', archivedAt: null,
+    });
+    const mismatch = await getSupplierInventoryOverview(supplierContext);
+    organizationFindUnique.mockResolvedValueOnce({
+      id: 'org-supplier-1', type: 'SUPPLIER_COMPANY', originalType: 'Supplier',
+      originalId: 'supplier-1', archivedAt: new Date(),
+    });
+    const archived = await getSupplierInventoryOverview(supplierContext);
+    const wrongRole = await getSupplierInventoryOverview({ ...supplierContext, role: 'OWNER' });
+
+    expect(mismatch.ok).toBe(false);
+    expect(archived.ok).toBe(false);
+    expect(wrongRole.ok).toBe(false);
+    expect(productFindMany).not.toHaveBeenCalled();
+  });
+
+  it('requires a current canonical or legacy supplier membership', async () => {
+    organizationFindUnique.mockResolvedValueOnce({
+      id: 'org-supplier-1', type: 'SUPPLIER_COMPANY', originalType: 'Supplier',
+      originalId: 'supplier-1', archivedAt: null,
+    });
+    supplierMemberFindUnique.mockResolvedValueOnce(null);
+    personFindFirst.mockResolvedValueOnce(null);
+
+    const result = await getSupplierInventoryOverview(supplierContext);
+
+    expect(result.ok).toBe(false);
+    expect(productFindMany).not.toHaveBeenCalled();
+    expect(supplierStatsQuery).not.toHaveBeenCalled();
+  });
+
+  it('supports a verified legacy SupplierMember context when no organization is active', async () => {
+    supplierMemberFindUnique.mockResolvedValueOnce({ role: 'owner' });
+    const result = await getSupplierInventoryOverview({
+      userId: 'supplier-user-1', organizationId: null, organizationType: null,
+      supplierId: 'supplier-1', role: 'SUPPLIER',
+    });
+    expect(result.ok).toBe(true);
+  });
 });
 
 describe('getDiagnosticCenterWorkQueue — scoped read-only worklist', () => {

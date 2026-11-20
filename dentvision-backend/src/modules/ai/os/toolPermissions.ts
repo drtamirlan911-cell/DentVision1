@@ -80,6 +80,9 @@ export const UNGATED_TOOLS: readonly string[] = [
   'getDentalLabWorkQueue',
   // Read-only diagnostic queue rechecks DiagnosticCenterMember + organization link.
   'getDiagnosticCenterWorkQueue',
+  // Supplier inventory is read-only and independently verifies the active
+  // Supplier organization plus canonical/legacy membership.
+  'getSupplierInventoryOverview',
 ];
 
 // The action ladder lives in lib/permissions.ts — the AI intent router needs

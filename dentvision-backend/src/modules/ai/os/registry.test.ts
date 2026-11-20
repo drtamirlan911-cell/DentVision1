@@ -36,6 +36,13 @@ describe('AI OS agent registry', () => {
     expect(toolsForRole('DENTAL_LAB_OWNER').has('getDiagnosticCenterWorkQueue')).toBe(false);
   });
 
+  it('exposes supplier inventory only in the supplier workspace', () => {
+    expect(toolsForRole('SUPPLIER').has('getSupplierInventoryOverview')).toBe(true);
+    expect(toolsForRole('SELLER').has('getSupplierInventoryOverview')).toBe(true);
+    expect(toolsForRole('BUYER').has('getSupplierInventoryOverview')).toBe(false);
+    expect(toolsForRole('DOCTOR').has('getSupplierInventoryOverview')).toBe(false);
+  });
+
   it('exposes the dental-lab queue only to dental-lab roles', () => {
     const ownerTools = toolsForRole('DENTAL_LAB_OWNER');
     const adminTools = toolsForRole('DENTAL_LAB_ADMIN');

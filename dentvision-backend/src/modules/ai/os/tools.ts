@@ -25,7 +25,7 @@ import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
 import { scrubToolOutput } from '../lib/piiScrubber.js';
 import { createReferral } from '../../diagnostics/diagnostics.service.js';
 import { prepareLabOrderWrite, VALID_STATUSES as VALID_LAB_STATUSES } from '../../lab/lab.routes.js';
-import { getDentalLabWorkQueue, getDiagnosticCenterWorkQueue } from './partnerWorkspaceTools.js';
+import { getDentalLabWorkQueue, getDiagnosticCenterWorkQueue, getSupplierInventoryOverview } from './partnerWorkspaceTools.js';
 import {
   NAV_PATHS,
   NAV_SECTION_LABELS,
@@ -927,6 +927,23 @@ export const TOOLS: Record<string, ToolSpec> = {
       const items = await prisma.inventoryItem.findMany({ where: { clinicId }, orderBy: { name: 'asc' }, take: 100 });
       const filtered = args.lowStockOnly ? items.filter((i) => i.quantity <= i.minimum) : items;
       return { ok: true, data: filtered };
+    },
+  },
+
+  getSupplierInventoryOverview: {
+    name: 'getSupplierInventoryOverview',
+    description: 'Ассортимент и склад поставщика: собственные товары, цены и остатки, включая позиции ниже минимального уровня. Не показывает покупателей, заказы, выплаты или данные клиник.',
+    parameters: { type: 'object', properties: {} },
+    async execute(_args, ctx) {
+      const result = await getSupplierInventoryOverview({
+        userId: ctx.userId,
+        organizationId: ctx.organizationId || null,
+        organizationType: ctx.organizationType || null,
+        supplierId: ctx.supplierId || null,
+        role: ctx.role,
+      });
+      if (!result.ok) return { ok: false, error: result.error };
+      return { ok: true, data: result.data };
     },
   },
 

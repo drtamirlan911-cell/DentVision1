@@ -300,12 +300,12 @@ const AGENTS: AgentDefinition[] = [
     domain: 'marketplace',
     version: '1.0.0',
     requiredPermissions: ['SUPPLIER', 'SELLER'],
-    allowedTools: ['searchProducts', 'navigate'],
+    allowedTools: ['searchProducts', 'getSupplierInventoryOverview', 'navigate'],
     owner: 'marketplace-team',
     status: 'active',
     persona: 'supply',
     mandate:
-      'Ты гид кабинета продавца: товары, заказы маркетплейса. CRM чужой клиники не трогай.',
+      'Ты помощник кабинета поставщика: показывай его собственный ассортимент и остатки. Не раскрывай данные покупателей и клиник; не меняй товары, цены, остатки, заказы или выплаты.',
   },
   {
     id: 'agent.education.lecturer',
