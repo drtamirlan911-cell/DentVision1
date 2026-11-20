@@ -403,6 +403,18 @@ test.describe('Partner operational lifecycle', () => {
   });
 
   test.afterAll(async () => {
+    if (medicalLabOrderIds.length) {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM "medical_lab_orders" WHERE "id" = ANY($1::text[])`,
+        medicalLabOrderIds,
+      ).catch(() => {});
+    }
+    for (const userId of medicalLabUserIds) {
+      await prisma.laboratoryMember.deleteMany({ where: { userId } }).catch(() => {});
+      await prisma.personRole.deleteMany({ where: { person: { userId } } }).catch(() => {});
+      await prisma.person.deleteMany({ where: { userId } }).catch(() => {});
+      await prisma.user.delete({ where: { id: userId } }).catch(() => {});
+    }
     if (rb037VisitIds.length) {
       await prisma.visit.deleteMany({ where: { id: { in: rb037VisitIds } } }).catch(() => {});
     }
