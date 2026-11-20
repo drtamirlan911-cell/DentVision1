@@ -272,6 +272,15 @@ test.describe('Career OS — employer-origin and candidate-origin lifecycle', ()
     expect(finalApplication.status).toBe('offer');
     expect(finalApplication.events.some((event: any) => event.eventType === 'offer_accepted')).toBe(true);
 
+    const employerPipeline = await api.get(`${API}/api/jobs/employer/vacancies/${vacancyId}/applications`, {
+      headers: auth(employerToken),
+    });
+    expect(employerPipeline.status()).toBe(200);
+    const employerApplication = (await employerPipeline.json()).data.find((row: any) => row.id === applicationId);
+    expect(employerApplication.events.some((event: any) => event.eventType === 'offer_accepted')).toBe(true);
+    expect(employerApplication.interviews.some((item: any) => item.id === interviewId && item.candidateResponse === 'confirmed')).toBe(true);
+    expect(employerApplication.offers.some((item: any) => item.id === offerId && item.status === 'accepted' && item.candidateMessage === 'Принимаю предложенные условия.')).toBe(true);
+
     const finalOffer = await prisma.jobOffer.findUnique({ where: { id: offerId } });
     expect(finalOffer?.status).toBe('accepted');
     // A candidate's acceptance does not fabricate a signed contract or mark the
