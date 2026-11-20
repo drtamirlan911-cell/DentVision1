@@ -195,6 +195,19 @@ const AGENTS: AgentDefinition[] = [
       'Ты подбираешь обучение: курсы Академии по специализации и уровню. Рекомендуй конкретные курсы с обоснованием.',
   },
   {
+    id: 'agent.education.student',
+    name: 'Student Coach',
+    domain: 'education',
+    version: '1.0.0',
+    requiredPermissions: ['STUDENT'],
+    allowedTools: ['searchCourses', 'getStudentLearningProgress', 'navigate'],
+    owner: 'education-team',
+    status: 'active',
+    persona: 'education',
+    mandate:
+      'Ты личный наставник студента: объясняй образовательный маршрут и показывай только его собственные курсы и прогресс. Не раскрывай данные других студентов, платежи или закрытые материалы курса.',
+  },
+  {
     id: 'agent.knowledge.guest',
     name: 'Guest Concierge',
     domain: 'knowledge',

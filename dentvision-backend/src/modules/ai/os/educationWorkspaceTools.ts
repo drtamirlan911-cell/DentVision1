@@ -105,3 +105,82 @@ export async function getLecturerCoursesOverview(context: LecturerCoursesOvervie
     return { ok: false as const, error: 'Не удалось безопасно загрузить курсы текущего лектора' };
   }
 }
+
+
+export interface StudentLearningProgressContext {
+  userId: string;
+  role: string;
+}
+
+/**
+ * Read-only personal learning overview. The query is always scoped to the
+ * authenticated student's userId and returns no other student's identity.
+ */
+export async function getStudentLearningProgress(context: StudentLearningProgressContext) {
+  if (!context.userId || String(context.role || '').trim().toUpperCase() !== 'STUDENT') {
+    return { ok: false as const, error: 'Личный учебный прогресс доступен только в кабинете студента' };
+  }
+
+  try {
+    const where = { userId: context.userId };
+    const [totalEnrollments, rows] = await Promise.all([
+      prisma.schoolEnrollment.count({ where }),
+      prisma.schoolEnrollment.findMany({
+        where,
+        select: {
+          id: true,
+          progress: true,
+          completed: true,
+          completedLessons: true,
+          certificateUrl: true,
+          createdAt: true,
+          updatedAt: true,
+          course: {
+            select: {
+              id: true,
+              title: true,
+              category: true,
+              format: true,
+              duration: true,
+              startsAt: true,
+              _count: { select: { lessons: true } },
+            },
+          },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 51,
+      }),
+    ]);
+
+    const courses = rows.slice(0, 50).map((enrollment) => ({
+      enrollmentId: enrollment.id,
+      courseId: enrollment.course.id,
+      title: safeCourseLabel(enrollment.course.title, 160) || 'Курс без названия',
+      category: safeCourseLabel(enrollment.course.category, 80),
+      format: safeCourseLabel(enrollment.course.format, 40) || 'course',
+      duration: safeCourseLabel(enrollment.course.duration, 80),
+      startsAt: enrollment.course.startsAt,
+      progress: Math.max(0, Math.min(100, Number(enrollment.progress) || 0)),
+      completed: enrollment.completed,
+      completedLessonCount: Array.isArray(enrollment.completedLessons)
+        ? enrollment.completedLessons.length
+        : 0,
+      totalLessons: enrollment.course._count.lessons,
+      certificateAvailable: Boolean(enrollment.certificateUrl),
+      enrolledAt: enrollment.createdAt,
+      updatedAt: enrollment.updatedAt,
+    }));
+
+    return {
+      ok: true as const,
+      data: {
+        totalEnrollments,
+        returned: courses.length,
+        hasMore: totalEnrollments > courses.length,
+        courses,
+      },
+    };
+  } catch {
+    return { ok: false as const, error: 'Не удалось безопасно загрузить ваш учебный прогресс' };
+  }
+}

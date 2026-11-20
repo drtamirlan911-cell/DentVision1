@@ -26,7 +26,7 @@ import { scrubToolOutput } from '../lib/piiScrubber.js';
 import { createReferral } from '../../diagnostics/diagnostics.service.js';
 import { prepareLabOrderWrite, VALID_STATUSES as VALID_LAB_STATUSES } from '../../lab/lab.routes.js';
 import { getDentalLabWorkQueue, getDiagnosticCenterWorkQueue, getSupplierInventoryOverview } from './partnerWorkspaceTools.js';
-import { getLecturerCoursesOverview } from './educationWorkspaceTools.js';
+import { getLecturerCoursesOverview, getStudentLearningProgress } from './educationWorkspaceTools.js';
 import {
   NAV_PATHS,
   NAV_SECTION_LABELS,
@@ -928,6 +928,20 @@ export const TOOLS: Record<string, ToolSpec> = {
       const items = await prisma.inventoryItem.findMany({ where: { clinicId }, orderBy: { name: 'asc' }, take: 100 });
       const filtered = args.lowStockOnly ? items.filter((i) => i.quantity <= i.minimum) : items;
       return { ok: true, data: filtered };
+    },
+  },
+
+  getStudentLearningProgress: {
+    name: 'getStudentLearningProgress',
+    description: 'Личные курсы студента: прогресс, завершённые уроки, общее число уроков и доступность сертификата. Только записи текущего пользователя; без данных других студентов, платежей и ссылок на сертификаты.',
+    parameters: { type: 'object', properties: {} },
+    async execute(_args, ctx) {
+      const result = await getStudentLearningProgress({
+        userId: ctx.userId,
+        role: ctx.role,
+      });
+      if (!result.ok) return { ok: false, error: result.error };
+      return { ok: true, data: result.data };
     },
   },
 

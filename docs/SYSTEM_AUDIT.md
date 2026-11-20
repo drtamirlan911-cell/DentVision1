@@ -1,7 +1,7 @@
-## Current source reconciliation — 2026-11-18 (post PR #348 merge)
+## Current source reconciliation — 2026-11-20 (post AI Admin booking-log fix)
 
 **Audited repository:** `drtamirlan911-cell/DentVision1`  
-**Current main snapshot:** `7289f369b1effa28db94e3e1e4541e4500bc5ee0`  
+**Current main snapshot:** `da1257fc650f536c76583bdff570906290b92bcd`  
 **Normative product target:** `docs/DENTVISION_MASTER_SPEC.md` v5.0  
 **Source-of-truth hierarchy:** Product DNA → Master Spec → Execution Plan → verified Context; this current addendum supersedes the historical candidate overlays below where they conflict.
 
@@ -10,6 +10,7 @@
 - PR #347 (AI Admin external-identifier encryption/blind index and guarded backfill) merged as `ad2b8651432073ba3c1426a59f3b31f704479557`.
 - PR #348 (Master Spec reconciliation, employer/Jobs, organization/legal scope) merged as `7289f369b1effa28db94e3e1e4541e4500bc5ee0`.
 - PR #322 merged as `462c6fcc1994c345b51feabff5f2357debdfffba`; it is isolated Codespaces/devcontainer setup, not a product-cabinet feature.
+- Main commit `da1257fc650f536c76583bdff570906290b92bcd` closes the AI Admin booking-exception log leak by replacing raw exception output with a fixed PHI-free message and adding patient-name/phone regression coverage. Exact-main CI [44387886688](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44387886688) and Quality Gate [44596218937](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44596218937) succeeded.
 - PR #348 exact head `3647184c2f082486614d676981eab55b99546f99`: CI [44128085041](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44128085041), Quality Gate [44128084855](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44128084855), RB-034 [44128084888](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44128084888), Android [44128085039](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44128085039) and Vercel Preview all succeeded. Unit suite: 2,702 tests / 303 files. E2E gates: Core 253 / 5 skipped; Browser UX 4; Mobile Design 16; Role/Context 139 / 28 skipped; Visual Agent 48; Business Owner 11; Organization Owner 8; Playwright CLI and Visual Release Gate passed.
 - This proves the source/test state for PR #348 HEAD. It does not prove production/staging, legal, provider, data backfill, key rotation, backup/restore or physical-device operations.
 
@@ -27,16 +28,16 @@ The old main-baseline finding that employer registration/workspace is absent is 
 ### 3. Previous parallel branch reconciliation
 - PR #330 merged as `2ff887f4944cb1eb8c0e05001fbcc44ef9abde09`; PR #331/#332 integrated PR #328 workspace-picker and PR #329 medical-history-envelope work into that candidate before it merged. Do not replay the old integration branches.
 - PR #333 was closed without merge and is based on a stale branch. Its source change to `llm.service.ts` and focused test file are already present on current main; the source blob for `llm.service.ts` matches the closed branch. Do not merge its 24-commits-behind branch wholesale. Its only remaining difference is a historical Execution Log note.
-- No current open PRs were returned immediately after PR #348 merge; the new RB-029 source correction is being prepared on a single bounded branch.
+- PR #351 is the current Draft candidate for the user-facing Jarvis product-knowledge and workspace-tool work. It remains unmerged; keep it on the existing bounded branch and require exact-head verification.
 
-### 4. Newly confirmed RB-029 log-path gap (candidate fix pending)
+### 4. AI Admin booking-exception log path — resolved on current main
 A source-only review of AI Admin persistence/log paths found:
 - `llm.orchestrator.ts` logs a fixed, PHI-free message on provider failure.
 - `webhook.gateway.ts` logs fixed error messages; webhook/provider exception bodies are not printed.
 - `queue/message.worker.ts` logs fixed status text and persists diagnostic details through `failMessage()`, which encrypts the error field.
 - `conversation.manager.ts` encrypts external identifier, message and escalation content according to rollout policy.
-- **Exception:** `llm/tools/book_appointment.tool.ts` logged the raw caught exception using `console.error('[book_appointment] Error:', err)`. Since the booking path handles patient name and phone, and Prisma/provider exceptions can expose query context, this violates the RB-029 PHI-free logging rule.
-- Candidate branch `security/rb029-ai-admin-booking-log-redaction-20261118` removes raw error logging, retains a fixed diagnostic event, and adds a regression test with patient name/phone embedded in a synthetic exception. Exact-head CI is pending; do not count this as resolved until verified.
+- The previous exception path in `llm/tools/book_appointment.tool.ts` has been fixed on current main commit `da1257f`: Prisma/provider exception details are no longer printed; only a fixed PHI-free diagnostic event is logged.
+- Regression coverage injects a synthetic exception containing patient name and phone and asserts neither is present in the logger calls. Exact-main CI [44387886688](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44387886688) and Quality Gate [44596218937](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44596218937) succeeded. This resolves this one log path only; it does not close RB-029 historical-data or operational controls.
 
 ### 5. Current remaining gaps
 - **RB-029 / P0:** compatibility dual-write for AiAdminSession.externalUserId remains intentional until all legacy webhook/queue workers are drained. No strict cutover or historical backfill was executed. Historical Patient/AI derivative PHI inventory, key rotation/reindex, old-key handling, retention/export/deletion, backup/restore, rollback and approved staging reconciliation remain open.

@@ -36,6 +36,13 @@ describe('AI OS agent registry', () => {
     expect(missing).toEqual([]);
   });
 
+  it('exposes student learning progress only to the student role', () => {
+    expect(agentsForRole('STUDENT').some((agent) => agent.id === 'agent.education.student')).toBe(true);
+    expect(toolsForRole('STUDENT').has('getStudentLearningProgress')).toBe(true);
+    expect(toolsForRole('LECTURER').has('getStudentLearningProgress')).toBe(false);
+    expect(toolsForRole('DOCTOR').has('getStudentLearningProgress')).toBe(false);
+  });
+
   it('exposes lecturer-owned course overview only to lecturer role', () => {
     expect(toolsForRole('LECTURER').has('getLecturerCoursesOverview')).toBe(true);
     expect(toolsForRole('STUDENT').has('getLecturerCoursesOverview')).toBe(false);

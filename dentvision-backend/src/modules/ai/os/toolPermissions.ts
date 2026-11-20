@@ -85,6 +85,8 @@ export const UNGATED_TOOLS: readonly string[] = [
   'getSupplierInventoryOverview',
   // Lecturer course overview rechecks Lecturer.userId and never returns learner identities.
   'getLecturerCoursesOverview',
+  // Student progress is scoped to the authenticated SchoolEnrollment.userId.
+  'getStudentLearningProgress',
 ];
 
 // The action ladder lives in lib/permissions.ts — the AI intent router needs
