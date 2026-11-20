@@ -4,7 +4,7 @@
  * is additive and can be deployed independently from the large legacy schema.
  * The migration creates the table; this service uses parameterised raw SQL.
  */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import prisma from '../../../lib/prisma.js';
 import { employeeContractForRole, type AiAutonomy } from './employeeContract.js';
@@ -76,16 +76,23 @@ export async function createAiEmployeeTask(input: CreateAiEmployeeTaskInput): Pr
   const risk = input.risk || 'low';
   const payload = input.actionPayload == null ? null : JSON.stringify(input.actionPayload);
   const metadata = JSON.stringify(input.metadata || {});
+  // Idempotency is tenant-bound. A source event/action/role may be retried by
+  // a worker, but it must never collide with another clinic's task.
+  const idempotencyKey = input.sourceEventId && input.action
+    ? 'evt:' + createHash('sha256')
+      .update(['CLINIC', input.clinicId, input.sourceEventId, input.action, contract.role].join('|'))
+      .digest('hex')
+    : null;
   const rows = await prisma.$queryRaw<AiEmployeeTask[]>(Prisma.sql`
     INSERT INTO ai_employee_tasks
       (id, clinic_id, user_id, role, employee_title, title, description, status, risk, autonomy,
-       source_event_id, source_event_type, action, action_payload, metadata, due_at, created_at, updated_at)
+       source_event_id, source_event_type, action, action_payload, metadata, due_at, created_at, updated_at, idempotency_key)
     VALUES
       (CAST(${id} AS uuid), ${input.clinicId}, ${input.userId || null}, ${contract.role}, ${contract.title}, ${input.title},
        ${input.description || null}, ${status}, ${risk}, ${contract.autonomy}, ${input.sourceEventId || null}, ${input.sourceEventType || null},
-       ${input.action || null}, ${payload}::jsonb, ${metadata}::jsonb, ${input.dueAt || null}, NOW(), NOW())
-    ON CONFLICT (source_event_id, action, role)
-      WHERE source_event_id IS NOT NULL AND action IS NOT NULL
+       ${input.action || null}, ${payload}::jsonb, ${metadata}::jsonb, ${input.dueAt || null}, NOW(), NOW(), ${idempotencyKey})
+    ON CONFLICT (idempotency_key)
+      WHERE idempotency_key IS NOT NULL
       DO NOTHING
     RETURNING id, clinic_id AS "clinicId", user_id AS "userId", role, employee_title AS "employeeTitle",
       title, description, status, risk, autonomy, source_event_id AS "sourceEventId",
