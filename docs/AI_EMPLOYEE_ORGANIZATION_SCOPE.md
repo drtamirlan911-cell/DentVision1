@@ -170,3 +170,14 @@ At minimum:
 
 - The canonical Jarvis guide now states plainly that the durable AI Employee queue is clinic-only. Partner read-only overviews do not constitute task queue support. Task status changes do not execute domain actions; high-risk execution remains in Approval Center and governance kernel.
 - A natural-language retrieval test protects the answer to questions about a shared supplier/laboratory queue. This is product-knowledge accuracy, not implementation of organization task storage.
+
+## 14. PR #351 clinic AI branch-scope candidate — 2026-11-20
+
+This is a clinic-tool hardening slice, not the organization-first task queue rollout described above.
+
+- The governance kernel now re-resolves clinic Organization, PersonRole and active BranchMember membership (or legacy ClinicMember.branchId only for clinics without a canonical Organization) before staff clinic data tools execute. Branch/session claims are selectors only. Missing or ambiguous narrow scope and unknown roles fail closed.
+- Branch-aware clinic tools are explicitly allow-listed; queries bind patient, appointment, invoice, inventory and patient-linked LabOrder records to the verified branch. Writes derive branch from a verified patient or the verified selected branch. Tools without complete branch predicates stay denied for narrow roles.
+- Direct Jarvis shortcuts, briefing, greeting, proactive alerts, Digital Twin and patient insights are restricted so they cannot bypass the kernel's branch context.
+- Canonical role mapping has a compatibility alias `cashier → ADMIN`; the new resolver requires an explicit canonical `admin` or `org_admin` PersonRole before granting organization-wide ADMIN scope.
+- `AgentActivity`, `AiApproval` and `ai_employee_tasks` still lack a persisted branch key. Therefore narrow branch contexts receive no timeline, approval or task-ledger rows and cannot approve/reject cross-user actions or transition the clinic-wide task ledger. The organization-wide AI ledger remains clinic-only and restricted to verified OWNER/ADMIN without a selected branch.
+- **Not solved by this slice:** patient assignment/OWN visibility for DOCTOR and ASSISTANT (RB-035), full negative route/session matrix, branch-aware ledger schema and partner organization-first queue/approval rollout. No schema migration or historical-data update was performed. All changes await exact-head CI, E2E, Quality Gate and appropriate staging proof.
