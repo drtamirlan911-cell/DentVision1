@@ -251,7 +251,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         case 'DIAGNOSTIC_CENTER': navigate('/diagnostics/center-dashboard'); break
         case 'LABORATORY': navigate('/diagnostics/lab-dashboard'); break
         case 'SUPPLIER': navigate('/supplier'); break
-        case 'LECTURER':
+        case 'LECTURER': navigate('/school/workspace'); break
         case 'ACADEMY': navigate('/school'); break
         case 'PARTNER': navigate('/shop'); break
         case 'EMPLOYER': navigate('/employer'); break
