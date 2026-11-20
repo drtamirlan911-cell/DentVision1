@@ -122,7 +122,7 @@ export class EventBus implements IEventBus {
         }
       }
     } catch (error) {
-      console.error('[EventBus] PostgreSQL poll error:', error);
+      console.error('[EventBus] PostgreSQL poll failed (' + safeErrorKind(error) + ')');
     } finally {
       this.databasePollRunning = false;
     }
