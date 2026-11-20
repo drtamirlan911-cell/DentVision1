@@ -5,21 +5,50 @@ import { requirePermission } from '../../middleware/rbac.js';
 import { AuthRequest } from '../../types/index.js';
 import { guardAnalytics } from '../../middleware/planGate.js';
 import { resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
+import { resolveClinicBranchAccess } from '../../lib/clinicBranchAccess.js';
 
 const analyticsRouter = Router();
 
-function branchScope(req: AuthRequest): Record<string, unknown> {
-  const role = String(req.user?.role || '').toUpperCase();
-  if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {};
-  const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
-  return branchIds.length > 0
-    ? { branchId: { in: branchIds } }
+interface AnalyticsBranchContext {
+  organizationWide: boolean;
+  branchId: string | null;
+  branchIds: string[];
+}
+
+async function resolveAnalyticsBranchContext(
+  req: AuthRequest,
+  clinicId: string,
+): Promise<AnalyticsBranchContext> {
+  if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN') {
+    return { organizationWide: true, branchId: null, branchIds: [] };
+  }
+  const access = await resolveClinicBranchAccess({
+    userId: req.user?.id || '',
+    clinicId,
+    organizationId: req.user?.organizationId,
+    role: String(req.user?.role || ''),
+    requestedBranchId: req.user?.branchId,
+  });
+  if (!access) return { organizationWide: false, branchId: null, branchIds: [] };
+  return {
+    organizationWide: access.roleScope === 'ORGANIZATION' && access.branchId === null,
+    branchId: access.branchId,
+    branchIds: access.branchId ? [access.branchId] : access.allowedBranchIds,
+  };
+}
+
+function analyticsBranchWhere(context: AnalyticsBranchContext): Record<string, unknown> {
+  if (context.organizationWide) return {};
+  return context.branchIds.length
+    ? { branchId: { in: context.branchIds } }
     : { branchId: '__NO_BRANCH_ACCESS__' };
 }
-function analyticsBranchIds(req: AuthRequest): string[] | null {
-  const role = String(req.user?.role || '').toUpperCase();
-  if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return null;
-  return (req.user?.branchIds ?? []).filter(Boolean);
+
+function analyticsPatientBranchFilter(context: AnalyticsBranchContext): { branchId: { in: string[] } } | { branchId: string } | null {
+  if (context.organizationWide) return null;
+  return context.branchIds.length
+    ? { branchId: { in: context.branchIds } }
+    : { branchId: '__NO_BRANCH_ACCESS__' };
 }
 
 analyticsRouter.use(authenticate);
@@ -40,13 +69,16 @@ analyticsRouter.get('/dashboard', async (req: AuthRequest, res) => {
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const branchContext = await resolveAnalyticsBranchContext(req, clinicId);
+    const patientBranch = analyticsPatientBranchFilter(branchContext);
+    const patientRelationFilter = patientBranch ? { patient: patientBranch } : {};
 
     const [totalPatients, appointmentsToday, revenueResult, activeLabOrders] = await Promise.all([
-      prisma.patient.count({ where: { clinicId, ...branchScope(req) } }),
+      prisma.patient.count({ where: { clinicId, ...analyticsBranchWhere(branchContext) } }),
       prisma.appointment.count({
         where: {
           clinicId,
-          ...branchScope(req),
+          ...analyticsBranchWhere(branchContext),
           date: { gte: startOfToday, lt: endOfToday },
           status: { notIn: ['cancelled', 'no_show'] },
         },
@@ -54,7 +86,7 @@ analyticsRouter.get('/dashboard', async (req: AuthRequest, res) => {
       prisma.invoice.aggregate({
         where: {
           clinicId,
-          patient: { branchId: (branchScope(req) as any).branchId ?? undefined },
+          ...patientRelationFilter,
           status: 'paid',
           createdAt: { gte: startOfMonth, lte: endOfMonth },
         },
@@ -63,7 +95,7 @@ analyticsRouter.get('/dashboard', async (req: AuthRequest, res) => {
       prisma.labOrder.count({
         where: {
           clinicId,
-          patient: { branchId: (branchScope(req) as any).branchId ?? undefined },
+          ...patientRelationFilter,
           status: { notIn: ['completed', 'delivered'] },
         },
       }),
@@ -96,7 +128,8 @@ analyticsRouter.get('/revenue', async (req: AuthRequest, res) => {
 
     const now = new Date();
     const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-    const branchIds = analyticsBranchIds(req);
+    const branchContext = await resolveAnalyticsBranchContext(req, clinicId);
+    const branchIds = branchContext.organizationWide ? null : branchContext.branchIds;
 
     // SQL-level month bucketing instead of shipping every paid invoice to JS.
     const rows = branchIds === null
@@ -150,6 +183,7 @@ analyticsRouter.get('/doctors', async (req: AuthRequest, res) => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const branchContext = await resolveAnalyticsBranchContext(req, clinicId);
 
     const organizationId = await resolveOrganizationIdForClinic(clinicId);
     if (!organizationId) {
@@ -184,7 +218,7 @@ analyticsRouter.get('/doctors', async (req: AuthRequest, res) => {
       by: ['doctorId'],
       where: {
         clinicId,
-        ...branchScope(req),
+        ...analyticsBranchWhere(branchContext),
         doctorId: { in: doctorIds },
         date: { gte: startOfMonth, lte: endOfMonth },
         status: { notIn: ['cancelled', 'no_show'] },
@@ -226,7 +260,8 @@ analyticsRouter.get('/patients-growth', async (req: AuthRequest, res) => {
 
     const now = new Date();
     const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-    const branchIds = analyticsBranchIds(req);
+    const branchContext = await resolveAnalyticsBranchContext(req, clinicId);
+    const branchIds = branchContext.organizationWide ? null : branchContext.branchIds;
 
     // SQL-level month bucketing instead of shipping every patient row to JS.
     const rows = branchIds === null
