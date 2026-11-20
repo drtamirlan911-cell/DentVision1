@@ -35,7 +35,7 @@ async function getBranchContext(req: AuthRequest, clinicId: string) {
   });
 }
 
-function scopedWhere(context: Awaited<ReturnType<typeof resolveInventoryBranchContext>>) {
+function scopedWhere(context: NonNullable<Awaited<ReturnType<typeof resolveInventoryBranchContext>>>) {
   return context.organizationWide
     ? { clinicId: context.clinicId }
     : { clinicId: context.clinicId, branchId: { in: context.branchIds } };
