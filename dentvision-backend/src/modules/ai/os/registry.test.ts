@@ -36,6 +36,15 @@ describe('AI OS agent registry', () => {
     expect(missing).toEqual([]);
   });
 
+  it('exposes employer vacancy overview only to employer roles', () => {
+    for (const role of ['EMPLOYER_OWNER', 'EMPLOYER_RECRUITER', 'EMPLOYER_VIEWER']) {
+      expect(agentsForRole(role).some((agent) => agent.id === 'agent.jobs.employer')).toBe(true);
+      expect(toolsForRole(role).has('getEmployerVacancyOverview')).toBe(true);
+    }
+    expect(toolsForRole('DOCTOR').has('getEmployerVacancyOverview')).toBe(false);
+    expect(toolsForRole('SUPPLIER').has('getEmployerVacancyOverview')).toBe(false);
+  });
+
   it('exposes student learning progress only to the student role', () => {
     expect(agentsForRole('STUDENT').some((agent) => agent.id === 'agent.education.student')).toBe(true);
     expect(toolsForRole('STUDENT').has('getStudentLearningProgress')).toBe(true);

@@ -25,6 +25,7 @@ describe('TOOL_PERMISSIONS coverage', () => {
     expect(TOOL_PERMISSIONS).not.toHaveProperty('getDentalLabWorkQueue');
     expect(TOOL_PERMISSIONS).not.toHaveProperty('getSupplierInventoryOverview');
     expect(TOOL_PERMISSIONS).not.toHaveProperty('getLecturerCoursesOverview');
+    expect(TOOL_PERMISSIONS.getEmployerVacancyOverview).toBe('jobs.read');
   });
 
   it('gates every mutating tool', () => {

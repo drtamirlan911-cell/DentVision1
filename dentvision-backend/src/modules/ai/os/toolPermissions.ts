@@ -58,6 +58,8 @@ export const TOOL_PERMISSIONS: Record<string, string> = {
   // given one, and this map cannot grant wider than that route does).
   createLabOrder: 'appointment.write',
   updateLabOrderStatus: 'appointment.write',
+  // Employer vacancy overview mirrors the Jobs REST route's organization-scoped read permission.
+  getEmployerVacancyOverview: 'jobs.read',
 };
 
 /**

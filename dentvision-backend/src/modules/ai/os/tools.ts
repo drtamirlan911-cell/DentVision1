@@ -27,6 +27,7 @@ import { createReferral } from '../../diagnostics/diagnostics.service.js';
 import { prepareLabOrderWrite, VALID_STATUSES as VALID_LAB_STATUSES } from '../../lab/lab.routes.js';
 import { getDentalLabWorkQueue, getDiagnosticCenterWorkQueue, getSupplierInventoryOverview } from './partnerWorkspaceTools.js';
 import { getLecturerCoursesOverview, getStudentLearningProgress } from './educationWorkspaceTools.js';
+import { getEmployerVacancyOverview } from './employerWorkspaceTools.js';
 import {
   NAV_PATHS,
   NAV_SECTION_LABELS,
@@ -928,6 +929,22 @@ export const TOOLS: Record<string, ToolSpec> = {
       const items = await prisma.inventoryItem.findMany({ where: { clinicId }, orderBy: { name: 'asc' }, take: 100 });
       const filtered = args.lowStockOnly ? items.filter((i) => i.quantity <= i.minimum) : items;
       return { ok: true, data: filtered };
+    },
+  },
+
+  getEmployerVacancyOverview: {
+    name: 'getEmployerVacancyOverview',
+    description: 'Сводка собственного кабинета работодателя: вакансии, город, диапазон оплаты, статус и агрегированное число откликов. Доступ требует активной организации работодателя, роли EMPLOYER_OWNER/RECRUITER/VIEWER и jobs.read. Персональные данные кандидатов не возвращаются.',
+    parameters: { type: 'object', properties: {} },
+    async execute(_args, ctx) {
+      const result = await getEmployerVacancyOverview({
+        userId: ctx.userId,
+        organizationId: ctx.organizationId || null,
+        organizationType: ctx.organizationType || null,
+        role: ctx.role,
+      });
+      if (!result.ok) return { ok: false, error: result.error };
+      return { ok: true, data: result.data };
     },
   },
 

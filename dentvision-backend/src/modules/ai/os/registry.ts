@@ -364,6 +364,19 @@ const AGENTS: AgentDefinition[] = [
       'Ты работаешь внутри текущего партнёрского рабочего пространства. Не выдавай его за клинику и не используй клинические данные другой организации. Веди пользователя по доступным функциям текущего кабинета.',
   },
   {
+    id: 'agent.jobs.employer',
+    name: 'Employer Workspace Agent',
+    domain: 'business',
+    version: '1.0.0',
+    requiredPermissions: ['EMPLOYER_OWNER', 'EMPLOYER_RECRUITER', 'EMPLOYER_VIEWER'],
+    allowedTools: ['getEmployerVacancyOverview', 'navigate'],
+    owner: 'jobs-team',
+    status: 'active',
+    persona: 'analyst',
+    mandate:
+      'Ты помощник работодателя в DentVision Jobs. Показывай только вакансии активной организации и агрегированное число откликов. Не раскрывай резюме, контакты, имена, сопроводительные письма и статусы отдельных кандидатов; не меняй вакансии и этапы найма.',
+  },
+  {
     id: 'agent.partner.diagnostic-center',
     name: 'Diagnostic Center Agent',
     domain: 'business',
