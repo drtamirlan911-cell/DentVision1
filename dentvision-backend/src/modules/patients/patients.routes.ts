@@ -177,7 +177,47 @@ patientsRouter.post('/', requirePatientMutationPermission, guardPatientCreate, a
     } else if(!targetBranchId) {
       return res.status(403).json({ok:false,error:'Сотруднику не назначен филиал'} satisfies ApiResponse);
     }
-    if(!body.id){idempotencyKey=req.headers['idempotency-key'] as string|undefined;if(!idempotencyKey)idempotencyKey=`server-${createHash('sha256').update(`${req.user!.id}:${clinicId}:${JSON.stringify(body)}`).digest('hex').slice(0,32)}`;const r=await reserveIdempotencyKey(idempotencyKey);if(r.status==='in_flight')return res.status(409).json({ok:false,error:'Пациент уже создаётся, повторите позже'} satisfies ApiResponse);if(r.status==='exists'){const prior=await prisma.patient.findUnique({where:{id:r.resultId},include:{teeth:true}});if(prior){const priorBranch=await getPatientBranchId(prior.id,clinicId);if(!canAccessPatientBranch(context,priorBranch))return res.status(404).json({ok:false,error:'Пациент не найден'});return res.json({ok:true,data:await serializePatientForCaller(prior,req)} satisfies ApiResponse)}await deleteIdempotencyKey(idempotencyKey)}}
+    if (!body.id) {
+      idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+      if (!idempotencyKey) {
+        idempotencyKey = `server-${createHash('sha256')
+          .update(`${req.user!.id}:${clinicId}:${JSON.stringify(body)}`)
+          .digest('hex')
+          .slice(0, 32)}`;
+      }
+      const reservation = await reserveIdempotencyKey(idempotencyKey);
+      if (reservation.status === 'in_flight') {
+        return res.status(409).json({
+          ok: false,
+          error: 'Пациент уже создаётся, повторите позже',
+        } satisfies ApiResponse);
+      }
+      if (reservation.status === 'exists') {
+        // IdempotencyRecord.key is globally unique and shared with other
+        // modules. Never load a replay by id alone: its result may belong to
+        // another clinic or even another resource type. Keep the key intact
+        // on a tenant mismatch; deleting it would release somebody else's key.
+        const prior = await prisma.patient.findFirst({
+          where: { id: reservation.resultId, clinicId },
+          include: { teeth: true },
+        });
+        if (!prior) {
+          return res.status(409).json({
+            ok: false,
+            error: 'Ключ идемпотентности уже использован. Повторите запрос с новым ключом.',
+            code: 'IDEMPOTENCY_KEY_SCOPE_CONFLICT',
+          } satisfies ApiResponse);
+        }
+        const priorBranch = await getPatientBranchId(prior.id, clinicId);
+        if (!canAccessPatientBranch(context, priorBranch)) {
+          return res.status(404).json({ ok: false, error: 'Пациент не найден' } satisfies ApiResponse);
+        }
+        return res.json({
+          ok: true,
+          data: await serializePatientForCaller(prior, req),
+        } satisfies ApiResponse);
+      }
+    }
     const existing=body.id?await prisma.patient.findFirst({where:{id:body.id,clinicId}}):null;
     if(existing){
       const existingBranch=await getPatientBranchId(existing.id,clinicId);
