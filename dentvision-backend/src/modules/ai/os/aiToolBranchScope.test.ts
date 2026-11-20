@@ -16,7 +16,7 @@ vi.mock('../../../lib/prisma.js', () => ({
   },
 }));
 vi.mock('../../../lib/orgContext.js', () => ({
-  PERSON_ROLE_MAP: { doctor: 'DOCTOR', owner: 'OWNER', admin: 'ADMIN' },
+  PERSON_ROLE_MAP: { doctor: 'DOCTOR', owner: 'OWNER', admin: 'ADMIN', cashier: 'ADMIN' },
 }));
 vi.mock('./aiEmployeeTaskScope.js', () => ({
   resolveOrganizationBranches,
