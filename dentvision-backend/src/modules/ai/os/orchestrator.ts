@@ -95,6 +95,8 @@ export interface OrchestratorInput {
   /** Active workspace selected by the user; distinct from legacy clinicId. */
   workspace?: { name: string; scopeType: string; roleLabel: string; scopeId?: string; organizationId?: string | null } | null;
   availableWorkspaces?: Array<{ name: string; scopeType: string; roleLabel: string }>;
+  /** Branch is present only after server-side IAM + branch membership verification. */
+  branch?: { id: string; name: string; code: string; organizationId: string | null; clinicId: string | null } | null;
   /** Context focus from workspace (patient / product / …). */
   focusType?: string | null;
   focusId?: string | null;
@@ -163,6 +165,28 @@ function isJarvisBriefingTrigger(text: string): boolean {
   );
 }
 
+/**
+ * Compact, server-resolved workspace context shared with Jarvis.
+ * Keep this factual: workspace inventory and branch identity come from IAM,
+ * while tools remain the only source for tenant business/clinical data.
+ */
+export function formatWorkspaceContext(input: Pick<OrchestratorInput, 'workspace' | 'availableWorkspaces' | 'branch'>): string {
+  const active = input.workspace
+    ? `${input.workspace.name} · тип: ${input.workspace.scopeType} · роль: ${input.workspace.roleLabel}`
+    : 'не определено';
+  const branch = input.branch
+    ? `${input.branch.name} · код: ${input.branch.code}`
+    : 'не выбран или не подтверждён текущими правами';
+  const available = (input.availableWorkspaces || [])
+    .map((workspace) => `${workspace.name} [${workspace.scopeType}; ${workspace.roleLabel}]`)
+    .join(' · ') || '—';
+  return [
+    `Активное рабочее пространство: ${active}.`,
+    `Активный филиал: ${branch}.`,
+    `Доступные рабочие пространства: ${available}.`,
+  ].join('\\n');
+}
+
 function systemPrompt(
   input: OrchestratorInput,
   currencyCode: string,
@@ -210,8 +234,7 @@ ${runtimeCapabilitiesBlock}
 Активная персона сейчас: ${personaLabel(activePersona)} (${activePersona}).
 
 Пользователь: ${input.userName || 'пользователь'}, роль: ${input.role}.
-Активное рабочее пространство: ${input.workspace?.name || 'не определено'} · тип: ${input.workspace?.scopeType || 'не определён'} · роль в этом пространстве: ${input.workspace?.roleLabel || input.role}.
-Доступные рабочие пространства: ${(input.availableWorkspaces || []).map((w) => `${w.name} [${w.scopeType}; ${w.roleLabel}]`).join(' · ') || '—'}.
+${formatWorkspaceContext(input)}
 ВАЖНО: активное рабочее пространство — основной текущий контекст. Не называй клинику текущей, если активен другой тип пространства. Клинические данные используй только когда тип пространства CLINIC или инструмент явно работает с клиникой.
 Сейчас на экране: этап «${stage}»${input.pathname ? ` (${input.pathname})` : ''}${input.queue?.key ? `, очередь: ${input.queue.key}` : ''}${input.focusType ? `, фокус: ${input.focusType}${input.focusId ? `/${input.focusId}` : ''}` : ''}.
 Подсказки по этапу: ${stageHints || '—'}.
