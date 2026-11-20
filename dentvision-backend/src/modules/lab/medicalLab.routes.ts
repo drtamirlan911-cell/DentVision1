@@ -423,6 +423,14 @@ medicalLabLifecycleRouter.post('/orders/:id/quality-control', async (req: AuthRe
       return res.status(403).json({ ok: false, error: 'Контроль качества доступен только уполномоченной роли лаборатории', code: 'MEDICAL_LAB_QC_FORBIDDEN' });
     }
     if (order.status !== 'result_ready') return res.status(409).json({ ok: false, error: 'Контроль качества возможен после внесения всех результатов' });
+    const previousQualityControl = jsonObject(jsonObject(order.metadata).qualityControl);
+    if (previousQualityControl.performedAt) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Решение QC уже зафиксировано. Для повторной проверки верните заказ на доработку и внесите новый полный набор результатов.',
+        code: 'MEDICAL_LAB_QC_ALREADY_RECORDED',
+      });
+    }
 
     const decision = String(req.body?.decision || '').trim().toLowerCase();
     if (!['passed', 'failed'].includes(decision)) return res.status(400).json({ ok: false, error: 'decision должен быть passed или failed' });
