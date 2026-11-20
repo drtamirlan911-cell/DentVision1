@@ -111,12 +111,15 @@ function requirePatientMutationPermission(req: AuthRequest, res: Response, next:
 }
 
 async function branchContext(req: AuthRequest, clinicId: string) {
-  return resolvePatientBranchContext(req.user!.id, clinicId, String(req.user!.role));
+  return resolvePatientBranchContext(req.user!.id, clinicId, String(req.user!.role), {
+    organizationId: req.user?.organizationId,
+    requestedBranchId: req.user?.branchId,
+  });
 }
 
 async function scopedPatientWhere(req: AuthRequest, clinicId: string, extra: Prisma.PatientWhereInput = {}): Promise<Prisma.PatientWhereInput> {
   const context=await branchContext(req,clinicId);
-  if(context.scope.kind==='organization') return {clinicId,...extra};
+  if(context.scope.kind==='organization' && !context.branchId) return {clinicId,...extra};
   return getScopedWhere(clinicId,context.scope.branchIds,extra);
 }
 
@@ -126,7 +129,19 @@ async function getScopedWhere(clinicId: string, branchIds: readonly string[], ex
   return {clinicId,id:{in:ids},...extra};
 }
 
-async function loadClinicPatient(req:AuthRequest,res:any){const clinicId=req.user?.clinicId;if(!clinicId){res.status(400).json({ok:false,error:'Клиника не указана'});return null}const p=await prisma.patient.findFirst({where:{id:req.params.id,clinicId},select:{id:true}});if(!p){res.status(404).json({ok:false,error:'Пациент не найден'});return null}const context=await branchContext(req,clinicId);const patientBranchId=await getPatientBranchId(p.id,clinicId);if(context.scope.kind!=='organization'&&!canAccessPatientBranch(context,patientBranchId)){res.status(404).json({ok:false,error:'Пациент не найден'});return null}return{clinicId,patientId:p.id,context,branchId:patientBranchId};}
+async function loadClinicPatient(req:AuthRequest,res:any){
+  const clinicId=req.user?.clinicId;
+  if(!clinicId){res.status(400).json({ok:false,error:'Клиника не указана'});return null}
+  const p=await prisma.patient.findFirst({where:{id:req.params.id,clinicId},select:{id:true}});
+  if(!p){res.status(404).json({ok:false,error:'Пациент не найден'});return null}
+  const context=await branchContext(req,clinicId);
+  const patientBranchId=await getPatientBranchId(p.id,clinicId);
+  if(!canAccessPatientBranch(context,patientBranchId)){
+    res.status(404).json({ok:false,error:'Пациент не найден'});
+    return null;
+  }
+  return{clinicId,patientId:p.id,context,branchId:patientBranchId};
+}
 
 patientsRouter.get('/', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
@@ -151,11 +166,31 @@ patientsRouter.post('/', requirePatientMutationPermission, guardPatientCreate, a
     if(body.medicalHistory!==undefined&&body.medicalHistory!==null&&!isStructuredMedicalHistoryRoot(body.medicalHistory))return res.status(400).json({ok:false,error:'Медицинская история должна быть объектом'} satisfies ApiResponse);
     const {firstName,lastName}=splitName(body.name,body.firstName,body.lastName), id=body.id||uid();
     let targetBranchId:string|null=context.branchId;
-    if(context.scope.kind==='organization'){if(body.branchId!==undefined){if(!(await assertPatientBranchBelongsToClinic(String(body.branchId),clinicId)))return res.status(400).json({ok:false,error:'Недействующий филиал'} satisfies ApiResponse);targetBranchId=String(body.branchId);}else{const branches=await prisma.$queryRaw<Array<{id:string}>>`SELECT id FROM branches WHERE clinic_id=${clinicId} AND active=true ORDER BY "isDefault" DESC, "created_at" ASC LIMIT 1`;targetBranchId=branches[0]?.id??null;}}
-    else if(!targetBranchId)return res.status(403).json({ok:false,error:'Сотруднику не назначен филиал'} satisfies ApiResponse);
-    if(!body.id){idempotencyKey=req.headers['idempotency-key'] as string|undefined;if(!idempotencyKey)idempotencyKey=`server-${createHash('sha256').update(`${req.user!.id}:${clinicId}:${JSON.stringify(body)}`).digest('hex').slice(0,32)}`;const r=await reserveIdempotencyKey(idempotencyKey);if(r.status==='in_flight')return res.status(409).json({ok:false,error:'Пациент уже создаётся, повторите позже'} satisfies ApiResponse);if(r.status==='exists'){const prior=await prisma.patient.findUnique({where:{id:r.resultId},include:{teeth:true}});if(prior){const priorBranch=await getPatientBranchId(prior.id,clinicId);if(context.scope.kind!=='organization'&&!canAccessPatientBranch(context,priorBranch))return res.status(404).json({ok:false,error:'Пациент не найден'});return res.json({ok:true,data:await serializePatientForCaller(prior,req)} satisfies ApiResponse)}await deleteIdempotencyKey(idempotencyKey)}}
+    if(body.branchId!==undefined){
+      const requestedBranchId=String(body.branchId);
+      if(context.scope.kind!=='organization' && requestedBranchId!==context.branchId) return res.status(403).json({ok:false,error:'Нет доступа к выбранному филиалу'} satisfies ApiResponse);
+      if(!(context.allowedBranchIds??[]).includes(requestedBranchId)) return res.status(403).json({ok:false,error:'Нет доступа к выбранному филиалу'} satisfies ApiResponse);
+      if(!(await assertPatientBranchBelongsToClinic(requestedBranchId,clinicId))) return res.status(400).json({ok:false,error:'Недействующий филиал'} satisfies ApiResponse);
+      targetBranchId=requestedBranchId;
+    } else if(context.scope.kind==='organization') {
+      targetBranchId=context.branchId || context.allowedBranchIds?.[0] || null;
+    } else if(!targetBranchId) {
+      return res.status(403).json({ok:false,error:'Сотруднику не назначен филиал'} satisfies ApiResponse);
+    }
+    if(!body.id){idempotencyKey=req.headers['idempotency-key'] as string|undefined;if(!idempotencyKey)idempotencyKey=`server-${createHash('sha256').update(`${req.user!.id}:${clinicId}:${JSON.stringify(body)}`).digest('hex').slice(0,32)}`;const r=await reserveIdempotencyKey(idempotencyKey);if(r.status==='in_flight')return res.status(409).json({ok:false,error:'Пациент уже создаётся, повторите позже'} satisfies ApiResponse);if(r.status==='exists'){const prior=await prisma.patient.findUnique({where:{id:r.resultId},include:{teeth:true}});if(prior){const priorBranch=await getPatientBranchId(prior.id,clinicId);if(!canAccessPatientBranch(context,priorBranch))return res.status(404).json({ok:false,error:'Пациент не найден'});return res.json({ok:true,data:await serializePatientForCaller(prior,req)} satisfies ApiResponse)}await deleteIdempotencyKey(idempotencyKey)}}
     const existing=body.id?await prisma.patient.findFirst({where:{id:body.id,clinicId}}):null;
-    if(existing){const existingBranch=await getPatientBranchId(existing.id,clinicId);if(context.scope.kind!=='organization'&&!canAccessPatientBranch(context,existingBranch))return res.status(404).json({ok:false,error:'Пациент не найден'});if(context.scope.kind==='organization'&&body.branchId!==undefined){if(!(await assertPatientBranchBelongsToClinic(String(body.branchId),clinicId)))return res.status(400).json({ok:false,error:'Недействующий филиал'});targetBranchId=String(body.branchId)}else targetBranchId=existingBranch;}
+    if(existing){
+      const existingBranch=await getPatientBranchId(existing.id,clinicId);
+      if(!canAccessPatientBranch(context,existingBranch)) return res.status(404).json({ok:false,error:'Пациент не найден'});
+      if(body.branchId!==undefined && context.scope.kind==='organization'){
+        const requestedBranchId=String(body.branchId);
+        if(!(context.allowedBranchIds??[]).includes(requestedBranchId) || (context.branchId && context.branchId!==requestedBranchId)) return res.status(403).json({ok:false,error:'Нет доступа к выбранному филиалу'} satisfies ApiResponse);
+        if(!(await assertPatientBranchBelongsToClinic(requestedBranchId,clinicId))) return res.status(400).json({ok:false,error:'Недействующий филиал'} satisfies ApiResponse);
+        targetBranchId=requestedBranchId;
+      } else {
+        targetBranchId=existingBranch;
+      }
+    }
     // Merge only after the existing row has passed clinic/branch authorization.
     // A partial (e.g. teeth-only) upsert must never erase unrelated medical history.
     const history = mergePatientMedicalHistory(existing?.medicalHistory, body);
@@ -215,9 +250,17 @@ patientsRouter.patch('/:id', requirePatientMutationPermission, requireClinicWrit
     let targetBranchId: string | null = null;
     if (body.branchId !== undefined && scope.context.scope.kind === 'organization') {
       targetBranchId = String(body.branchId);
+      if (
+        !(scope.context.allowedBranchIds ?? []).includes(targetBranchId)
+        || (scope.context.branchId && scope.context.branchId !== targetBranchId)
+      ) {
+        return res.status(403).json({ ok: false, error: 'Нет доступа к выбранному филиалу' } satisfies ApiResponse);
+      }
       if (!(await assertPatientBranchBelongsToClinic(targetBranchId, clinicId))) {
         return res.status(400).json({ ok: false, error: 'Недействующий филиал' } satisfies ApiResponse);
       }
+    } else if (body.branchId !== undefined && String(body.branchId) !== scope.context.branchId) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к выбранному филиалу' } satisfies ApiResponse);
     }
 
     const names = (body.name || body.firstName || body.lastName)
