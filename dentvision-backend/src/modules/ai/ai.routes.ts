@@ -397,6 +397,12 @@ async function processQuery(
         lecturerId: isGuest ? null : (req.user?.lecturerId || null),
         role: isGuest ? 'GUEST' : req.user!.role,
         workspace: activeWorkspace,
+        availableWorkspaces: aiContext?.availableWorkspaces.map(({ name, scopeType, roleLabel }) => ({
+          name,
+          scopeType,
+          roleLabel,
+        })) || [],
+        branch: aiContext?.branch || null,
         userName: isGuest
           ? 'Гость'
           : [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' '),
