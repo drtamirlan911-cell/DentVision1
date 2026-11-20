@@ -19,6 +19,8 @@ test.describe('Student OS — personal learning, assessment and credentials', ()
   let courseTitle = '';
   let lessonId = '';
   let enrollmentId = '';
+  let previewCourseId = '';
+  let previewEnrollmentId = '';
 
   test.beforeAll(async () => {
     api = await apiRequest.newContext();
@@ -57,6 +59,23 @@ test.describe('Student OS — personal learning, assessment and credentials', ()
       data: { courseId, title: 'Verified lesson', content: 'Synthetic lesson body', order: 1, duration: 10 },
     });
     lessonId = lesson.id;
+
+    const previewCourse = await prisma.course.create({
+      data: {
+        title: `Paid preview E2E Course ${stamp}`,
+        author: 'DentVision Academy Test',
+        description: 'Public program description with protected paid lesson content.',
+        category: 'E2E',
+        price: 25000,
+        format: 'course',
+        fileUrl: 'https://private.example.test/course-material.pdf',
+        meta: { audiences: ['ALL', 'PUBLIC'], certificateEnabled: true },
+      },
+    });
+    previewCourseId = previewCourse.id;
+    await prisma.lesson.create({
+      data: { courseId: previewCourseId, title: 'Paid private lesson', content: 'Protected lesson text', videoUrl: 'https://private.example.test/lesson.mp4', order: 1, duration: 20 },
+    });
   });
 
   test.afterAll(async () => {
@@ -64,11 +83,60 @@ test.describe('Student OS — personal learning, assessment and credentials', ()
     if (enrollmentId) {
       await prisma.schoolEnrollment.deleteMany({ where: { id: enrollmentId } }).catch(() => {});
     }
+    if (previewEnrollmentId) {
+      await prisma.schoolEnrollment.deleteMany({ where: { id: previewEnrollmentId } }).catch(() => {});
+    }
     if (courseId) {
       await prisma.course.deleteMany({ where: { id: courseId } }).catch(() => {});
     }
+    if (previewCourseId) {
+      await prisma.course.deleteMany({ where: { id: previewCourseId } }).catch(() => {});
+    }
     await cleanupTestUser(email).catch(() => {});
     await cleanupTestUser(otherEmail).catch(() => {});
+  });
+
+  test('STUDENT-OS-000: public paid-course preview does not reveal paid lessons', async () => {
+    const anonymousPreview = await api.get(`${API}/api/school/courses/${previewCourseId}`);
+    expect(anonymousPreview.status()).toBe(200);
+    const anonymousCourse = (await anonymousPreview.json()).data;
+    expect(anonymousCourse.title).toBe(`Paid preview E2E Course ${stamp}`);
+    expect(anonymousCourse.price).toBe(25000);
+    expect(anonymousCourse.modules).toBeUndefined();
+    expect(anonymousCourse.lessons).toBeUndefined();
+    expect(anonymousCourse.fileUrl).toBeNull();
+
+    const learnerPreview = await api.get(`${API}/api/school/courses/${previewCourseId}`, {
+      headers: auth(studentToken),
+    });
+    expect(learnerPreview.status()).toBe(200);
+    const learnerCourse = (await learnerPreview.json()).data;
+    expect(learnerCourse.title).toBe(anonymousCourse.title);
+    expect(learnerCourse.modules).toBeUndefined();
+    expect(learnerCourse.fileUrl).toBeNull();
+
+    const paidEntitlement = await prisma.schoolEnrollment.create({
+      data: {
+        id: `preview-entitlement-${stamp}`,
+        userId: (await prisma.user.findUnique({ where: { email }, select: { id: true } }))!.id,
+        courseId: previewCourseId,
+        acquisitionType: 'purchase',
+        accessStatus: 'active',
+        paidAmountMinor: 2500000n,
+        currency: 'KZT',
+        paymentId: `synthetic-preview-payment-${stamp}`,
+        purchaseConfirmedAt: new Date(),
+      },
+    });
+    previewEnrollmentId = paidEntitlement.id;
+
+    const entitledDetail = await api.get(`${API}/api/school/courses/${previewCourseId}`, {
+      headers: auth(studentToken),
+    });
+    expect(entitledDetail.status()).toBe(200);
+    const unlocked = (await entitledDetail.json()).data;
+    expect(unlocked.modules?.[0]?.lessons?.[0]?.title).toBe('Paid private lesson');
+    expect(unlocked.fileUrl).toBe('https://private.example.test/course-material.pdf');
   });
 
   test('STUDENT-OS-001: personal enrollment, protected progress, exam, certificate and privacy', async () => {
