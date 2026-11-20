@@ -575,17 +575,17 @@ crmOpsRouter.get('/bookings', requirePermission('appointment.read'), async (req:
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
-
+    const branchContext = await resolveOpsBranchContext(req, clinicId);
+    if (!branchContext) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу заявок' } satisfies ApiResponse);
     const status = (req.query.status as string) || undefined;
     const rows = await prisma.booking.findMany({
       where: {
-        clinicId,
+        ...bookingScopeWhere(branchContext, clinicId),
         ...(status ? { status: status as any } : {}),
       },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
       take: 300,
     });
-
     return res.json({ ok: true, data: rows.map(mapBookingRow) } satisfies ApiResponse);
   } catch (error) {
     console.error('[CRM ops] bookings list', error);
@@ -597,20 +597,54 @@ crmOpsRouter.post('/bookings', requirePermission('appointment.write'), async (re
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
-
     const b = req.body || {};
     const id = b.id || uid();
+    const initial = b.id
+      ? await prisma.booking.findFirst({ where: { id, clinicId }, select: { id: true, branchId: true } })
+      : null;
+    const requestedBranchId = b.branchId
+      ? String(b.branchId)
+      : req.user?.branchId || initial?.branchId || null;
+    const branchContext = await resolveOpsBranchContext(req, clinicId, requestedBranchId);
+    if (!branchContext) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу заявок' } satisfies ApiResponse);
+
     const dateStr = b.date;
     if (!dateStr || !b.time || !b.patientName) {
       return res.status(400).json({ ok: false, error: 'Имя, дата и время обязательны' } satisfies ApiResponse);
     }
+    const doctorId = b.doctorId
+      ? String(b.doctorId)
+      : String(req.user?.role || '').toUpperCase() === 'DOCTOR'
+        ? req.user?.id || null
+        : null;
+    const bookingBranchId = await resolveBookingBranchId(
+      req,
+      clinicId,
+      branchContext,
+      doctorId,
+      requestedBranchId,
+    );
+    if (bookingBranchId === undefined) {
+      return res.status(403).json({
+        ok: false,
+        error: 'Для заявки выберите врача с активным доступом к филиалу',
+      } satisfies ApiResponse);
+    }
+
+    const existing = initial
+      ? await prisma.booking.findFirst({ where: { id, ...bookingScopeWhere(branchContext, clinicId) } })
+      : null;
+    if (initial && !existing) {
+      return res.status(404).json({ ok: false, error: 'Заявка не найдена' } satisfies ApiResponse);
+    }
 
     const data = {
       clinicId,
+      branchId: bookingBranchId,
       patientName: String(b.patientName).trim(),
       phone: String(b.phone || b.patientPhone || '').replace(/\D/g, ''),
       email: b.email || b.patientEmail || null,
-      doctorId: b.doctorId || null,
+      doctorId,
       doctorName: b.doctorName || null,
       serviceName: b.serviceName || null,
       date: new Date(`${dateStr}T00:00:00.000Z`),
@@ -619,12 +653,9 @@ crmOpsRouter.post('/bookings', requirePermission('appointment.write'), async (re
       status: b.status || 'pending',
       source: b.source || 'manual',
     };
-
-    const existing = await prisma.booking.findFirst({ where: { id, clinicId } });
     const row = existing
       ? await prisma.booking.update({ where: { id }, data })
       : await prisma.booking.create({ data: { id, ...data } });
-
     return res.status(existing ? 200 : 201).json({ ok: true, data: mapBookingRow(row) } satisfies ApiResponse);
   } catch (error) {
     console.error('[CRM ops] bookings upsert', error);
@@ -637,19 +668,64 @@ crmOpsRouter.post('/bookings/:id/confirm', requirePermission('appointment.write'
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
     const id = req.params.id as string;
+    const requestBody = req.body || {};
+    const initial = await prisma.booking.findFirst({
+      where: { id, clinicId },
+      select: { id: true, branchId: true },
+    });
+    if (!initial) return res.status(404).json({ ok: false, error: 'Заявка не найдена' } satisfies ApiResponse);
 
-    const booking = await prisma.booking.findFirst({ where: { id, clinicId } });
-    if (!booking) {
-      return res.status(404).json({ ok: false, error: 'Заявка не найдена' } satisfies ApiResponse);
-    }
+    const requestedBranchId = requestBody.branchId
+      ? String(requestBody.branchId)
+      : req.user?.branchId || initial.branchId || null;
+    const branchContext = await resolveOpsBranchContext(req, clinicId, requestedBranchId);
+    if (!branchContext) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу заявки' } satisfies ApiResponse);
+    const booking = await prisma.booking.findFirst({
+      where: { id, ...bookingScopeWhere(branchContext, clinicId) },
+    });
+    if (!booking) return res.status(404).json({ ok: false, error: 'Заявка не найдена' } satisfies ApiResponse);
     if (booking.status === 'confirmed') {
       return res.json({ ok: true, data: mapBookingRow(booking), message: 'Уже подтверждена' } satisfies ApiResponse);
     }
 
+    const doctorId = booking.doctorId
+      || (requestBody.doctorId ? String(requestBody.doctorId) : null)
+      || (String(req.user?.role || '').toUpperCase() === 'DOCTOR' ? req.user?.id || null : null);
+    const appointmentBranchId = await resolveBookingBranchId(
+      req,
+      clinicId,
+      branchContext,
+      doctorId,
+      requestBody.branchId ? String(requestBody.branchId) : booking.branchId || requestedBranchId,
+    );
+    if (!doctorId || !appointmentBranchId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Перед подтверждением укажите врача и филиал, в котором он работает',
+      } satisfies ApiResponse);
+    }
+    if (booking.branchId && booking.branchId !== appointmentBranchId) {
+      return res.status(409).json({ ok: false, error: 'Филиал заявки не совпадает с филиалом врача' } satisfies ApiResponse);
+    }
+
     const phone = booking.phone.replace(/\D/g, '');
     let patient = phone
-      ? await prisma.patient.findFirst({ where: { clinicId, phone: { contains: phone.slice(-10) } } })
+      ? await prisma.patient.findFirst({
+        where: { clinicId, branchId: appointmentBranchId, phone: { contains: phone.slice(-10) } },
+      })
       : null;
+    if (!patient && phone) {
+      const elsewhere = await prisma.patient.findFirst({
+        where: { clinicId, phone: { contains: phone.slice(-10) } },
+        select: { id: true },
+      });
+      if (elsewhere) {
+        return res.status(409).json({
+          ok: false,
+          error: 'Пациент уже зарегистрирован в другом филиале. Передайте заявку администратору клиники.',
+        } satisfies ApiResponse);
+      }
+    }
 
     if (!patient) {
       const { firstName, lastName } = splitPatientName(booking.patientName);
@@ -657,22 +733,14 @@ crmOpsRouter.post('/bookings/:id/confirm', requirePermission('appointment.write'
         data: {
           id: uid(),
           clinicId,
+          branchId: appointmentBranchId,
           firstName,
           lastName,
           phone: booking.phone,
           email: booking.email,
-          // An online booking never carries an IIN — there is nobody at the
-          // desk to ask for a document. Recorded as a deliberate waiver so the
-          // record shows up as "ИИН не указан" and gets completed on the
-          // first visit, instead of being an empty field nobody notices.
           noIinReason: 'created_without_iin',
         },
       });
-    }
-
-    const doctorId = booking.doctorId || req.user?.id;
-    if (!doctorId) {
-      return res.status(400).json({ ok: false, error: 'Укажите врача для записи' } satisfies ApiResponse);
     }
 
     const dateStr = booking.date.toISOString().slice(0, 10);
@@ -680,6 +748,7 @@ crmOpsRouter.post('/bookings/:id/confirm', requirePermission('appointment.write'
       data: {
         id: uid(),
         clinicId,
+        branchId: appointmentBranchId,
         patientId: patient.id,
         doctorId,
         date: new Date(`${dateStr}T12:00:00.000Z`),
@@ -695,10 +764,6 @@ crmOpsRouter.post('/bookings/:id/confirm', requirePermission('appointment.write'
       },
     });
 
-    // Until this call an appointment born from an online booking reached
-    // neither the audit log, nor workflow triggers, nor developer webhooks —
-    // all three subscribe to `appointment.created`, and only the schedule
-    // screen was publishing it.
     publish('appointment.created', {
       clinicId,
       appointmentId: appointment.id,
@@ -709,7 +774,7 @@ crmOpsRouter.post('/bookings/:id/confirm', requirePermission('appointment.write'
 
     const updated = await prisma.booking.update({
       where: { id },
-      data: { status: 'confirmed' },
+      data: { status: 'confirmed', branchId: appointmentBranchId },
     });
 
     return res.json({
@@ -731,12 +796,17 @@ crmOpsRouter.delete('/bookings/:id', requirePermission('appointment.write'), asy
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
     const id = req.params.id as string;
-    const existing = await prisma.booking.findFirst({ where: { id, clinicId } });
-    if (!existing) {
-      return res.status(404).json({ ok: false, error: 'Не найдено' } satisfies ApiResponse);
-    }
-    await prisma.booking.update({
-      where: { id },
+    const initial = await prisma.booking.findFirst({
+      where: { id, clinicId },
+      select: { id: true, branchId: true },
+    });
+    if (!initial) return res.status(404).json({ ok: false, error: 'Не найдено' } satisfies ApiResponse);
+    const branchContext = await resolveOpsBranchContext(req, clinicId, req.user?.branchId || initial.branchId || null);
+    if (!branchContext) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу заявки' } satisfies ApiResponse);
+    const existing = await prisma.booking.findFirst({ where: { id, ...bookingScopeWhere(branchContext, clinicId) } });
+    if (!existing) return res.status(404).json({ ok: false, error: 'Не найдено' } satisfies ApiResponse);
+    await prisma.booking.updateMany({
+      where: { id, ...bookingScopeWhere(branchContext, clinicId) },
       data: { status: 'cancelled' },
     });
     return res.json({ ok: true, data: { id } } satisfies ApiResponse);
