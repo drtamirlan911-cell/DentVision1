@@ -113,6 +113,52 @@ describe('supportsReasoning', () => {
   );
 });
 
+describe('pickModel — mandatory vision routing', () => {
+  beforeEach(() => __resetModelUsageForTests());
+
+  it('uses the catalogued vision model even when cheap-first routing would choose a text-only mini', () => {
+    const choice = pickModel({
+      task: 'orchestrate',
+      text: 'проанализируй снимок',
+      miniModel: 'gpt-6-luna',
+      fullModel: 'gpt-6.2-astra',
+      requiresVision: true,
+      visionModel: 'gpt-6.1-terra',
+      visionTier: 'full',
+    });
+
+    expect(choice.model).toBe('gpt-6.1-terra');
+    expect(choice.tier).toBe('full');
+    expect(choice.reason).toBe('required_vision_input');
+  });
+
+  it('uses a vision-capable mini when that is the best available vision model', () => {
+    const choice = pickModel({
+      task: 'orchestrate',
+      text: 'опиши изображение',
+      miniModel: 'gpt-6-luna',
+      fullModel: 'gpt-6.2-astra',
+      requiresVision: true,
+      visionModel: 'gpt-4o-mini',
+      visionTier: 'mini',
+    });
+
+    expect(choice.model).toBe('gpt-4o-mini');
+    expect(choice.tier).toBe('mini');
+  });
+
+  it('fails closed when no vision-capable model is available', () => {
+    expect(() => pickModel({
+      task: 'orchestrate',
+      text: 'проанализируй снимок',
+      miniModel: 'gpt-6-luna',
+      fullModel: 'gpt-6.2-astra',
+      requiresVision: true,
+      visionModel: null,
+    })).toThrowError('No vision-capable model is available for image analysis');
+  });
+});
+
 describe('pickModel — reasoning flag', () => {
   beforeEach(() => __resetModelUsageForTests());
 
