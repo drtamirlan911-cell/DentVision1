@@ -184,7 +184,7 @@ export function formatWorkspaceContext(input: Pick<OrchestratorInput, 'workspace
     `Активное рабочее пространство: ${active}.`,
     `Активный филиал: ${branch}.`,
     `Доступные рабочие пространства: ${available}.`,
-  ].join('\\n');
+  ].join('\n');
 }
 
 function systemPrompt(
