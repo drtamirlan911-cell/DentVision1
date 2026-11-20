@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Award, BookOpen, CalendarClock, GraduationCap, PlayCircle, RefreshCw, Search } from 'lucide-react';
+import { Award, BookOpen, CalendarClock, GraduationCap, PlayCircle, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Button } from '@/components/ui/ds/Button';
