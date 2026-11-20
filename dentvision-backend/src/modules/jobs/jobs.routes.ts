@@ -411,7 +411,7 @@ jobsRouter.post('/employer/invitations', authenticate, requirePermission('jobs.w
         data: {
           id: uid(), userId: resume.userId!, type: 'JOB_INVITATION',
           title: 'Новое приглашение от работодателя',
-          message: \`\${scope.clinicName} пригласил вас рассмотреть предложение.\`,
+          message: `${scope.clinicName} пригласил вас рассмотреть предложение.`,
           link: '/career/invitations',
         },
       });
