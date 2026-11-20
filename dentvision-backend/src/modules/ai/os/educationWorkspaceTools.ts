@@ -9,9 +9,9 @@ export interface LecturerCoursesOverviewContext {
 function safeCourseLabel(value: unknown, maxLength: number): string | null {
   if (typeof value !== 'string') return null;
   const normalized = Array.from(value)
-    .filter((character) => {
+    .map((character) => {
       const code = character.charCodeAt(0);
-      return code >= 32 && code !== 127;
+      return code < 32 || code === 127 ? ' ' : character;
     })
     .join('')
     .replace(/\s+/g, ' ')
