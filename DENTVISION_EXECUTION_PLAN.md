@@ -1,55 +1,48 @@
-## Current execution checkpoint — 2026-11-20 (AI / Jarvis, Master Spec v5.0)
+## Current execution checkpoint — 2026-11-20 (AI / Jarvis and AI Employee, Master Spec v5.0)
 
 **Canonical repo:** `drtamirlan911-cell/DentVision1`  
 **Main snapshot:** `da1257fc650f536c76583bdff570906290b92bcd`  
-**Active candidate:** PR [#351](https://github.com/drtamirlan911-cell/DentVision1/pull/351), branch `feat/user-jarvis-product-knowledge-20261120`, Draft, unmerged.  
+**Active candidate:** [PR #351](https://github.com/drtamirlan911-cell/DentVision1/pull/351), Draft / open, branch `feat/user-jarvis-product-knowledge-20261120`.  
+**Latest inspected code/test HEAD:** `dbd7229a4d0d17152b8bc9253be196cf5e40b5c4`; 117 commits ahead / 0 behind main; 54 changed files.  
 **Normative architecture:** Master Spec §15 — `AI Router → Active Context → Role/Workspace Context → Permission Engine → Tool Registry → Model/Reasoning → Action Validator → Preview → Confirmation when required → Execute → Verify → Audit`.
 
-### Current candidate work
-- Jarvis product guide covers the ecosystem and distinguishes confirmed, partial, access-dependent and unconfirmed functions.
-- Local retrieval uses bounded heading-aware chunks, Russian normalization/synonyms and an in-process cache; user conversation text is not sent to another embedding/retrieval provider.
-- Current-request capabilities are built from DB/IAM-filtered tools. Product documentation never grants permissions.
-- Partner queue tools recheck active organization type, canonical membership/role and exact organization/entity binding; responses are read-only and minimize patient/candidate/student/customer data.
-- Patient assistant now receives a fixed safe tool-failure message rather than raw exception details; regression tests guard against synthetic patient identifiers and clinical text entering model context. The AI interaction audit logger is also guarded by a test proving exception text is not persisted; event-store failure text uses the existing encrypted-at-rest codec.
-- The knowledge guide is also shipped as a byte-identical backend runtime asset; the Docker runner copies `/app/docs`, and regression tests compare the backend copy to the canonical guide, execute patient-section retrieval and assert the Dockerfile preserves the runtime copy instruction.
-- AI context and proactive digital-twin fallbacks now use PHI-safe exception classification in all four identified catch/log paths; three context tests and one proactive source-contract test cover the regression.
-- Guide headings are uniquely numbered (1–12); section 9 now lists every non-disabled registered agent by canonical name and bounded tool scope. A test derives the list from `listAgents()` so registry additions cannot silently disappear from Jarvis knowledge. A second test calls the runtime retrieval function against the actual patient section in the guide file.
-- The candidate remains **partial / not release-certified**. No feature is counted complete merely because it has an agent, guide entry, route or tool declaration.
+### Candidate work completed in source
+
+- Jarvis knowledge guide covers all non-disabled registered agents. Local heading-aware retrieval is tested with a natural-language query; patient guide retrieval is isolated to its own section.
+- Runtime packaging is corrected: backend canonical guide copy is byte-identical to the root guide, Docker runner copies `/app/docs`, and tests lock the file parity and copy instruction.
+- Capability inventory is generated from actual DB/IAM-filtered tool names. Product guide is reference-only; it cannot grant access.
+- Patient-agent caught tool failures use a fixed non-diagnostic message. Safe exception classification now covers AI routes, kernel/orchestrator, context resolution, proactive digital-twin signals, task subscriber, EventBus and background AI paths. AI interaction audit stores only an error-presence flag.
+- AI Employee task insertion uses a deterministic clinic-bound idempotency key backed by a partial unique index; legacy tasks receive unique keys without deletion.
+- Task rows no longer accept arbitrary action payloads or free-form result/error content: metadata is allowlisted; results are restricted to fixed status/boolean/aggregate-count keys; old result/action payload/error fields are redacted on service reads. Tests cover sentinel omission.
+- Organization/Branch task scope is source-audited in `docs/AI_EMPLOYEE_ORGANIZATION_SCOPE.md`, but remains design-only.
 
 ### Exact-head verification
-- Latest code/test checkpoint before the documentation update: `0d87710415c6a8a98da55f52f433d799c159fbcb` (based on current main with no behind commits). It includes the AI context/proactive logging regression fixes, registry-guide parity test, runtime product-guide retrieval test, and backend container guide-copy/parity correction. Earlier SHA checks were superseded; fresh exact-head CI, Quality Gate, full E2E and Vercel Preview are required after this documentation update.
-- A documentation-only commit then corrected guide section numbering; this checkpoint commit updates the active context, execution log, release blockers and system audit. All checks must be refreshed on the resulting exact branch HEAD. Previous-SHA results are not final evidence.
-- Keep PR #351 Draft until exact-head CI, Quality Gate, full E2E, role/context and visual/mobile checks finish and findings are reviewed.
 
-### 2026-11-20 AI Employee scope finding (verified source gap)
+- Previous head `dbd7229a4d0d17152b8bc9253be196cf5e40b5c4` started fresh CI [44717762427](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44717762427) and Quality Gate [44717762435](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44717762435). CI was pending and Quality Gate was in progress at inspection. The later task privacy commit `dbd7229a4d0d17152b8bc9253be196cf5e40b5c4` requires its own exact-head checks; do not reuse older run results.
+- Vercel Preview returned `build-rate-limit`; no successful preview is claimed.
+- Keep PR #351 Draft until exact-head CI, unit tests, full E2E, migration validation, role/context and mobile checks finish. Do not merge on a previous SHA.
 
-The current task ledger is not ecosystem-wide:
-- migration `20260910_add_ai_employee_tasks`: `clinic_id TEXT NOT NULL`;
-- `createAiEmployeeTask`, `listAiEmployeeTasks`, `transitionAiEmployeeTask` and readback require clinicId and SQL-filter by clinic_id;
-- `aiEmployeeTaskSubscriber` ignores events without clinicId and creates tasks from clinic event rules only;
-- `/api/ai/approvals/tasks` and transition route require `req.user.clinicId`;
-- heartbeat queries active clinics and OWNER/SUPERADMIN clinic membership.
+### Verified remaining AI Employee architecture gaps
 
-**Implementation constraint:** do not make clinicId nullable and add an optional organizationId as a superficial fix. First define a canonical task scope (Organization, optional Branch, or an explicitly clinic-scoped legacy context), prove membership and permission through current IAM, enforce isolation in list/get/transition/approval queries, preserve event provenance/idempotency, and mount an appropriate work queue in each supported workspace. Keep legacy clinic tasks readable and transitions safe. The current PR #351 only fixes raw exception logging in the subscriber; it does not implement the ecosystem-wide queue.
-
-### Latest security corrections (2026-11-20)
-
-- Durable task transition no longer persists raw `req.body.error` text; it stores a fixed marker and a regression test checks the SQL parameter list.
-- EventBus now classifies subscriber and PostgreSQL polling exceptions without logging raw messages; regression tests cover both pathways.
-- This does not implement organization-scoped tasks. The existing event envelope itself remains clinic-only, so the next design must define a versioned tenant scope across event producer, durable store, subscriber, task APIs, approvals and UI before any schema migration.
+- `CRMEvent`, `EventContext`, `AIEvent` and the current EventBus producer/consumer contract require `clinicId`.
+- The task table/service/approval routes are clinic-scoped. The new idempotency key repairs only the clinic flow.
+- `resolveAiToolAccess()` returns canonical Organization membership but no verified Branch scope.
+- `AiApproval` contains `organizationId`, but approval visibility and approve/reject routes still require clinic scope.
+- `AgentActivity` includes `organizationId`; `ActionEvidence` does not yet include organization/branch scope.
+- The durable task result/action-payload output boundary has now been minimized for new writes and API reads; historical database cleanup and at-rest remediation remain separate work.
 
 ### Next execution order
-1. Complete and certify PR #351 on one exact HEAD. Inspect any CI failure and fix the implementation; do not weaken PHI, tenant, branch, membership or confirmation assertions.
-2. Audit the clinic-only AI Employee task model end-to-end (event subscriber → persisted task → APIs → approvals → UI). Design an additive, canonical-Organization/Branch-scoped extension that reuses the current IAM/governance kernel and preserves clinic compatibility. No parallel task table or global role bypass.
-3. Continue RB-029 P0 source/data lifecycle closure: complete PHI reader/writer/derived-copy inventory, legacy worker drain, strict-write cutover plan, key rotation/old-key handling, retention/export/deletion, backup/restore/rollback and approved staging reconciliation. No live historical data write without approved target and rollback.
-4. Complete RB-035 patient-route × role × tenant × clinic × branch × active/revoked/expired-session negative matrix; obtain evidence for RB-031 WebKit/CORS/WebSocket and RB-033 required branch protection.
-5. Complete diagnostic-center and medical-lab workflows; D10 dental-lab QC/remake/shipping/settlement; supplier commerce/refund/payout; Academy/Community depth; public discovery; true 32-tooth 3D odontogram; physical Android runtime.
-6. Run the full Master Spec Definition-of-Done chain on the final candidate: entry → context → permission → home → queue → entity → workflow → persistence → notification → finance/outcome → audit → mobile → E2E.
 
-**Release remains NOT READY.** Keep source CI separate from staging/production, legal, payment-provider, historical-data and physical-device evidence.
+1. Complete exact-head CI and Quality Gate for the latest SHA; triage any backend TypeScript/test/E2E failure without weakening security assertions.
+2. Validate the new idempotency migration in CI/test fixtures; do not apply it to production/staging without an approved target, backup, rollback and reconciliation evidence.
+3. Implement a canonical server-side `AiTaskScope` resolver from Organization/Person/PersonRole plus active BranchMember and explicit clinic compatibility; add two-organization, cross-branch, revoked-membership and stale-context negative tests before schema changes.
+4. Extend existing EventBus/AIEvent/task/AiApproval/ActionEvidence contracts additively, preserving clinic history and routing high-risk operations back through the existing governance kernel.
+5. Add one organization domain event producer and cabinet/mobile queue at a time. Partner read-only overviews are not evidence of partner task execution.
+6. Continue RB-029 historical PHI, key lifecycle, retention, backup/restore and staging evidence; continue RB-035 full IAM negative matrix and outstanding release gates.
+
+**Release remains NOT READY.** Green source checks do not establish production/staging, legal, payment-provider, historical-data, backup/restore or physical-device readiness.
 
 ---
-
 ## Current execution checkpoint — 2026-11-18 (post-merge reconciliation, Master Spec v5.0)
 
 The previous 2026-11-17 checkpoint is historical. Current source is `main=7289f369b1effa28db94e3e1e4541e4500bc5ee0`. PR #346, #347 and #348 are merged; PR #322 is merged as developer-environment setup only. No open PRs were returned by the current repository query.
