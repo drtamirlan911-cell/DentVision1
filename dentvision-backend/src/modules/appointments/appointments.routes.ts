@@ -18,6 +18,7 @@ import { metaFromClosedVisit } from '../crm/payroll.js';
 import { resolveDeductionPlan, applyDeductionPlan } from '../inventory/deductionRules.js';
 import { loadClinicAccess, blockClinicWrites, requireClinicWritable } from '../../middleware/planGate.js';
 import { resolveClinicBranchAccess } from '../../lib/clinicBranchAccess.js';
+import { isClinicMember } from '../../lib/orgContext.js';
 
 export const appointmentsRouter = Router();
 
@@ -101,9 +102,23 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), requireClin
     const doctorId = bodyDoctorId || existing?.doctorId;
     const date = bodyDate || (existing?.date ? existing.date.toISOString().slice(0, 10) : undefined);
     if (!patientId || !doctorId || !date) return res.status(400).json({ ok: false, error: 'Пациент, врач и дата обязательны' } satisfies ApiResponse);
-    if (bodyDoctorId && bodyDoctorId !== existing?.doctorId && !(await isClinicMember(doctorId, clinicId))) return res.status(400).json({ ok: false, error: 'Указанный врач не найден в этой клинике' } satisfies ApiResponse);
     const patient = await prisma.patient.findFirst({ where: { id: patientId, clinicId, ...(await branchScope(req, clinicId)) }, select: { id: true, branchId: true } });
     if (!patient) return res.status(404).json({ ok: false, error: 'Пациент не найден' } satisfies ApiResponse);
+    const doctorHasBranchAccess = patient.branchId
+      ? Boolean(await resolveClinicBranchAccess({
+        userId: doctorId,
+        clinicId,
+        organizationId: req.user?.organizationId,
+        role: 'DOCTOR',
+        requestedBranchId: patient.branchId,
+      }))
+      : await isClinicMember(doctorId, clinicId);
+    if (!doctorHasBranchAccess) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Указанный врач не имеет доступа к филиалу пациента',
+      } satisfies ApiResponse);
+    }
     const apptTime = time || existing?.time || '09:00';
     const apptDuration = duration || existing?.duration || 30;
     const dayStart = new Date(date), dayEnd = new Date(date);
