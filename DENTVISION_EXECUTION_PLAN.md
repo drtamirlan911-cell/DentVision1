@@ -891,3 +891,12 @@ Historical priority notes retained from parallel branches; they do not supersede
 ### 2026-11-20 AI Employee retry/idempotency correction
 
 The task creator previously used an ON CONFLICT target that was not backed by a unique index in the table-creation migration. The candidate adds a dedicated partial unique idempotency key, tenant-bound to clinic + source event + action + role; existing rows receive unique legacy keys. Tests assert retries deduplicate, a different clinic receives a different key, and migration history is preserved. This fixes the existing clinic-scope task insert path only. Organization/Branch task scope is still a separate architectural gap and must be designed across event envelope, IAM, task APIs and approvals before migration.
+
+### Organization/Branch AI Employee implementation sequence
+
+The design contract is in `docs/AI_EMPLOYEE_ORGANIZATION_SCOPE.md`. Begin implementation in this order:
+1. Add a server-side `AiTaskScope` resolver from canonical Organization/Person/PersonRole plus active BranchMember (legacy clinic fallback only where not canonicalized). Return the exact allowed branch set and permission set; do not trust JWT branch claims.
+2. Add negative tests for two organizations, two branches, revoked memberships, archived organizations, stale clinic fallback and context switching before changing persistence.
+3. Extend the existing AIEvent/ai_employee_tasks/AiApproval/ActionEvidence contract additively; retain clinic rows and reuse current task, approval and governance-kernel paths.
+4. Extend organization-scoped approval visibility/approve/reject, then implement scoped task read/transition.
+5. Add one real domain-event producer and cabinet queue at a time, with mobile and end-to-end acceptance.
