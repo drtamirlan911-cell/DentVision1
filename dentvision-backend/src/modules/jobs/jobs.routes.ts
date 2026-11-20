@@ -504,7 +504,7 @@ jobsRouter.patch('/me/invitations/:id/respond', authenticate, async (req: AuthRe
         data: {
           id: uid(), userId: invitation.senderUserId, type: 'JOB_INVITATION_RESPONSE',
           title: response === 'accepted' ? 'Кандидат принял приглашение' : 'Кандидат отклонил приглашение',
-          message: \`Приглашение от \${invitation.employerNameSnapshot}\`, link: '/employer',
+          message: `Приглашение от ${invitation.employerNameSnapshot}`, link: '/employer',
         },
       });
       await auditFromReq(req, { action: 'jobs.invitation.responded', entity: 'job_invitation', entityId: invitation.id, details: { response, employerOrganizationId: invitation.employerOrganizationId } }, tx);
@@ -563,7 +563,7 @@ jobsRouter.post('/employer/applications/:id/interviews', authenticate, requirePe
         },
       });
       await tx.notification.create({
-        data: { id: uid(), userId: application.userId, type: 'JOB_INTERVIEW_PROPOSED', title: 'Вас пригласили на собеседование', message: \`\${scope.clinicName} · \${application.vacancy.title}\`, link: '/career/interviews' },
+        data: { id: uid(), userId: application.userId, type: 'JOB_INTERVIEW_PROPOSED', title: 'Вас пригласили на собеседование', message: `${scope.clinicName} · ${application.vacancy.title}`, link: '/career/interviews' },
       });
       await auditFromReq(req, { action: 'jobs.interview.scheduled', entity: 'job_interview', entityId: created.id, details: { applicationId: application.id, scheduledAt: scheduledAt.toISOString(), timezone, mode } }, tx);
       return created;
@@ -679,7 +679,7 @@ jobsRouter.post('/employer/applications/:id/offers', authenticate, requirePermis
         },
       });
       await tx.notification.create({
-        data: { id: uid(), userId: application.userId, type: 'JOB_OFFER_RECEIVED', title: 'Вы получили предложение о работе', message: \`\${scope.clinicName} · \${title}\`, link: '/career/offers' },
+        data: { id: uid(), userId: application.userId, type: 'JOB_OFFER_RECEIVED', title: 'Вы получили предложение о работе', message: `${scope.clinicName} · ${title}`, link: '/career/offers' },
       });
       await tx.jobApplicationEvent.create({
         data: { id: uid(), applicationId: application.id, actorUserId: req.user!.id, eventType: 'offer_sent', candidateVisible: true, message: 'Вам отправлено предложение о работе.', metadata: { offerId: created.id, version: created.version } },
@@ -746,7 +746,7 @@ jobsRouter.patch('/me/offers/:id/respond', authenticate, async (req: AuthRequest
         });
       }
       await tx.notification.create({
-        data: { id: uid(), userId: offer.createdByUserId, type: 'JOB_OFFER_RESPONSE', title: response === 'accepted' ? 'Кандидат принял предложение' : 'Кандидат отклонил предложение', message: \`\${offer.title} · версия \${offer.version}\`, link: '/employer' },
+        data: { id: uid(), userId: offer.createdByUserId, type: 'JOB_OFFER_RESPONSE', title: response === 'accepted' ? 'Кандидат принял предложение' : 'Кандидат отклонил предложение', message: `${offer.title} · версия ${offer.version}`, link: '/employer' },
       });
       await auditFromReq(req, { action: 'jobs.offer.responded', entity: 'job_offer', entityId: offer.id, details: { response, version: offer.version } }, tx);
       return row;
