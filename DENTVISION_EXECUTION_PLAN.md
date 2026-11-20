@@ -886,3 +886,8 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [ ] Complete invoice → payment → settlement → payout for the laboratory.
 - [ ] Verify durable idempotent notifications and AI operational exception summaries.
 - [ ] Complete owner/manager/technician RBAC and desktop/mobile acceptance. D10 remains OPEN.
+
+
+### 2026-11-20 AI Employee retry/idempotency correction
+
+The task creator previously used an ON CONFLICT target that was not backed by a unique index in the table-creation migration. The candidate adds a dedicated partial unique idempotency key, tenant-bound to clinic + source event + action + role; existing rows receive unique legacy keys. Tests assert retries deduplicate, a different clinic receives a different key, and migration history is preserved. This fixes the existing clinic-scope task insert path only. Organization/Branch task scope is still a separate architectural gap and must be designed across event envelope, IAM, task APIs and approvals before migration.
