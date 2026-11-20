@@ -43,6 +43,9 @@ type EmployerApplication = {
   coverNote?: string;
   status: string;
   createdAt: string;
+  events?: Array<{ id: string; eventType: string; fromStatus?: string | null; toStatus?: string | null; message?: string | null; candidateVisible: boolean; createdAt: string }>;
+  interviews?: Array<{ id: string; scheduledAt: string; timezone: string; durationMinutes: number; mode: string; location?: string | null; meetingUrl?: string | null; status: string; candidateResponse?: string | null; candidateRespondedAt?: string | null }>;
+  offers?: Array<{ id: string; title: string; salary?: string | null; currency: string; employmentType: string; expiresAt: string; status: string; version: number; respondedAt?: string | null; candidateMessage?: string | null }>;
 };
 
 const NEXT_STATUS: Record<string, string[]> = {
@@ -408,6 +411,53 @@ export default function JobsEmployerWorkspace() {
                       <Badge>{STATUS_LABEL[application.status] || application.status}</Badge>
                     </div>
                     {application.coverNote && <p className="mt-2 whitespace-pre-wrap text-sm text-txt-secondary">{application.coverNote}</p>}
+                    {!!application.events?.length && (
+                      <div className="mt-3 space-y-2 rounded-lg bg-surface-2 p-3">
+                        <p className="text-xs font-semibold text-txt-secondary">История отклика и ответы кандидата</p>
+                        <ol className="space-y-2">
+                          {application.events.map((event) => (
+                            <li key={event.id} className="flex gap-2 text-xs">
+                              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-dv-gold" />
+                              <div className="min-w-0">
+                                <p className="text-txt-primary">{event.message || event.toStatus || event.eventType}</p>
+                                <p className="mt-0.5 text-txt-muted">{new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Almaty' }).format(new Date(event.createdAt))}</p>
+                              </div>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    )}
+                    {!!application.interviews?.length && (
+                      <div className="mt-3 space-y-2">
+                        {application.interviews.map((interview) => (
+                          <div key={interview.id} className="rounded-lg border border-bdr-subtle p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-xs font-semibold text-txt-primary">Собеседование · {new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short', timeZone: interview.timezone || 'Asia/Almaty' }).format(new Date(interview.scheduledAt))}</p>
+                              <Badge variant={interview.candidateResponse === 'confirmed' ? 'success' : interview.candidateResponse === 'declined' ? 'warning' : 'outline'}>
+                                {interview.candidateResponse === 'confirmed' ? 'Кандидат подтвердил' : interview.candidateResponse === 'declined' ? 'Кандидат отклонил' : interview.candidateResponse === 'reschedule_requested' ? 'Просит перенести' : interview.status === 'proposed' ? 'Ожидает ответа' : interview.status}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-txt-muted">{interview.mode === 'online' ? 'Онлайн' : interview.mode === 'in_person' ? 'Лично' : 'Телефон'} · {interview.durationMinutes} мин.</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {!!application.offers?.length && (
+                      <div className="mt-3 space-y-2">
+                        {application.offers.map((offer) => (
+                          <div key={offer.id} className="rounded-lg border border-bdr-subtle p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-xs font-semibold text-txt-primary">Оффер · версия {offer.version} · {offer.title}</p>
+                              <Badge variant={offer.status === 'accepted' ? 'success' : offer.status === 'declined' ? 'warning' : 'outline'}>
+                                {offer.status === 'accepted' ? 'Кандидат принял' : offer.status === 'declined' ? 'Кандидат отклонил' : offer.status === 'expired' ? 'Срок истёк' : 'Ожидает ответа'}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-txt-muted">{offer.salary || 'Условия обсуждаются'} {offer.currency} · действительно до {new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeZone: 'Asia/Almaty' }).format(new Date(offer.expiresAt))}</p>
+                            {offer.candidateMessage && <p className="mt-2 text-xs text-txt-secondary">Ответ: {offer.candidateMessage}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="mt-3 flex flex-wrap gap-2">
                       {(application.status === 'reviewing' || application.status === 'interview') && (
                         <Button size="sm" className="min-h-10" variant="secondary" onClick={() => { setInterviewDraftId(interviewDraftId === application.id ? null : application.id); setOfferDraftId(null); }}>
