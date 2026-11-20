@@ -10,6 +10,15 @@ describe('patients route branch scope contract', () => {
     expect(source).toContain('resolvePatientBranchContext');
     expect(source).toContain('getPatientIdsForBranchScope');
   });
+  it('binds assignment removal to the patient in the route', () => {
+    const routeStart = source.indexOf("patientsRouter.delete('/:id/assignments/:assignmentId'");
+    expect(routeStart).toBeGreaterThanOrEqual(0);
+    const route = source.slice(routeStart, routeStart + 1_400);
+    expect(route).toContain('revokePatientAssignment({');
+    expect(route).toContain('patientId:s.patientId');
+    expect(route).toContain('assignmentId:req.params.assignmentId');
+  });
+
   it('filters patient lists by branch at query construction time', () => {
     expect(source).toContain('scopedPatientWhere');
     expect(source).toContain('prisma.patient.findMany');
