@@ -16,6 +16,7 @@ import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.j
 
 import { splitPatientName } from '../public/bookingSlots.js';
 import { resolveClinicBranchAccess } from '../../lib/clinicBranchAccess.js';
+import { getPatientIdsForBranchScope } from '../../lib/patientBranchScope.js';
 
 export const crmOpsRouter = Router();
 crmOpsRouter.use(authenticate);
@@ -31,19 +32,21 @@ function requireClinic(req: AuthRequest, res: any): string | null {
   return clinicId;
 }
 
-interface ExpenseBranchContext {
+interface OpsBranchContext {
   organizationWide: boolean;
   branchId: string | null;
-  where: Record<string, unknown>;
+  branchIds: string[];
+  /** null means unrestricted organization context; [] means no visible patients. */
+  patientIds: string[] | null;
 }
 
-async function resolveExpenseBranchContext(
+async function resolveOpsBranchContext(
   req: AuthRequest,
   clinicId: string,
   requestedBranchId?: string | null,
-): Promise<ExpenseBranchContext | null> {
+): Promise<OpsBranchContext | null> {
   if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN') {
-    return { organizationWide: true, branchId: requestedBranchId || null, where: { clinicId } };
+    return { organizationWide: true, branchId: null, branchIds: [], patientIds: null };
   }
   const access = await resolveClinicBranchAccess({
     userId: req.user?.id || '',
@@ -55,11 +58,27 @@ async function resolveExpenseBranchContext(
   if (!access) return null;
   const organizationWide = access.roleScope === 'ORGANIZATION' && access.branchId === null;
   const branchId = access.branchId;
+  const branchIds = branchId ? [branchId] : access.allowedBranchIds;
   return {
     organizationWide,
     branchId,
-    where: organizationWide ? { clinicId } : { clinicId, branchId },
+    branchIds,
+    patientIds: organizationWide ? null : await getPatientIdsForBranchScope(clinicId, branchIds),
   };
+}
+
+function expenseScopeWhere(context: OpsBranchContext, clinicId: string): Record<string, unknown> {
+  return context.organizationWide ? { clinicId } : { clinicId, branchId: context.branchId };
+}
+
+function waitingListScopeWhere(context: OpsBranchContext, clinicId: string): Record<string, unknown> {
+  return context.organizationWide
+    ? { clinicId }
+    : { clinicId, patientId: { in: context.patientIds || [] } };
+}
+
+function canManageWaitingListPatient(context: OpsBranchContext, patientId: string | null | undefined): boolean {
+  return context.organizationWide || Boolean(patientId && context.patientIds?.includes(patientId));
 }
 
 // ─── Waiting list ───
@@ -195,13 +214,13 @@ crmOpsRouter.get('/expenses', requirePermission('finance.manage'), async (req: A
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
-    const branchContext = await resolveExpenseBranchContext(req, clinicId);
+    const branchContext = await resolveOpsBranchContext(req, clinicId);
     if (!branchContext) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу расходов' } satisfies ApiResponse);
     const from = req.query.from ? new Date(String(req.query.from)) : undefined;
     const to = req.query.to ? new Date(String(req.query.to)) : undefined;
     const rows = await prisma.expense.findMany({
       where: {
-        ...branchContext.where,
+        ...expenseScopeWhere(branchContext, clinicId),
         ...(from || to
           ? { date: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
           : {}),
@@ -258,9 +277,9 @@ crmOpsRouter.post('/expenses', requirePermission('finance.manage'), async (req: 
       }
       if (reserved.status === 'exists') {
         const requestedBranchId = b.branchId ? String(b.branchId) : req.user?.branchId || null;
-        const replayScope = await resolveExpenseBranchContext(req, clinicId, requestedBranchId);
+        const replayScope = await resolveOpsBranchContext(req, clinicId, requestedBranchId);
         if (!replayScope) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу расходов' } satisfies ApiResponse);
-        const prior = await prisma.expense.findFirst({ where: { id: reserved.resultId, ...replayScope.where } });
+        const prior = await prisma.expense.findFirst({ where: { id: reserved.resultId, ...expenseScopeWhere(replayScope, clinicId) } });
         if (prior) {
           return res.status(200).json({ ok: true, data: prior } satisfies ApiResponse);
         }
@@ -276,7 +295,7 @@ crmOpsRouter.post('/expenses', requirePermission('finance.manage'), async (req: 
     }
 
     const requestedBranchId = b.branchId ? String(b.branchId) : req.user?.branchId || null;
-    const branchContext = await resolveExpenseBranchContext(req, clinicId, requestedBranchId);
+    const branchContext = await resolveOpsBranchContext(req, clinicId, requestedBranchId);
     if (!branchContext) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу расходов' } satisfies ApiResponse);
 
     const id = b.id || uid();
@@ -291,7 +310,7 @@ crmOpsRouter.post('/expenses', requirePermission('finance.manage'), async (req: 
       notes: b.notes || null,
       date: b.date ? new Date(b.date) : new Date(),
     };
-    const existing = await prisma.expense.findFirst({ where: { id, ...branchContext.where } });
+    const existing = await prisma.expense.findFirst({ where: { id, ...expenseScopeWhere(branchContext, clinicId) } });
     const row = existing
       ? await prisma.expense.update({ where: { id }, data })
       : await prisma.expense.create({ data: { id, ...data } });
@@ -316,11 +335,11 @@ crmOpsRouter.delete('/expenses/:id', requirePermission('finance.manage'), async 
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
     const id = req.params.id as string;
-    const branchContext = await resolveExpenseBranchContext(req, clinicId);
+    const branchContext = await resolveOpsBranchContext(req, clinicId);
     if (!branchContext) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу расходов' } satisfies ApiResponse);
-    const existing = await prisma.expense.findFirst({ where: { id, ...branchContext.where } });
+    const existing = await prisma.expense.findFirst({ where: { id, ...expenseScopeWhere(branchContext, clinicId) } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Не найдено' } satisfies ApiResponse);
-    await prisma.expense.deleteMany({ where: { id, ...branchContext.where } });
+    await prisma.expense.deleteMany({ where: { id, ...expenseScopeWhere(branchContext, clinicId) } });
     return res.json({ ok: true, data: { id } } satisfies ApiResponse);
   } catch (error) {
     return res.status(500).json({ ok: false, error: 'Не удалось удалить расход' } satisfies ApiResponse);
