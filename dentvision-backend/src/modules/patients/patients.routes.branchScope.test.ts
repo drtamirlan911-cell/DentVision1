@@ -30,6 +30,17 @@ describe('patients route branch scope contract', () => {
     expect(source).toMatch(/setPatientBranch\s*\(\s*patient\.id\s*,\s*clinicId\s*,\s*targetBranchId\s*\)/);
   });
 
+  it('scopes patient idempotency replay lookup to the active clinic and preserves foreign keys', () => {
+    const createStart = source.indexOf("patientsRouter.post('/',");
+    const lookupStart = source.indexOf("patientsRouter.get('/lookup'", createStart);
+    const createRoute = source.slice(createStart, lookupStart);
+    expect(createRoute).toContain('where: { id: reservation.resultId, clinicId }');
+    expect(createRoute).toContain("code: 'IDEMPOTENCY_KEY_SCOPE_CONFLICT'");
+    expect(createRoute).toContain('if (!prior) {');
+    expect(createRoute).not.toContain('prisma.patient.findUnique({where:{id:r.resultId}');
+    expect(createRoute).not.toContain('deleteIdempotencyKey(idempotencyKey)}');
+  });
+
   it('does not let an organization role create in another branch while one branch is selected', () => {
     const createStart = source.indexOf("patientsRouter.post('/',");
     const lookupStart = source.indexOf("patientsRouter.get('/lookup'", createStart);
