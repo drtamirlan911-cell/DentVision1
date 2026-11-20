@@ -930,83 +930,144 @@ async function resolveExamLesson(lessonId: string) {
 schoolRouter.get('/lessons/:lessonId/exam', authenticate, async (req: AuthRequest, res) => {
   try {
     const lesson = await resolveExamLesson(req.params.lessonId as string);
-    if (!lesson) {
-      res.status(404).json({ ok: false, error: 'Урок не найден' });
-      return;
-    }
-    // Only enrolled users may access the exam.
+    if (!lesson) return res.status(404).json({ ok: false, error: 'Урок не найден' });
     const enrollment = await prisma.schoolEnrollment.findFirst({
       where: { userId: req.user!.id, courseId: lesson.courseId },
+      select: { id: true, accessStatus: true, accessExpiresAt: true },
     });
-    if (!enrollment) {
-      res.status(403).json({ ok: false, error: 'Требуется запись на курс' });
-      return;
+    if (!enrollment || enrollment.accessStatus !== 'active' || (enrollment.accessExpiresAt && enrollment.accessExpiresAt <= new Date())) {
+      return res.status(403).json({ ok: false, error: 'Требуется активный доступ к курсу', code: 'LEARNING_ENTITLEMENT_INACTIVE' });
     }
-    res.json({
+    return res.json({
       ok: true,
       data: {
         lessonId: lesson.id,
         courseId: lesson.courseId,
-        ...DEFAULT_EXAM,
+        title: DEFAULT_EXAM.title,
+        description: DEFAULT_EXAM.description,
+        passScore: DEFAULT_EXAM.passScore,
         passingScore: DEFAULT_EXAM.passScore,
         questionCount: DEFAULT_EXAM.questions.length,
-        questions: DEFAULT_EXAM.questions.map(({ correctIndex, ...q }) => q),
+        questions: DEFAULT_EXAM.questions.map(({ correctIndex, ...question }) => question),
       },
     });
-  } catch {
-    res.status(500).json({ ok: false, error: 'Failed to load exam' });
+  } catch (error) {
+    console.error('Load course exam error:', error);
+    return res.status(500).json({ ok: false, error: 'Failed to load exam' });
   }
 });
 
 schoolRouter.post('/lessons/:lessonId/exam/submit', authenticate, async (req: AuthRequest, res) => {
   try {
     const lesson = await resolveExamLesson(req.params.lessonId as string);
-    if (!lesson) {
-      res.status(404).json({ ok: false, error: 'Урок не найден' });
-      return;
-    }
-    // Same rule as GET /exam above: without this, a signed-in user who never
-    // bought the course could still probe question ids and submit answers —
-    // no certificate would be issued (that already checked enrollment below),
-    // but they'd get a real pass/fail score for content they never paid for.
+    if (!lesson) return res.status(404).json({ ok: false, error: 'Урок не найден' });
     const enrollment = await prisma.schoolEnrollment.findFirst({
       where: { userId: req.user!.id, courseId: lesson.courseId },
     });
-    if (!enrollment) {
-      res.status(403).json({ ok: false, error: 'Требуется запись на курс' });
-      return;
+    if (!enrollment || enrollment.accessStatus !== 'active' || (enrollment.accessExpiresAt && enrollment.accessExpiresAt <= new Date())) {
+      return res.status(403).json({ ok: false, error: 'Требуется активный доступ к курсу', code: 'LEARNING_ENTITLEMENT_INACTIVE' });
     }
 
-    const answers = (req.body?.answers || {}) as Record<string, number>;
+    const suppliedAnswers = req.body?.answers;
+    if (!suppliedAnswers || typeof suppliedAnswers !== 'object' || Array.isArray(suppliedAnswers)) {
+      return res.status(400).json({ ok: false, error: 'answers должен быть объектом ответов' });
+    }
+    const normalizedAnswers: Record<string, number | null> = {};
     let correct = 0;
-    for (const q of DEFAULT_EXAM.questions) {
-      if (Number(answers[q.id]) === q.correctIndex) correct += 1;
+    for (const question of DEFAULT_EXAM.questions) {
+      const raw = suppliedAnswers[question.id];
+      const selected = Number.isInteger(Number(raw)) ? Number(raw) : -1;
+      normalizedAnswers[question.id] = selected >= 0 && selected < question.options.length ? selected : null;
+      if (selected === question.correctIndex) correct += 1;
     }
     const score = Math.round((correct / DEFAULT_EXAM.questions.length) * 100);
     const passed = score >= DEFAULT_EXAM.passScore;
 
-    let certificate = null;
-    if (passed) {
-      // Enrollment is already confirmed above — no need to re-fetch it.
-      const updated = await prisma.schoolEnrollment.update({
-        where: { id: enrollment.id },
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${enrollment.id}), 20261120)`;
+      const previousAttempts = await tx.schoolAssessmentAttempt.count({ where: { enrollmentId: enrollment.id } });
+      const attempt = await tx.schoolAssessmentAttempt.create({
         data: {
-          progress: Math.max(enrollment.progress, 100),
-          completed: true,
-          certificateUrl: enrollment.certificateUrl || `academy-cert://${enrollment.id}`,
+          id: uid(),
+          userId: req.user!.id,
+          enrollmentId: enrollment.id,
+          courseId: lesson.courseId,
+          lessonId: lesson.virtual ? null : lesson.id,
+          attemptNumber: previousAttempts + 1,
+          score,
+          correct,
+          total: DEFAULT_EXAM.questions.length,
+          passed,
+          answers: normalizedAnswers,
         },
-        include: { course: true },
       });
-      certificate = {
-        id: updated.id,
-        courseTitle: updated.course.title,
-        certificateUrl: updated.certificateUrl,
-        certificateNumber: `AOS-${updated.id.slice(0, 8).toUpperCase()}`,
-        score,
-      };
-    }
 
-    res.json({
+      const course = await tx.course.findUnique({
+        where: { id: lesson.courseId },
+        include: { academy: { select: { name: true } } },
+      });
+      if (!course) throw new Error('Course was removed before the assessment was persisted');
+
+      let issuedCertificate: {
+        id: string; certificateNumber: string; verificationCode: string;
+        status: string; issuedAt: Date; issuerNameSnapshot: string;
+      } | null = null;
+
+      if (passed) {
+        const certificateEnabled = !(course.meta && typeof course.meta === 'object' && !Array.isArray(course.meta) && (course.meta as Record<string, unknown>).certificateEnabled === false);
+        await tx.schoolEnrollment.update({
+          where: { id: enrollment.id },
+          data: { progress: 100, completed: true },
+        });
+
+        if (certificateEnabled) {
+          issuedCertificate = await tx.schoolCertificate.findUnique({ where: { enrollmentId: enrollment.id } });
+          if (!issuedCertificate) {
+            const verificationCode = uid();
+            const certificateNumber = `DV-${new Date().getFullYear()}-${uid().slice(0, 8).toUpperCase()}`;
+            issuedCertificate = await tx.schoolCertificate.create({
+              data: {
+                id: uid(),
+                enrollmentId: enrollment.id,
+                userId: req.user!.id,
+                courseId: lesson.courseId,
+                certificateNumber,
+                verificationCode,
+                issuerNameSnapshot: course.academy?.name || course.author || 'DentVision Academy',
+                status: 'issued',
+                metadata: {
+                  assessmentAttemptId: attempt.id,
+                  score,
+                  passingScore: DEFAULT_EXAM.passScore,
+                },
+              },
+              select: {
+                id: true, certificateNumber: true, verificationCode: true,
+                status: true, issuedAt: true, issuerNameSnapshot: true,
+              },
+            });
+          }
+          await tx.schoolEnrollment.update({
+            where: { id: enrollment.id },
+            data: { certificateUrl: `/school/certificates/verify/${issuedCertificate.verificationCode}` },
+          });
+        }
+      }
+
+      return { attempt, certificate: issuedCertificate, certificateEnabled: Boolean(issuedCertificate) };
+    });
+
+    const certificate = result.certificate ? {
+      id: result.certificate.id,
+      certificateNumber: result.certificate.certificateNumber,
+      verificationCode: result.certificate.verificationCode,
+      certificateUrl: `/school/certificates/verify/${result.certificate.verificationCode}`,
+      issuer: result.certificate.issuerNameSnapshot,
+      issuedAt: result.certificate.issuedAt,
+      status: result.certificate.status,
+    } : null;
+
+    return res.json({
       ok: true,
       data: {
         score,
@@ -1014,15 +1075,16 @@ schoolRouter.post('/lessons/:lessonId/exam/submit', authenticate, async (req: Au
         correct,
         total: DEFAULT_EXAM.questions.length,
         passingScore: DEFAULT_EXAM.passScore,
+        attemptNumber: result.attempt.attemptNumber,
         certificate,
         message: passed
-          ? 'Экзамен сдан. Сертификат добавлен в портфолио Academy OS.'
+          ? certificate ? 'Экзамен сдан. Сертификат выдан и доступен для проверки.' : 'Экзамен сдан. Курс завершён; сертификат для этой программы не предусмотрен.'
           : `Нужно ${DEFAULT_EXAM.passScore}% для сдачи. Ваш результат: ${score}%.`,
       },
     });
   } catch (error) {
     console.error('Exam submit error:', error);
-    res.status(500).json({ ok: false, error: 'Failed to submit exam' });
+    return res.status(500).json({ ok: false, error: 'Failed to submit exam' });
   }
 });
 
