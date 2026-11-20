@@ -331,8 +331,44 @@ medicalLabLifecycleRouter.post('/orders/:id/status', async (req: AuthRequest, re
           next, order.id, order.status,
         );
       } else if (next === 'processing' && order.status === 'result_ready') {
-        // A failed QC/rework cycle invalidates the previous QC decision. The
-        // replacement result must pass a fresh independent QC before release.
+        // A failed QC/rework cycle invalidates the previous QC decision and
+        // clears the active result values. Preserve the previous signed-off
+        // attempt in each test's immutable-in-practice resultHistory snapshot.
+        const previousTests = await tx.$queryRawUnsafe<Array<{
+          id: string; name: string; result: string | null; resultText: string | null;
+          unit: string | null; referenceRange: string | null; flag: string | null; metadata: unknown;
+        }>>(
+          `SELECT "id","name","result","resultText","unit","referenceRange","flag","metadata"
+             FROM "medical_lab_order_tests" WHERE "orderId"=$1 FOR UPDATE`,
+          order.id,
+        );
+        const reworkAt = new Date().toISOString();
+        for (const test of previousTests) {
+          const previous = jsonObject(test.metadata);
+          const history = Array.isArray(previous.resultHistory) ? previous.resultHistory : [];
+          const hasPreviousResult = Boolean(test.result?.trim() || test.resultText?.trim());
+          const snapshot = hasPreviousResult ? [{
+            result: test.result,
+            resultText: test.resultText,
+            unit: test.unit,
+            referenceRange: test.referenceRange,
+            flag: test.flag,
+            recordedByUserId: previous.resultEnteredByUserId || null,
+            recordedAt: previous.resultEnteredAt || null,
+            archivedAt: reworkAt,
+            archivedByUserId: req.user!.id,
+          }] : [];
+          const metadata = { ...previous, resultHistory: [...history, ...snapshot] };
+          delete metadata.resultEnteredByUserId;
+          delete metadata.resultEnteredAt;
+          await tx.$executeRawUnsafe(
+            `UPDATE "medical_lab_order_tests"
+               SET "result"=NULL,"resultText"=NULL,"unit"=NULL,"referenceRange"=NULL,"flag"=NULL,
+                   "metadata"=$1::jsonb,"updatedAt"=CURRENT_TIMESTAMP
+             WHERE "id"=$2 AND "orderId"=$3`,
+            JSON.stringify(metadata), test.id, order.id,
+          );
+        }
         changed = await tx.$executeRawUnsafe(
           `UPDATE "medical_lab_orders"
              SET "status"=$1,"resultReadyAt"=NULL,
@@ -352,7 +388,9 @@ medicalLabLifecycleRouter.post('/orders/:id/status', async (req: AuthRequest, re
         `INSERT INTO "medical_lab_events" ("id","orderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt")
          VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP)`,
         uid(), order.id, order.clinicId, order.status, next,
-        req.body?.note ? String(req.body.note) : null, req.user!.id,
+        next === 'processing' && order.status === 'result_ready'
+          ? 'Начат повторный анализ: предыдущие результаты сохранены в истории, активные значения и решение QC сброшены.'
+          : (req.body?.note ? String(req.body.note) : null), req.user!.id,
       );
     });
     publish('medicalLabOrder.status_changed', { orderId: order.id, clinicId: order.clinicId, fromStatus: order.status, toStatus: next, userId: req.user!.id });
