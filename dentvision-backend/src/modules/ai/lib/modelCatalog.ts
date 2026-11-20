@@ -264,8 +264,8 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
         resolvedAt: Date.now(),
       };
       console.warn(
-        `[modelCatalog] models resolved: full=${resolved.full} mini=${resolved.mini} ` +
-          `vision=${resolved.vision ?? 'none'}`,
+        `[modelCatalog] models resolved: standard=${resolved.full} deep=${resolved.deep} mini=${resolved.mini} ` +
+          `vision=${resolved.vision ?? 'none'} source=${resolved.source} degraded=${resolved.degraded}`,
       );
       return resolved;
     } catch (error) {
