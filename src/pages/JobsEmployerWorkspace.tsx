@@ -39,7 +39,7 @@ type EmployerApplication = {
   id: string;
   vacancyId: string;
   userName?: string;
-  user?: { firstName?: string; lastName?: string; email?: string };
+  user?: { firstName?: string; lastName?: string };
   coverNote?: string;
   status: string;
   createdAt: string;
@@ -404,7 +404,6 @@ export default function JobsEmployerWorkspace() {
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <p className="font-medium text-txt-primary">{name}</p>
-                        <p className="text-xs text-txt-muted">{application.user?.email}</p>
                       </div>
                       <Badge>{STATUS_LABEL[application.status] || application.status}</Badge>
                     </div>
