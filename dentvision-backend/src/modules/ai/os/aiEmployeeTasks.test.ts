@@ -85,4 +85,22 @@ describe('AI Employee task SQL matches its durable table schema', () => {
     expect(update.sql).not.toMatch(/clinic_id\s*=\s*CAST\([^)]*AS uuid\)/i);
     expect(update.values).toContain('clinic-text-id');
   });
+  it('uses a text tenant parameter for idempotent transition readback', async () => {
+    queryRaw
+      .mockResolvedValueOnce([{ status: 'queued' }])
+      .mockResolvedValueOnce([{ id: '00000000-0000-4000-8000-000000000001' }]);
+
+    await transitionAiEmployeeTask({
+      id: '00000000-0000-4000-8000-000000000001',
+      clinicId: 'clinic-text-id',
+      status: 'queued',
+    });
+
+    expect(queryRaw).toHaveBeenCalledTimes(2);
+    const readback = statement(1);
+    expect(readback.sql).toMatch(/FROM ai_employee_tasks WHERE id = CAST\(\? AS uuid\) AND clinic_id = \?/i);
+    expect(readback.sql).not.toMatch(/clinic_id\s*=\s*CAST\([^)]*AS uuid\)/i);
+    expect(readback.values).toContain('clinic-text-id');
+  });
+
 });
