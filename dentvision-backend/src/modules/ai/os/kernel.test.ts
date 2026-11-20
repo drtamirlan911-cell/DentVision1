@@ -750,7 +750,7 @@ describe('runAiAction — context substitution (Stage 10, p.entity)', () => {
 
     expect(result).toMatchObject({ status: 'denied', reason: 'OUT_OF_PATIENT_SCOPE' });
     expect(patientAssignmentFindFirst).toHaveBeenCalledWith({
-      where: { patientId: 'p-not-mine', userId: 'user-1', active: true },
+      where: { clinicId: 'clinic-1', patientId: 'p-not-mine', userId: 'user-1', active: true },
       select: { id: true },
     });
     expect(patientCardTool).not.toHaveBeenCalled();
