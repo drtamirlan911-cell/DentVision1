@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { queryRaw } = vi.hoisted(() => ({
@@ -45,6 +46,36 @@ describe('AI Employee task SQL matches its durable table schema', () => {
     expect(query.values).toContain('clinic-text-id');
     expect(query.values).toContain('user-text-id');
     expect(query.values).toContain('event-text-id');
+  });
+
+  it('uses a deterministic idempotency key bound to the clinic tenant', async () => {
+    const input = {
+      clinicId: 'clinic-a',
+      userId: 'user-a',
+      role: 'OWNER',
+      title: 'Retryable event task',
+      sourceEventId: 'event-a',
+      sourceEventType: 'DailySummary',
+      action: 'generateDailySummary',
+    };
+
+    await createAiEmployeeTask(input);
+    await createAiEmployeeTask(input);
+    await createAiEmployeeTask({ ...input, clinicId: 'clinic-b' });
+
+    expect(queryRaw).toHaveBeenCalledTimes(3);
+    const expectedClinicA = 'evt:' + createHash('sha256')
+      .update(['CLINIC', 'clinic-a', 'event-a', 'generateDailySummary', 'OWNER'].join('|'))
+      .digest('hex');
+    const expectedClinicB = 'evt:' + createHash('sha256')
+      .update(['CLINIC', 'clinic-b', 'event-a', 'generateDailySummary', 'OWNER'].join('|'))
+      .digest('hex');
+
+    expect(statement(0).values.at(-1)).toBe(expectedClinicA);
+    expect(statement(1).values.at(-1)).toBe(expectedClinicA);
+    expect(statement(2).values.at(-1)).toBe(expectedClinicB);
+    expect(statement(0).sql).toMatch(/ON CONFLICT\s*\(idempotency_key\)/i);
+    expect(statement(0).sql).not.toMatch(/ON CONFLICT\s*\(source_event_id,\s*action,\s*role\)/i);
   });
 
   it('compares text tenant and user columns with text parameters, not UUID values', async () => {
