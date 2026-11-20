@@ -6,6 +6,7 @@ import {
   pickModel,
   recordModelUsage,
   getModelUsageSnapshot,
+  modelBudgetMultiplier,
   supportsReasoning,
 } from './modelRouter';
 
@@ -86,12 +87,27 @@ describe('pickModel', () => {
     expect(choice.reason).toBe('want_full_but_budget_exhausted');
   });
 
-  it('records soft usage in process memory', () => {
-    recordModelUsage('mini', 1000);
-    recordModelUsage('full', 500);
+  it('records soft usage in process memory', async () => {
+    await recordModelUsage('mini', 1000, 'gpt-6-luna');
+    await recordModelUsage('full', 500, 'gpt-6.1-sol');
     const snap = getModelUsageSnapshot();
     expect(snap.miniUsed).toBe(1000);
     expect(snap.fullUsed).toBe(500);
+  });
+
+  it('weights deep-model usage against the shared full-tier budget', async () => {
+    expect(modelBudgetMultiplier('gpt-6-astra')).toBe(5);
+    expect(modelBudgetMultiplier('gpt-6.2-astra')).toBe(5);
+    expect(modelBudgetMultiplier('gpt-5.6-sol')).toBe(2);
+    expect(modelBudgetMultiplier('gpt-6.1-sol')).toBe(1);
+    expect(modelBudgetMultiplier('gpt-6.1-terra')).toBe(0.5);
+    expect(modelBudgetMultiplier('unknown-model')).toBe(1);
+
+    await recordModelUsage('full', 100, 'gpt-6-astra');
+    await recordModelUsage('full', 100, 'gpt-6.1-sol');
+    await recordModelUsage('full', 101, 'gpt-6.1-terra');
+
+    expect(getModelUsageSnapshot().fullUsed).toBe(651);
   });
 });
 
