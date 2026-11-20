@@ -14,6 +14,22 @@ import { EventBus } from './EventBus.js';
 import { EventType, type CRMEvent } from './EventTypes.js';
 
 describe('EventBus subscriber error privacy', () => {
+  it('does not log raw database exceptions from the durable poll loop', async () => {
+    const sentinel = 'SENSITIVE_DATABASE_EXCEPTION_SENTINEL_4c82d9';
+    const { eventStore } = await import('./EventStore.js');
+    vi.mocked(eventStore.recoverStaleProcessing).mockRejectedValueOnce(new Error(sentinel));
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    try {
+      await (new EventBus() as any).pollDatabaseEvents();
+
+      expect(error).toHaveBeenCalledWith('[EventBus] PostgreSQL poll failed (Error)');
+      expect(JSON.stringify(error.mock.calls)).not.toContain(sentinel);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
   it('records a failed subscriber without logging exception content', async () => {
     const bus = new EventBus();
     const sentinel = 'SENSITIVE_CLINICAL_SENTINEL_7f93a1b2';
