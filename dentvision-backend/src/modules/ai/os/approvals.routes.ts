@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../../lib/safeError.js';
 /**
  * Approval Center API — human-in-the-loop for high-risk kernel actions
  * (`ai/os/dataScope.ts::HIGH_RISK_TOOLS`) and for durable agents that
@@ -58,7 +59,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
     }));
     return res.json({ ok: true, data: safeApprovals });
   } catch (error) {
-    console.error('[AI Approvals] list failed:', error);
+    console.error('[AI Approvals] list failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось получить список подтверждений' });
   }
 });
@@ -80,7 +81,7 @@ router.get('/tasks', authenticate, async (req: AuthRequest, res) => {
     });
     return res.json({ ok: true, data: tasks });
   } catch (error) {
-    console.error('[AI Employee Tasks] list failed:', error);
+    console.error('[AI Employee Tasks] list failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось получить рабочие задачи AI' });
   }
 });
@@ -123,7 +124,7 @@ router.post('/tasks/:id/transition', authenticate, async (req: AuthRequest, res)
     });
     return res.json({ ok: true, data: task });
   } catch (error) {
-    console.error('[AI Employee Tasks] transition failed:', error);
+    console.error('[AI Employee Tasks] transition failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось изменить состояние задачи' });
   }
 });
@@ -189,7 +190,7 @@ router.post('/:id/approve', authenticate, async (req: AuthRequest, res) => {
     }
     return res.json({ ok: true, data: result });
   } catch (error) {
-    console.error('[AI Approvals] approve failed:', error);
+    console.error('[AI Approvals] approve failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось подтвердить действие' });
   }
 });
@@ -228,7 +229,7 @@ router.post('/:id/reject', authenticate, async (req: AuthRequest, res) => {
     await auditFromReq(req, { action: 'ai.approval.rejected', entity: 'ai_approval', entityId: approval.id });
     return res.json({ ok: true, data: { id: approval.id, status: 'rejected' } });
   } catch (error) {
-    console.error('[AI Approvals] reject failed:', error);
+    console.error('[AI Approvals] reject failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось отклонить' });
   }
 });

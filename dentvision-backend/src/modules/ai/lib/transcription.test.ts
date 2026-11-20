@@ -24,6 +24,7 @@ function stubProvider(body: unknown, ok = true) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.unstubAllGlobals();
   mockEnv.OPENAI_API_KEY = 'k'.repeat(24);
   resolveModels.mockReset().mockResolvedValue({ transcription: 'test-stt' });
@@ -97,6 +98,25 @@ describe('transcribeAudio', () => {
       .resolves.toMatchObject({ ok: false, reason: 'PROVIDER_ERROR' });
   });
 
+  it('does not log provider error bodies that may contain patient or transcript data', async () => {
+    const privatePayload = 'Patient Dana Example, phone +7 701 555 0101, transcript: private diagnosis';
+    const responseText = vi.fn(async () => privatePayload);
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      status: 500,
+      text: responseText,
+    } as unknown as Response)));
+
+    await expect(transcribeAudio({ buffer: audio(), filename: 'a.webm', mimeType: 'audio/webm' }))
+      .resolves.toMatchObject({ ok: false, reason: 'PROVIDER_ERROR' });
+
+    expect(responseText).not.toHaveBeenCalled();
+    const logs = JSON.stringify(vi.mocked(console.error).mock.calls);
+    expect(logs).not.toContain('Dana Example');
+    expect(logs).not.toContain('+7 701 555 0101');
+    expect(logs).not.toContain('private diagnosis');
+  });
+
   it('treats a blank transcript as empty rather than success', async () => {
     stubProvider({ text: '   ' });
 
@@ -104,10 +124,17 @@ describe('transcribeAudio', () => {
       .resolves.toMatchObject({ ok: false, reason: 'EMPTY' });
   });
 
-  it('survives a network error', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
+  it('survives a network error without logging exception contents', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('Patient Dana Example +7 701 555 0101 private diagnosis');
+    }));
 
     await expect(transcribeAudio({ buffer: audio(), filename: 'a.webm', mimeType: 'audio/webm' }))
       .resolves.toMatchObject({ ok: false, reason: 'PROVIDER_ERROR' });
+
+    const logs = JSON.stringify(vi.mocked(console.error).mock.calls);
+    expect(logs).not.toContain('Dana Example');
+    expect(logs).not.toContain('+7 701 555 0101');
+    expect(logs).not.toContain('private diagnosis');
   });
 });

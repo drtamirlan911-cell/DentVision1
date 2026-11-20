@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 /**
  * AI Timeline / Agent Activity Center API.
  *
@@ -140,7 +141,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('[AI Timeline] Error:', error);
+    console.error('[AI Timeline] Error:', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Failed to fetch timeline' });
   }
 });
@@ -184,7 +185,7 @@ router.get('/stats', authenticate, async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('[AI Timeline Stats] Error:', error);
+    console.error('[AI Timeline Stats] Error:', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Failed to fetch stats' });
   }
 });
