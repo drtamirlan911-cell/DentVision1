@@ -112,8 +112,8 @@ describe('AI Employee task SQL matches its durable table schema', () => {
     });
 
     const query = statement();
-    expect(query.sql).toMatch(/user_id\\s*=\\s*\\?/i);
-    expect(query.sql).toMatch(/\\?\\s*=\\s*TRUE\\s+AND\\s+user_id\\s+IS\\s+NULL/i);
+    expect(query.sql).toMatch(/user_id\s*=\s*\?/i);
+    expect(query.sql).toMatch(/\?\s*=\s*TRUE\s+AND\s+user_id\s+IS\s+NULL/i);
     expect(query.values).toContain('doctor-user-id');
     expect(query.values).toContain(true);
     expect(query.values).toContain('DOCTOR');
