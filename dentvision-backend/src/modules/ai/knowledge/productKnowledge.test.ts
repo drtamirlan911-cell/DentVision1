@@ -129,6 +129,19 @@ describe('product guide runtime asset parity', () => {
   });
 });
 
+describe('backend Docker build context knowledge asset', () => {
+  it('does not ignore the Jarvis guide from the backend build context', () => {
+    const dockerignore = readFileSync(
+      new URL('../../../../../dentvision-backend/.dockerignore', import.meta.url),
+      'utf8',
+    );
+    const patterns = dockerignore.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+
+    expect(patterns).toContain('*.md');
+    expect(patterns.indexOf('!docs/AI_PRODUCT_KNOWLEDGE.md')).toBeGreaterThan(patterns.indexOf('*.md'));
+  });
+});
+
 describe('backend container knowledge asset', () => {
   it('copies the guide directory into the runtime image at the loader path', () => {
     const dockerfile = readFileSync(
