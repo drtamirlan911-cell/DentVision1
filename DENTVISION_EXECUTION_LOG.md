@@ -3074,3 +3074,9 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Added a runtime retrieval regression for the natural-language query “Какие AI агенты есть в DentVision?”. The test loads the canonical product guide through retrieveProductKnowledge(), asserts the AI-agent section ranks first and verifies that the returned excerpt names a real registered agent.
 - This complements the registry-parity test (every non-disabled listAgents() name must be present) and the runtime asset equality test (backend Docker guide copy must be byte-identical to the canonical root guide).
 - Test commit: 0094c4f2f0e79935132fbdaf1e30644836c50dfe. Exact-head CI/Quality Gate have to be refreshed after the test and documentation commits; earlier run results are superseded.
+
+## 2026-11-20 — Docker runtime path contract regression (PR #351)
+
+- Added a source-contract test that reads dentvision-backend/Dockerfile and asserts the runner copies /app/docs into ./docs, which is the path resolved by the compiled product-knowledge loader.
+- This closes the verification gap between the byte-identical backend guide asset and the runtime Dockerfile instruction. It does not replace an actual Docker image build or deployment check.
+- Test commit: 453e2e282f22c8f790f12ba1eac51611168a40e7. Exact-head GitHub CI/Quality Gate must pass on the final PR SHA.
