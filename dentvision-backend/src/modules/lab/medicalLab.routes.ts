@@ -390,6 +390,7 @@ medicalLabLifecycleRouter.post('/orders/:id/results', async (req: AuthRequest, r
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
     if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+    if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId))) return;
     if (String(req.user?.organizationType || '').toUpperCase() !== 'LABORATORY'
       || !(await requireMedicalLabCapability(req.user, 'result.write'))) {
       return res.status(403).json({ ok: false, error: 'Ввод результатов доступен только уполномоченному сотруднику лаборатории', code: 'MEDICAL_LAB_RESULT_ENTRY_FORBIDDEN' });
@@ -520,6 +521,7 @@ medicalLabLifecycleRouter.post('/orders/:id/verify', async (req: AuthRequest, re
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
     if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+    if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId))) return;
     if (String(req.user?.organizationType || '').toUpperCase() !== 'LABORATORY'
       || !(await requireMedicalLabCapability(req.user, 'result.verify'))) {
       return res.status(403).json({ ok: false, error: 'Выпуск результата доступен только лабораторному валидатору', code: 'MEDICAL_LAB_VALIDATOR_REQUIRED' });
@@ -573,6 +575,7 @@ medicalLabLifecycleRouter.post('/orders/:id/interpretation', async (req: AuthReq
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
     if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+    if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId))) return;
     if (String(req.user?.organizationType || '').toUpperCase() !== 'LABORATORY'
       || !(await requireMedicalLabCapability(req.user, 'result.interpret'))) {
       return res.status(403).json({ ok: false, error: 'Клиническая интерпретация доступна только уполномоченному врачу лаборатории', code: 'MEDICAL_LAB_DOCTOR_REQUIRED' });
