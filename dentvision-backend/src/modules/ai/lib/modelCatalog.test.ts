@@ -112,13 +112,42 @@ describe('resolveModels — discovery', () => {
 });
 
 describe('resolveModels — operator pin', () => {
-  it('uses pinned ids and skips the probe entirely', async () => {
-    const fetchMock = stubModels([FULL_TOP, MINI_TOP]);
+  it('pins chat tiers but still discovers the best auxiliary models', async () => {
+    const fetchMock = stubModels([
+      'gpt-6.1-terra',
+      'text-embedding-3-large',
+      'gpt-transcribe',
+    ]);
 
     const models = await resolveModels({ apiKey: 'k', envFull: 'pinned-full', envMini: 'pinned-mini' });
 
-    expect(models).toMatchObject({ full: 'pinned-full', mini: 'pinned-mini', source: 'env' });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(models).toMatchObject({
+      full: 'pinned-full',
+      mini: 'pinned-mini',
+      vision: 'gpt-6.1-terra',
+      embedding: 'text-embedding-3-large',
+      transcription: 'gpt-transcribe',
+      source: 'env',
+      degraded: false,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps operator chat pins when discovery fails and marks auxiliary resolution degraded', async () => {
+    const fetchMock = vi.fn(async () => new Response('unavailable', { status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const models = await resolveModels({ apiKey: 'k', envFull: 'pinned-full', envMini: 'pinned-mini' });
+
+    expect(models).toMatchObject({
+      full: 'pinned-full',
+      mini: 'pinned-mini',
+      embedding: 'text-embedding-3-small',
+      transcription: 'whisper-1',
+      source: 'env',
+      degraded: true,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('still discovers the other tier when only one id is pinned', async () => {
