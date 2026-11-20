@@ -32,6 +32,14 @@ export interface ModelCandidate {
  * enough to be safe to assume.
  */
 export const FULL_LADDER: readonly ModelCandidate[] = [
+  // Current flagship and general-purpose models first. Availability is still
+  // intersected with this API account's live /v1/models response.
+  { id: 'gpt-6.2-astra', vision: false },
+  { id: 'gpt-6-astra', vision: false },
+  { id: 'gpt-6.1-sol', vision: false },
+  // Terra is the dedicated visual-reasoning choice for radiograph/image work.
+  { id: 'gpt-6.1-terra', vision: true },
+  { id: 'gpt-5.6-sol', vision: false },
   { id: 'gpt-5.4', vision: true },
   { id: 'gpt-5', vision: true },
   { id: 'gpt-4.1', vision: true },
@@ -40,6 +48,8 @@ export const FULL_LADDER: readonly ModelCandidate[] = [
 ];
 
 export const MINI_LADDER: readonly ModelCandidate[] = [
+  // Luna is the efficient high-volume tier; older IDs remain safe fallbacks.
+  { id: 'gpt-6-luna', vision: false },
   { id: 'gpt-5.4-mini', vision: true },
   { id: 'gpt-5-mini', vision: true },
   { id: 'gpt-4.1-mini', vision: true },
@@ -57,8 +67,8 @@ export const MINI_LADDER: readonly ModelCandidate[] = [
  */
 export const EMBEDDING_LADDER: readonly string[] = [
   'text-embedding-3-large',
+  // The small v3 model is the conservative floor when discovery is degraded.
   'text-embedding-3-small',
-  'text-embedding-ada-002',
 ];
 
 /**
@@ -67,6 +77,7 @@ export const EMBEDDING_LADDER: readonly string[] = [
  * nothing newer.
  */
 export const TRANSCRIPTION_LADDER: readonly string[] = [
+  'gpt-transcribe',
   'gpt-4o-transcribe',
   'gpt-4o-mini-transcribe',
   'whisper-1',
