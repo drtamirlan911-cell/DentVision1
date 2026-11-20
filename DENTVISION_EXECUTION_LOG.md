@@ -3118,3 +3118,9 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Added explicit negation rules `!docs/` and `!docs/AI_PRODUCT_KNOWLEDGE.md` after the Markdown exclusion. The `docker-compose.yml` backend build context is `./dentvision-backend`, so this is the relevant ignore file.
 - Added a regression test that checks the canonical guide path is re-included after the `*.md` rule. Commits: dockerignore `e63641d3a1ce6c498bf648f245c12b45fd36d56c`; test `4c2cba265b47fb2a2ad756360900fc748c97de69`.
 - This closes the source-level Docker build-context omission. It does not prove that a Docker image was built or deployed; exact-head CI remains required.
+
+## 2026-11-20 — partner AI Employee queue negative contract tests (PR #351)
+
+- Added route-level tests proving that a verified `EMPLOYER_OWNER` Organization context cannot use the existing clinic-only AI Employee task read or transition endpoints. Both requests must fail closed with 403 and must not query or mutate task rows.
+- This locks the current safety boundary while Organization/Branch task scope remains design-only; it prevents a future accidental widening based on global role or organization presence alone.
+- Test commit: 4ecd976b991c9bf5779be9176cedd9ea7c2647dc. GitHub had not surfaced fresh exact-head CI/Quality Gate records at the latest inspection; older SHA outcomes are not final evidence. No task schema or approval route was widened.
