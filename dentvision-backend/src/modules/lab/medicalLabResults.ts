@@ -83,3 +83,60 @@ export function validateMedicalLabResultSet(
 
   return { ok: true, results: normalized };
 }
+
+export interface MedicalLabResultAttemptRecord extends MedicalLabTestRecord {
+  result: string | null;
+  resultText: string | null;
+  unit: string | null;
+  referenceRange: string | null;
+  flag: string | null;
+  metadata: unknown;
+}
+
+export interface MedicalLabResultReworkReset {
+  result: null;
+  resultText: null;
+  unit: null;
+  referenceRange: null;
+  flag: null;
+  metadata: Record<string, unknown>;
+}
+
+/** Archive the rejected attempt before clearing active values for re-analysis. */
+export function resetMedicalLabResultForRework(
+  test: MedicalLabResultAttemptRecord,
+  actorUserId: string,
+  archivedAt: string,
+): MedicalLabResultReworkReset {
+  const source = test.metadata && typeof test.metadata === 'object' && !Array.isArray(test.metadata)
+    ? test.metadata as Record<string, unknown>
+    : {};
+  const history = Array.isArray(source.resultHistory) ? source.resultHistory : [];
+  const hasPreviousResult = Boolean(test.result?.trim() || test.resultText?.trim());
+  const snapshot = hasPreviousResult ? [{
+    result: test.result,
+    resultText: test.resultText,
+    unit: test.unit,
+    referenceRange: test.referenceRange,
+    flag: test.flag,
+    recordedByUserId: source.resultEnteredByUserId || null,
+    recordedAt: source.resultEnteredAt || null,
+    archivedAt,
+    archivedByUserId: actorUserId,
+  }] : [];
+  const metadata: Record<string, unknown> = {
+    ...source,
+    resultHistory: [...history, ...snapshot],
+  };
+  delete metadata.resultEnteredByUserId;
+  delete metadata.resultEnteredAt;
+
+  return {
+    result: null,
+    resultText: null,
+    unit: null,
+    referenceRange: null,
+    flag: null,
+    metadata,
+  };
+}
