@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Award, BookOpen, CalendarClock, GraduationCap, PlayCircle, RefreshCw, Search } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
@@ -71,7 +71,7 @@ export default function MyLearning() {
   const [filter, setFilter] = useState<LearningFilter>('all');
   const [search, setSearch] = useState('');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
     try {
@@ -86,12 +86,12 @@ export default function MyLearning() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast, user?.id]);
 
   useEffect(() => {
     if (isAuthenticated && user?.id) void load();
     else if (!authLoading) setLoading(false);
-  }, [isAuthenticated, user?.id]);
+  }, [isAuthenticated, user?.id, authLoading, load]);
 
   const visibleEnrollments = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
