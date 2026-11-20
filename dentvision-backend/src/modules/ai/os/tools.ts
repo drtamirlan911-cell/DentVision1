@@ -1499,6 +1499,48 @@ export const TOOLS: Record<string, ToolSpec> = {
   },
 };
 
+/**
+ * Safe, human-readable capability inventory derived from the exact tool set
+ * already filtered by the DB-backed workspace/IAM resolver.
+ *
+ * Tool identifiers and argument schemas stay in the function-call channel.
+ * This prompt view exposes only the existing descriptions plus effect and
+ * confirmation metadata.
+ */
+export interface AiToolCapability {
+  description: string;
+  effect: 'read' | 'change';
+  confirmation: 'none' | 'explicit' | 'tool-policy';
+}
+
+function publicToolDescription(source: string): string {
+  let description = source.replace(/\s+/g, ' ').trim();
+  for (const { name } of Object.values(TOOLS)) {
+    description = description.split(name).join('соответствующая операция');
+  }
+  return description.slice(0, 360);
+}
+
+export function toolCapabilitiesFor(toolNames: ReadonlySet<string>): AiToolCapability[] {
+  return Object.values(TOOLS)
+    .filter((tool) => toolNames.has(tool.name))
+    .map((tool) => {
+      const effect: AiToolCapability['effect'] = tool.mutating ? 'change' : 'read';
+      const requiresExplicitConfirmation = tool.mutating
+        && /(?:требует|требуется)\s+подтверждения/i.test(tool.description);
+      const confirmation: AiToolCapability['confirmation'] = !tool.mutating
+        ? 'none'
+        : requiresExplicitConfirmation
+          ? 'explicit'
+          : 'tool-policy';
+      return {
+        description: publicToolDescription(tool.description),
+        effect,
+        confirmation,
+      };
+    });
+}
+
 /** Every registered tool name — the permission map is asserted complete against it. */
 export function listToolNames(): string[] {
   return Object.values(TOOLS).map((t) => t.name);

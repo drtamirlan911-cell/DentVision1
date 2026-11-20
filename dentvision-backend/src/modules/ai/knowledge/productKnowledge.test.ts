@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   filterPatientProductKnowledge,
+  formatAllowedToolCapabilities,
   formatProductKnowledgeContext,
   rankProductKnowledgeChunks,
   splitProductKnowledgeSections,
@@ -40,6 +41,28 @@ describe('splitProductKnowledgeSections', () => {
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks.map((item) => item.content).join(' ')).toContain('информация');
     expect(chunks.every((item) => item.content.length <= 2_800)).toBe(true);
+  });
+});
+
+describe('runtime capability context', () => {
+  it('separates allowed reads from state-changing actions', () => {
+    const context = formatAllowedToolCapabilities([
+      { description: 'Поиск доступных товаров.', effect: 'read', confirmation: 'none' },
+      { description: 'Создать счёт.', effect: 'change', confirmation: 'explicit' },
+      { description: 'Изменить статус заказа.', effect: 'change', confirmation: 'tool-policy' },
+    ]);
+
+    expect(context).toContain('ЧТЕНИЕ / ПОИСК');
+    expect(context).toContain('ИЗМЕНЕНИЕ СОСТОЯНИЯ');
+    expect(context).toContain('дождись явного подтверждения пользователя');
+    expect(context).toContain('governance-проверки');
+  });
+
+  it('fails closed in the model guidance when no tool was granted', () => {
+    const context = formatAllowedToolCapabilities([]);
+
+    expect(context).toContain('не предоставил доступных операций');
+    expect(context).toContain('Не обещай выполнять чтение или изменение данных');
   });
 });
 

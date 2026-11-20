@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { listToolNames } from './tools.js';
+import { listToolNames, toolCapabilitiesFor } from './tools.js';
 import { TOOL_PERMISSIONS, UNGATED_TOOLS, permissionsSatisfy } from './toolPermissions.js';
 
 describe('TOOL_PERMISSIONS coverage', () => {
@@ -34,6 +34,36 @@ describe('TOOL_PERMISSIONS coverage', () => {
     expect(TOOL_PERMISSIONS.getPatientCard).toBe('medical.read');
     expect(TOOL_PERMISSIONS.getVisits).toBe('medical.read');
     expect(TOOL_PERMISSIONS.getTreatmentPlans).toBe('medical.read');
+  });
+});
+
+describe('tool capability inventory', () => {
+  it('contains only capabilities in the verified allowed set', () => {
+    const capabilities = toolCapabilitiesFor(new Set(['searchProducts', 'createInvoice']));
+
+    expect(capabilities).toHaveLength(2);
+    expect(capabilities.map((item) => item.description)).toEqual([
+      expect.stringContaining('Поиск товаров'),
+      expect.stringContaining('Выставить счёт'),
+    ]);
+  });
+
+  it('distinguishes read-only tools from state-changing tools', () => {
+    const capabilities = toolCapabilitiesFor(new Set(['searchProducts', 'createInvoice']));
+    expect(capabilities[0]).toMatchObject({ effect: 'read', confirmation: 'none' });
+    expect(capabilities[1]).toMatchObject({ effect: 'change', confirmation: 'explicit' });
+  });
+
+  it('does not invent a confirmation contract where the tool does not declare one', () => {
+    const [statusChange] = toolCapabilitiesFor(new Set(['updateLabOrderStatus']));
+    expect(statusChange).toMatchObject({ effect: 'change', confirmation: 'tool-policy' });
+  });
+
+  it('does not leak internal tool names into the capability text', () => {
+    const capabilities = toolCapabilitiesFor(new Set(listToolNames()));
+    for (const capability of capabilities) {
+      for (const name of listToolNames()) expect(capability.description).not.toContain(name);
+    }
   });
 });
 

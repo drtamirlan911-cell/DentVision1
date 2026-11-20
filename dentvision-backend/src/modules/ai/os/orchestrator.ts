@@ -49,7 +49,8 @@ import {
 } from '../lib/deterministicShortcuts.js';
 import { sanitizeUserInput, buildSafeInstructions } from '../lib/promptGuard.js';
 import { providerFetch, providerStream } from '../lib/providerFetch.js';
-import { formatProductKnowledgeContext, retrieveProductKnowledge } from '../knowledge/productKnowledge.js';
+import { formatAllowedToolCapabilities, formatProductKnowledgeContext, retrieveProductKnowledge } from '../knowledge/productKnowledge.js';
+import { toolCapabilitiesFor } from './tools.js';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
@@ -166,6 +167,7 @@ function systemPrompt(
   currencyCode: string,
   activePersona: PersonaId,
   productKnowledgeBlock = '',
+  runtimeCapabilitiesBlock = '',
 ): string {
   if (input.isGuest || String(input.role).toUpperCase() === 'GUEST') {
     const mapBlock = platformMapPromptBlock('GUEST', true);
@@ -175,6 +177,8 @@ function systemPrompt(
 ${mapBlock}
 
 ${productKnowledgeBlock}
+
+${runtimeCapabilitiesBlock}
 
 ПРАВИЛА:
 1. Отвечай по-русски.
@@ -219,6 +223,8 @@ ${mapBlock}
 
 ${productKnowledgeBlock}
 
+${runtimeCapabilitiesBlock}
+
 ПРАВИЛА:
 1. Отвечай по-русски, коротко. Сначала суть, потом деталь.
 2. Все факты о клинике — ТОЛЬКО из инструментов. Не выдумывай.
@@ -236,6 +242,7 @@ ${productKnowledgeBlock}
 14. Экономия: не вызывай лишние инструменты; для «открой X» достаточно navigate.
 15. Marketing: getPromotions / getRecallList / draftPromoCopy — draft only, без авторассылки.
 16. Для фактов о продукте используй только справочный блок и карту доступных разделов. Не объявляй частичную функцию готовой; при использовании справки назови раздел-источник.
+17. На вопрос «что ты можешь сделать сейчас?» ориентируйся на блок актуальных возможностей этого запроса. Справочник продукта не выдаёт разрешений. Не перечисляй недоступные операции как выполнимые.
 ${input.learningInstructions ? `\n${input.learningInstructions}` : ''}`;
 }
 
@@ -529,8 +536,9 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
   ].join(' ').slice(0, 2_000);
   const productKnowledge = await retrieveProductKnowledge(knowledgeQuery);
   const productKnowledgeBlock = formatProductKnowledgeContext(productKnowledge);
+  const runtimeCapabilitiesBlock = formatAllowedToolCapabilities(toolCapabilitiesFor(allowedTools));
   const instructions = buildSafeInstructions(
-    systemPrompt(input, currencyCode, activePersona, productKnowledgeBlock),
+    systemPrompt(input, currencyCode, activePersona, productKnowledgeBlock, runtimeCapabilitiesBlock),
     input.text,
   );
 

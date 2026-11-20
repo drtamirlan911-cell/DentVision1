@@ -312,6 +312,46 @@ export function formatProductKnowledgeContext(hits: ProductKnowledgeHit[]): stri
   ].join('\n');
 }
 
+export interface AllowedToolCapability {
+  description: string;
+  effect: 'read' | 'change';
+  confirmation: 'none' | 'explicit' | 'tool-policy';
+}
+
+/**
+ * Runtime truth for this single request. Unlike the product guide, these
+ * entries were filtered by the server's current DB-backed IAM resolver.
+ */
+export function formatAllowedToolCapabilities(
+  capabilities: AllowedToolCapability[],
+): string {
+  if (!capabilities.length) {
+    return [
+      'АКТУАЛЬНЫЕ ВОЗМОЖНОСТИ ЭТОГО ЗАПРОСА',
+      'Сервер не предоставил доступных операций для текущего рабочего пространства. Не обещай выполнять чтение или изменение данных. Объясни ограничение и предложи открыть доступный раздел вручную.',
+    ].join('\n');
+  }
+
+  const reads = capabilities.filter((item) => item.effect === 'read');
+  const changes = capabilities.filter((item) => item.effect === 'change');
+  const format = (item: AllowedToolCapability) => {
+    const confirmation = item.confirmation === 'explicit'
+      ? ' — изменение: сначала получи предварительный вариант и дождись явного подтверждения пользователя'
+      : item.confirmation === 'tool-policy'
+        ? ' — изменение: строго следуй фактическому контракту инструмента и результату governance-проверки'
+        : '';
+    return '• ' + item.description + confirmation;
+  };
+
+  return [
+    'АКТУАЛЬНЫЕ ВОЗМОЖНОСТИ ЭТОГО ЗАПРОСА',
+    'Следующий перечень сформирован из инструментов, которые сервер уже отфильтровал для текущего пользователя, организации и роли. Это текущий набор возможностей, а не полный каталог DentVision.',
+    reads.length ? 'ЧТЕНИЕ / ПОИСК:\n' + reads.map(format).join('\n') : '',
+    changes.length ? 'ИЗМЕНЕНИЕ СОСТОЯНИЯ:\n' + changes.map(format).join('\n') : '',
+    'Не выводи право доступа из руководства, названия раздела, должности или предыдущего диалога. Не вызывай скрытые или отсутствующие операции. Не добавляй подтверждение от имени пользователя. Результат действия признавай успешным только после положительного ответа инструмента и governance-контура.',
+  ].filter(Boolean).join('\n');
+}
+
 /** Test-only cache reset; does not affect runtime callers. */
 export function resetProductKnowledgeCacheForTests(): void {
   cachedGuide = null;
