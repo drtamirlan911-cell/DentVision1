@@ -3021,3 +3021,13 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Reconciled old branches: PR #328/#329 work was merged into PR #330 via #331/#332, then #330 was merged; PR #333 itself was not merged, but its provider-polish implementation and focused tests exist on main. Do not merge the stale PR #333 branch wholesale.
 - RB-029 audit found a raw exception logger in AI Admin `book_appointment.tool.ts`. Candidate removes raw error details and adds an E2E-independent unit regression proving patient name/phone are absent from logs. Branch `security/rb029-ai-admin-booking-log-redaction-20261118`; exact-head CI pending.
 - No staging/production DB, PHI, secret/key, payment provider, legal signature, backup/restore or production deployment was accessed or changed.
+
+
+## 2026-11-20 — PHI-safe AI context and proactive-signal logging (PR #351)
+
+- A follow-up source sweep found four additional raw-exception log paths outside the initial AI kernel/route/task-subscriber set: three in `modules/ai/os/context.ts` (workspace inventory, branch lookup and active-workspace resolution) and one in `modules/ai/core/digitalTwin.ts` (proactive clinic-load signal fallback).
+- All four now log only `safeErrorKind(error)` (`Error` / `NonError`); exception messages, stacks, SQL details and possible patient data are not serialized.
+- Added three context resolver regression tests using synthetic patient name, phone, IIN-like value and diagnosis text, plus a source-contract test for the digital-twin proactive fallback. The existing shared `safeErrorKind` tests remain the primitive-level boundary tests.
+- Context source/test commits: `f4f243aa83eec1c6ee383297233d9e768ba5bb72` and `d1d61cd8a01a27bccb42edb38750266a96af56ba`. Proactive digital-twin source/test commits: `d9fc3893e07072ca84ee94b900fbfe44fcbf5c9a` and `e46e7d6bfb415500561fae7760bf0ceac3e3607d`.
+- Code/test checkpoint: `e46e7d6bfb415500561fae7760bf0ceac3e3607d`. Exact-head CI [44713041911](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44713041911) was pending and Quality Gate [44713042000](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44713042000) was in progress when checked. These are not passing results; documentation commits require refreshed exact-head checks.
+- All changes remain on the existing Draft PR #351 branch. Main, production/staging databases, PHI, keys/secrets, payments and deployments were not modified.
