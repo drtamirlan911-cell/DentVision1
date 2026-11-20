@@ -30,6 +30,18 @@ test.describe('Partner operational lifecycle', () => {
   let centerRadiologistToken = '';
   let centerRadiologistId = '';
   let labOwnerToken = '';
+  let labOwnerId = '';
+  let fixtureLabOrganizationId = '';
+  let medicalLabTechnicianId = '';
+  let medicalLabQualityId = '';
+  let medicalLabValidatorId = '';
+  let medicalLabDoctorId = '';
+  let medicalLabTechnicianToken = '';
+  let medicalLabQualityToken = '';
+  let medicalLabValidatorToken = '';
+  let medicalLabDoctorToken = '';
+  const medicalLabUserIds: string[] = [];
+  const medicalLabOrderIds: string[] = [];
   let dentalLabOwnerToken = '';
   let fixtureDentalLabId = '';
   let fixtureAlternativeDentalLabId = '';
@@ -187,7 +199,9 @@ test.describe('Partner operational lifecycle', () => {
     const partnerBranches = (await branchList.json()).data || [];
     expect(partnerBranches.length).toBeGreaterThanOrEqual(1);
 
-    const labOwner = await createTestUser({ email: `medical-lab-owner-${Date.now()}@test.dentvision`, firstName: 'Medical Lab', lastName: 'Owner' });
+    const labOwner = await createTestUser({ email: `medical-lab-owner-${Date.now()}@test.dentvision`, firstName: 'Medical Lab', lastName: 'Owner', role: 'STUDENT' as any });
+    labOwnerId = labOwner.id;
+    medicalLabUserIds.push(labOwner.id);
     labOwnerToken = await login(api, labOwner.email);
     const labOnboard = await api.post(`${BASE}/api/organizations/self-service`, {
       headers: auth(labOwnerToken),
