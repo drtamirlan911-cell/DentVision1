@@ -32,6 +32,12 @@ The current task ledger is not ecosystem-wide:
 
 **Implementation constraint:** do not make clinicId nullable and add an optional organizationId as a superficial fix. First define a canonical task scope (Organization, optional Branch, or an explicitly clinic-scoped legacy context), prove membership and permission through current IAM, enforce isolation in list/get/transition/approval queries, preserve event provenance/idempotency, and mount an appropriate work queue in each supported workspace. Keep legacy clinic tasks readable and transitions safe. The current PR #351 only fixes raw exception logging in the subscriber; it does not implement the ecosystem-wide queue.
 
+### Latest security corrections (2026-11-20)
+
+- Durable task transition no longer persists raw `req.body.error` text; it stores a fixed marker and a regression test checks the SQL parameter list.
+- EventBus now classifies subscriber and PostgreSQL polling exceptions without logging raw messages; regression tests cover both pathways.
+- This does not implement organization-scoped tasks. The existing event envelope itself remains clinic-only, so the next design must define a versioned tenant scope across event producer, durable store, subscriber, task APIs, approvals and UI before any schema migration.
+
 ### Next execution order
 1. Complete and certify PR #351 on one exact HEAD. Inspect any CI failure and fix the implementation; do not weaken PHI, tenant, branch, membership or confirmation assertions.
 2. Audit the clinic-only AI Employee task model end-to-end (event subscriber → persisted task → APIs → approvals → UI). Design an additive, canonical-Organization/Branch-scoped extension that reuses the current IAM/governance kernel and preserves clinic compatibility. No parallel task table or global role bypass.
