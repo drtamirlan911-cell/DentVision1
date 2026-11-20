@@ -147,7 +147,7 @@ describe('supportsReasoning', () => {
     },
   );
 
-  it.each(['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-6-luna', 'gpt-4-turbo', 'gpt-4o-mini-tts', ''])(
+  it.each(['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-6.2-sol', 'gpt-6-luna', 'gpt-4-turbo', 'gpt-4o-mini-tts', ''])(
     'does not claim reasoning for %s',
     (model) => {
       expect(supportsReasoning(model)).toBe(false);
