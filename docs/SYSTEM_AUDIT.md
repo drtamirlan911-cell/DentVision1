@@ -706,3 +706,5 @@ It is not yet the final product described by the Master Spec.
 The largest remaining gap is not raw feature count. It is **coherence**: one identity, one active context, one ecosystem, one workflow model and one AI/action layer must become the visible and runtime structure across every participant type.
 
 The next work should therefore prioritize architectural convergence and vertical workflow completion over adding more isolated screens.
+
+- A focused review of AI query error-audit paths confirmed that logAIInteraction() persists only the boolean errorPresent and not the supplied exception message. PR #351 adds a regression test that inspects the Prisma payload for a synthetic sentinel. The durable event store encrypts new error text through encodeDurableEventError(); legacy plaintext compatibility remains a separate historical-data concern.
