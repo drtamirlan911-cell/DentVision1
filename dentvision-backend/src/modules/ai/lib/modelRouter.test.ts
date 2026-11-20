@@ -95,6 +95,47 @@ describe('pickModel', () => {
   });
 });
 
+describe('pickModel — standard versus deep reasoning tiers', () => {
+  beforeEach(() => __resetModelUsageForTests());
+
+  it('uses Sol for a standard complex operational analysis', () => {
+    const choice = pickModel({
+      task: 'orchestrate',
+      text: 'Сравни выручку и долги за прошлую неделю.',
+      miniModel: 'gpt-6-luna',
+      fullModel: 'gpt-6.2-sol',
+      deepModel: 'gpt-6.2-astra',
+      miniSupportsReasoning: false,
+      fullSupportsReasoning: false,
+      deepSupportsReasoning: true,
+      fullBudget: 240_000,
+      fullUsed: 0,
+    });
+
+    expect(choice.model).toBe('gpt-6.2-sol');
+    expect(choice.reason).toBe('complex_clinic_query');
+  });
+
+  it('uses Astra for a deep clinical reasoning request', () => {
+    const choice = pickModel({
+      task: 'orchestrate',
+      text: 'Проведи дифференциальный анализ и составь план лечения с рисками.',
+      miniModel: 'gpt-6-luna',
+      fullModel: 'gpt-6.2-sol',
+      deepModel: 'gpt-6.2-astra',
+      miniSupportsReasoning: false,
+      fullSupportsReasoning: false,
+      deepSupportsReasoning: true,
+      fullBudget: 240_000,
+      fullUsed: 0,
+    });
+
+    expect(choice.model).toBe('gpt-6.2-astra');
+    expect(choice.reason).toBe('deep_reasoning_query');
+    expect(choice.supportsReasoning).toBe(true);
+  });
+});
+
 describe('supportsReasoning', () => {
   // `reasoning` used to be sent on every request, including to gpt-4o, which
   // has no such mode. The predicate is what keeps it off those models.
