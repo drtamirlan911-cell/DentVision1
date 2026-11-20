@@ -68,7 +68,9 @@ const readyOrganization = {
 };
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  // Clear one-shot mock implementations as well as call history so a prior
+  // role-denial fixture cannot leak into a later queue-boundary test.
+  vi.resetAllMocks();
   organizationFindUnique.mockResolvedValue(readyOrganization);
   diagnosticCenterMemberFindFirst.mockResolvedValue({ role: 'admin', center: { id: 'center-1', name: 'Center One', active: true } });
   referralCount.mockResolvedValue(1);
