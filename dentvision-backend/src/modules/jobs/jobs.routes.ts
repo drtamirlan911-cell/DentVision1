@@ -214,7 +214,11 @@ jobsRouter.get('/employer/resumes', authenticate, requirePermission('jobs.read')
     if (scope.employerOrganizationId && !scope.canPublish) return res.status(409).json({ ok: false, error: 'Доступ к поиску кандидатов откроется после юридической проверки работодателя', code: 'EMPLOYER_VERIFICATION_REQUIRED' } satisfies ApiResponse);
     const resumes = await prisma.jobVacancy.findMany({
       where: { kind: 'resume', status: 'open' },
-      select: { id: true, title: true, clinicName: true, city: true, salary: true, employmentType: true, description: true, tags: true, createdAt: true },
+      select: {
+        id: true, title: true, city: true, salary: true, employmentType: true,
+        description: true, tags: true, createdAt: true,
+        user: { select: { firstName: true, lastName: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
     return res.json({ ok: true, data: resumes } satisfies ApiResponse);
@@ -313,6 +317,27 @@ jobsRouter.patch('/employer/applications/:id/status', authenticate, requirePermi
       if (changed.count !== 1) return null;
       const result = await tx.jobApplication.findUnique({ where: { id: application.id } });
       if (!result) throw new Error('Updated Jobs application could not be read inside transaction');
+      await tx.jobApplicationEvent.create({
+        data: {
+          id: uid(), applicationId: application.id, actorUserId: req.user!.id,
+          eventType: 'status_changed', fromStatus: application.status, toStatus: nextStatus,
+          candidateVisible: true,
+          message: nextStatus === 'reviewing' ? 'Работодатель начал рассматривать ваш отклик.'
+            : nextStatus === 'rejected' ? 'Работодатель завершил рассмотрение отклика.'
+            : nextStatus === 'interview' ? 'Работодатель перевёл отклик на этап собеседования.'
+            : nextStatus === 'offer' ? 'Работодатель отправил предложение о работе.'
+            : nextStatus === 'hired' ? 'Работодатель отметил ваше трудоустройство.'
+            : 'Работодатель обновил статус отклика.',
+        },
+      });
+      await tx.notification.create({
+        data: {
+          id: uid(), userId: application.userId, type: 'JOB_APPLICATION_STATUS',
+          title: 'Изменился статус отклика',
+          message: `${application.vacancy.title} · ${nextStatus}`,
+          link: '/career/applications',
+        },
+      });
       await auditFromReq(req, {
         action: 'jobs.application.status_changed',
         entity: 'job_application',
@@ -329,6 +354,365 @@ jobsRouter.patch('/employer/applications/:id/status', authenticate, requirePermi
   }
 });
 
+
+jobsRouter.post('/employer/invitations', authenticate, requirePermission('jobs.write'), async (req: AuthRequest, res) => {
+  try {
+    const scope = await activeJobEmployerScope(req);
+    if (!scope) return res.status(403).json({ ok: false, error: 'Рабочий контекст работодателя не подтверждён', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
+    if (scope.employerOrganizationId && !scope.canPublish) return res.status(409).json({ ok: false, error: 'Приглашения кандидатам доступны после юридической проверки работодателя', code: 'EMPLOYER_VERIFICATION_REQUIRED' } satisfies ApiResponse);
+    if (!(await ensureJobWriteAllowed(scope, res))) return;
+
+    const resumeId = String(req.body?.resumeId || '').trim();
+    if (!resumeId) return res.status(400).json({ ok: false, error: 'resumeId обязателен' } satisfies ApiResponse);
+    const resume = await prisma.jobVacancy.findFirst({
+      where: { id: resumeId, kind: 'resume', status: 'open' },
+      select: { id: true, userId: true, title: true },
+    });
+    if (!resume?.userId || resume.userId === req.user!.id) return res.status(404).json({ ok: false, error: 'Открытое резюме не найдено' } satisfies ApiResponse);
+
+    const vacancyId = req.body?.vacancyId ? String(req.body.vacancyId) : null;
+    if (vacancyId) {
+      const vacancy = await prisma.jobVacancy.findFirst({
+        where: { id: vacancyId, ...ownedVacancyWhere(scope), kind: 'vacancy', status: 'open' },
+        select: { id: true },
+      });
+      if (!vacancy) return res.status(404).json({ ok: false, error: 'Вакансия не найдена в активной организации' } satisfies ApiResponse);
+    }
+
+    const duplicate = await prisma.jobInvitation.findFirst({
+      where: {
+        candidateUserId: resume.userId, resumeId: resume.id,
+        employerOrganizationId: scope.employerOrganizationId, senderUserId: req.user!.id,
+        status: 'pending', OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      select: { id: true },
+    });
+    if (duplicate) return res.status(409).json({ ok: false, error: 'Приглашение этому кандидату уже ожидает ответа', code: 'INVITATION_ALREADY_PENDING' } satisfies ApiResponse);
+
+    const invitation = await prisma.$transaction(async (tx) => {
+      const created = await tx.jobInvitation.create({
+        data: {
+          id: uid(), candidateUserId: resume.userId!, senderUserId: req.user!.id,
+          employerOrganizationId: scope.employerOrganizationId, vacancyId, resumeId: resume.id,
+          employerNameSnapshot: scope.clinicName, message: String(req.body?.message || '').trim() || null,
+          expiresAt: req.body?.expiresAt ? new Date(String(req.body.expiresAt)) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      });
+      await tx.notification.create({
+        data: {
+          id: uid(), userId: resume.userId!, type: 'JOB_INVITATION',
+          title: 'Новое приглашение от работодателя',
+          message: \`\${scope.clinicName} пригласил вас рассмотреть предложение.\`,
+          link: '/career/invitations',
+        },
+      });
+      await auditFromReq(req, { action: 'jobs.invitation.created', entity: 'job_invitation', entityId: created.id, details: { resumeId: resume.id, vacancyId, employerOrganizationId: scope.employerOrganizationId } }, tx);
+      return created;
+    });
+    return res.status(201).json({ ok: true, data: invitation } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Create candidate invitation error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось отправить приглашение' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.get('/me/invitations', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const invitations = await prisma.jobInvitation.findMany({
+      where: { candidateUserId: req.user!.id },
+      include: {
+        employer: { select: { id: true, name: true, logo: true } },
+        vacancy: { select: { id: true, title: true, city: true, salary: true, employmentType: true, status: true } },
+        resume: { select: { id: true, title: true, status: true } },
+        sender: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return res.json({ ok: true, data: invitations } satisfies ApiResponse);
+  } catch (error) {
+    console.error('List candidate invitations error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить приглашения' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.patch('/me/invitations/:id/respond', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const response = String(req.body?.response || '').trim().toLowerCase();
+    if (!['accepted', 'declined'].includes(response)) return res.status(400).json({ ok: false, error: 'response должен быть accepted или declined' } satisfies ApiResponse);
+    const invitation = await prisma.jobInvitation.findFirst({ where: { id: String(req.params.id), candidateUserId: req.user!.id } });
+    if (!invitation) return res.status(404).json({ ok: false, error: 'Приглашение не найдено' } satisfies ApiResponse);
+    if (invitation.status !== 'pending') return res.status(409).json({ ok: false, error: 'На это приглашение уже ответили', code: 'INVITATION_ALREADY_RESPONDED' } satisfies ApiResponse);
+    if (invitation.expiresAt && invitation.expiresAt <= new Date()) {
+      await prisma.jobInvitation.updateMany({ where: { id: invitation.id, status: 'pending' }, data: { status: 'expired' } });
+      return res.status(410).json({ ok: false, error: 'Срок приглашения истёк', code: 'INVITATION_EXPIRED' } satisfies ApiResponse);
+    }
+    const updated = await prisma.$transaction(async (tx) => {
+      const changed = await tx.jobInvitation.updateMany({
+        where: { id: invitation.id, candidateUserId: req.user!.id, status: 'pending' },
+        data: { status: response, respondedAt: new Date() },
+      });
+      if (changed.count !== 1) return null;
+      const row = await tx.jobInvitation.findUnique({ where: { id: invitation.id } });
+      if (!row) throw new Error('Updated invitation could not be read');
+      await tx.notification.create({
+        data: {
+          id: uid(), userId: invitation.senderUserId, type: 'JOB_INVITATION_RESPONSE',
+          title: response === 'accepted' ? 'Кандидат принял приглашение' : 'Кандидат отклонил приглашение',
+          message: \`Приглашение от \${invitation.employerNameSnapshot}\`, link: '/employer',
+        },
+      });
+      await auditFromReq(req, { action: 'jobs.invitation.responded', entity: 'job_invitation', entityId: invitation.id, details: { response, employerOrganizationId: invitation.employerOrganizationId } }, tx);
+      return row;
+    });
+    if (!updated) return res.status(409).json({ ok: false, error: 'Приглашение уже изменилось. Обновите список.', code: 'INVITATION_CONFLICT' } satisfies ApiResponse);
+    return res.json({ ok: true, data: updated } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Respond to candidate invitation error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось ответить на приглашение' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.post('/employer/applications/:id/interviews', authenticate, requirePermission('jobs.write'), async (req: AuthRequest, res) => {
+  try {
+    const scope = await activeJobEmployerScope(req);
+    if (!scope) return res.status(403).json({ ok: false, error: 'Рабочий контекст работодателя не подтверждён', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
+    if (!(await ensureJobWriteAllowed(scope, res))) return;
+    const application = await prisma.jobApplication.findUnique({ where: { id: String(req.params.id) }, include: { vacancy: true } });
+    if (!application || application.vacancy.kind !== 'vacancy') return res.status(404).json({ ok: false, error: 'Отклик не найден' } satisfies ApiResponse);
+    const owned = scope.employerOrganizationId
+      ? application.vacancy.employerOrganizationId === scope.employerOrganizationId
+      : application.vacancy.clinicId === scope.clinicId && !application.vacancy.employerOrganizationId;
+    if (!owned) return res.status(404).json({ ok: false, error: 'Отклик не найден' } satisfies ApiResponse);
+
+    const scheduledAt = new Date(String(req.body?.scheduledAt || ''));
+    const durationMinutes = Number(req.body?.durationMinutes || 30);
+    const timezone = String(req.body?.timezone || 'Asia/Almaty').trim();
+    const mode = String(req.body?.mode || 'online').trim().toLowerCase();
+    let validTimezone = false;
+    try { new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date()); validTimezone = true; } catch { validTimezone = false; }
+    if (!Number.isFinite(scheduledAt.getTime()) || scheduledAt <= new Date()) return res.status(400).json({ ok: false, error: 'Укажите будущую дату собеседования' } satisfies ApiResponse);
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 180) return res.status(400).json({ ok: false, error: 'Продолжительность должна быть от 15 до 180 минут' } satisfies ApiResponse);
+    if (!validTimezone) return res.status(400).json({ ok: false, error: 'Некорректная временная зона' } satisfies ApiResponse);
+    if (!['online', 'in_person', 'phone'].includes(mode)) return res.status(400).json({ ok: false, error: 'Некорректный формат собеседования' } satisfies ApiResponse);
+    if (mode === 'online' && !String(req.body?.meetingUrl || '').trim()) return res.status(400).json({ ok: false, error: 'Для онлайн-собеседования нужна ссылка' } satisfies ApiResponse);
+    if (mode === 'in_person' && !String(req.body?.location || '').trim()) return res.status(400).json({ ok: false, error: 'Укажите место встречи' } satisfies ApiResponse);
+    if (!['reviewing', 'interview'].includes(application.status)) return res.status(409).json({ ok: false, error: 'Сначала переведите отклик на рассмотрение', code: 'APPLICATION_NOT_READY_FOR_INTERVIEW' } satisfies ApiResponse);
+
+    const interview = await prisma.$transaction(async (tx) => {
+      if (application.status === 'reviewing') {
+        const changed = await tx.jobApplication.updateMany({ where: { id: application.id, status: 'reviewing' }, data: { status: 'interview' } });
+        if (changed.count !== 1) return null;
+        await tx.jobApplicationEvent.create({
+          data: { id: uid(), applicationId: application.id, actorUserId: req.user!.id, eventType: 'status_changed', fromStatus: 'reviewing', toStatus: 'interview', candidateVisible: true, message: 'Работодатель пригласил вас на собеседование.' },
+        });
+      }
+      const created = await tx.jobInterview.create({
+        data: {
+          id: uid(), applicationId: application.id, candidateUserId: application.userId, createdByUserId: req.user!.id,
+          employerOrganizationId: scope.employerOrganizationId, employerNameSnapshot: scope.clinicName,
+          scheduledAt, durationMinutes, timezone, mode,
+          meetingUrl: mode === 'online' ? String(req.body?.meetingUrl || '').trim() : null,
+          location: mode === 'in_person' ? String(req.body?.location || '').trim() : null,
+          agenda: String(req.body?.agenda || '').trim() || null, status: 'proposed',
+        },
+      });
+      await tx.notification.create({
+        data: { id: uid(), userId: application.userId, type: 'JOB_INTERVIEW_PROPOSED', title: 'Вас пригласили на собеседование', message: \`\${scope.clinicName} · \${application.vacancy.title}\`, link: '/career/interviews' },
+      });
+      await auditFromReq(req, { action: 'jobs.interview.scheduled', entity: 'job_interview', entityId: created.id, details: { applicationId: application.id, scheduledAt: scheduledAt.toISOString(), timezone, mode } }, tx);
+      return created;
+    });
+    if (!interview) return res.status(409).json({ ok: false, error: 'Отклик изменился параллельно. Обновите страницу.', code: 'APPLICATION_CONFLICT' } satisfies ApiResponse);
+    return res.status(201).json({ ok: true, data: interview } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Create interview error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось назначить собеседование' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.get('/me/interviews', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const interviews = await prisma.jobInterview.findMany({
+      where: { candidateUserId: req.user!.id },
+      include: {
+        employer: { select: { id: true, name: true, logo: true } },
+        application: { include: { vacancy: { select: { id: true, title: true, city: true } } } },
+        createdBy: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { scheduledAt: 'asc' },
+    });
+    return res.json({ ok: true, data: interviews } satisfies ApiResponse);
+  } catch (error) {
+    console.error('List candidate interviews error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить собеседования' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.patch('/me/interviews/:id/respond', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const response = String(req.body?.response || '').trim().toLowerCase();
+    if (!['confirmed', 'declined', 'reschedule_requested'].includes(response)) return res.status(400).json({ ok: false, error: 'Некорректный ответ на приглашение' } satisfies ApiResponse);
+    const interview = await prisma.jobInterview.findFirst({ where: { id: String(req.params.id), candidateUserId: req.user!.id } });
+    if (!interview) return res.status(404).json({ ok: false, error: 'Собеседование не найдено' } satisfies ApiResponse);
+    if (interview.status !== 'proposed') return res.status(409).json({ ok: false, error: 'Собеседование уже подтверждено или закрыто' } satisfies ApiResponse);
+    const updated = await prisma.$transaction(async (tx) => {
+      const changed = await tx.jobInterview.updateMany({
+        where: { id: interview.id, candidateUserId: req.user!.id, status: 'proposed' },
+        data: { status: response, candidateResponse: response, candidateRespondedAt: new Date() },
+      });
+      if (changed.count !== 1) return null;
+      const row = await tx.jobInterview.findUnique({ where: { id: interview.id } });
+      if (!row) throw new Error('Updated interview could not be read');
+      await tx.jobApplicationEvent.create({
+        data: {
+          id: uid(), applicationId: interview.applicationId, actorUserId: req.user!.id,
+          eventType: 'interview_candidate_response', candidateVisible: true,
+          message: response === 'confirmed' ? 'Вы подтвердили собеседование.'
+            : response === 'declined' ? 'Вы отклонили предложенное время собеседования.'
+            : 'Вы попросили работодателя перенести собеседование.',
+          metadata: { interviewId: interview.id, response },
+        },
+      });
+      await tx.notification.create({
+        data: {
+          id: uid(), userId: interview.createdByUserId, type: 'JOB_INTERVIEW_RESPONSE',
+          title: 'Кандидат ответил на приглашение',
+          message: response === 'confirmed' ? 'Собеседование подтверждено.' : response === 'declined' ? 'Кандидат отклонил собеседование.' : 'Кандидат просит перенести собеседование.',
+          link: '/employer',
+        },
+      });
+      await auditFromReq(req, { action: 'jobs.interview.candidate_responded', entity: 'job_interview', entityId: interview.id, details: { response } }, tx);
+      return row;
+    });
+    if (!updated) return res.status(409).json({ ok: false, error: 'Собеседование изменилось. Обновите список.', code: 'INTERVIEW_CONFLICT' } satisfies ApiResponse);
+    return res.json({ ok: true, data: updated } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Respond to interview error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось ответить на приглашение' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.post('/employer/applications/:id/offers', authenticate, requirePermission('jobs.write'), async (req: AuthRequest, res) => {
+  try {
+    const scope = await activeJobEmployerScope(req);
+    if (!scope) return res.status(403).json({ ok: false, error: 'Рабочий контекст работодателя не подтверждён', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
+    if (!(await ensureJobWriteAllowed(scope, res))) return;
+    const application = await prisma.jobApplication.findUnique({ where: { id: String(req.params.id) }, include: { vacancy: true } });
+    if (!application || application.vacancy.kind !== 'vacancy') return res.status(404).json({ ok: false, error: 'Отклик не найден' } satisfies ApiResponse);
+    const owned = scope.employerOrganizationId
+      ? application.vacancy.employerOrganizationId === scope.employerOrganizationId
+      : application.vacancy.clinicId === scope.clinicId && !application.vacancy.employerOrganizationId;
+    if (!owned) return res.status(404).json({ ok: false, error: 'Отклик не найден' } satisfies ApiResponse);
+    if (!['interview', 'offer'].includes(application.status)) return res.status(409).json({ ok: false, error: 'Сначала проведите собеседование', code: 'APPLICATION_NOT_READY_FOR_OFFER' } satisfies ApiResponse);
+
+    const title = String(req.body?.title || application.vacancy.title).trim();
+    const employmentType = String(req.body?.employmentType || application.vacancy.employmentType || '').trim();
+    const expiresAt = new Date(String(req.body?.expiresAt || ''));
+    if (!title || !employmentType) return res.status(400).json({ ok: false, error: 'Укажите должность и тип занятости' } satisfies ApiResponse);
+    if (!Number.isFinite(expiresAt.getTime()) || expiresAt <= new Date() || expiresAt > new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) return res.status(400).json({ ok: false, error: 'Срок действия предложения должен быть в пределах 30 дней' } satisfies ApiResponse);
+
+    const offer = await prisma.$transaction(async (tx) => {
+      const previous = await tx.jobOffer.findFirst({ where: { applicationId: application.id }, orderBy: { version: 'desc' }, select: { version: true } });
+      if (application.status === 'interview') {
+        const changed = await tx.jobApplication.updateMany({ where: { id: application.id, status: 'interview' }, data: { status: 'offer' } });
+        if (changed.count !== 1) return null;
+        await tx.jobApplicationEvent.create({
+          data: { id: uid(), applicationId: application.id, actorUserId: req.user!.id, eventType: 'status_changed', fromStatus: 'interview', toStatus: 'offer', candidateVisible: true, message: 'Работодатель отправил вам предложение о работе.' },
+        });
+      }
+      const created = await tx.jobOffer.create({
+        data: {
+          id: uid(), applicationId: application.id, vacancyId: application.vacancyId,
+          candidateUserId: application.userId, createdByUserId: req.user!.id,
+          employerOrganizationId: scope.employerOrganizationId, employerNameSnapshot: scope.clinicName,
+          title, salary: req.body?.salary != null ? String(req.body.salary) : application.vacancy.salary || null,
+          currency: String(req.body?.currency || 'KZT'), employmentType,
+          startAt: req.body?.startAt ? new Date(String(req.body.startAt)) : null,
+          expiresAt, version: (previous?.version || 0) + 1,
+          terms: req.body?.terms && typeof req.body.terms === 'object' ? req.body.terms : undefined,
+        },
+      });
+      await tx.notification.create({
+        data: { id: uid(), userId: application.userId, type: 'JOB_OFFER_RECEIVED', title: 'Вы получили предложение о работе', message: \`\${scope.clinicName} · \${title}\`, link: '/career/offers' },
+      });
+      await tx.jobApplicationEvent.create({
+        data: { id: uid(), applicationId: application.id, actorUserId: req.user!.id, eventType: 'offer_sent', candidateVisible: true, message: 'Вам отправлено предложение о работе.', metadata: { offerId: created.id, version: created.version } },
+      });
+      await auditFromReq(req, { action: 'jobs.offer.created', entity: 'job_offer', entityId: created.id, details: { applicationId: application.id, version: created.version, employerOrganizationId: scope.employerOrganizationId } }, tx);
+      return created;
+    });
+    if (!offer) return res.status(409).json({ ok: false, error: 'Отклик изменился параллельно. Обновите страницу.', code: 'APPLICATION_CONFLICT' } satisfies ApiResponse);
+    return res.status(201).json({ ok: true, data: offer } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Create employment offer error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось отправить предложение' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.get('/me/offers', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const offers = await prisma.jobOffer.findMany({
+      where: { candidateUserId: req.user!.id },
+      include: {
+        employer: { select: { id: true, name: true, logo: true } },
+        vacancy: { select: { id: true, title: true, city: true, status: true } },
+        application: { select: { id: true, status: true } },
+        createdBy: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return res.json({ ok: true, data: offers } satisfies ApiResponse);
+  } catch (error) {
+    console.error('List candidate offers error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить предложения о работе' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.patch('/me/offers/:id/respond', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const response = String(req.body?.response || '').trim().toLowerCase();
+    if (!['accepted', 'declined'].includes(response)) return res.status(400).json({ ok: false, error: 'response должен быть accepted или declined' } satisfies ApiResponse);
+    const offer = await prisma.jobOffer.findFirst({ where: { id: String(req.params.id), candidateUserId: req.user!.id } });
+    if (!offer) return res.status(404).json({ ok: false, error: 'Предложение не найдено' } satisfies ApiResponse);
+    if (offer.status !== 'sent') return res.status(409).json({ ok: false, error: 'Предложение уже обработано', code: 'OFFER_ALREADY_RESPONDED' } satisfies ApiResponse);
+    if (offer.expiresAt <= new Date()) {
+      await prisma.jobOffer.updateMany({ where: { id: offer.id, candidateUserId: req.user!.id, status: 'sent' }, data: { status: 'expired' } });
+      return res.status(410).json({ ok: false, error: 'Срок предложения истёк', code: 'OFFER_EXPIRED' } satisfies ApiResponse);
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const changed = await tx.jobOffer.updateMany({
+        where: { id: offer.id, candidateUserId: req.user!.id, status: 'sent' },
+        data: { status: response, respondedAt: new Date(), candidateMessage: String(req.body?.message || '').trim() || null },
+      });
+      if (changed.count !== 1) return null;
+      const row = await tx.jobOffer.findUnique({ where: { id: offer.id } });
+      if (!row) throw new Error('Updated offer could not be read');
+      if (offer.applicationId) {
+        await tx.jobApplicationEvent.create({
+          data: {
+            id: uid(), applicationId: offer.applicationId, actorUserId: req.user!.id,
+            eventType: response === 'accepted' ? 'offer_accepted' : 'offer_declined',
+            candidateVisible: true,
+            message: response === 'accepted' ? 'Вы приняли предложение о работе. Для трудоустройства требуется отдельное оформление договора.' : 'Вы отклонили предложение о работе.',
+            metadata: { offerId: offer.id, version: offer.version },
+          },
+        });
+      }
+      await tx.notification.create({
+        data: { id: uid(), userId: offer.createdByUserId, type: 'JOB_OFFER_RESPONSE', title: response === 'accepted' ? 'Кандидат принял предложение' : 'Кандидат отклонил предложение', message: \`\${offer.title} · версия \${offer.version}\`, link: '/employer' },
+      });
+      await auditFromReq(req, { action: 'jobs.offer.responded', entity: 'job_offer', entityId: offer.id, details: { response, version: offer.version } }, tx);
+      return row;
+    });
+    if (!updated) return res.status(409).json({ ok: false, error: 'Предложение уже изменилось. Обновите список.', code: 'OFFER_CONFLICT' } satisfies ApiResponse);
+    return res.json({ ok: true, data: updated, note: 'EMPLOYMENT_CONTRACT_REQUIRED' } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Respond to employment offer error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось ответить на предложение' } satisfies ApiResponse);
+  }
+});
+
 jobsRouter.get('/me/applications', authenticate, async (req: AuthRequest, res) => {
   try {
     const apps = await prisma.jobApplication.findMany({
@@ -342,14 +726,15 @@ jobsRouter.get('/me/applications', authenticate, async (req: AuthRequest, res) =
         updatedAt: true,
         vacancy: {
           select: {
-            id: true,
-            title: true,
-            clinicName: true,
-            city: true,
-            salary: true,
-            employmentType: true,
-            status: true,
+            id: true, title: true, clinicName: true, city: true, salary: true, employmentType: true, status: true,
+            employerOrganization: { select: { id: true, name: true, logo: true } },
+            clinic: { select: { id: true, name: true } },
           },
+        },
+        events: {
+          where: { candidateVisible: true },
+          select: { id: true, eventType: true, fromStatus: true, toStatus: true, message: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -512,11 +897,19 @@ jobsRouter.post('/:id/apply', authenticate, async (req: AuthRequest, res) => {
           coverNote: req.body?.coverNote || '', status: 'new',
         },
       });
+      await tx.jobApplicationEvent.create({
+        data: {
+          id: uid(), applicationId: application.id, actorUserId: req.user!.id,
+          eventType: 'application_submitted', toStatus: 'new',
+          candidateVisible: true, message: 'Вы отправили отклик на эту вакансию.',
+          metadata: { source: 'candidate_application' },
+        },
+      });
       await auditFromReq(req, {
         action: 'jobs.application.created',
         entity: 'job_application',
         entityId: application.id,
-        details: { vacancyId: vacancy.id },
+        details: { vacancyId: vacancy.id, source: 'candidate_application' },
       }, tx);
       return { application, created: true };
     });
