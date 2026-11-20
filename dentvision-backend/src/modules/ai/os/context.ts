@@ -19,6 +19,7 @@ import { safeErrorKind } from '../../../lib/safeError.js';
 import { resolveOrganizationIdForClinic, resolveClinicAccess } from '../../../lib/orgContext.js';
 import { stageFromPath } from '../lib/platformMap.js';
 import { roleLabelFor, buildWorkspaceContexts, type WorkspaceContext } from '../../iam/contexts.js';
+import { resolveAiEmployeeTaskScope } from './aiEmployeeTaskScope.js';
 import type { AuthRequest } from '../../../types/index.js';
 
 export interface ContextHints {
@@ -93,13 +94,21 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints = {})
   let workspace: AiRequestContext['workspace'] = null;
   let branch: AiRequestContext['branch'] = null;
 
-  // Branch is part of the authorization chain, not UI decoration. Resolve it
-  // only from the authenticated context and verify it belongs to the active
-  // clinic/organization before exposing it to the AI prompt.
-  if (user.branchId) {
+  // Branch is part of the authorization chain, not UI decoration. A JWT
+  // branchId is only a selection hint: resolveAiEmployeeTaskScope rechecks the
+  // active tenant, current role and BranchMember/ClinicMember relation against
+  // the database. Never expose a branch based on tenant equality alone.
+  let verifiedBranchId: string | null = null;
+  try {
+    const taskScope = await resolveAiEmployeeTaskScope(user);
+    verifiedBranchId = taskScope?.branchId || null;
+  } catch (error: unknown) {
+    console.warn('[AI context] branch scope resolution failed', safeErrorKind(error));
+  }
+  if (verifiedBranchId) {
     try {
       const candidate = await prisma.branch.findUnique({
-        where: { id: user.branchId },
+        where: { id: verifiedBranchId },
         select: { id: true, name: true, code: true, organizationId: true, clinicId: true },
       });
       const branchAllowed = Boolean(
