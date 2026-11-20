@@ -26,6 +26,7 @@ import { scrubToolOutput } from '../lib/piiScrubber.js';
 import { createReferral } from '../../diagnostics/diagnostics.service.js';
 import { prepareLabOrderWrite, VALID_STATUSES as VALID_LAB_STATUSES } from '../../lab/lab.routes.js';
 import { getDentalLabWorkQueue, getDiagnosticCenterWorkQueue, getSupplierInventoryOverview } from './partnerWorkspaceTools.js';
+import { getLecturerCoursesOverview } from './educationWorkspaceTools.js';
 import {
   NAV_PATHS,
   NAV_SECTION_LABELS,
@@ -927,6 +928,21 @@ export const TOOLS: Record<string, ToolSpec> = {
       const items = await prisma.inventoryItem.findMany({ where: { clinicId }, orderBy: { name: 'asc' }, take: 100 });
       const filtered = args.lowStockOnly ? items.filter((i) => i.quantity <= i.minimum) : items;
       return { ok: true, data: filtered };
+    },
+  },
+
+  getLecturerCoursesOverview: {
+    name: 'getLecturerCoursesOverview',
+    description: 'Курсы текущего лектора в Academy: название, формат, категория, даты, количество записавшихся и уроков. Только собственные курсы; без списка студентов, баланса и выплат.',
+    parameters: { type: 'object', properties: {} },
+    async execute(_args, ctx) {
+      const result = await getLecturerCoursesOverview({
+        userId: ctx.userId,
+        lecturerId: ctx.lecturerId || null,
+        role: ctx.role,
+      });
+      if (!result.ok) return { ok: false, error: result.error };
+      return { ok: true, data: result.data };
     },
   },
 

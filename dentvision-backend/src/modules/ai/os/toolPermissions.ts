@@ -83,6 +83,8 @@ export const UNGATED_TOOLS: readonly string[] = [
   // Supplier inventory is read-only and independently verifies the active
   // Supplier organization plus canonical/legacy membership.
   'getSupplierInventoryOverview',
+  // Lecturer course overview rechecks Lecturer.userId and never returns learner identities.
+  'getLecturerCoursesOverview',
 ];
 
 // The action ladder lives in lib/permissions.ts — the AI intent router needs

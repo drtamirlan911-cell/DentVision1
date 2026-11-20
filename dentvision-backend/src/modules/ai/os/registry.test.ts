@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { agentsForRole, listAgents, toolsForRole } from './registry.js';
+import { listToolNames } from './tools.js';
 
 describe('AI OS agent registry', () => {
   it('registers the core clinical specialty agents', () => {
@@ -27,6 +28,20 @@ describe('AI OS agent registry', () => {
     expect(doctorTools.has('analyzeRadiograph')).toBe(true);
     expect(doctorTools.has('createTreatmentPlan')).toBe(true);
   });
+  it('keeps every agent tool reference backed by a registered executor', () => {
+    const registered = new Set(listToolNames());
+    const missing = listAgents().flatMap((agent) =>
+      agent.allowedTools.filter((toolName) => !registered.has(toolName)).map((toolName) => agent.id + ':' + toolName),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it('exposes lecturer-owned course overview only to lecturer role', () => {
+    expect(toolsForRole('LECTURER').has('getLecturerCoursesOverview')).toBe(true);
+    expect(toolsForRole('STUDENT').has('getLecturerCoursesOverview')).toBe(false);
+    expect(toolsForRole('DOCTOR').has('getLecturerCoursesOverview')).toBe(false);
+  });
+
   it('exposes the diagnostic-center queue only to diagnostic-center roles', () => {
     expect(toolsForRole('DIAGNOSTIC_OWNER').has('getDiagnosticCenterWorkQueue')).toBe(true);
     expect(toolsForRole('DIAGNOSTIC_OPERATOR').has('getDiagnosticCenterWorkQueue')).toBe(true);

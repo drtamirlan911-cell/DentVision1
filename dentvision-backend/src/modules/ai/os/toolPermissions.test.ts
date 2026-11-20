@@ -21,8 +21,10 @@ describe('TOOL_PERMISSIONS coverage', () => {
     expect(UNGATED_TOOLS).toContain('getDentalLabWorkQueue');
     expect(UNGATED_TOOLS).toContain('getDiagnosticCenterWorkQueue');
     expect(UNGATED_TOOLS).toContain('getSupplierInventoryOverview');
+    expect(UNGATED_TOOLS).toContain('getLecturerCoursesOverview');
     expect(TOOL_PERMISSIONS).not.toHaveProperty('getDentalLabWorkQueue');
     expect(TOOL_PERMISSIONS).not.toHaveProperty('getSupplierInventoryOverview');
+    expect(TOOL_PERMISSIONS).not.toHaveProperty('getLecturerCoursesOverview');
   });
 
   it('gates every mutating tool', () => {
