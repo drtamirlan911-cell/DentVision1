@@ -16,6 +16,13 @@ export interface AiPrincipal {
   userId: string;
   /** Requested clinic scope — NEVER trusted as-is; re-verified inside the kernel. */
   requestedClinicId: string | null;
+  /** Requested unified workspace scope — re-verified against Organization + membership inside the kernel. */
+  requestedOrganizationId?: string | null;
+  /** Context hint only; the canonical type is read from the database. */
+  requestedOrganizationType?: string | null;
+  /** Legacy partner entity ids — membership is re-verified inside the kernel. */
+  supplierId?: string | null;
+  lecturerId?: string | null;
   isGuest?: boolean;
   /** Set only on the patient surface. */
   patientId?: string | null;

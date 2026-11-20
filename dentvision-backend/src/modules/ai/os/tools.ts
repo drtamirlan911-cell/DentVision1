@@ -41,6 +41,11 @@ export interface ToolContext {
   userId: string;
   clinicId: string | null;
   role: string;
+  /** Verified organization context is re-resolved inside the governance kernel before execution. */
+  organizationId?: string | null;
+  organizationType?: string | null;
+  supplierId?: string | null;
+  lecturerId?: string | null;
   /** What's open in the caller's workspace (os/context.ts) — the kernel may use it to fill a missing patientId, never a tool directly. */
   entity?: { type: string; id: string } | null;
 }
@@ -1574,7 +1579,16 @@ export async function executeTool(
 ): Promise<ToolResult> {
   const { runAiAction } = await import('./kernel.js');
   const result = await runAiAction(
-    { surface: 'staff', userId: ctx.userId, requestedClinicId: ctx.clinicId, entity: ctx.entity },
+    {
+      surface: 'staff',
+      userId: ctx.userId,
+      requestedClinicId: ctx.clinicId,
+      requestedOrganizationId: ctx.organizationId,
+      requestedOrganizationType: ctx.organizationType,
+      supplierId: ctx.supplierId,
+      lecturerId: ctx.lecturerId,
+      entity: ctx.entity,
+    },
     { tool: name, args },
   );
   if (result.status === 'ok') return result.data as ToolResult;

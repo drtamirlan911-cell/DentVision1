@@ -840,6 +840,10 @@ aiRouter.post('/action', authenticate, async (req: AuthRequest, res) => {
       userId: req.user!.id,
       clinicId: access.clinicId,
       role: access.role,
+      organizationId: access.organizationId,
+      organizationType: access.organizationType,
+      supplierId: access.supplierId,
+      lecturerId: access.lecturerId,
     }, allowed);
 
     if (!result.ok) return res.json({ ok: true, data: { type: 'error', message: result.error } });
@@ -1066,6 +1070,10 @@ aiRouter.post('/confirm', authenticate, async (req: AuthRequest, res) => {
         userId: req.user!.id,
         clinicId: access.clinicId,
         role: access.role,
+        organizationId: access.organizationId,
+        organizationType: access.organizationType,
+        supplierId: access.supplierId,
+        lecturerId: access.lecturerId,
       },
       access.allowed,
     );

@@ -149,6 +149,47 @@ describe('runAiAction — every outcome is recorded', () => {
     expect(okTool).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ clinicId: 'clinic-1' }));
   });
 
+  it('re-resolves and preserves the active partner organization through the execution boundary', async () => {
+    const partnerPrincipal = {
+      surface: 'staff' as const,
+      userId: 'user-1',
+      requestedClinicId: null,
+      requestedOrganizationId: 'diagnostic-org-1',
+      requestedOrganizationType: 'DIAGNOSTIC_CENTER',
+    };
+    resolveAiToolAccess.mockResolvedValueOnce({
+      role: 'DIAGNOSTIC_MANAGER',
+      clinicId: null,
+      organizationId: 'diagnostic-org-1',
+      organizationType: 'DIAGNOSTIC_CENTER',
+      supplierId: null,
+      lecturerId: null,
+      allowed: new Set(['getSchedule']),
+    });
+
+    const result = await runAiAction(partnerPrincipal, { tool: 'getSchedule', args: {} });
+
+    expect(result.status).toBe('ok');
+    expect(resolveAiToolAccess).toHaveBeenCalledWith({
+      userId: 'user-1',
+      clinicId: null,
+      organizationId: 'diagnostic-org-1',
+      organizationType: 'DIAGNOSTIC_CENTER',
+      isGuest: undefined,
+    });
+    expect(resolveOrganizationIdForClinic).not.toHaveBeenCalled();
+    expect(okTool).toHaveBeenCalledWith({}, expect.objectContaining({
+      clinicId: null,
+      organizationId: 'diagnostic-org-1',
+      organizationType: 'DIAGNOSTIC_CENTER',
+    }));
+    expect(activityCreate.mock.calls[0][0].data).toMatchObject({
+      clinicId: null,
+      organizationId: 'diagnostic-org-1',
+      actorRole: 'DIAGNOSTIC_MANAGER',
+    });
+  });
+
   it('maps a thrown NO_CLINIC into a structured denial and records it', async () => {
     const result = await runAiAction(PRINCIPAL, { tool: 'createInvoice', args: {} });
 
@@ -235,7 +276,7 @@ describe('runAiAction — high-risk approval gate', () => {
 
   it('executes once re-entered with a reference to a genuinely approved row', async () => {
     approvalFindUnique.mockResolvedValueOnce({
-      id: 'appr-1', status: 'approved', tool: 'cancelAppointment', clinicId: 'clinic-1',
+      id: 'appr-1', status: 'approved', tool: 'cancelAppointment', clinicId: 'clinic-1', organizationId: 'org-1',
     });
 
     const result = await runAiAction(PRINCIPAL, {
@@ -249,9 +290,28 @@ describe('runAiAction — high-risk approval gate', () => {
     expect(approvalCreate).not.toHaveBeenCalled();
   });
 
+  it('keeps a legacy clinic approval scoped to the exact verified clinic', async () => {
+    approvalFindUnique.mockResolvedValueOnce({
+      id: 'legacy-appr',
+      status: 'approved',
+      tool: 'cancelAppointment',
+      clinicId: 'clinic-1',
+      organizationId: null,
+    });
+
+    const result = await runAiAction(PRINCIPAL, {
+      tool: 'cancelAppointment',
+      args: { appointmentId: 'a1', confirmed: true },
+      approvalId: 'legacy-appr',
+    });
+
+    expect(result.status).toBe('ok');
+    expect(cancelTool).toHaveBeenCalledTimes(1);
+  });
+
   it('refuses to execute on an approvalId that does not resolve to an approved row for this tool and clinic', async () => {
     approvalFindUnique.mockResolvedValueOnce({
-      id: 'appr-1', status: 'pending', tool: 'cancelAppointment', clinicId: 'clinic-1',
+      id: 'appr-1', status: 'pending', tool: 'cancelAppointment', clinicId: 'clinic-1', organizationId: 'org-1',
     });
 
     const result = await runAiAction(PRINCIPAL, {

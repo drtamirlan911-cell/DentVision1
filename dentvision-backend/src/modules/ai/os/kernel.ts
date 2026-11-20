@@ -300,24 +300,37 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
   // step 4 below is skipped, matching their pre-kernel trust boundary exactly.
   let role: string;
   let clinicId: string | null;
+  let organizationId: string | null = null;
+  let organizationType: string | null = null;
+  let supplierId: string | null = null;
+  let lecturerId: string | null = null;
   let allowedTools: Set<string> | null = null;
   if (p.surface === 'staff') {
     const access = await resolveAiToolAccess({
       userId: p.userId,
       clinicId: p.requestedClinicId,
+      ...(p.requestedOrganizationId ? { organizationId: p.requestedOrganizationId } : {}),
+      ...(p.requestedOrganizationType ? { organizationType: p.requestedOrganizationType } : {}),
+      ...(p.supplierId ? { supplierId: p.supplierId } : {}),
+      ...(p.lecturerId ? { lecturerId: p.lecturerId } : {}),
       isGuest: p.isGuest,
     });
     role = access.role;
     clinicId = access.clinicId;
+    organizationId = access.organizationId || (clinicId ? await resolveOrganizationIdForClinic(clinicId) : null);
+    organizationType = access.organizationType;
+    supplierId = access.supplierId;
+    lecturerId = access.lecturerId;
     allowedTools = access.allowed;
   } else if (p.surface === 'patient') {
     role = 'PATIENT';
     clinicId = p.requestedClinicId;
+    organizationId = clinicId ? await resolveOrganizationIdForClinic(clinicId) : null;
   } else {
     role = 'SYSTEM';
     clinicId = p.requestedClinicId;
+    organizationId = clinicId ? await resolveOrganizationIdForClinic(clinicId) : null;
   }
-  const organizationId = clinicId ? await resolveOrganizationIdForClinic(clinicId) : null;
 
   // Step 4 — staff only. `access.allowed` already folds the agent registry
   // and TOOL_PERMISSIONS/permissionsSatisfy together (see access.ts); a
@@ -434,7 +447,14 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
         approval &&
         approval.status === 'approved' &&
         approval.tool === inv.tool &&
-        approval.clinicId === clinicId;
+        approval.clinicId === clinicId &&
+        (
+          approval.organizationId === organizationId
+          // Legacy clinic approvals predate Organization mirroring. They remain
+          // valid only for the exact same verified clinic; partner approvals
+          // always require an exact organization match.
+          || (Boolean(clinicId) && approval.organizationId == null)
+        );
       if (!valid) {
         const activityId = await recordActivity({
           traceId: inv.traceId,
@@ -517,7 +537,15 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
   let toolResult: ExecResult;
   try {
     if (p.surface === 'staff') {
-      const ctx: ToolContext = { userId: p.userId, clinicId, role };
+      const ctx: ToolContext = {
+        userId: p.userId,
+        clinicId,
+        role,
+        organizationId,
+        organizationType,
+        supplierId,
+        lecturerId,
+      };
       toolResult = await TOOLS[inv.tool].execute(args, ctx);
     } else if (p.surface === 'patient') {
       const data = await executePatientTool(inv.tool, args, {

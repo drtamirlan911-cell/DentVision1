@@ -527,7 +527,16 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
   // UNDERSTAND — the concrete tool surface, resolved from the DB above.
   const allowedTools = access.allowed;
   const toolSchemas = toolSchemasFor(allowedTools);
-  const toolCtx: ToolContext = { userId: input.userId, clinicId: input.clinicId, role: input.role, entity: input.entity };
+  const toolCtx: ToolContext = {
+    userId: input.userId,
+    clinicId: input.clinicId,
+    role: input.role,
+    organizationId: access.organizationId,
+    organizationType: access.organizationType,
+    supplierId: access.supplierId,
+    lecturerId: access.lecturerId,
+    entity: input.entity,
+  };
   const currencyCode = await resolveClinicCurrency(input.clinicId);
   // Product knowledge is retrieved locally from an allow-listed, versioned guide.
   // Do not send conversational text to a second provider: it may contain PHI.

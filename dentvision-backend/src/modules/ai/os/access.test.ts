@@ -2,18 +2,34 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   userFindUnique,
+  organizationFindUnique,
+  organizationFindFirst,
+  personFindFirst,
+  supplierMemberFindUnique,
+  lecturerFindFirst,
   resolveClinicAccess,
   resolveOrganizationIdForClinic,
   resolveUserPermissions,
 } = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
+  organizationFindUnique: vi.fn(),
+  organizationFindFirst: vi.fn(),
+  personFindFirst: vi.fn(),
+  supplierMemberFindUnique: vi.fn(),
+  lecturerFindFirst: vi.fn(),
   resolveClinicAccess: vi.fn(),
   resolveOrganizationIdForClinic: vi.fn(),
   resolveUserPermissions: vi.fn(),
 }));
 
 vi.mock('../../../lib/prisma.js', () => ({
-  default: { user: { findUnique: userFindUnique } },
+  default: {
+    user: { findUnique: userFindUnique },
+    organization: { findUnique: organizationFindUnique, findFirst: organizationFindFirst },
+    person: { findFirst: personFindFirst },
+    supplierMember: { findUnique: supplierMemberFindUnique },
+    lecturer: { findFirst: lecturerFindFirst },
+  },
 }));
 vi.mock('../../../lib/orgContext.js', () => ({ resolveClinicAccess, resolveOrganizationIdForClinic }));
 vi.mock('../../../lib/resolvePermissions.js', () => ({ resolveUserPermissions }));
@@ -42,6 +58,11 @@ const ORG_ID = 'org-1';
 
 beforeEach(() => {
   userFindUnique.mockReset();
+  organizationFindUnique.mockReset();
+  organizationFindFirst.mockReset();
+  personFindFirst.mockReset();
+  supplierMemberFindUnique.mockReset();
+  lecturerFindFirst.mockReset();
   resolveClinicAccess.mockReset();
   resolveOrganizationIdForClinic.mockReset();
   resolveUserPermissions.mockReset();
@@ -136,6 +157,112 @@ describe('resolveAiToolAccess — identity', () => {
     expect(access.role).toBe('SUPERADMIN');
     expect(access.clinicId).toBe(CLINIC_ID);
     expect(resolveClinicAccess).not.toHaveBeenCalled();
+  });
+});
+
+describe('resolveAiToolAccess — organization workspaces', () => {
+  it('resolves an active diagnostic-center role and permission scope from the database', async () => {
+    userFindUnique.mockResolvedValue({ role: 'OWNER' });
+    organizationFindUnique.mockResolvedValue({
+      id: ORG_ID,
+      type: 'DIAGNOSTIC_CENTER',
+      originalType: 'DiagnosticCenter',
+      originalId: 'center-1',
+      archivedAt: null,
+    });
+    personFindFirst.mockResolvedValue({
+      id: 'person-1',
+      personType: 'DIAGNOSTIC_MANAGER',
+      personRoles: [{
+        scopeType: 'organization',
+        scopeId: ORG_ID,
+        role: { key: 'DIAGNOSTIC_MANAGER' },
+      }],
+    });
+    resolveUserPermissions.mockResolvedValue(['diagnostics.read']);
+
+    const access = await resolveAiToolAccess({
+      userId: USER_ID,
+      organizationId: ORG_ID,
+      organizationType: 'DIAGNOSTIC_CENTER',
+    });
+
+    expect(access).toMatchObject({
+      role: 'DIAGNOSTIC_MANAGER',
+      clinicId: null,
+      organizationId: ORG_ID,
+      organizationType: 'DIAGNOSTIC_CENTER',
+      supplierId: null,
+      lecturerId: null,
+    });
+    expect(resolveUserPermissions).toHaveBeenCalledWith(USER_ID, ORG_ID, 'DIAGNOSTIC_MANAGER');
+    expect(access.allowed.has('searchProducts')).toBe(true);
+    expect(access.allowed.has('getPatientCard')).toBe(false);
+    expect(access.allowed.has('createInvoice')).toBe(false);
+  });
+
+  it('does not fall back to the global OWNER role when the active organization has no verified Person membership', async () => {
+    userFindUnique.mockResolvedValue({ role: 'OWNER' });
+    organizationFindUnique.mockResolvedValue({
+      id: ORG_ID,
+      type: 'DIAGNOSTIC_CENTER',
+      originalType: 'DiagnosticCenter',
+      originalId: 'center-1',
+      archivedAt: null,
+    });
+    personFindFirst.mockResolvedValue(null);
+
+    const access = await resolveAiToolAccess({
+      userId: USER_ID,
+      organizationId: ORG_ID,
+      organizationType: 'DIAGNOSTIC_CENTER',
+    });
+
+    expect(access.role).toBe('GUEST');
+    expect(access.organizationId).toBeNull();
+    expect(access.allowed.has('getPatientCard')).toBe(false);
+    expect(access.allowed.has('createInvoice')).toBe(false);
+    expect(resolveUserPermissions).not.toHaveBeenCalled();
+  });
+
+  it('denies an archived or missing organization without deriving tools from the global role', async () => {
+    userFindUnique.mockResolvedValue({ role: 'OWNER' });
+    organizationFindUnique.mockResolvedValue(null);
+
+    const access = await resolveAiToolAccess({
+      userId: USER_ID,
+      organizationId: ORG_ID,
+      organizationType: 'DIAGNOSTIC_CENTER',
+    });
+
+    expect(access.role).toBe('GUEST');
+    expect(access.organizationId).toBeNull();
+    expect(access.allowed.has('getPatientCard')).toBe(false);
+    expect(personFindFirst).not.toHaveBeenCalled();
+    expect(resolveUserPermissions).not.toHaveBeenCalled();
+  });
+
+  it('keeps the legacy supplier member path but verifies SupplierMember before returning supplier scope', async () => {
+    userFindUnique.mockResolvedValue({ role: 'OWNER' });
+    supplierMemberFindUnique.mockResolvedValue({ role: 'staff' });
+    organizationFindFirst.mockResolvedValue({ id: 'supplier-org-1', type: 'SUPPLIER_COMPANY' });
+    resolveUserPermissions.mockResolvedValue(['shop.read', 'shop.manage']);
+
+    const access = await resolveAiToolAccess({
+      userId: USER_ID,
+      supplierId: 'supplier-1',
+    });
+
+    expect(access).toMatchObject({
+      role: 'SUPPLIER',
+      organizationId: 'supplier-org-1',
+      organizationType: 'SUPPLIER_COMPANY',
+      supplierId: 'supplier-1',
+    });
+    expect(supplierMemberFindUnique).toHaveBeenCalledWith({
+      where: { userId_supplierId: { userId: USER_ID, supplierId: 'supplier-1' } },
+      select: { role: true },
+    });
   });
 });
 
