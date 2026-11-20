@@ -163,3 +163,6 @@ At minimum:
 - Transition result writes are projected to enumerated status/outcome strings, `verified:boolean`, and bounded aggregate count fields only; arbitrary free text, patient/entity identifiers, transcripts and nested provider responses are discarded.
 - Task create/list/transition/readback responses apply the same safe projection to legacy rows; any non-empty stored error is returned only as the fixed failure marker.
 - This is output minimization, not a historical database purge, encryption migration or authorization expansion. Organization/Branch queue remains disabled until the scope resolver and negative tests defined above are implemented.
+## 12. Current deny-by-default route test
+
+- PR #351 adds route-level tests with a verified `EMPLOYER_OWNER` Organization context. Until the organization-scoped queue exists, both task list and task transition must return 403 and must not call the clinic task service. This is an intentional fail-closed compatibility boundary, not temporary UI hiding.
