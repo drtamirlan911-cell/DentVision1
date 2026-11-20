@@ -98,6 +98,8 @@ export async function createAiEmployeeTask(input: CreateAiEmployeeTaskInput): Pr
 export async function listAiEmployeeTasks(input: {
   clinicId: string;
   userId?: string | null;
+  /** Include unassigned tasks from the caller's verified role queue. */
+  includeUnassigned?: boolean;
   role?: string | null;
   status?: AiTaskStatus | null;
   limit?: number;
@@ -112,7 +114,11 @@ export async function listAiEmployeeTasks(input: {
     WHERE clinic_id = ${input.clinicId}
       AND (${input.role || null}::text IS NULL OR role = ${input.role || null})
       AND (${input.status || null}::text IS NULL OR status = ${input.status || null})
-      AND (${input.userId || null}::text IS NULL OR user_id = ${input.userId || null})
+      AND (
+        ${input.userId || null}::text IS NULL
+        OR user_id = ${input.userId || null}
+        OR (${input.includeUnassigned === true} = TRUE AND user_id IS NULL)
+      )
     ORDER BY CASE WHEN status IN ('awaiting_approval','proposed','queued') THEN 0 ELSE 1 END, created_at DESC
     LIMIT ${limit}
   `);
