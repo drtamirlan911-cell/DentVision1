@@ -3,7 +3,7 @@
 **Canonical repo:** `drtamirlan911-cell/DentVision1`  
 **Main snapshot:** `da1257fc650f536c76583bdff570906290b92bcd`  
 **Active candidate:** [PR #351](https://github.com/drtamirlan911-cell/DentVision1/pull/351), Draft / open, branch `feat/user-jarvis-product-knowledge-20261120`.  
-**Latest inspected code/test HEAD:** `dbd7229a4d0d17152b8bc9253be196cf5e40b5c4`; 117 commits ahead / 0 behind main; 54 changed files.  
+**Latest inspected code/test HEAD:** `4ecd976b991c9bf5779be9176cedd9ea7c2647dc`; 131 commits ahead / 0 behind main; 55 changed files.  
 **Normative architecture:** Master Spec §15 — `AI Router → Active Context → Role/Workspace Context → Permission Engine → Tool Registry → Model/Reasoning → Action Validator → Preview → Confirmation when required → Execute → Verify → Audit`.
 
 ### Candidate work completed in source
