@@ -1,3 +1,17 @@
+## 2026-11-20 — Jarvis product knowledge and patient-agent failure isolation (PR #351)
+
+- Continued on the existing PR #351 / `feat/user-jarvis-product-knowledge-20261120`; no additional branch or PR was created. Main remains `da1257fc650f536c76583bdff570906290b92bcd`.
+- Reconciled the candidate against Master Spec v5.0 §15, Product DNA, README canonical-document hierarchy, current system audit and release blockers.
+- Verified the candidate product-knowledge path: local-only bounded retrieval from `docs/AI_PRODUCT_KNOWLEDGE.md`; patient surface receives only the patient section; current capabilities are generated from server-filtered DB/IAM tools; read-only partner tools revalidate organization/membership scope.
+- Found a separate patient-agent data boundary: `patientAgent.ts` forwarded raw caught tool exception text into the model's function output. Replaced it with `toPatientSafeToolFailure()`, which returns a fixed non-diagnostic message and discards the exception. Added synthetic-data regression tests for patient name, phone, IIN-like value, diagnosis and SQL/provider details.
+- Code commits: helper `f068cddc44639eec10c334448db1bec5710bcfba`; tests `06dd9343600f851f014ddd889f8d81e5548938ef`; patient-agent integration `7fec65ee209c8d31dbfe988bc319919229b00aec`.
+- Corrected duplicate section numbering in the product guide; documentation commit `598535a9819b64a4a74c46e1390e7e44ca140d18`. The current docs reconciliation commit will update this log and the source-of-truth checkpoint documents together.
+- Verification on code-bearing SHA `7fec65e`: frontend lint passed; Quality Gate backend TypeScript and ESLint steps passed; CI full E2E/unit and Quality Gate release gate were still running at the last inspection. The later docs-only commit requires fresh exact-head CI, Quality Gate and Vercel evidence. Do not report earlier results as final.
+- AI Employee remains clinic-scoped and ecosystem coverage remains partial. RB-029 remains P0/open for historical PHI inventory, key lifecycle, retention, backup/restore and staging reconciliation; RB-035 and other release blockers remain open.
+- No direct main write/merge, production deployment, database operation, PHI backfill, key/secret/provider change or payment operation was performed.
+
+---
+
 ## 2026-11-15 — RB-029 staged AI Admin writes and retained queue backfill candidate
 
 - Continued on existing PR #347 / security/rb029-ai-admin-external-id-20261114; no new branch or PR.

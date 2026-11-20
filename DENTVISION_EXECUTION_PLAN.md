@@ -1,3 +1,36 @@
+## Current execution checkpoint — 2026-11-20 (AI / Jarvis, Master Spec v5.0)
+
+**Canonical repo:** `drtamirlan911-cell/DentVision1`  
+**Main snapshot:** `da1257fc650f536c76583bdff570906290b92bcd`  
+**Active candidate:** PR [#351](https://github.com/drtamirlan911-cell/DentVision1/pull/351), branch `feat/user-jarvis-product-knowledge-20261120`, Draft, unmerged.  
+**Normative architecture:** Master Spec §15 — `AI Router → Active Context → Role/Workspace Context → Permission Engine → Tool Registry → Model/Reasoning → Action Validator → Preview → Confirmation when required → Execute → Verify → Audit`.
+
+### Current candidate work
+- Jarvis product guide covers the ecosystem and distinguishes confirmed, partial, access-dependent and unconfirmed functions.
+- Local retrieval uses bounded heading-aware chunks, Russian normalization/synonyms and an in-process cache; user conversation text is not sent to another embedding/retrieval provider.
+- Current-request capabilities are built from DB/IAM-filtered tools. Product documentation never grants permissions.
+- Partner queue tools recheck active organization type, canonical membership/role and exact organization/entity binding; responses are read-only and minimize patient/candidate/student/customer data.
+- Patient assistant now receives a fixed safe tool-failure message rather than raw exception details; regression tests guard against synthetic patient identifiers and clinical text entering model context.
+- Guide section headings were normalized to unique numbering (1–12).
+- The candidate remains **partial / not release-certified**. No feature is counted complete merely because it has an agent, guide entry, route or tool declaration.
+
+### Exact-head verification
+- Latest code-bearing commit before the documentation checkpoint: `7fec65ee209c8d31dbfe988bc319919229b00aec`. At that SHA, frontend lint passed and backend TypeScript/ESLint steps in Quality Gate passed; full CI/E2E, Quality Gate and Preview were still in progress.
+- A documentation-only commit then corrected guide section numbering; this checkpoint commit updates the active context, execution log, release blockers and system audit. All checks must be refreshed on the resulting exact branch HEAD. Previous-SHA results are not final evidence.
+- Keep PR #351 Draft until exact-head CI, Quality Gate, full E2E, role/context and visual/mobile checks finish and findings are reviewed.
+
+### Next execution order
+1. Complete and certify PR #351 on one exact HEAD. Inspect any CI failure and fix the implementation; do not weaken PHI, tenant, branch, membership or confirmation assertions.
+2. Audit the clinic-only AI Employee task model end-to-end (event subscriber → persisted task → APIs → approvals → UI). Design an additive, canonical-Organization/Branch-scoped extension that reuses the current IAM/governance kernel and preserves clinic compatibility. No parallel task table or global role bypass.
+3. Continue RB-029 P0 source/data lifecycle closure: complete PHI reader/writer/derived-copy inventory, legacy worker drain, strict-write cutover plan, key rotation/old-key handling, retention/export/deletion, backup/restore/rollback and approved staging reconciliation. No live historical data write without approved target and rollback.
+4. Complete RB-035 patient-route × role × tenant × clinic × branch × active/revoked/expired-session negative matrix; obtain evidence for RB-031 WebKit/CORS/WebSocket and RB-033 required branch protection.
+5. Complete diagnostic-center and medical-lab workflows; D10 dental-lab QC/remake/shipping/settlement; supplier commerce/refund/payout; Academy/Community depth; public discovery; true 32-tooth 3D odontogram; physical Android runtime.
+6. Run the full Master Spec Definition-of-Done chain on the final candidate: entry → context → permission → home → queue → entity → workflow → persistence → notification → finance/outcome → audit → mobile → E2E.
+
+**Release remains NOT READY.** Keep source CI separate from staging/production, legal, payment-provider, historical-data and physical-device evidence.
+
+---
+
 ## Current execution checkpoint — 2026-11-18 (post-merge reconciliation, Master Spec v5.0)
 
 The previous 2026-11-17 checkpoint is historical. Current source is `main=7289f369b1effa28db94e3e1e4541e4500bc5ee0`. PR #346, #347 and #348 are merged; PR #322 is merged as developer-environment setup only. No open PRs were returned by the current repository query.
