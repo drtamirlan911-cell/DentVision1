@@ -8,6 +8,16 @@
 
 This checkpoint records a durable user priority: every existing cabinet must be understandable to its intended role and usable from first entry through workflow close-out. It is not sufficient for a route, tab or dashboard to exist.
 
+### Candidate implementation delta — 2026-11-20
+
+The current branch extends the audited main baseline in three bounded areas. This is source evidence only; the exact latest SHA has not yet passed all release checks.
+
+- **Medical Laboratory:** separate PersonRole-derived capabilities for technician, quality controller, validator and laboratory doctor; fail-closed lab context resolution; order-bound complete result submission; independent QC and validator sign-off; reasoned QC failure; rework snapshots that preserve prior values and attribution before clearing current results; role-aware workspace controls and event timeline. Candidate E2E exercises the complete exception and happy paths. Full LIS accession, barcode/scan chain of custody, aliquots, analyzer/equipment/calibration, critical-result acknowledgement, settlement and mobile acceptance remain open. **Classification remains PARTIAL.**
+- **Student OS / Academy:** public paid-course preview before purchase, closed-content entitlement boundary, confirmed-payment refresh, server-authoritative lesson progress and exam-based certificate issue/verification; candidate E2E covers preview, paid entitlement and student-to-student isolation. Full academy-owner cohorts, attendance, assignments, purchase/refund history and mobile acceptance remain open. **Classification remains CANDIDATE IMPLEMENTATION.**
+- **Career OS / Employer:** employer-side application detail now returns event, interview and offer responses; the employer pipeline renders candidate answers and status; E2E covers invitation → application → interview → offer → explicit contract-required boundary. Signed employment contracts/EDS, hiring/employee record, onboarding, consent-aware communications, matching and Android remain open. **Classification remains PARTIAL / CANDIDATE EXTENSION.**
+
+**Verification note:** predecessor `7c9a91de068d30371aa95e4f0a1f12077b4f6958` passed TypeScript but exceeded the configured ESLint warning budget by one warning (14 vs max 13). The two new Medical Lab hook warnings were corrected in the subsequent candidate. Fresh CI, Quality Gate, partner lifecycle E2E, browser UX/mobile/role and visual checks remain mandatory; no merge or release conclusion is inferred.
+
 ### 1. Source inventory evidence
 
 The generated main System Map at this baseline reports 69 mounted routers, 703 unique handlers, 665 registered HTTP routes, 97 routes without a detected web/mobile consumer and 150 Prisma models. This confirms broad technical surface area, not complete user journeys.
@@ -19,11 +29,11 @@ The repository contains separate diagnostic-center, medical-laboratory, dental-l
 | Cabinet | Source evidence | Classification |
 |---|---|---|
 | Diagnostic center | Organization-scoped referral workflows, schedule/services/team/finance views, report/sign-off and settlement-related services; current source inventory did not establish a complete DICOM store/query/retrieve, modality worklist and PACS viewer chain | PARTIAL |
-| Medical laboratory | Independent UI/router with ordered, sample_collected, received, processing, result_ready and verified stages | PARTIAL — barcode/accession scans, chain-of-custody, aliquot, QC/calibration, analyzer integration and controlled result amendment/release evidence remain required |
+| Medical laboratory | Separate workspace and routes; organization-scoped role capabilities; order-bound complete results; independent QC and validator release; QC failure/rework with prior-result snapshots; separate doctor interpretation; candidate end-to-end workflow | PARTIAL — barcode/accession scans, complete chain-of-custody and aliquots, QC/calibration programme, analyzer/equipment integration, critical-result acknowledgement, settlement, mobile and exact-head release evidence remain required |
 | Dental laboratory | Independent lab order and production workspace, technician assignment, production statuses and manager-controlled six-point QC; fail state can enter remake | PARTIAL — closed-loop remake authorization/feedback, shipping/tracking/proof-of-delivery and full invoice/settlement/payout close-out remain open per the dental-lab contract |
 | Marketplace / Supplier | Public shop and supplier workspace with catalog, sales, stock, returns, promotions, analytics, checkout and refund-related server logic | PARTIAL — full seller verification, multi-seller fulfillment, carrier delivery evidence, RMA and seller/platform payout reconciliation remain open |
 | Academy / Lecturer | Course catalogue/enrollment/lecturer workspace with courses, analytics and profile, plus payment foundations | PARTIAL — owner/cohort/group roster, attendance, assessment/grading, certificate governance and complete sales/refund/lecturer payout workflows remain open |
-| Student OS | New personal learning workspace and entitlement/assessment/certificate changes exist on candidate branch | CANDIDATE IMPLEMENTATION — not main/release-certified; exact-head CI/E2E and complete cohort/tasks/purchase-history journey remain to verify |
+| Student OS | Personal learning workspace; public safe paid-course preview; entitlement-gated materials; server-authoritative progress; exam-based certificate issue/verification; isolated candidate E2E for learner ownership and privacy | CANDIDATE IMPLEMENTATION — exact-head CI/E2E and complete cohort/calendar/homework/purchase/refund/mobile journey remain to verify |
 | Employer / Career | Main has employer context, vacancies and scoped applications; candidate branch adds separate invitation, interview, offer and candidate workspace paths | PARTIAL / CANDIDATE EXTENSION — contract/EDS verification, hired-employee record, onboarding and exact-head security/mobile E2E remain open |
 | Clinic / doctor / reception / patient / finance / BI / community / platform admin / AI | Existing modules and routes are present | AUDIT REQUIRED PER ROLE — no completeness inferred from route existence |
 
