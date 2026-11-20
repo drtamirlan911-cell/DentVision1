@@ -239,7 +239,16 @@ jobsRouter.get('/employer/vacancies/:id/applications', authenticate, requirePerm
     if (!vacancy) return res.status(404).json({ ok: false, error: 'Вакансия не найдена' } satisfies ApiResponse);
     const applications = await prisma.jobApplication.findMany({
       where: { vacancyId: vacancy.id },
-      include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
+      select: {
+        id: true,
+        vacancyId: true,
+        userName: true,
+        coverNote: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        user: { select: { firstName: true, lastName: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
     return res.json({ ok: true, data: applications } satisfies ApiResponse);
