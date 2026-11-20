@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { medicalLabRoleAllows, medicalLabRolesForWorkspace } from './medicalLabAccess.js';
+import { medicalLabRoleAllows, medicalLabRolesForWorkspace, selectUniqueMedicalLabMembershipId } from './medicalLabAccess.js';
 
 describe('medical laboratory scoped role capabilities', () => {
   it('allows technicians to record results but not validate or perform quality sign-off', () => {
@@ -42,19 +42,16 @@ describe('medical laboratory scoped role capabilities', () => {
 });
 
 describe('medical laboratory membership fallback', () => {
-  it('accepts exactly one legacy membership', async () => {
-    const { selectUniqueMedicalLabMembershipId } = await import('./medicalLabAccess.js');
+  it('accepts exactly one legacy membership', () => {
     expect(selectUniqueMedicalLabMembershipId([{ labId: 'lab-a' }])).toBe('lab-a');
   });
 
-  it('fails closed when there is no membership or more than one', async () => {
-    const { selectUniqueMedicalLabMembershipId } = await import('./medicalLabAccess.js');
+  it('fails closed when there is no membership or more than one', () => {
     expect(selectUniqueMedicalLabMembershipId([])).toBeNull();
     expect(selectUniqueMedicalLabMembershipId([{ labId: 'lab-a' }, { labId: 'lab-b' }])).toBeNull();
   });
 
-  it('rejects a blank membership identifier', async () => {
-    const { selectUniqueMedicalLabMembershipId } = await import('./medicalLabAccess.js');
+  it('rejects a blank membership identifier', () => {
     expect(selectUniqueMedicalLabMembershipId([{ labId: ' ' }])).toBeNull();
   });
 });
