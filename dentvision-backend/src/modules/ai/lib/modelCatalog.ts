@@ -26,6 +26,8 @@ export interface ModelCandidate {
   id: string;
   /** Accepts image input — required for radiograph analysis. */
   vision: boolean;
+  /** Supports the Responses API reasoning parameter. Never infer from a name prefix. */
+  reasoning: boolean;
 }
 
 /**
@@ -36,27 +38,27 @@ export interface ModelCandidate {
 export const FULL_LADDER: readonly ModelCandidate[] = [
   // Current flagship and general-purpose models first. Availability is still
   // intersected with this API account's live /v1/models response.
-  { id: 'gpt-6.2-astra', vision: false },
-  { id: 'gpt-6-astra', vision: false },
-  { id: 'gpt-6.1-sol', vision: false },
+  { id: 'gpt-6.2-astra', vision: false, reasoning: true },
+  { id: 'gpt-6-astra', vision: false, reasoning: true },
+  { id: 'gpt-6.1-sol', vision: false, reasoning: true },
   // Terra is the dedicated visual-reasoning choice for radiograph/image work.
-  { id: 'gpt-6.1-terra', vision: true },
-  { id: 'gpt-5.6-sol', vision: false },
-  { id: 'gpt-5.4', vision: true },
-  { id: 'gpt-5', vision: true },
-  { id: 'gpt-4.1', vision: true },
-  { id: 'o3', vision: false },
-  { id: 'gpt-4o', vision: true },
+  { id: 'gpt-6.1-terra', vision: true, reasoning: true },
+  { id: 'gpt-5.6-sol', vision: false, reasoning: true },
+  { id: 'gpt-5.4', vision: true, reasoning: true },
+  { id: 'gpt-5', vision: true, reasoning: true },
+  { id: 'gpt-4.1', vision: true, reasoning: false },
+  { id: 'o3', vision: false, reasoning: true },
+  { id: 'gpt-4o', vision: true, reasoning: false },
 ];
 
 export const MINI_LADDER: readonly ModelCandidate[] = [
   // Luna is the efficient high-volume tier; older IDs remain safe fallbacks.
-  { id: 'gpt-6-luna', vision: false },
-  { id: 'gpt-5.4-mini', vision: true },
-  { id: 'gpt-5-mini', vision: true },
-  { id: 'gpt-4.1-mini', vision: true },
-  { id: 'o4-mini', vision: false },
-  { id: 'gpt-4o-mini', vision: true },
+  { id: 'gpt-6-luna', vision: false, reasoning: false },
+  { id: 'gpt-5.4-mini', vision: true, reasoning: true },
+  { id: 'gpt-5-mini', vision: true, reasoning: true },
+  { id: 'gpt-4.1-mini', vision: true, reasoning: false },
+  { id: 'o4-mini', vision: false, reasoning: true },
+  { id: 'gpt-4o-mini', vision: true, reasoning: false },
 ];
 
 /**
@@ -90,6 +92,9 @@ export interface ResolvedModels {
   mini: string;
   /** Best available model that accepts images, or null when none does. */
   vision: string | null;
+  fullSupportsReasoning: boolean;
+  miniSupportsReasoning: boolean;
+  visionSupportsReasoning: boolean;
   /** Best available embedding model. */
   embedding: string;
   /** Best available speech-to-text model. */
@@ -177,10 +182,17 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
       .map((id) => known.find((candidate) => candidate.id === id && candidate.vision))
       .find((candidate) => candidate !== undefined);
 
+    const selectedFull = FULL_LADDER.find((candidate) => candidate.id === envFull) ?? floorOf(FULL_LADDER);
+    const selectedMini = MINI_LADDER.find((candidate) => candidate.id === envMini) ?? floorOf(MINI_LADDER);
+    const fallbackVision = pinnedVision ?? floorOf(FULL_LADDER);
+
     const fallback = (degraded: boolean): ResolvedModels => ({
-      full: envFull || floorOf(FULL_LADDER).id,
-      mini: envMini || floorOf(MINI_LADDER).id,
-      vision: pinnedVision?.id ?? (floorOf(FULL_LADDER).vision ? floorOf(FULL_LADDER).id : null),
+      full: envFull || selectedFull.id,
+      mini: envMini || selectedMini.id,
+      vision: fallbackVision.id,
+      fullSupportsReasoning: selectedFull.reasoning,
+      miniSupportsReasoning: selectedMini.reasoning,
+      visionSupportsReasoning: fallbackVision.reasoning,
       embedding: EMBEDDING_LADDER[EMBEDDING_LADDER.length - 1],
       transcription: TRANSCRIPTION_LADDER[TRANSCRIPTION_LADDER.length - 1],
       source: envFull || envMini ? 'env' : 'probe',
@@ -206,11 +218,20 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
 
       const visionCandidate =
         [...FULL_LADDER, ...MINI_LADDER].find((c) => c.vision && available.has(c.id)) ?? null;
+      const selectedFull = envFull
+        ? [...FULL_LADDER, ...MINI_LADDER].find((candidate) => candidate.id === envFull)
+        : full;
+      const selectedMini = envMini
+        ? [...FULL_LADDER, ...MINI_LADDER].find((candidate) => candidate.id === envMini)
+        : mini;
 
       const resolved: ResolvedModels = {
         full: envFull || full?.id || floorOf(FULL_LADDER).id,
         mini: envMini || mini?.id || floorOf(MINI_LADDER).id,
         vision: visionCandidate?.id ?? null,
+        fullSupportsReasoning: selectedFull?.reasoning ?? false,
+        miniSupportsReasoning: selectedMini?.reasoning ?? false,
+        visionSupportsReasoning: visionCandidate?.reasoning ?? false,
         embedding:
           EMBEDDING_LADDER.find((id) => available.has(id)) ??
           EMBEDDING_LADDER[EMBEDDING_LADDER.length - 1],
