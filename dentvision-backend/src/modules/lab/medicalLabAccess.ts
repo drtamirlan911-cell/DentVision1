@@ -35,3 +35,18 @@ export function medicalLabRolesForWorkspace(roleKeys: readonly string[]): string
   return Array.from(new Set(roleKeys.map((key) => String(key || '').trim().toLowerCase())
     .filter((key) => Object.prototype.hasOwnProperty.call(ROLE_CAPABILITIES, key)))).sort();
 }
+
+export const MEDICAL_LAB_CAPABILITIES: readonly MedicalLabCapability[] = [
+  'specimen.collect',
+  'specimen.receive',
+  'order.process',
+  'order.cancel',
+  'result.write',
+  'result.verify',
+  'result.interpret',
+  'quality.perform',
+];
+
+export function medicalLabCapabilitiesForRoles(roleKeys: readonly string[]): MedicalLabCapability[] {
+  return MEDICAL_LAB_CAPABILITIES.filter((capability) => medicalLabRoleAllows(roleKeys, capability));
+}
