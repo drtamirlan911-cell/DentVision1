@@ -162,6 +162,11 @@ export default function SchoolCourse() {
       if (res?.status === 'paid' || res?.settled || res?.alreadyPaid) {
         setPendingPay(null);
         await reloadEnrollment();
+        // The pre-purchase detail response is intentionally a safe preview.
+        // Fetch again only after provider settlement so the server can verify
+        // the new entitlement and return the protected lesson content.
+        const unlocked = await api.getSchoolCourse(id!);
+        setCourse(unlocked?.data || unlocked);
         toast.showToast('Оплата прошла — курс открыт', 'success');
       } else {
         toast.showToast('Оплата ещё не подтверждена', 'info');
