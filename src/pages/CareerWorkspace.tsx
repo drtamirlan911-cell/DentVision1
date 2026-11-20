@@ -258,26 +258,32 @@ export default function CareerWorkspace() {
     </div>
   );
 
-  const renderInvitations = () => activeInvitations.length === 0 ? (
+  const renderInvitations = () => invitations.length === 0 ? (
     <EmptyState icon={<Inbox size={28} />} title="Новых приглашений нет" description="Когда работодатель найдёт ваше публичное резюме и пригласит вас, здесь появится его организация, сообщение и вакансия." />
   ) : (
     <div className="space-y-3">
-      {activeInvitations.map((invitation) => (
+      {invitations.map((invitation) => (
         <Card key={invitation.id} padding="md" className="space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="font-semibold text-txt-primary">{employerName(invitation)}</p>
               <p className="mt-1 text-xs text-txt-muted">Приглашение от {dateTime(invitation.createdAt)} · действует до {dateTime(invitation.expiresAt)}</p>
             </div>
-            <Badge variant="gold">Ожидает вашего ответа</Badge>
+            <Badge variant={invitation.status === 'accepted' ? 'success' : invitation.status === 'declined' || invitation.status === 'expired' ? 'warning' : 'gold'}>
+              {STATUS_LABEL[invitation.status] || invitation.status}
+            </Badge>
           </div>
           {invitation.vacancy && <div className="rounded-lg bg-surface-2 p-3"><p className="text-sm font-medium text-txt-primary">{invitation.vacancy.title}</p><p className="mt-1 text-xs text-txt-muted">{invitation.vacancy.city}{invitation.vacancy.salary ? ` · ${invitation.vacancy.salary}` : ''}</p></div>}
           {invitation.message && <p className="whitespace-pre-wrap text-sm text-txt-secondary">{invitation.message}</p>}
-          <div className="flex flex-wrap gap-2">
-            <Button className="min-h-11" loading={busyId === invitation.id} disabled={!!busyId} onClick={() => void respondInvitation(invitation.id, 'accepted')}>Принять приглашение</Button>
-            <Button className="min-h-11" variant="secondary" disabled={!!busyId} onClick={() => void respondInvitation(invitation.id, 'declined')}>Отклонить</Button>
-          </div>
-          <p className="text-xs text-txt-muted">Принятие приглашения на конкретную вакансию создаёт отдельный отклик. Оно не является трудовым договором.</p>
+          {invitation.status === 'pending' && (
+            <>
+              <div className="flex flex-wrap gap-2">
+                <Button className="min-h-11" loading={busyId === invitation.id} disabled={!!busyId} onClick={() => void respondInvitation(invitation.id, 'accepted')}>Принять приглашение</Button>
+                <Button className="min-h-11" variant="secondary" disabled={!!busyId} onClick={() => void respondInvitation(invitation.id, 'declined')}>Отклонить</Button>
+              </div>
+              <p className="text-xs text-txt-muted">Принятие приглашения на конкретную вакансию создаёт отдельный отклик. Оно не является трудовым договором.</p>
+            </>
+          )}
         </Card>
       ))}
     </div>
@@ -371,10 +377,10 @@ export default function CareerWorkspace() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Input value={resumeQuery} onChange={(event) => setResumeQuery(event.target.value)} placeholder="Найти резюме…" />
-          <Button className="min-h-11" onClick={() => navigate('/jobs?create=resume')}>Создать резюме</Button>
+          <Button className="min-h-11" onClick={() => navigate('/jobs')}>Создать резюме</Button>
         </div>
       </div>
-      {visibleResumes.length === 0 ? <EmptyState icon={<FileText size={28} />} title="Резюме пока нет" description="Создайте резюме, чтобы работодатели могли найти вас и отправить приглашение." action={<Button className="min-h-11" onClick={() => navigate('/jobs?create=resume')}>Создать резюме</Button>} /> : (
+      {visibleResumes.length === 0 ? <EmptyState icon={<FileText size={28} />} title="Резюме пока нет" description="Создайте резюме, чтобы работодатели могли найти вас и отправить приглашение." action={<Button className="min-h-11" onClick={() => navigate('/jobs')}>Создать резюме</Button>} /> : (
         <div className="grid gap-3 md:grid-cols-2">
           {visibleResumes.map((resume) => (
             <Card key={resume.id} padding="md" className="space-y-2">
