@@ -51,6 +51,14 @@ describe('dental lab branch isolation contract', () => {
     expect(deletedOrder).toContain("if (meta.laboratoryId) return 'partner_owned' as const");
   });
 
+  it('preserves clinic-wide reads only for organization roles with no selected branch', () => {
+    expect(source).toContain("const organizationWide = access.roleScope === 'ORGANIZATION' && access.branchId === null");
+    expect(source).toContain('where: organizationWide');
+    expect(source).toContain("organizationWide ? {}");
+    expect(source).toContain('access.branchId ? [access.branchId] : access.allowedBranchIds');
+    expect(source).toContain('configured: organizationWide || branchIds.length > 0');
+  });
+
   it('rejects patient writes outside the selected branch', () => {
     expect(source).toContain("Пациент недоступен в текущем филиале");
     expect(source).toContain("branchId: branchIds.length > 0 ? { in: branchIds } : '__NO_BRANCH_ACCESS__'");
