@@ -135,6 +135,79 @@ describe('product guide runtime asset parity', () => {
   });
 });
 
+describe('Jarvis multi-workspace retrieval evaluation', () => {
+  const cases = [
+    {
+      workspace: 'clinic CRM / patient records',
+      query: 'Как открыть карту пациента и посмотреть анамнез в рабочем пространстве клиники?',
+      expected: 'Пациенты и медицинская информация',
+    },
+    {
+      workspace: 'clinic schedule',
+      query: 'Как посмотреть расписание врача, свободные слоты и запись на приём?',
+      expected: 'Расписание и приёмы',
+    },
+    {
+      workspace: 'patient portal',
+      query: 'В личном кабинете пациента как посмотреть свои визиты и записаться на приём?',
+      expected: 'Личный кабинет пациента',
+    },
+    {
+      workspace: 'marketplace / supplier',
+      query: 'Как поставщику открыть собственный каталог товаров и посмотреть остатки на маркетплейсе?',
+      expected: 'Маркетплейс и поставщики',
+    },
+    {
+      workspace: 'Academy / student',
+      query: 'Как студенту найти курс, уроки и посмотреть свой учебный прогресс в Academy?',
+      expected: 'Academy и обучение',
+    },
+    {
+      workspace: 'diagnostic center',
+      query: 'Как диагностическому центру посмотреть очередь направлений и приоритеты исследований?',
+      expected: 'Диагностические центры и лаборатории',
+    },
+    {
+      workspace: 'medical laboratory',
+      query: 'Как медицинской лаборатории просматривать очередь направлений анализов без личных данных пациента?',
+      expected: 'медицинская лаборатория',
+    },
+    {
+      workspace: 'dental laboratory',
+      query: 'Как зуботехнической лаборатории просматривать производственные заказы и назначенные работы?',
+      expected: 'зуботехнической лаборатории',
+    },
+    {
+      workspace: 'employer / Jobs',
+      query: 'Как работодателю посмотреть собственные вакансии и общее количество откликов в Jobs?',
+      expected: 'работодателя',
+    },
+  ] as const;
+
+  it.each(cases)('retrieves approved product knowledge for $workspace', async ({ query, expected }) => {
+    resetProductKnowledgeCacheForTests();
+
+    const hits = await retrieveProductKnowledge(query);
+
+    expect(hits.length, query).toBeGreaterThan(0);
+    expect(
+      hits.some((hit) => hit.title.includes(expected) || hit.content.toLowerCase().includes(expected.toLowerCase())),
+      `No relevant guide excerpt for: ${query}. Retrieved: ${hits.map((hit) => hit.title).join(' | ')}`,
+    ).toBe(true);
+    expect(hits.every((hit) => hit.sourcePath === GUIDE_PATH)).toBe(true);
+  });
+
+  it('keeps patient retrieval isolated from staff CRM instructions in the real guide', async () => {
+    resetProductKnowledgeCacheForTests();
+
+    const hits = await retrievePatientProductKnowledge('пациент как открыть карту клиники и посмотреть все записи');
+
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((hit) => hit.title.includes('Личный кабинет пациента'))).toBe(true);
+    expect(hits.some((hit) => hit.title.includes('Рабочее пространство стоматологической клиники'))).toBe(false);
+  });
+});
+
 describe('Jarvis AI Employee scope retrieval', () => {
   it('explains clinic-only durable tasks and partner read-only limits', async () => {
     resetProductKnowledgeCacheForTests();
