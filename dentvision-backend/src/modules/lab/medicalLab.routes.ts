@@ -12,6 +12,7 @@ import {
   medicalLabCapabilitiesForRoles,
   medicalLabRoleAllows,
   medicalLabRolesForWorkspace,
+  selectUniqueMedicalLabMembershipId,
   type MedicalLabCapability,
 } from './medicalLabAccess.js';
 import { validateMedicalLabResultSet } from './medicalLabResults.js';
@@ -73,9 +74,10 @@ async function resolveLaboratoryScopeId(user: AuthRequest['user']): Promise<stri
     select: { labId: true },
     take: 2,
   });
-  if (memberships.length !== 1 || !memberships[0]?.labId) return null;
+  const uniqueMembershipId = selectUniqueMedicalLabMembershipId(memberships);
+  if (!uniqueMembershipId) return null;
   const memberLab = await prisma.laboratory.findUnique({
-    where: { id: String(memberships[0].labId) },
+    where: { id: uniqueMembershipId },
     select: { id: true },
   });
   return memberLab?.id ?? null;
