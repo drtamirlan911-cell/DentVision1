@@ -166,3 +166,7 @@ At minimum:
 ## 12. Current deny-by-default route test
 
 - PR #351 adds route-level tests with a verified `EMPLOYER_OWNER` Organization context. Until the organization-scoped queue exists, both task list and task transition must return 403 and must not call the clinic task service. This is an intentional fail-closed compatibility boundary, not temporary UI hiding.
+## 13. User-facing capability statement
+
+- The canonical Jarvis guide now states plainly that the durable AI Employee queue is clinic-only. Partner read-only overviews do not constitute task queue support. Task status changes do not execute domain actions; high-risk execution remains in Approval Center and governance kernel.
+- A natural-language retrieval test protects the answer to questions about a shared supplier/laboratory queue. This is product-knowledge accuracy, not implementation of organization task storage.
