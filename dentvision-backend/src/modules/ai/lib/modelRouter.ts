@@ -31,7 +31,7 @@ export interface ModelChoice {
  * reasoning mode. Kept as a small maintained pattern rather than a per-model
  * table: a new family costs one alternative here.
  */
-const REASONING_MODEL_RE = /^(o\d|gpt-5)/i;
+const REASONING_MODEL_RE = /^(?:o\d(?:$|[.-])|gpt-[56](?:$|[.-]))/i;
 
 export function supportsReasoning(model: string): boolean {
   return REASONING_MODEL_RE.test(String(model || '').trim());
