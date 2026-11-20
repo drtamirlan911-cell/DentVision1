@@ -64,7 +64,7 @@ function fmtMoney(minor: string | number | undefined): string {
 export default function SchoolWorkspace() {
   const navigate = useNavigate();
   const toast = useToast();
-  const { user, activeWorkspace } = useAuth();
+  const { activeWorkspace } = useAuth();
   const [loading, setLoading] = useState(true);
   const [contexts, setContexts] = useState<LecturerCtx[]>([]);
   const [token, setToken] = useState<string | null>(null);
