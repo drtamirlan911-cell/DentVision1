@@ -40,6 +40,7 @@ export interface DomainEventMap {
   'medicalLabResult.ready': { orderId: string; clinicId: string; patientId?: string | null; treatmentCaseId?: string | null; userId?: string };
   'medicalLabResult.verified': { orderId: string; clinicId: string; patientId?: string | null; treatmentCaseId?: string | null; userId?: string };
   'medicalLabResult.interpreted': { orderId: string; clinicId: string; patientId?: string | null; treatmentCaseId?: string | null; userId?: string; source?: string };
+  'medicalLabQuality.completed': { orderId: string; clinicId: string; patientId?: string | null; decision: 'passed' | 'failed'; userId?: string };
   'growth.event': GrowthEventPayload;
 }
 
