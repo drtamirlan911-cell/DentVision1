@@ -664,34 +664,7 @@ export async function getEmployerVacancies(): Promise<any[]> { const data = awai
 export async function getEmployerResumes(): Promise<any[]> { const data = await apiRequest('/api/jobs/employer/resumes'); return Array.isArray(data) ? data : []; }
 export async function getEmployerVacancyApplications(id: string): Promise<any[]> { const data = await apiRequest(`/api/jobs/employer/vacancies/${encodeURIComponent(id)}/applications`); return Array.isArray(data) ? data : []; }
 export async function updateEmployerApplicationStatus(id: string, status: string): Promise<any> { return apiRequest(`/api/jobs/employer/applications/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
-export async function createEmployerInvitation(data: { resumeId: string; vacancyId?: string; message?: string }): Promise<any> {
-  return apiRequest('/api/jobs/employer/invitations', { method: 'POST', body: JSON.stringify(data) });
-}
-export async function createEmployerInterview(applicationId: string, data: {
-  scheduledAt: string; durationMinutes?: number; timezone?: string; mode: 'online' | 'in_person' | 'phone';
-  meetingUrl?: string; location?: string; agenda?: string;
-}): Promise<any> {
-  return apiRequest(`/api/jobs/employer/applications/${encodeURIComponent(applicationId)}/interviews`, { method: 'POST', body: JSON.stringify(data) });
-}
-export async function createEmployerJobOffer(applicationId: string, data: {
-  title: string; salary?: string; currency?: string; employmentType: string; startAt?: string; expiresAt: string;
-  terms?: Record<string, unknown>;
-}): Promise<any> {
-  return apiRequest(`/api/jobs/employer/applications/${encodeURIComponent(applicationId)}/offers`, { method: 'POST', body: JSON.stringify(data) });
-}
 export async function applyToJob(id: string, coverNote = ''): Promise<any> { return apiRequest(`/api/jobs/${id}/apply`, { method: 'POST', body: JSON.stringify({ coverNote }) }); }
-export async function getMyJobInvitations(): Promise<any[]> { return apiRequest('/api/jobs/me/invitations'); }
-export async function respondToJobInvitation(id: string, response: 'accepted' | 'declined'): Promise<any> {
-  return apiRequest(`/api/jobs/me/invitations/${encodeURIComponent(id)}/respond`, { method: 'PATCH', body: JSON.stringify({ response }) });
-}
-export async function getMyJobInterviews(): Promise<any[]> { return apiRequest('/api/jobs/me/interviews'); }
-export async function respondToJobInterview(id: string, response: 'confirmed' | 'declined' | 'reschedule_requested'): Promise<any> {
-  return apiRequest(`/api/jobs/me/interviews/${encodeURIComponent(id)}/respond`, { method: 'PATCH', body: JSON.stringify({ response }) });
-}
-export async function getMyJobOffers(): Promise<any[]> { return apiRequest('/api/jobs/me/offers'); }
-export async function respondToJobOffer(id: string, response: 'accepted' | 'declined', message?: string): Promise<any> {
-  return apiRequest(`/api/jobs/me/offers/${encodeURIComponent(id)}/respond`, { method: 'PATCH', body: JSON.stringify({ response, message }) });
-}
 export async function getMyJobApplications(): Promise<any[]> { return apiRequest('/api/jobs/me/applications'); }
 export async function getMyJobResumes(): Promise<any[]> { return apiRequest('/api/jobs/me/resumes'); }
 export async function updateMyJobResumeStatus(id: string, status: 'open' | 'closed'): Promise<any> {
