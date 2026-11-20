@@ -4,19 +4,35 @@ import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.j
 import { requirePermission } from '../../middleware/rbac.js'
 import { requireClinicalChartRead } from '../../middleware/clinicalChartAccess.js'
 import { getClinicId } from '../../lib/orgContext.js'
+import { resolveClinicBranchAccess } from '../../lib/clinicBranchAccess.js'
 import prisma from '../../lib/prisma.js'
 import { CaseStatus } from '@prisma/client'
 
 export const treatmentCaseRouter = Router()
 
 
-function branchScopedPatientFilter(req: AuthRequest): { clinicId: string; patient?: { branchId: { in: string[] } } } {
+async function branchScopedPatientFilter(req: AuthRequest): Promise<{ clinicId: string; patient?: { branchId: { in: string[] } } }> {
   const clinicId = effectiveClinicId(req)
   const role = String(req.user?.role || '').toUpperCase()
   if (!clinicId) return { clinicId: '' }
-  if (['SUPERADMIN', 'OWNER', 'ADMIN', 'ACCOUNTANT'].includes(role)) return { clinicId }
-  const branchIds = (req.user?.branchIds ?? []).filter(Boolean)
-  return branchIds.length > 0 ? { clinicId, patient: { branchId: { in: branchIds } } } : { clinicId, patient: { branchId: { in: ['__NO_BRANCH_ACCESS__'] } } }
+  if (role === 'SUPERADMIN') return { clinicId }
+
+  const access = await resolveClinicBranchAccess({
+    userId: req.user?.id || '',
+    clinicId,
+    organizationId: req.user?.organizationId,
+    role,
+    requestedBranchId: req.user?.branchId,
+  })
+  if (!access) return { clinicId, patient: { branchId: { in: ['__NO_BRANCH_ACCESS__'] } } }
+
+  // An organization role remains clinic-wide only with no selected branch.
+  // When a branch is selected, case and graph queries must follow that branch.
+  if (access.roleScope === 'ORGANIZATION' && access.branchId === null) return { clinicId }
+  const branchIds = access.branchId ? [access.branchId] : access.allowedBranchIds
+  return branchIds.length
+    ? { clinicId, patient: { branchId: { in: branchIds } } }
+    : { clinicId, patient: { branchId: { in: ['__NO_BRANCH_ACCESS__'] } } }
 }
 
 function effectiveClinicId(req: AuthRequest): string | undefined {
@@ -24,13 +40,13 @@ function effectiveClinicId(req: AuthRequest): string | undefined {
 }
 
 async function clinicCase(caseId: string, clinicId: string, req?: AuthRequest) {
-  const patientBranch = req ? branchScopedPatientFilter(req).patient?.branchId : undefined
+  const branchFilter = req ? await branchScopedPatientFilter(req) : undefined
   return prisma.treatmentCase.findFirst({
     where: {
       id: caseId,
       clinicId,
       deletedAt: null,
-      ...(patientBranch ? { patient: { branchId: patientBranch } } : {}),
+      ...(branchFilter?.patient ? { patient: branchFilter.patient } : {}),
     },
     include: { patient: { select: { id: true, firstName: true, lastName: true, phone: true } } },
   })
@@ -43,7 +59,7 @@ treatmentCaseRouter.get('/', loadClinicAccess, requireClinicalChartRead, blockCl
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Clinic context is required' })
 
     const patientId = typeof req.query.patientId === 'string' ? req.query.patientId : undefined
-    const branchFilter = branchScopedPatientFilter(req)
+    const branchFilter = await branchScopedPatientFilter(req)
     const whereClause: { deletedAt: null; clinicId: string; patientId?: string; patient?: { branchId: { in: string[] } } } = { deletedAt: null, ...branchFilter }
     if (patientId) whereClause.patientId = patientId
 
@@ -138,7 +154,7 @@ treatmentCaseRouter.post('/', loadClinicAccess, requirePermission('patient.write
       return res.status(400).json({ ok: false, error: 'patientId, title, and clinic context are required' })
     }
 
-    const patientBranch = branchScopedPatientFilter(req).patient?.branchId
+    const patientBranch = (await branchScopedPatientFilter(req)).patient?.branchId
     const patient = await prisma.patient.findFirst({
       where: { id: patientId, clinicId, deletedAt: null, ...(patientBranch ? { branchId: patientBranch } : {}) },
       select: { id: true },
