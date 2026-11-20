@@ -292,12 +292,12 @@ async function callModel(
   // What the provider says it billed, not a character count plus a 15% guess.
   const reported = payload.usage?.total_tokens;
   if (Number.isFinite(reported) && (reported as number) > 0) {
-    await recordModelUsage(choice.tier, reported as number);
+    await recordModelUsage(choice.tier, reported as number, choice.model);
   } else {
     const outText =
       (typeof payload.output_text === 'string' ? payload.output_text : '') ||
       JSON.stringify(payload.output || []).slice(0, 4000);
-    await recordModelUsage(choice.tier, estimateTokens(usageHint, outText));
+    await recordModelUsage(choice.tier, estimateTokens(usageHint, outText), choice.model);
   }
   return payload;
 }
