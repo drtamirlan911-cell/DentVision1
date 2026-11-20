@@ -47,3 +47,43 @@ CREATE INDEX IF NOT EXISTS "school_assessment_attempts_userId_submittedAt_idx"
   ON "school_assessment_attempts"("userId", "submittedAt");
 CREATE INDEX IF NOT EXISTS "school_assessment_attempts_courseId_submittedAt_idx"
   ON "school_assessment_attempts"("courseId", "submittedAt");
+
+CREATE TABLE IF NOT EXISTS "school_certificates" (
+  "id" TEXT NOT NULL,
+  "enrollmentId" TEXT NOT NULL,
+  "userId" TEXT NOT NULL,
+  "courseId" TEXT NOT NULL,
+  "certificateNumber" TEXT NOT NULL,
+  "verificationCode" TEXT NOT NULL,
+  "issuerNameSnapshot" TEXT NOT NULL,
+  "status" TEXT NOT NULL DEFAULT 'issued',
+  "documentUrl" TEXT,
+  "metadata" JSONB,
+  "issuedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "expiresAt" TIMESTAMP(3),
+  "revokedAt" TIMESTAMP(3),
+  "revocationReason" TEXT,
+  CONSTRAINT "school_certificates_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "school_certificates_enrollmentId_fkey"
+    FOREIGN KEY ("enrollmentId") REFERENCES "school_enrollments"("id")
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT "school_certificates_userId_fkey"
+    FOREIGN KEY ("userId") REFERENCES "users"("id")
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT "school_certificates_courseId_fkey"
+    FOREIGN KEY ("courseId") REFERENCES "courses"("id")
+    ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "school_certificates_enrollmentId_key"
+  ON "school_certificates"("enrollmentId");
+CREATE UNIQUE INDEX IF NOT EXISTS "school_certificates_certificateNumber_key"
+  ON "school_certificates"("certificateNumber");
+CREATE UNIQUE INDEX IF NOT EXISTS "school_certificates_verificationCode_key"
+  ON "school_certificates"("verificationCode");
+CREATE INDEX IF NOT EXISTS "school_certificates_userId_issuedAt_idx"
+  ON "school_certificates"("userId", "issuedAt");
+CREATE INDEX IF NOT EXISTS "school_certificates_courseId_issuedAt_idx"
+  ON "school_certificates"("courseId", "issuedAt");
+CREATE INDEX IF NOT EXISTS "school_certificates_status_issuedAt_idx"
+  ON "school_certificates"("status", "issuedAt");
