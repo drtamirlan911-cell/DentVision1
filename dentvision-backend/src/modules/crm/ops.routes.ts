@@ -88,8 +88,10 @@ crmOpsRouter.get('/waiting-list', requirePermission('patient.read'), async (req:
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
 
+    const branchContext = await resolveOpsBranchContext(req, clinicId);
+    if (!branchContext) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу' } satisfies ApiResponse);
     const rows = await prisma.waitingList.findMany({
-      where: { clinicId },
+      where: waitingListScopeWhere(branchContext, clinicId),
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
@@ -132,10 +134,16 @@ crmOpsRouter.post('/waiting-list', requirePermission('patient.write'), async (re
     if (!clinicId) return;
 
     const b = req.body || {};
+    const branchContext = await resolveOpsBranchContext(req, clinicId);
+    if (!branchContext) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу' } satisfies ApiResponse);
+    const patientId = b.patientId || b.patient_id || null;
+    if (!canManageWaitingListPatient(branchContext, patientId)) {
+      return res.status(403).json({ ok: false, error: 'Для работы с листом ожидания нужен пациент из текущего филиала' } satisfies ApiResponse);
+    }
     const id = b.id || uid();
     const data = {
       clinicId,
-      patientId: b.patientId || b.patient_id || null,
+      patientId,
       patientName: b.patientName || b.patient_name || null,
       patientPhone: b.patientPhone || b.patient_phone || null,
       doctorId: b.doctorId || b.doctor_id || null,
@@ -149,7 +157,7 @@ crmOpsRouter.post('/waiting-list', requirePermission('patient.write'), async (re
       status: b.status || 'waiting',
     };
 
-    const existing = await prisma.waitingList.findFirst({ where: { id, clinicId } });
+    const existing = await prisma.waitingList.findFirst({ where: { id, ...waitingListScopeWhere(branchContext, clinicId) } });
     const row = existing
       ? await prisma.waitingList.update({ where: { id }, data })
       : await prisma.waitingList.create({ data: { id, ...data } });
@@ -166,11 +174,17 @@ crmOpsRouter.patch('/waiting-list/:id', requirePermission('patient.write'), asyn
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
     const id = req.params.id as string;
-    const existing = await prisma.waitingList.findFirst({ where: { id, clinicId } });
+    const branchContext = await resolveOpsBranchContext(req, clinicId);
+    if (!branchContext) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу' } satisfies ApiResponse);
+    const existing = await prisma.waitingList.findFirst({ where: { id, ...waitingListScopeWhere(branchContext, clinicId) } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Не найдено' } satisfies ApiResponse);
     const b = req.body || {};
+    const nextPatientId = b.patientId ?? b.patient_id ?? existing.patientId;
+    if (!canManageWaitingListPatient(branchContext, nextPatientId)) {
+      return res.status(403).json({ ok: false, error: 'Для работы с листом ожидания нужен пациент из текущего филиала' } satisfies ApiResponse);
+    }
     const data = {
-      patientId: b.patientId ?? b.patient_id ?? existing.patientId,
+      patientId: nextPatientId,
       patientName: b.patientName ?? b.patient_name ?? existing.patientName,
       patientPhone: b.patientPhone ?? b.patient_phone ?? existing.patientPhone,
       doctorId: b.doctorId ?? b.doctor_id ?? existing.doctorId,
@@ -198,9 +212,11 @@ crmOpsRouter.delete('/waiting-list/:id', requirePermission('patient.write'), asy
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
     const id = req.params.id as string;
-    const existing = await prisma.waitingList.findFirst({ where: { id, clinicId } });
+    const branchContext = await resolveOpsBranchContext(req, clinicId);
+    if (!branchContext) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу' } satisfies ApiResponse);
+    const existing = await prisma.waitingList.findFirst({ where: { id, ...waitingListScopeWhere(branchContext, clinicId) } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Не найдено' } satisfies ApiResponse);
-    await prisma.waitingList.delete({ where: { id } });
+    await prisma.waitingList.deleteMany({ where: { id, ...waitingListScopeWhere(branchContext, clinicId) } });
     return res.json({ ok: true, data: { id } } satisfies ApiResponse);
   } catch (error) {
     console.error('[CRM ops] waiting-list delete', error);
