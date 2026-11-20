@@ -649,7 +649,15 @@ schoolRouter.patch('/enrollments/:id', authenticate, async (req: AuthRequest, re
       },
       userId: req.user!.id,
     });
-    return res.json({ ok: true, data: updated });
+    return res.json({
+      ok: true,
+      data: {
+        ...updated,
+        // The enrollment row contains BigInt minor units. Keep the same
+        // JSON-safe decimal-string contract used by GET /enrollments.
+        paidAmountMinor: updated.paidAmountMinor == null ? null : updated.paidAmountMinor.toString(),
+      },
+    });
   } catch (error) {
     console.error('Update learning progress error:', error);
     return res.status(500).json({ ok: false, error: 'Failed to update enrollment' });
