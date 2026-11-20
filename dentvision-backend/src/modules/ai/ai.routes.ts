@@ -9,6 +9,7 @@ import { aiService } from './core/ai.service.js';
 import { improveResponseWithLLM } from './core/llm.service.js';
 import { orchestrate, orchestratorEnabled, isProviderUnavailableError, canUseClinicWideAiShortcuts } from './os/orchestrator.js';
 import { resolveAiToolAccess } from './os/access.js';
+import { resolveAiToolBranchScope, patientBranchWhere } from './os/aiToolBranchScope.js';
 import type { AIResponse } from './types/ai.types.js';
 import { prisma } from '../../lib/prisma.js';
 import type { Prisma } from '@prisma/client';
@@ -1175,7 +1176,8 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
     if (!req.user?.id) {
       return res.json({ ok: true, data: { twin: buildGuestPlatformTwin(null), preferences: [] } });
     }
-    const clinicId = activeAiClinicId(req.user);
+    const clinicWideAllowed = await canUseClinicWideAiData(req);
+    const clinicId = clinicWideAllowed ? activeAiClinicId(req.user) : null;
     const twin = await buildDigitalTwin(req.user.id, clinicId, {
       isGuest: req.user?.isGuest === true,
     });
@@ -1194,8 +1196,10 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
 
     let preferences: Array<{ key: string; label: string; value: string; source: string }> = [];
     try {
-      const learning = await import('./learning/learning.service.js');
-      preferences = await learning.listPrefs(req.user.id, clinicId);
+      if (clinicWideAllowed) {
+        const learning = await import('./learning/learning.service.js');
+        preferences = await learning.listPrefs(req.user.id, clinicId);
+      }
     } catch { /* optional */ }
     res.json({ ok: true, data: { twin: enrichedTwin, preferences } });
   } catch (error) {
@@ -1211,7 +1215,9 @@ aiRouter.get('/twin/proactive', optionalAuth, async (req: AuthRequest, res) => {
 
     const userId = req.user?.id;
     const clinicId = activeAiClinicId(req.user);
-    if (!userId) return res.json({ ok: true, data: { suggestions: [], feed: [] } });
+    if (!userId || !(await canUseClinicWideAiData(req))) {
+      return res.json({ ok: true, data: { suggestions: [], feed: [] } });
+    }
 
     const { buildDigitalTwin, buildProactiveAlerts, buildContextualSuggestions } = await import('./core/digitalTwin.js');
     const twin = await buildDigitalTwin(userId, clinicId || null, {
@@ -1348,10 +1354,27 @@ aiRouter.get('/insights', authenticate, requirePermission('medical.read'), async
   try {
     const entityType = String(req.query.entityType || '');
     const entityId = String(req.query.entityId || '');
-    const clinicId = activeAiClinicId(req.user);
+    const access = await resolveAiToolAccess({
+      userId: req.user!.id,
+      clinicId: activeAiClinicId(req.user),
+      organizationId: req.user!.organizationId,
+      organizationType: req.user!.organizationType,
+      supplierId: req.user!.supplierId,
+      lecturerId: req.user!.lecturerId,
+      isGuest: req.user!.isGuest,
+    });
+    const clinicId = access.clinicId;
     if (!clinicId) {
       return res.status(400).json({ ok: false, error: 'Клиника не указана' });
     }
+    const branchScope = await resolveAiToolBranchScope({
+      userId: req.user!.id,
+      clinicId,
+      organizationId: access.organizationId || req.user!.organizationId,
+      role: access.role,
+      requestedBranchId: req.user!.branchId || req.user!.assignedBranchId || null,
+    });
+    if (!branchScope) return res.status(403).json({ ok: false, error: 'Нет подтверждённого доступа к филиалу' });
     if (!entityId) {
       return res.status(400).json({ ok: false, error: 'entityId обязателен' });
     }
@@ -1360,7 +1383,10 @@ aiRouter.get('/insights', authenticate, requirePermission('medical.read'), async
     if (entityType !== 'patient') {
       return res.json({ ok: true, data: [] });
     }
-    const patient = await prisma.patient.findFirst({ where: { id: entityId, clinicId }, select: { id: true } });
+    const patient = await prisma.patient.findFirst({
+      where: { id: entityId, clinicId, ...patientBranchWhere(branchScope) },
+      select: { id: true },
+    });
     if (!patient) {
       return res.status(404).json({ ok: false, error: 'Пациент не найден' });
     }
