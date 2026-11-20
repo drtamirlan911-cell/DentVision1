@@ -23,7 +23,7 @@ vi.mock('./prisma.js', () => ({
   },
 }));
 
-import { resolveClinicBranchAccess } from './clinicBranchAccess.js';
+import { canonicalRoleMatchesEffectiveRole, resolveClinicBranchAccess } from './clinicBranchAccess.js';
 
 const accessInput = (overrides: Record<string, unknown> = {}) => ({
   userId: 'user-1',
@@ -46,6 +46,26 @@ beforeEach(() => {
   branchFindMany.mockResolvedValue([{ id: 'branch-1' }]);
   branchFindFirst.mockResolvedValue({ id: 'branch-legacy' });
   clinicMemberFindUnique.mockResolvedValue({ role: 'DOCTOR', branchId: 'branch-legacy' });
+});
+
+describe('canonical role normalization', () => {
+  it.each([
+    ['owner', 'OWNER'],
+    ['org_owner', 'OWNER'],
+    ['director', 'OWNER'],
+    ['admin', 'ADMIN'],
+    ['org_admin', 'ADMIN'],
+    ['doctor', 'DOCTOR'],
+    ['cashier', 'ADMIN'],
+  ])('maps %s to the authenticated %s role', (canonicalRole, effectiveRole) => {
+    expect(canonicalRoleMatchesEffectiveRole(canonicalRole, effectiveRole)).toBe(true);
+  });
+
+  it('does not map unrelated canonical roles into owner or administrator scope', () => {
+    expect(canonicalRoleMatchesEffectiveRole('manager', 'OWNER')).toBe(false);
+    expect(canonicalRoleMatchesEffectiveRole('cashier', 'OWNER')).toBe(false);
+    expect(canonicalRoleMatchesEffectiveRole('org_admin', 'OWNER')).toBe(false);
+  });
 });
 
 describe('resolveClinicBranchAccess — canonical IAM', () => {

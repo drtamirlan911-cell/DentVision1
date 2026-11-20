@@ -105,12 +105,11 @@ export async function resolveLegacyClinicBranches(
   return branch?.id ? [String(branch.id)] : [];
 }
 
-function mapsToEffectiveRole(canonicalRoleKey: string, effectiveRole: string): boolean {
+/** Match a canonical PersonRole key to the scoped role emitted by authentication. */
+export function canonicalRoleMatchesEffectiveRole(canonicalRoleKey: string, effectiveRole: string): boolean {
   const key = String(canonicalRoleKey || '').trim().toLowerCase();
   const mapped = key === 'org_owner' ? 'OWNER' : (PERSON_ROLE_MAP[key] || key.toUpperCase());
-  if (mapped === effectiveRole) return true;
-  // Authentication deliberately normalizes DIRECTOR to the legacy OWNER enum.
-  return effectiveRole === 'OWNER' && mapped === 'DIRECTOR';
+  return mapped === effectiveRole || (effectiveRole === 'OWNER' && mapped === 'DIRECTOR');
 }
 
 export async function resolveClinicBranchAccess(
@@ -156,7 +155,7 @@ export async function resolveClinicBranchAccess(
     if (!person) return null;
 
     const roleKeys = person.personRoles.map((entry) => String(entry.role.key || '').trim().toLowerCase());
-    if (!roleKeys.some((key) => mapsToEffectiveRole(key, roleKey))) return null;
+    if (!roleKeys.some((key) => canonicalRoleMatchesEffectiveRole(key, roleKey))) return null;
     // The historic cashier -> ADMIN UI alias is not organization authority.
     if (roleKey === 'ADMIN' && !roleKeys.some((key) => key === 'admin' || key === 'org_admin')) return null;
 

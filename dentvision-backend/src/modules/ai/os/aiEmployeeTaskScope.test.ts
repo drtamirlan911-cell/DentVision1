@@ -273,6 +273,49 @@ describe('AI Employee active task scope resolver', () => {
     expect(resolvePermissions).toHaveBeenCalledWith('user-1', 'org-1', 'ADMIN');
   });
 
+  it.each(['org_owner', 'director'])(
+    'accepts canonical clinic owner alias %s through the shared IAM role normalizer',
+    async (canonicalRoleKey) => {
+      resolveAccess.mockResolvedValueOnce({
+        role: 'OWNER',
+        clinicId: 'clinic-1',
+        organizationId: 'org-1',
+        organizationType: 'CLINIC',
+        organizationOriginalId: 'clinic-1',
+        allowed: new Set<string>(),
+        employee: { role: 'OWNER', title: 'Owner', autonomy: 'suggest_only' },
+      });
+      organizationFindFirst.mockResolvedValueOnce({
+        id: 'org-1',
+        type: 'CLINIC',
+        originalType: 'Clinic',
+        originalId: 'clinic-1',
+        archivedAt: null,
+      });
+      personFindFirst.mockResolvedValueOnce({
+        id: 'person-1',
+        personType: 'STAFF',
+        originalId: null,
+        personRoles: [{ role: { key: canonicalRoleKey } }],
+      });
+      branchFindMany.mockResolvedValueOnce([{ id: 'branch-a' }]);
+
+      const scope = await resolveAiEmployeeTaskScope(user({
+        clinicId: 'clinic-1',
+        organizationId: 'org-1',
+        organizationType: 'CLINIC',
+      }));
+
+      expect(scope).toMatchObject({
+        scopeType: 'CLINIC',
+        roleKey: 'OWNER',
+        roleScope: 'ORGANIZATION',
+        branchId: null,
+        allowedBranchIds: ['branch-a'],
+      });
+    },
+  );
+
   it('preserves pre-canonical clinic compatibility without fabricating an Organization id', async () => {
     resolveAccess.mockResolvedValueOnce({
       role: 'DOCTOR',

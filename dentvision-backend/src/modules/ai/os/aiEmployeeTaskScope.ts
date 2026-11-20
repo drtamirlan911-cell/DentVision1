@@ -13,7 +13,7 @@ import { PERSON_ROLE_MAP } from '../../../lib/orgContext.js';
 import { PARTNER_ROLE_DEFINITIONS, type RoleScope } from '../../../lib/roleAccessRegistry.js';
 import { resolveAiToolAccess } from './access.js';
 import type { ScopeType } from '../../iam/contexts.js';
-import { resolveLegacyClinicBranches, resolveOrganizationBranches } from '../../../lib/clinicBranchAccess.js';
+import { canonicalRoleMatchesEffectiveRole, resolveLegacyClinicBranches, resolveOrganizationBranches } from '../../../lib/clinicBranchAccess.js';
 
 export interface AiEmployeeTaskScope {
   scopeType: ScopeType;
@@ -134,13 +134,9 @@ export async function resolveAiEmployeeTaskScope(user: AuthUser): Promise<AiEmpl
     // organization-scoped role (or a role explicitly represented by PersonType).
     // Legacy supplier/lecturer compatibility must not silently widen task scope.
     if (!person) return null;
-    const hasCurrentRole = person.personRoles.some((entry) => {
-      const canonicalKey = String(entry.role.key || '').trim().toLowerCase();
-      // Clinic IAM intentionally normalizes legacy/canonical role aliases
-      // (for example org_admin → ADMIN). Partner roles retain their exact
-      // registry key. Validate against that same mapping, not a second policy.
-      return (PERSON_ROLE_MAP[canonicalKey] || canonicalKey.toUpperCase()) === roleKey;
-    });
+    const hasCurrentRole = person.personRoles.some((entry) =>
+      canonicalRoleMatchesEffectiveRole(String(entry.role.key || ''), roleKey),
+    );
     if (!hasCurrentRole) return null;
   }
 
