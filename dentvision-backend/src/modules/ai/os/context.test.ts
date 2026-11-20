@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const { agentActivityFindMany, resolveOrganizationIdForClinic, organizationFindUnique, clinicFindUnique, supplierFindUnique, lecturerFindUnique, clinicMemberFindMany, supplierMemberFindMany, diagnosticCenterMemberFindMany, laboratoryMemberFindMany, personFindMany, personFindFirst, branchFindUnique } = vi.hoisted(() => ({
+const { agentActivityFindMany, resolveOrganizationIdForClinic, organizationFindUnique, clinicFindUnique, supplierFindUnique, lecturerFindUnique, clinicMemberFindMany, supplierMemberFindMany, diagnosticCenterMemberFindMany, laboratoryMemberFindMany, personFindMany, personFindFirst, branchFindUnique, resolveAiEmployeeTaskScope } = vi.hoisted(() => ({
   agentActivityFindMany: vi.fn(),
   resolveOrganizationIdForClinic: vi.fn(),
   organizationFindUnique: vi.fn(),
@@ -16,6 +16,7 @@ const { agentActivityFindMany, resolveOrganizationIdForClinic, organizationFindU
   personFindMany: vi.fn(),
   personFindFirst: vi.fn(),
   branchFindUnique: vi.fn(),
+  resolveAiEmployeeTaskScope: vi.fn(),
 }));
 
 vi.mock('../../../lib/prisma.js', () => ({
@@ -33,6 +34,7 @@ vi.mock('../../../lib/prisma.js', () => ({
     person: { findMany: personFindMany, findFirst: personFindFirst },
   },
 }));
+vi.mock('./aiEmployeeTaskScope.js', () => ({ resolveAiEmployeeTaskScope }));
 vi.mock('../../../lib/orgContext.js', () => ({
   resolveOrganizationIdForClinic,
   resolveClinicAccess: vi.fn().mockResolvedValue({ role: 'DOCTOR' }),
@@ -68,6 +70,7 @@ beforeEach(() => {
   personFindMany.mockResolvedValue([]);
   personFindFirst.mockResolvedValue(null);
   branchFindUnique.mockResolvedValue(null);
+  resolveAiEmployeeTaskScope.mockResolvedValue(null);
 });
 
 describe('buildAiContext', () => {
@@ -136,6 +139,39 @@ describe('buildAiContext', () => {
     expect(ctx.branch).toBeNull();
     expect(resolveOrganizationIdForClinic).not.toHaveBeenCalled();
     expect(clinicFindUnique).not.toHaveBeenCalled();
+  });
+
+  it('exposes an active branch only after the server-side IAM scope resolver verifies it', async () => {
+    resolveAiEmployeeTaskScope.mockResolvedValueOnce({ branchId: 'branch-verified' });
+    branchFindUnique.mockResolvedValueOnce({
+      id: 'branch-verified',
+      name: 'Филиал А',
+      code: 'A',
+      organizationId: 'org-1',
+      clinicId: 'clinic-1',
+    });
+
+    const ctx = await buildAiContext(req({ branchId: 'branch-forged' }), {});
+
+    expect(branchFindUnique).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'branch-verified' },
+    }));
+    expect(ctx.branch).toEqual({
+      id: 'branch-verified',
+      name: 'Филиал А',
+      code: 'A',
+      organizationId: 'org-1',
+      clinicId: 'clinic-1',
+    });
+  });
+
+  it('does not expose a JWT branch claim when the current IAM resolver denies its scope', async () => {
+    resolveAiEmployeeTaskScope.mockResolvedValueOnce(null);
+
+    const ctx = await buildAiContext(req({ branchId: 'branch-victim' }), {});
+
+    expect(ctx.branch).toBeNull();
+    expect(branchFindUnique).not.toHaveBeenCalled();
   });
 
   it('accepts omitted UI hints for server-side callers', async () => {
@@ -251,6 +287,7 @@ describe('AI context error logging', () => {
   it('redacts branch lookup exception details', async () => {
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     try {
+      resolveAiEmployeeTaskScope.mockResolvedValueOnce({ branchId: 'branch-1' });
       branchFindUnique.mockRejectedValueOnce(
         new Error('branch query included patient Иван Тестов and IIN 000000000000'),
       );
