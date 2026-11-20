@@ -92,6 +92,93 @@ describe('AI Employee task SQL matches its durable table schema', () => {
     expect(statement(0).sql).not.toMatch(/ON CONFLICT\s*\(source_event_id,\s*action,\s*role\)/i);
   });
 
+  it('does not persist arbitrary action payload or non-allowlisted task metadata', async () => {
+    const sentinel = 'SENSITIVE_TASK_PAYLOAD_SENTINEL_8f3c1d';
+    await createAiEmployeeTask({
+      clinicId: 'clinic-text-id',
+      role: 'OWNER',
+      title: 'Daily clinic summary',
+      actionPayload: { patientName: sentinel, diagnosis: sentinel },
+      metadata: {
+        employeeMission: 'Контроль клиники',
+        requiresHumanApproval: true,
+        privateNote: sentinel,
+      },
+    });
+
+    const query = statement();
+    expect(JSON.stringify(query.values)).not.toContain(sentinel);
+    expect(query.values).toContain(null);
+    expect(query.values).toContain(JSON.stringify({
+      employeeMission: 'Контроль клиники',
+      requiresHumanApproval: true,
+    }));
+  });
+
+  it('persists only allowlisted aggregate result fields and drops free text and identifiers', async () => {
+    queryRaw
+      .mockResolvedValueOnce([{ status: 'executing' }])
+      .mockResolvedValueOnce([]);
+
+    const sentinel = 'SENSITIVE_TASK_RESULT_SENTINEL_a7231c';
+    await transitionAiEmployeeTask({
+      id: '00000000-0000-4000-8000-000000000001',
+      clinicId: 'clinic-text-id',
+      status: 'completed',
+      result: {
+        status: 'completed',
+        verified: true,
+        totalCount: 12,
+        completedCount: 10,
+        patientId: sentinel,
+        summary: sentinel,
+        transcript: sentinel,
+      },
+    });
+
+    const update = statement(1);
+    expect(JSON.stringify(update.values)).not.toContain(sentinel);
+    expect(update.values).toContain(JSON.stringify({
+      status: 'completed',
+      verified: true,
+      totalCount: 12,
+      completedCount: 10,
+    }));
+  });
+
+  it('redacts stored legacy result, action payload and error before returning queue rows', async () => {
+    const sentinel = 'LEGACY_TASK_PHI_SENTINEL_41d0';
+    queryRaw.mockResolvedValueOnce([{
+      id: 'task-legacy',
+      clinicId: 'clinic-text-id',
+      userId: 'doctor-user-id',
+      role: 'DOCTOR',
+      employeeTitle: 'AI Clinical Assistant',
+      title: 'PatientCreated: notify',
+      description: 'An internal task',
+      status: 'failed',
+      risk: 'low',
+      autonomy: 'execute_with_approval',
+      sourceEventId: 'event-legacy',
+      sourceEventType: 'PatientCreated',
+      action: 'notify',
+      actionPayload: { patientName: sentinel },
+      result: { patientId: sentinel, summary: sentinel, totalCount: 3 },
+      error: sentinel,
+      dueAt: null,
+      createdAt: new Date('2026-11-20T00:00:00.000Z'),
+      updatedAt: new Date('2026-11-20T00:00:00.000Z'),
+      completedAt: null,
+    }]);
+
+    const [task] = await listAiEmployeeTasks({ clinicId: 'clinic-text-id' });
+
+    expect(task.actionPayload).toBeNull();
+    expect(task.result).toEqual({ totalCount: 3 });
+    expect(task.error).toBe('Task failed; details omitted');
+    expect(JSON.stringify(task)).not.toContain(sentinel);
+  });
+
   it('compares text tenant and user columns with text parameters, not UUID values', async () => {
     await listAiEmployeeTasks({
       clinicId: 'clinic-text-id',
