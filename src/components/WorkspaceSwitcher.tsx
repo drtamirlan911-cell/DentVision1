@@ -44,7 +44,8 @@ const TYPE_ICON: Record<ScopeType, typeof Building2> = {
 
 const GROUPS: Array<{ label: string; types: ScopeType[] }> = [
   { label: 'Клиники', types: ['CLINIC'] },
-  { label: 'Диагностика', types: ['DIAGNOSTIC_CENTER', 'LABORATORY'] },
+  { label: 'Диагностические центры', types: ['DIAGNOSTIC_CENTER'] },
+  { label: 'Лаборатории', types: ['LABORATORY'] },
   { label: 'Поставщики', types: ['SUPPLIER'] },
   { label: 'Академия', types: ['LECTURER', 'ACADEMY'] },
   { label: 'Партнёры', types: ['PARTNER'] },

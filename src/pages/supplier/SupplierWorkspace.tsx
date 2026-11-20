@@ -81,7 +81,6 @@ const severityClass: Record<string, string> = {
 export default function SupplierWorkspace() {
   const toast = useToast()
   const { user, activeWorkspace } = useAuth()
-  const activeUser = user as unknown as { supplierId?: string; organizationId?: string } | null
   const [loading, setLoading] = useState(true)
   const [contexts, setContexts] = useState<SupplierCtx[]>([])
   const [token, setToken] = useState<string | null>(null)
@@ -150,8 +149,8 @@ export default function SupplierWorkspace() {
         const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER') as SupplierCtx[]
         setContexts(sup)
         const preferred = selectWorkspaceContext(sup, {
-          scopeId: (activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.scopeId : null) || activeUser?.supplierId,
-          organizationId: (activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.organizationId : null) || activeUser?.organizationId,
+          scopeId: activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.scopeId : null,
+          organizationId: activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.organizationId : null,
         })
         if (preferred) await enterSupplier(preferred.scopeId)
       } catch { /* ignore */ } finally {
@@ -177,8 +176,8 @@ export default function SupplierWorkspace() {
     const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER') as SupplierCtx[]
     setContexts(sup)
     const preferred = selectWorkspaceContext(sup, {
-          scopeId: (activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.scopeId : null) || activeUser?.supplierId,
-          organizationId: (activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.organizationId : null) || activeUser?.organizationId,
+          scopeId: activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.scopeId : null,
+          organizationId: activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.organizationId : null,
         })
     if (preferred) await enterSupplier(preferred.scopeId)
   }

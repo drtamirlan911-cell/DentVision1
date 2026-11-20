@@ -65,7 +65,6 @@ export default function SchoolWorkspace() {
   const navigate = useNavigate();
   const toast = useToast();
   const { user, activeWorkspace } = useAuth();
-  const activeUser = user as unknown as { lecturerId?: string; organizationId?: string } | null;
   const [loading, setLoading] = useState(true);
   const [contexts, setContexts] = useState<LecturerCtx[]>([]);
   const [token, setToken] = useState<string | null>(null);
@@ -119,8 +118,8 @@ export default function SchoolWorkspace() {
         const lec = (res.contexts || []).filter((c: any) => c.scopeType === 'LECTURER') as LecturerCtx[];
         setContexts(lec);
         const preferred = selectWorkspaceContext(lec, {
-          scopeId: (activeWorkspace?.scopeType === 'LECTURER' ? activeWorkspace.scopeId : null) || activeUser?.lecturerId,
-          organizationId: (activeWorkspace?.scopeType === 'LECTURER' ? activeWorkspace.organizationId : null) || activeUser?.organizationId,
+          scopeId: activeWorkspace?.scopeType === 'LECTURER' ? activeWorkspace.scopeId : null,
+          organizationId: activeWorkspace?.scopeType === 'LECTURER' ? activeWorkspace.organizationId : null,
         });
         if (preferred) await enter(preferred.scopeId);
       } catch { /* ignore */ } finally {
