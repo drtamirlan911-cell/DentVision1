@@ -51,6 +51,60 @@ export interface AiEmployeeTask {
   completedAt: Date | null;
 }
 
+const SAFE_RESULT_STATUSES = new Set([
+  'ok', 'success', 'completed', 'failed', 'partial', 'verified', 'pending', 'queued', 'skipped', 'cancelled',
+]);
+const SAFE_RESULT_COUNTS = ['totalCount', 'completedCount', 'failedCount', 'skippedCount'] as const;
+
+/**
+ * Task results are visible in role queues and are not a PHI vault.
+ * Persist/return only small machine-readable aggregates; never free text,
+ * patient/entity identifiers, transcripts, provider payloads or arbitrary JSON.
+ */
+function sanitizeAiTaskResult(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const source = value as Record<string, unknown>;
+  const safe: Record<string, unknown> = {};
+
+  for (const key of ['status', 'outcome']) {
+    const candidate = source[key];
+    if (typeof candidate === 'string' && SAFE_RESULT_STATUSES.has(candidate)) safe[key] = candidate;
+  }
+  if (typeof source.verified === 'boolean') safe.verified = source.verified;
+
+  for (const key of SAFE_RESULT_COUNTS) {
+    const candidate = source[key];
+    if (typeof candidate === 'number' && Number.isSafeInteger(candidate) && candidate >= 0 && candidate <= 1_000_000) {
+      safe[key] = candidate;
+    }
+  }
+
+  return Object.keys(safe).length ? safe : null;
+}
+
+function sanitizeAiEmployeeTask(task: AiEmployeeTask): AiEmployeeTask {
+  return {
+    ...task,
+    // The task ledger is work memory, not an execution-payload transport.
+    actionPayload: null,
+    result: sanitizeAiTaskResult(task.result),
+    error: task.error ? 'Task failed; details omitted' : null,
+  };
+}
+
+function sanitizeTaskMetadata(value: Record<string, unknown> | undefined): Record<string, unknown> {
+  const source = value || {};
+  const safe: Record<string, unknown> = {};
+  for (const key of ['ruleId', 'agent', 'employeeMission'] as const) {
+    const candidate = source[key];
+    if (typeof candidate === 'string') safe[key] = candidate.slice(0, 240);
+  }
+  for (const key of ['parallel', 'requiresHumanApproval'] as const) {
+    if (typeof source[key] === 'boolean') safe[key] = source[key];
+  }
+  return safe;
+}
+
 const VALID_STATUSES = new Set<AiTaskStatus>([
   'queued', 'observing', 'proposed', 'awaiting_approval', 'executing', 'verified', 'completed', 'failed', 'cancelled',
 ]);
@@ -74,8 +128,9 @@ export async function createAiEmployeeTask(input: CreateAiEmployeeTaskInput): Pr
   const id = randomUUID();
   const status = input.status || (contract.autonomy === 'execute_with_approval' ? 'proposed' : 'queued');
   const risk = input.risk || 'low';
-  const payload = input.actionPayload == null ? null : JSON.stringify(input.actionPayload);
-  const metadata = JSON.stringify(input.metadata || {});
+  // Tasks are not an executor. Do not duplicate arbitrary/possibly clinical payloads.
+  const payload = null;
+  const metadata = JSON.stringify(sanitizeTaskMetadata(input.metadata));
   // Idempotency is tenant-bound. A source event/action/role may be retried by
   // a worker, but it must never collide with another clinic's task.
   const idempotencyKey = input.sourceEventId && input.action
@@ -99,7 +154,7 @@ export async function createAiEmployeeTask(input: CreateAiEmployeeTaskInput): Pr
       source_event_type AS "sourceEventType", action, action_payload AS "actionPayload",
       result, error, due_at AS "dueAt", created_at AS "createdAt", updated_at AS "updatedAt", completed_at AS "completedAt"
   `);
-  return rows[0] || null;
+  return rows[0] ? sanitizeAiEmployeeTask(rows[0]) : null;
 }
 
 export async function listAiEmployeeTasks(input: {
@@ -129,7 +184,7 @@ export async function listAiEmployeeTasks(input: {
     ORDER BY CASE WHEN status IN ('awaiting_approval','proposed','queued') THEN 0 ELSE 1 END, created_at DESC
     LIMIT ${limit}
   `);
-  return rows;
+  return rows.map(sanitizeAiEmployeeTask);
 }
 
 export async function transitionAiEmployeeTask(input: {
@@ -153,7 +208,8 @@ export async function transitionAiEmployeeTask(input: {
     throw new Error(`Invalid AI task transition: ${current} -> ${input.status}`);
   }
 
-  const result = input.result == null ? null : JSON.stringify(input.result);
+  const safeResult = sanitizeAiTaskResult(input.result);
+  const result = safeResult == null ? null : JSON.stringify(safeResult);
   // The request may contain exception text copied from clinical/provider errors.
   // Task rows are not an exception vault: retain the failure signal, not the raw details.
   const safeError = typeof input.error === 'string' && input.error.trim()
@@ -173,7 +229,7 @@ export async function transitionAiEmployeeTask(input: {
       source_event_type AS "sourceEventType", action, action_payload AS "actionPayload",
       result, error, due_at AS "dueAt", created_at AS "createdAt", updated_at AS "updatedAt", completed_at AS "completedAt"
   `);
-  return rows[0] || null;
+  return rows[0] ? sanitizeAiEmployeeTask(rows[0]) : null;
 }
 
 async function getAiEmployeeTask(id: string, clinicId: string): Promise<AiEmployeeTask | null> {
@@ -184,5 +240,5 @@ async function getAiEmployeeTask(id: string, clinicId: string): Promise<AiEmploy
       result, error, due_at AS "dueAt", created_at AS "createdAt", updated_at AS "updatedAt", completed_at AS "completedAt"
     FROM ai_employee_tasks WHERE id = CAST(${id} AS uuid) AND clinic_id = ${clinicId} LIMIT 1
   `);
-  return rows[0] || null;
+  return rows[0] ? sanitizeAiEmployeeTask(rows[0]) : null;
 }
