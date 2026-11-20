@@ -182,6 +182,7 @@ model User {
   notifications                 Notification[]
   orders                        Order[]
   enrollments                   SchoolEnrollment[]
+  schoolAssessmentAttempts      SchoolAssessmentAttempt[]
   appointments                  Appointment[]
   labOrdersOrdered              LabOrder[]                   @relation("LabOrderDoctor")
   academies                     Academy[]
@@ -1678,6 +1679,7 @@ model Course {
 
   lessons     Lesson[]
   enrollments SchoolEnrollment[]
+  assessmentAttempts SchoolAssessmentAttempt[]
   lecturer    Lecturer?          @relation(fields: [lecturerId], references: [id], onDelete: SetNull)
   academy     Academy?           @relation(fields: [academyId], references: [id], onDelete: SetNull)
 
@@ -1714,17 +1716,51 @@ model SchoolEnrollment {
   courseId         String
   progress         Int     @default(0)
   completed        Boolean @default(false)
-  certificateUrl   String?
-  completedLessons Json? // array of lesson IDs that user completed
+  certificateUrl      String?
+  completedLessons    Json? // server-validated array of lesson IDs
+  acquisitionType     String   @default("legacy") // purchase, free, invitation, grant, legacy
+  accessStatus        String   @default("active") // active, suspended, refunded, expired
+  paidAmountMinor     BigInt?
+  currency            String   @default("KZT")
+  paymentId           String?
+  purchaseConfirmedAt DateTime?
+  accessExpiresAt     DateTime?
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  assessmentAttempts SchoolAssessmentAttempt[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@unique([userId, courseId])
+  @@index([userId, accessStatus])
+  @@index([paymentId])
   @@map("school_enrollments")
+}
+
+model SchoolAssessmentAttempt {
+  id            String   @id @default(uuid())
+  userId        String
+  enrollmentId  String
+  courseId      String
+  lessonId      String?
+  attemptNumber Int
+  score         Int
+  correct       Int
+  total         Int
+  passed        Boolean  @default(false)
+  answers       Json?
+  submittedAt   DateTime @default(now())
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollment SchoolEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  course     Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, attemptNumber])
+  @@index([userId, submittedAt])
+  @@index([courseId, submittedAt])
+  @@map("school_assessment_attempts")
 }
 
 // --- NOTIFICATIONS ---
