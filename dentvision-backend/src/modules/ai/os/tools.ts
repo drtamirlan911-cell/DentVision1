@@ -441,6 +441,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const candidates = await prisma.appointment.findMany({
         where: {
           clinicId,
+          ...appointmentBranchWhere(ctx),
           date: { gte: dayStart, lte: dayEnd },
           status: { notIn: ['cancelled', 'no_show'] },
         },
@@ -645,6 +646,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const candidates = await prisma.appointment.findMany({
         where: {
           clinicId,
+          ...appointmentBranchWhere(ctx),
           date: { gte: dayStart, lte: dayEnd },
           status: { notIn: ['cancelled', 'no_show'] },
           id: { not: existing.id },
