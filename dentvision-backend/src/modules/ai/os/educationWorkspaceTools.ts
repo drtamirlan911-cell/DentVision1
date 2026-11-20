@@ -8,7 +8,14 @@ export interface LecturerCoursesOverviewContext {
 
 function safeCourseLabel(value: unknown, maxLength: number): string | null {
   if (typeof value !== 'string') return null;
-  const normalized = value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+  const normalized = Array.from(value)
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code >= 32 && code !== 127;
+    })
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
   return normalized ? normalized.slice(0, maxLength) : null;
 }
 
