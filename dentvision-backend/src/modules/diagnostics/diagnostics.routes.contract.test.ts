@@ -14,6 +14,22 @@ const workflowSource = readFileSync(
   resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnosticCenterWorkflow.ts'),
   'utf8',
 );
+const schemaSource = readFileSync(
+  resolve(process.cwd(), 'dentvision-backend/prisma/schema.prisma'),
+  'utf8',
+);
+const staffMigration = readFileSync(
+  resolve(process.cwd(), 'dentvision-backend/prisma/migrations/20261121240000_diagnostic_center_staff_assignments/migration.sql'),
+  'utf8',
+);
+const worklistUi = readFileSync(
+  resolve(process.cwd(), 'src/pages/diagnostics/workspace/WorklistTab.tsx'),
+  'utf8',
+);
+const teamUi = readFileSync(
+  resolve(process.cwd(), 'src/pages/diagnostics/workspace/TeamTab.tsx'),
+  'utf8',
+);
 
 describe('diagnostics route contract', () => {
   it('has no shadowed duplicate HTTP method + path handlers', () => {
@@ -144,6 +160,49 @@ describe('diagnostics route contract', () => {
     const detailRoute = source.slice(start, end);
     expect(detailRoute).toContain('canReadDiagnosticCenterClinicalDetail(roleKeys)');
     expect(detailRoute.indexOf('canReadDiagnosticCenterClinicalDetail')).toBeLessThan(detailRoute.indexOf('svc.getReferral(referralId)'));
+  });
+
+
+  it('lists center personnel only to managers in the active diagnostic-center context', () => {
+    const start = source.indexOf("diagnosticsRouter.get('/centers/:id/worklist/staff'");
+    const end = source.indexOf("diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/assignees'", start);
+    const route = source.slice(start, end);
+    expect(route).toContain("sameOrgContext(req.user, 'DiagnosticCenter', centerId)");
+    expect(route).toContain('canManageDiagnosticCenterTeam(req.user)');
+    expect(route).toContain("role: { in: ['operator', 'radiologist', 'manager', 'admin'] }");
+    expect(route).toContain('firstName: member.user.firstName');
+    expect(route).toContain('lastName: member.user.lastName');
+  });
+
+  it('assigns only center members with a matching organization-scoped IAM role', () => {
+    const start = source.indexOf("diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/assignees'");
+    const end = source.indexOf("diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/modality'", start);
+    const route = source.slice(start, end);
+    expect(route).toContain("sameOrgContext(req.user, 'DiagnosticCenter', centerId)");
+    expect(route).toContain('canManageDiagnosticCenterTeam(req.user)');
+    expect(route).toContain('FOR UPDATE');
+    expect(route).toContain('tx.diagnosticCenterMember.findFirst');
+    expect(route).toContain('tx.personRole.findFirst');
+    expect(route).toContain("role: { key: { in: ['operator', 'diagnostic_operator'] } }");
+    expect(route).toContain("role: { key: 'radiologist' }");
+    expect(route).toContain('centerId, userId: operatorUserId');
+    expect(route).toContain('centerId, userId: radiologistUserId');
+    expect(route).toContain('tx.operator.upsert');
+    expect(route).toContain('tx.radiologist.upsert');
+    expect(route).toContain("action: 'diagnostics.worklist.assignees.assign'");
+    expect(route).toContain("if (!['SENT', 'ACCEPTED', 'SCHEDULED', 'PATIENT_ARRIVED', 'IN_PROGRESS'].includes(String(referral.status)))");
+  });
+
+  it('keeps one operator and radiologist record per center and reflects assignments in the workflow UI', () => {
+    expect(schemaSource).toContain('@@unique([centerId, userId])');
+    expect(staffMigration).toContain('operators_centerId_userId_key');
+    expect(staffMigration).toContain('radiologists_centerId_userId_key');
+    expect(staffMigration).toContain('UPDATE "referrals" AS r');
+    expect(worklistUi).toContain('getDiagnosticCenterWorklistStaff');
+    expect(worklistUi).toContain('assignDiagnosticCenterWorklistStaff');
+    expect(worklistUi).toContain('Оператор исследования');
+    expect(worklistUi).toContain('Рентгенолог');
+    expect(teamUi).toContain('Сотрудники центра');
   });
 
 });
