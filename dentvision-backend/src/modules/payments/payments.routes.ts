@@ -66,6 +66,111 @@ async function medicalLabOrderAmountMinor(
   return { clinicId: order.clinicId, labId: order.labId, amountMinor, branchId: order.branchId };
 }
 
+async function dentalLabOrderPaymentDetails(
+  orderId: string,
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<{
+  id: string;
+  clinicId: string;
+  status: string;
+  laboratoryId: string;
+  serviceId: string;
+  servicePriceSnapshot: number;
+  branchId: string | null;
+  files: unknown;
+} | null> {
+  const order = await db.labOrder.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true, clinicId: true, status: true, serviceId: true,
+      servicePriceSnapshot: true, files: true,
+      patient: { select: { branchId: true } },
+    },
+  });
+  if (!order?.clinicId || !order.serviceId || !Number.isSafeInteger(order.servicePriceSnapshot) || Number(order.servicePriceSnapshot) <= 0) return null;
+  const files = order.files && typeof order.files === 'object' && !Array.isArray(order.files)
+    ? order.files as Record<string, unknown>
+    : {};
+  const meta = files.meta && typeof files.meta === 'object' && !Array.isArray(files.meta)
+    ? files.meta as Record<string, unknown>
+    : {};
+  const laboratoryId = String(meta.laboratoryId || '').trim();
+  if (!laboratoryId) return null;
+  return {
+    id: order.id,
+    clinicId: order.clinicId,
+    status: order.status,
+    laboratoryId,
+    serviceId: order.serviceId,
+    servicePriceSnapshot: Number(order.servicePriceSnapshot),
+    branchId: order.patient?.branchId ?? null,
+    files: order.files,
+  };
+}
+
+function canAccessDentalLabOrderBranch(user: AuthRequest['user'], branchId: string | null): boolean {
+  if (!branchId) return true;
+  const role = String(user?.role || '').toUpperCase();
+  if (['SUPERADMIN', 'OWNER', 'DIRECTOR', 'ADMIN'].includes(role)) return true;
+  return (user?.branchIds ?? []).filter(Boolean).includes(branchId);
+}
+
+async function settleDentalLabOrderPayment(
+  payment: { id: string; refId: string | null; amount: bigint },
+  db: Prisma.TransactionClient,
+): Promise<boolean> {
+  if (!payment.refId) return false;
+  const order = await dentalLabOrderPaymentDetails(payment.refId, db);
+  if (!order || order.status !== 'delivered') {
+    throw new Error('Зуботехнический заказ должен быть передан клинике и иметь утверждённую цену услуги');
+  }
+  const expectedAmountMinor = tengeToMinor(order.servicePriceSnapshot);
+  if (payment.amount !== expectedAmountMinor) {
+    throw new Error(`Сумма оплаты зуботехнического заказа не совпадает: ожидалось ${expectedAmountMinor}, получено ${payment.amount}`);
+  }
+  const files = order.files && typeof order.files === 'object' && !Array.isArray(order.files)
+    ? order.files as Record<string, unknown>
+    : {};
+  const meta = files.meta && typeof files.meta === 'object' && !Array.isArray(files.meta)
+    ? files.meta as Record<string, unknown>
+    : {};
+  const previousPayment = meta.payment && typeof meta.payment === 'object'
+    ? meta.payment as Record<string, unknown>
+    : null;
+  if (previousPayment?.paymentId && previousPayment.paymentId !== payment.id) {
+    throw new Error('Зуботехнический заказ уже оплачен другим платежом');
+  }
+
+  const { recordPartnerEconomics } = await import('../finance/partner-economics.service.js');
+  await recordPartnerEconomics({
+    vertical: 'DENTAL_LAB',
+    partnerId: order.laboratoryId,
+    grossMinor: expectedAmountMinor,
+    operationId: order.id,
+    branchId: order.branchId,
+    paymentId: payment.id,
+  }, db);
+
+  await db.labOrder.update({
+    where: { id: order.id },
+    data: {
+      files: {
+        ...files,
+        meta: {
+          ...meta,
+          payment: {
+            paymentId: payment.id,
+            status: 'paid',
+            amountMinor: expectedAmountMinor.toString(),
+            paidAt: new Date().toISOString(),
+          },
+        },
+      },
+    },
+  });
+  return true;
+}
+
 async function settleMedicalLabOrderPayment(
   payment: { id: string; refId: string | null; amount: bigint },
   db: Prisma.TransactionClient,
@@ -416,6 +521,10 @@ async function settlePaidPayment(
     settled = (await settleMedicalLabOrderPayment(payment, db)) || settled;
   }
 
+  if (payment.refType === 'dental_lab_order') {
+    settled = (await settleDentalLabOrderPayment(payment, db)) || settled;
+  }
+
   if (payment.refType === 'order' || payment.refType === 'shop_order') {
     settled = (await settleOrderPayment(payment, db)) || settled;
   }
@@ -463,7 +572,8 @@ function clinicPaymentScope(payment: { provider: string; meta: unknown; refType:
   const clinicScoped = payment.provider === 'clinic_kaspi'
     || meta.merchantScope === 'clinic'
     || payment.refType === 'appointment'
-    || payment.refType === 'crm_invoice';
+    || payment.refType === 'crm_invoice'
+    || payment.refType === 'dental_lab_order';
   return clinicScoped ? String(meta.clinicId) : null;
 }
 
@@ -536,6 +646,20 @@ async function assertPaymentOwner(
     const clinicId = clinicPaymentScope(payment);
     if (!clinicId) return false;
     return canManageClinicBillingMutation(req.user!, clinicId);
+  }
+
+  if (payment.refType === 'dental_lab_order') {
+    if (!payment.refId) return false;
+    try {
+      const order = await dentalLabOrderPaymentDetails(payment.refId);
+      return Boolean(
+        order
+        && await canManageClinicBillingMutation(req.user!, order.clinicId)
+        && canAccessDentalLabOrderBranch(req.user, order.branchId),
+      );
+    } catch {
+      return false;
+    }
   }
 
   // Orders are canonical ownership records. Historical payment metadata was
@@ -735,6 +859,33 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       }
     }
 
+    if (refType === 'dental_lab_order') {
+      if (!refId) return res.status(400).json({ ok: false, error: 'labOrderId обязателен для оплаты зуботехнического заказа' } satisfies ApiResponse);
+      const labOrder = await dentalLabOrderPaymentDetails(String(refId));
+      if (!labOrder) return res.status(404).json({ ok: false, error: 'Не найден оплачиваемый заказ партнёрской зуботехнической лаборатории с утверждённой услугой и ценой' } satisfies ApiResponse);
+      if (labOrder.status !== 'delivered') return res.status(409).json({ ok: false, error: 'Оплатить можно только доставленный зуботехнический заказ', code: 'DENTAL_LAB_ORDER_NOT_DELIVERED' } satisfies ApiResponse);
+      if (!(await canManageClinicBillingMutation(req.user!, labOrder.clinicId))) {
+        return res.status(403).json({ ok: false, error: 'Нет полномочий на оплату заказа от имени этой клиники' } satisfies ApiResponse);
+      }
+      if (!canAccessDentalLabOrderBranch(req.user, labOrder.branchId)) {
+        return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу, которому принадлежит зуботехнический заказ' } satisfies ApiResponse);
+      }
+      const expectedMinor = tengeToMinor(labOrder.servicePriceSnapshot);
+      if (minor !== expectedMinor) return res.status(409).json({ ok: false, error: 'Сумма не совпадает с зафиксированной ценой зуботехнической услуги' } satisfies ApiResponse);
+      idempotencyKey = `dental-lab-order:${labOrder.id}`;
+      trustedMeta = {
+        ...trustedMeta,
+        clinicId: labOrder.clinicId,
+        laboratoryId: labOrder.laboratoryId,
+        labOrderId: labOrder.id,
+        branchId: labOrder.branchId,
+        userId: req.user!.id,
+      };
+      trustedSellerType = 'LABORATORY';
+      trustedSellerId = labOrder.laboratoryId;
+      trustedDomain = 'dental_lab';
+    }
+
     if (refType === 'medical_lab_order' && refId) {
       const medicalOrder = await medicalLabOrderAmountMinor(refId);
       if (!medicalOrder) return res.status(404).json({ ok: false, error: 'Медицинский лабораторный заказ не найден или не назначен лаборатории' } satisfies ApiResponse);
@@ -819,7 +970,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     // domain=crm, clinicId or merchantScope in the request.
     const platformRefTypes = new Set([
       'subscription', 'enrollment', 'academy_event', 'order', 'shop_order',
-      'medical_lab_order',
+      'medical_lab_order', 'dental_lab_order',
     ]);
     const isClinicCashier = !platformRefTypes.has(String(refType || '')) &&
       (domain === 'crm' || refType === 'appointment' || refType === 'crm_invoice');
