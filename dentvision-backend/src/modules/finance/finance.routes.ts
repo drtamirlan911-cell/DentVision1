@@ -52,13 +52,14 @@ function walletOwnershipGuard(req: AuthRequest, ownerType: string, ownerId: stri
   // organizationId alone is not sufficient: it must map to the wallet owner type
   // represented by the current context. Never let an organization ID authorize
   // an arbitrary ownerType with the same UUID.
-  if (ownerType === 'PARTNER') return req.user?.organizationId === ownerId;
+  if (ownerType === 'PARTNER') return (req.user?.organizationOriginalId || req.user?.organizationId) === ownerId;
   return false;
 }
 
 // Wallet list for current user context
 financeRouter.get('/wallets', async (req: AuthRequest, res) => {
   try {
+    const partnerOwnerId = req.user?.organizationOriginalId || req.user?.organizationId;
     // Platform finance needs the complete wallet catalogue, but that view is
     // reserved to SUPERADMIN. Every other caller remains limited to their own
     // active clinic/supplier/partner wallets.
@@ -68,7 +69,7 @@ financeRouter.get('/wallets', async (req: AuthRequest, res) => {
           OR: [
             ...(req.user?.clinicId ? [{ ownerType: 'CLINIC' as any, ownerId: req.user.clinicId }] : []),
             ...(req.user?.supplierId ? [{ ownerType: 'SUPPLIER' as any, ownerId: req.user.supplierId }] : []),
-            ...(req.user?.organizationId ? [{ ownerType: 'PARTNER' as any, ownerId: req.user.organizationId }] : []),
+            ...(partnerOwnerId ? [{ ownerType: 'PARTNER' as any, ownerId: partnerOwnerId }] : []),
           ].filter(Boolean),
         };
     const wallets = await prisma.wallet.findMany({ where });
@@ -102,13 +103,14 @@ financeRouter.get('/transactions', requirePermission('finance.manage'), async (r
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
     const isSuper = req.user?.role === 'SUPERADMIN';
+    const partnerOwnerId = req.user?.organizationOriginalId || req.user?.organizationId;
     // Non-superadmins only see transactions tied to their own wallet(s).
     const ownerFilter: any = {};
     if (!isSuper) {
       const ids: string[] = [];
       if (req.user?.clinicId) ids.push(req.user.clinicId);
       if (req.user?.supplierId) ids.push(req.user.supplierId);
-      if (req.user?.organizationId) ids.push(req.user.organizationId);
+      if (partnerOwnerId) ids.push(partnerOwnerId);
       if (ids.length === 0) {
         return res.json({ ok: true, data: [] } satisfies ApiResponse);
       }
@@ -122,7 +124,7 @@ financeRouter.get('/transactions', requirePermission('finance.manage'), async (r
       const walletScopes: Array<{ ownerType: WalletOwnerType; ownerId: string }> = [];
       if (req.user?.clinicId) walletScopes.push({ ownerType: 'CLINIC', ownerId: req.user.clinicId });
       if (req.user?.supplierId) walletScopes.push({ ownerType: 'SUPPLIER', ownerId: req.user.supplierId });
-      if (req.user?.organizationId) walletScopes.push({ ownerType: 'PARTNER', ownerId: req.user.organizationId });
+      if (partnerOwnerId) walletScopes.push({ ownerType: 'PARTNER', ownerId: partnerOwnerId });
       ownerFilter.ledgerEntries = {
         some: {
           wallet: {
