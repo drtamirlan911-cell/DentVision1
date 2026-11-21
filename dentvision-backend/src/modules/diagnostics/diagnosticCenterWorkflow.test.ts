@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { authorizeDiagnosticCenterStatusTransition } from './diagnosticCenterWorkflow.js';
+import { authorizeDiagnosticCenterStatusTransition, canReadDiagnosticCenterClinicalDetail } from './diagnosticCenterWorkflow.js';
 
 describe('diagnostic center referral workflow authorization', () => {
   const owner = ['owner'];
@@ -46,5 +46,13 @@ describe('diagnostic center referral workflow authorization', () => {
     expect(authorizeDiagnosticCenterStatusTransition({
       currentStatus: 'ACCEPTED', nextStatus: 'SCHEDULED', roleKeys: ['diagnostic_finance'],
     })).toMatchObject({ allowed: false, status: 403 });
+  });
+
+  it('keeps patient details away from finance-only memberships', () => {
+    expect(canReadDiagnosticCenterClinicalDetail(['diagnostic_finance'])).toBe(false);
+    expect(canReadDiagnosticCenterClinicalDetail(['radiologist'])).toBe(true);
+    expect(canReadDiagnosticCenterClinicalDetail(['diagnostic_operator'])).toBe(true);
+    expect(canReadDiagnosticCenterClinicalDetail(['center_reception'])).toBe(true);
+    expect(canReadDiagnosticCenterClinicalDetail(['diagnostic_manager'])).toBe(true);
   });
 });
