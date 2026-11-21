@@ -534,6 +534,81 @@ test.describe('Partner operational lifecycle', () => {
     });
     expect(Array.isArray(detailBody.events)).toBe(true);
 
+    const centerOrganization = await prisma.organization.findFirst({
+      where: { originalType: 'DiagnosticCenter', originalId: centerId },
+      select: { id: true },
+    });
+    expect(centerOrganization?.id).toBeTruthy();
+    const operatorUser = await createTestUser({
+      email: `diagnostic-operator-${randomUUID()}@test.dentvision`,
+      firstName: 'E2E',
+      lastName: 'Operator',
+      role: 'STUDENT' as any,
+    });
+    const operatorPerson = await prisma.person.create({
+      data: {
+        id: randomUUID(),
+        fullName: 'E2E Operator',
+        personType: 'OPERATOR',
+        organizationId: centerOrganization!.id,
+        userId: operatorUser.id,
+      },
+    });
+    await prisma.diagnosticCenterMember.create({
+      data: { centerId, userId: operatorUser.id, role: 'operator' },
+    });
+    const operatorRole = await prisma.role.findUnique({ where: { key: 'operator' }, select: { id: true } });
+    expect(operatorRole?.id).toBeTruthy();
+    await prisma.personRole.create({
+      data: {
+        id: randomUUID(),
+        personId: operatorPerson.id,
+        roleId: operatorRole!.id,
+        scopeType: 'organization',
+        scopeId: centerOrganization!.id,
+        scopeKey: `organization:${centerOrganization!.id}`,
+      },
+    });
+
+    const staffList = await api.get(`${BASE}/api/diagnostics/centers/${centerId}/worklist/staff`, {
+      headers: auth(centerOwnerToken),
+    });
+    expect(staffList.status()).toBe(200);
+    const staffRows = (await staffList.json()).data;
+    expect(staffRows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ userId: operatorUser.id, role: 'operator' }),
+      expect.objectContaining({ userId: centerRadiologistId, role: 'radiologist' }),
+    ]));
+
+    const assignees = await api.patch(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}/assignees`,
+      {
+        headers: auth(centerOwnerToken),
+        data: { operatorUserId: operatorUser.id, radiologistUserId: centerRadiologistId },
+      },
+    );
+    expect(assignees.status(), await assignees.text()).toBe(200);
+    expect((await assignees.json()).data).toMatchObject({
+      operatorId: expect.any(String),
+      radiologistId: expect.any(String),
+    });
+
+    const refreshedAssignedDetail = await api.get(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}`,
+      { headers: auth(centerOwnerToken) },
+    );
+    expect(refreshedAssignedDetail.status()).toBe(200);
+    expect((await refreshedAssignedDetail.json()).data.referral).toMatchObject({
+      operator: { user: { id: operatorUser.id } },
+      radiologist: { user: { id: centerRadiologistId } },
+    });
+
+    const foreignAssignee = await api.patch(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}/assignees`,
+      { headers: auth(centerOwnerToken), data: { operatorUserId: doctorId } },
+    );
+    expect(foreignAssignee.status()).toBe(400);
+
     const clinicCannotReadCenterDetail = await api.get(
       `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}`,
       { headers: auth(ownerToken) },
