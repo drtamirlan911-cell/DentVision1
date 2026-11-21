@@ -42,6 +42,7 @@ export interface LabPlatformOrder {
   createdAt: string;
   updatedAt: string;
   qualityControl?: { checks: Record<string, boolean>; passed: boolean; note: string | null; checkedByUserId: string; checkedAt: string } | null;
+  remakeRequest?: { id: string; status: 'requested' | 'accepted' | 'rejected'; reason: string; requestedByUserId: string; requestedAt: string; laboratoryId: string; decidedByUserId?: string; decidedAt?: string; responseNote?: string | null } | null;
 }
 
 export interface LabPlatformDashboard {
@@ -66,6 +67,7 @@ export const getLabPlatformOrders = (status?: string) => request<LabPlatformOrde
 export const updateLabPlatformOrderStatus = (id: string, status: string) => request<LabPlatformOrder>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 export const assignLabTechnician = (id: string, technicianId: string | null) => request<LabPlatformOrder>(`/orders/${id}/technician`, { method: 'PATCH', body: JSON.stringify({ technicianId }) });
 export const updateLabPlatformQualityControl = (id: string, checks: Record<string, boolean>, note?: string) => request<LabPlatformOrder>(`/orders/${id}/qc`, { method: 'PATCH', body: JSON.stringify({ checks, note }) });
+export const updateLabPlatformRemakeRequest = (id: string, decision: 'accept' | 'reject', note?: string) => request<LabPlatformOrder>(`/orders/${id}/remake-request`, { method: 'PATCH', body: JSON.stringify({ decision, note }) });
 export const getLabPlatformTeam = () => request<Array<{ id: string; role?: string; firstName: string; lastName: string; email: string; avatar?: string | null }>>('/team');
 export const assignClinicLabOrder = (orderId: string, laboratoryId: string, serviceId?: string) => request<LabPlatformOrder>('/assign', { method: 'POST', body: JSON.stringify({ orderId, laboratoryId, ...(serviceId ? { serviceId } : {}) }) });
 
