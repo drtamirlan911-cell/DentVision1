@@ -16,7 +16,7 @@ const SCHEDULING_ROLE_KEYS = new Set([
   'diagnostic_operator', 'operator', 'reception', 'receptionist', 'registrar', 'center_reception',
 ]);
 const ACQUISITION_ROLE_KEYS = new Set([
-  ...SCHEDULING_ROLE_KEYS, 'modality_technician', 'radiology_technician', 'radiologist', 'diagnostic_radiologist',
+  ...SCHEDULING_ROLE_KEYS, 'modality_technician', 'radiology_technician', 'radiologist', 'diagnostic_radiologist', 'diagnostic_radiologist',
 ]);
 
 function roleMatches(roleKeys: readonly string[], allowed: ReadonlySet<string>): boolean {
