@@ -521,6 +521,25 @@ test.describe('Partner operational lifecycle', () => {
     const assignedItem = (await refreshedWorklist.json()).data.items.find((item: any) => item.id === referral.id);
     expect(assignedItem.modality?.id).toBe(modality.id);
 
+    const workItemDetail = await api.get(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}`,
+      { headers: auth(centerOwnerToken) },
+    );
+    expect(workItemDetail.status()).toBe(200);
+    const detailBody = (await workItemDetail.json()).data;
+    expect(detailBody.referral).toMatchObject({
+      id: referral.id,
+      patientName: 'Partner Lifecycle',
+      status: 'SENT',
+    });
+    expect(Array.isArray(detailBody.events)).toBe(true);
+
+    const clinicCannotReadCenterDetail = await api.get(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}`,
+      { headers: auth(ownerToken) },
+    );
+    expect(clinicCannotReadCenterDetail.status()).toBe(403);
+
     const clinicCannotReadEquipment = await api.get(
       `${BASE}/api/diagnostics/centers/${centerId}/modalities`,
       { headers: auth(ownerToken) },
