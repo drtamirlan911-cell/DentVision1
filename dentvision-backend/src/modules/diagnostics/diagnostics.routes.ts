@@ -8,7 +8,8 @@ import { resolveReferralListScope } from './referral-list-scope.js';
 import * as svc from './diagnostics.service.js';
 import { isAcceptedFilePayload } from '../files/fileValidation.js';
 import prisma from '../../lib/prisma.js';
-import { assertClinicOrgAccess, assertOrgAccess, resolveClinicAccess } from '../../lib/orgContext.js';
+import { assertClinicOrgAccess, assertOrgAccess, resolveClinicAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
+import { CLINIC_ROLE_BY_KEY } from '../../lib/clinicRoleAccessRegistry.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { IinValidationError } from '../../lib/patientIin.js';
 import { canAccessReferralBranch } from '../../lib/diagnosticReferralBranchPolicy.js';
@@ -162,6 +163,59 @@ async function canReadCenterClinicalFiles(user: AuthRequest['user'], centerId?: 
   if (!centerId || user?.role === 'SUPERADMIN') return true;
   if (!sameOrgContext(user, 'DiagnosticCenter', centerId)) return true;
   return canReadDiagnosticCenterClinicalDetail(await activePartnerRoleKeys(user));
+}
+
+async function canReadClinicDiagnosticFiles(
+  user: AuthRequest['user'],
+  referral: { clinicId: string; branchId?: string | null; doctorId?: string | null },
+): Promise<boolean> {
+  if (!user) return false;
+  if (user.role === 'SUPERADMIN') return true;
+  if (referral.doctorId === user.id && await referralBranchAllowed(user, referral)) return true;
+  if (!(await assertClinicOrgAccess(user, referral.clinicId))) return false;
+
+  const organizationId = await resolveOrganizationIdForClinic(referral.clinicId);
+  if (organizationId) {
+    const memberships = await prisma.personRole.findMany({
+      where: {
+        scopeType: 'organization',
+        scopeId: organizationId,
+        person: { userId: user.id, organizationId },
+      },
+      select: { role: { select: { key: true } } },
+    });
+    return memberships.some((membership) => {
+      const role = CLINIC_ROLE_BY_KEY[String(membership.role.key || '').toUpperCase()];
+      return Boolean(role?.permissions.includes('medical.read'));
+    });
+  }
+
+  // Legacy ClinicMember is allowed only before the canonical clinic
+  // organization/PersonRole graph exists. Finance and reception roles fail closed.
+  const access = await resolveClinicAccess(user.id, referral.clinicId);
+  return ['OWNER', 'DIRECTOR', 'ADMIN', 'MANAGER', 'DOCTOR', 'ASSISTANT']
+    .includes(String(access?.role || '').toUpperCase());
+}
+
+async function canReadReferralClinicalFiles(
+  user: AuthRequest['user'],
+  referral: { clinicId: string; branchId?: string | null; doctorId?: string | null; centerId?: string | null; labId?: string | null },
+): Promise<boolean> {
+  if (!user) return false;
+  if (user.role === 'SUPERADMIN') return true;
+  if (referral.centerId && sameOrgContext(user, 'DiagnosticCenter', referral.centerId)) {
+    return canReadCenterClinicalFiles(user, referral.centerId);
+  }
+  if (referral.labId && sameOrgContext(user, 'Laboratory', referral.labId)) {
+    const roles = await activePartnerRoleKeys(user);
+    return roles.some((key) => [
+      'owner', 'admin', 'manager', 'director',
+      'medical_lab_owner', 'medical_lab_admin', 'medical_lab_manager',
+      'medical_lab_technician', 'medical_lab_quality', 'medical_lab_validator', 'medical_lab_doctor',
+      'dental_lab_owner', 'dental_lab_admin', 'dental_technician', 'cad_designer', 'ceramist',
+    ].includes(key));
+  }
+  return canReadClinicDiagnosticFiles(user, referral);
 }
 
 diagnosticsRouter.post('/register', optionalAuth, async (req: AuthRequest, res) => { try { const data = await svc.createRegistrationRequest({ ...req.body, userId: (req.user as any)?.id }); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
