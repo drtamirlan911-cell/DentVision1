@@ -23,4 +23,14 @@ describe('platform dispute adjudication response visibility', () => {
     expect(financeUi).toContain('response.supplier?.name');
     expect(financeUi).toContain('сами по себе не выполняют возврат');
   });
+
+  it('rejects partial-return resolution before mutating dispute status', () => {
+    const statusHandler = routes.slice(routes.indexOf("disputesRouter.post('/:id/status'"));
+    const partialReturnGuard = statusHandler.indexOf("code: 'MARKETPLACE_PARTIAL_RETURN_FINANCE_REQUIRED'");
+    const compareAndSet = statusHandler.indexOf('prisma.dispute.updateMany({');
+    const fullRefund = statusHandler.indexOf('reverseCashback({');
+    expect(partialReturnGuard).toBeGreaterThanOrEqual(0);
+    expect(compareAndSet).toBeGreaterThan(partialReturnGuard);
+    expect(fullRefund).toBeGreaterThan(compareAndSet);
+  });
 });
