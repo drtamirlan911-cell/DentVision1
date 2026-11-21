@@ -13,7 +13,6 @@ describe('dental laboratory dispatch and proof-of-delivery contract', () => {
     expect(schema).toContain('model DentalLabShipment');
     expect(schema).toContain('model DentalLabShipmentEvent');
     expect(schema).toContain('dentalLabShipments DentalLabShipment[]');
-    expect(schema).toContain('dentalLabShipments DentalLabShipment[]');
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS "dental_lab_shipments"');
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS "dental_lab_shipment_events"');
     expect(migration).toContain('CREATE INDEX IF NOT EXISTS "dental_lab_shipments_labOrderId_createdAt_idx"');
@@ -70,6 +69,29 @@ describe('dental laboratory dispatch and proof-of-delivery contract', () => {
     expect(dispatch).toContain('DENTAL_LAB_SHIPMENT_CREATED');
     expect(dispatch).toContain('createNotificationForClinic');
     expect(dispatch).not.toContain('recordPartnerEconomics(');
+  });
+});
+
+
+describe('Dental Lab production command surface', () => {
+  const workspace = read('src/pages/diagnostics/DentalLabPlatform.tsx');
+  const api = read('src/utils/labPlatformApi.ts');
+
+  it('lets managers assign a technician from production and refreshes the canonical order queue', () => {
+    expect(workspace).toContain("enabled: canManageQc && (effectiveTab === 'team' || ['board', 'priority'].includes(effectiveTab))");
+    expect(workspace).toContain('assignLabTechnician');
+    expect(workspace).toContain('canAssignTechnician={canManageQc}');
+    expect(workspace).toContain('onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })}');
+    expect(workspace).toContain("['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician']");
+  });
+
+  it('loads the canonical order and merges production and shipment events for authorized production roles only', () => {
+    expect(api).toContain('export const getLabPlatformOrderLifecycle');
+    expect(workspace).toContain('canViewDetails={canManageQc || canReadProduction}');
+    expect(workspace).toContain('enabled: detailsOpen && canViewDetails');
+    expect(workspace).toContain('lifecycleQuery.data.events.map');
+    expect(workspace).toContain('lifecycleQuery.data.shipmentEvents.map');
+    expect(workspace).toContain('Техническое задание клиники');
   });
 });
 
