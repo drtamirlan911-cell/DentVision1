@@ -109,7 +109,7 @@ export function ModalitiesTab({ orgId }: TabProps) {
                   <h4 className="truncate text-sm font-semibold text-txt-primary">{item.name}</h4>
                   <p className="mt-1 text-xs text-txt-muted">{TYPES[item.kind] || item.kind}{item.room ? ' · ' + item.room : ''}</p>
                 </div>
-                <Badge variant={item.status === 'active' ? 'success' : item.status === 'maintenance' ? 'warning' : 'danger'}>{STATES[item.status] || item.status}</Badge>
+                <Badge variant={item.status === 'active' ? 'success' : item.status === 'maintenance' ? 'warning' : 'error'}>{STATES[item.status] || item.status}</Badge>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-txt-muted">
                 <span>Производитель: {item.manufacturer || '—'}</span>
