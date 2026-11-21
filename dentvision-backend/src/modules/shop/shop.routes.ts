@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { createHash } from 'crypto';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { requireSuperadmin } from '../../middleware/rbac.js';
