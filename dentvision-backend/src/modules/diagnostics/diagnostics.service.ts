@@ -960,6 +960,151 @@ export async function saveAndSignResult(data: {
 }
 
 /**
+ * A signed diagnostic-center report is never overwritten through the initial
+ * signing endpoint. Corrections are append-only versions with a mandatory
+ * reason, the assigned radiologist as signer, and a fresh delivery step.
+ */
+export async function amendDiagnosticCenterResult(data: {
+  referralId: string;
+  reportText: string;
+  conclusion?: string;
+  changeReason: string;
+  userId: string;
+}) {
+  const reason = String(data.changeReason || '').trim();
+  const reportText = String(data.reportText || '').trim();
+  const conclusion = String(data.conclusion || '').trim();
+  if (reason.length < 10 || reason.length > 1000) throw new Error('Укажите причину исправления длиной от 10 до 1000 символов.');
+  if (reportText.length < 20 || reportText.length > 20000) throw new Error('Описание исправленного исследования должно содержать от 20 до 20000 символов.');
+  if (conclusion.length < 5 || conclusion.length > 5000) throw new Error('Исправленное заключение должно содержать от 5 до 5000 символов.');
+
+  const initial = await prisma.referral.findUnique({
+    where: { id: data.referralId },
+    include: { result: true },
+  });
+  if (!initial) throw new Error('Referral not found');
+  if (!initial.centerId || !initial.radiologistId || !initial.result?.signedAt) {
+    throw new Error('Для исправления требуется подписанное заключение диагностического центра и назначенный рентгенолог.');
+  }
+  if (!['COMPLETED', 'DELIVERED'].includes(String(initial.status))) {
+    throw Object.assign(new Error('Исправлять можно только подписанное заключение после завершения исследования.'), { code: 'DIAGNOSTIC_AMENDMENT_STAGE_INVALID' });
+  }
+
+  const organization = await prisma.organization.findFirst({
+    where: { originalType: 'DiagnosticCenter', originalId: initial.centerId, archivedAt: null },
+    select: { id: true },
+  });
+  const [assignedRadiologist, hasSignerRole] = await Promise.all([
+    prisma.radiologist.findFirst({
+      where: { id: initial.radiologistId, centerId: initial.centerId, userId: data.userId, active: true },
+      select: { id: true },
+    }),
+    organization
+      ? hasScopedPartnerSignerRole({ id: data.userId, organizationId: organization.id }, DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS)
+      : Promise.resolve(false),
+  ]);
+  if (!assignedRadiologist || !hasSignerRole) {
+    throw Object.assign(new Error('Исправление заключения доступно только назначенному рентгенологу этого центра.'), { code: 'DIAGNOSTIC_AMENDMENT_FORBIDDEN' });
+  }
+
+  const amended = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "referrals" WHERE "id" = ${data.referralId} FOR UPDATE`;
+    const referral = await tx.referral.findUnique({
+      where: { id: data.referralId },
+      include: { result: true },
+    });
+    if (!referral) throw new Error('Referral not found');
+    if (referral.centerId !== initial.centerId || referral.radiologistId !== initial.radiologistId) {
+      throw Object.assign(new Error('Центр или назначенный рентгенолог изменились. Обновите карточку исследования.'), { code: 'DIAGNOSTIC_AMENDMENT_SCOPE_CHANGED' });
+    }
+    if (!['COMPLETED', 'DELIVERED'].includes(String(referral.status)) || !referral.result?.signedAt) {
+      throw Object.assign(new Error('Состояние заключения изменилось. Обновите карточку исследования.'), { code: 'DIAGNOSTIC_AMENDMENT_STAGE_INVALID' });
+    }
+
+    const latest = await tx.diagnosticResultVersion.findFirst({
+      where: { diagnosticResultId: referral.result.id },
+      orderBy: { version: 'desc' },
+      select: { version: true },
+    });
+    // Defensive backfill for installations where the additive migration has
+    // not yet populated a legacy signed row, without discarding its contents.
+    if (!latest) {
+      await tx.diagnosticResultVersion.create({
+        data: {
+          id: uid(),
+          diagnosticResultId: referral.result.id,
+          version: 1,
+          reportText: referral.result.reportText,
+          conclusion: referral.result.conclusion,
+          signedBy: referral.result.signedBy,
+          signedAt: referral.result.signedAt,
+          changeReason: null,
+        },
+      });
+    }
+    const version = (latest?.version || 1) + 1;
+    const now = new Date();
+    await tx.diagnosticResultVersion.create({
+      data: {
+        id: uid(),
+        diagnosticResultId: referral.result.id,
+        version,
+        reportText,
+        conclusion,
+        signedBy: data.userId,
+        signedAt: now,
+        changeReason: reason,
+      },
+    });
+    const result = await tx.diagnosticResult.update({
+      where: { id: referral.result.id },
+      data: { reportText, conclusion, signedBy: data.userId, signedAt: now },
+    });
+    await tx.referral.update({
+      where: { id: data.referralId },
+      data: { status: 'COMPLETED', completedAt: now },
+    });
+    await writeAuditLog({
+      action: 'DIAGNOSTIC_RESULT_AMENDED',
+      entity: 'referral',
+      entityId: data.referralId,
+      details: {
+        diagnosticResultId: result.id,
+        version,
+        previousVersion: version - 1,
+        changeReason: reason,
+        signedBy: data.userId,
+        previousDeliveryStatus: referral.status,
+        requiresRedelivery: referral.status === 'DELIVERED',
+      },
+      userId: data.userId,
+      clinicId: referral.clinicId,
+    }, tx);
+    return { result, version, clinicId: referral.clinicId, doctorId: referral.doctorId, previousStatus: referral.status };
+  });
+
+  if (amended.doctorId) {
+    await createNotification({
+      userId: amended.doctorId,
+      type: NOTIFICATION_TYPES.REFERRAL_RESULT,
+      title: 'Заключение диагностики исправлено',
+      message: 'Диагностический центр выпустил новую подписанную версию. Дождитесь повторной передачи заключения.',
+      link: `/diagnostics/referrals/${data.referralId}`,
+    });
+  }
+  publish('diagnostics.result_amended', {
+    referralId: data.referralId,
+    clinicId: amended.clinicId || '',
+    centerId: initial.centerId,
+    doctorId: amended.doctorId || '',
+    userId: data.userId,
+    version: amended.version,
+    requiresRedelivery: amended.previousStatus === 'DELIVERED',
+  });
+  return amended;
+}
+
+/**
  * Confirm an AI-generated diagnostic result without rewriting the report.
  * Confirmation is a clinical acknowledgement: the AI draft remains intact,
  * the confirming user is recorded as signer, the referral is completed, and
