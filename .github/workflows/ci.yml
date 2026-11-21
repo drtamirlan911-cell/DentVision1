@@ -439,7 +439,13 @@ jobs:
           {
             echo "=== E2E gate timings ==="
             cat e2e-gate-timings.txt 2>/dev/null || true
-            node quality-scripts/summarize-e2e-failures.mjs e2e-core.log e2e-gate-logs/*.log
+            SUMMARY_SCRIPT="$GITHUB_WORKSPACE/quality-scripts/summarize-e2e-failures.mjs"
+            if [ -f "$SUMMARY_SCRIPT" ]; then
+              node "$SUMMARY_SCRIPT" e2e-core.log e2e-gate-logs/*.log
+            else
+              echo "Summarizer script is unavailable in this checkout; using bounded log fallback."
+              { grep -hE "E2E_GATE_RESULT|Error:|TimeoutError:|AssertionError:|failed|passed" e2e-core.log e2e-gate-logs/*.log 2>/dev/null || true; } | tail -n 100
+            fi
           } > e2e-failure-summary.txt
           cat e2e-failure-summary.txt >> "$GITHUB_STEP_SUMMARY"
 
