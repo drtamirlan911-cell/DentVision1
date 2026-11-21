@@ -34,3 +34,22 @@ describe('dental laboratory service catalogue contract', () => {
     expect(assign).not.toContain('wallet.update(');
   });
 });
+
+
+describe('dental-lab remake response boundary', () => {
+  it('limits accept/reject decisions to lab managers and the matching pending request', () => {
+    const start = routes.indexOf("labPlatformRouter.patch('/orders/:id/remake-request'");
+    const end = routes.indexOf("labPlatformRouter.get('/team'", start);
+    const route = routes.slice(start, end);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(route).toContain('resolveLab(req)');
+    expect(route).toContain('isLabManagerRole(membership.role)');
+    expect(route).toContain('validateLabRemakeDecision');
+    expect(route).toContain("request.status !== 'requested'");
+    expect(route).toContain("request.laboratoryId !== membership.labId");
+    expect(route).toContain("decision.decision === 'accept' ? 'remake' : 'delivered'");
+    expect(route).toContain('appendEventInTransaction');
+    expect(route).toContain('LAB_ORDER_REMAKE_ACCEPTED');
+    expect(route).toContain('LAB_ORDER_REMAKE_REJECTED');
+  });
+});
