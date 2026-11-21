@@ -760,6 +760,9 @@ export const collectDiagnosticsLabCashierPayment = (labId: string, payload: { re
 export async function getDiagnosticsLabDashboard(labId: string): Promise<any> { return getDiagnosticsDashboard({ labId }); }
 export const getDiagnosticsLabPayments = (labId: string) => getDiagnosticReferrals({ labId });
 
+export async function getDiagnosticCenterWorklistReferralDetail(centerId: string, referralId: string): Promise<any> {
+  return apiRequest('/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/worklist/' + encodeURIComponent(referralId));
+}
 export async function getDiagnosticCenterWorklist(centerId: string, params: { status?: string; priority?: string; search?: string; limit?: number; offset?: number } = {}): Promise<any> {
   const q = new URLSearchParams();
   if (params.status) q.set('status', params.status);
