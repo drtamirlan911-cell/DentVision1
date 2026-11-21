@@ -141,7 +141,7 @@ function serialize(order: any) {
     serviceId: order.serviceId || null,
     serviceName: order.serviceNameSnapshot || null,
     servicePriceSnapshot: order.servicePriceSnapshot ?? null,
-    shipment: order.dentalLabShipment ?? null,
+    shipment: Array.isArray(order.dentalLabShipments) ? order.dentalLabShipments[0] ?? null : null,
     treatmentCaseId: (order as any).treatmentCaseId ?? null,
     createdAt: order.createdAt, updatedAt: order.updatedAt,
   };
@@ -157,7 +157,7 @@ async function ordersForLab(labId: string, role: string, userId: string, status?
   if (!readScope) return null;
   const rows = await prisma.labOrder.findMany({
     where: { ...(status ? { status: status as any } : {}), ...readScope },
-    include: { patient: { select: { firstName: true, lastName: true } }, clinic: { select: { id: true, name: true } }, dentalLabShipment: true },
+    include: { patient: { select: { firstName: true, lastName: true } }, clinic: { select: { id: true, name: true } }, dentalLabShipments: { orderBy: { createdAt: 'desc' }, take: 1 } },
     orderBy: [{ deadline: 'asc' }, { createdAt: 'desc' }], take: 500,
   });
   return Promise.all(rows.map(async (order) => serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) })));
@@ -352,15 +352,17 @@ labPlatformRouter.get('/orders/:id/lifecycle', async (req: AuthRequest, res) => 
     if (!membership || !canLabMemberReadOrders(membership.role)) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
     const readScope = labMemberOrderReadScope({ role: membership.role, userId: req.user!.id, labId: membership.labId });
     if (!readScope) return res.status(403).json({ ok: false, error: 'Нет доступа к истории производственных работ' } satisfies ApiResponse);
-    const existing = await prisma.labOrder.findFirst({ where: { id: req.params.id, ...readScope }, include: { dentalLabShipment: true } });
+    const existing = await prisma.labOrder.findFirst({
+      where: { id: req.params.id, ...readScope },
+      include: { dentalLabShipments: { orderBy: { createdAt: 'asc' }, include: { events: { orderBy: { createdAt: 'asc' } } } } },
+    });
     if (!existing) return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
-    const [events, shipmentEvents] = await Promise.all([
+    const [events] = await Promise.all([
       prisma.$queryRawUnsafe(`SELECT * FROM "dental_lab_order_events" WHERE "labOrderId"=$1 ORDER BY "createdAt" ASC`, existing.id),
-      existing.dentalLabShipment
-        ? prisma.dentalLabShipmentEvent.findMany({ where: { shipmentId: existing.dentalLabShipment.id }, orderBy: { createdAt: 'asc' } })
-        : Promise.resolve([]),
     ]);
-    return res.json({ ok: true, data: { order: serialize({ ...existing, treatmentCaseId: await caseIdOf(existing.id) }), events, shipmentEvents } } satisfies ApiResponse);
+    const shipmentEvents = existing.dentalLabShipments.flatMap((shipment) => shipment.events);
+    const latestFirst = [...existing.dentalLabShipments].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return res.json({ ok: true, data: { order: serialize({ ...existing, dentalLabShipments: latestFirst, treatmentCaseId: await caseIdOf(existing.id) }), events, shipments: existing.dentalLabShipments, shipmentEvents } } satisfies ApiResponse);
   } catch (error) { console.error('[LabPlatform] lifecycle error:', error); return res.status(500).json({ ok: false, error: 'Не удалось загрузить историю заказа' } satisfies ApiResponse); }
 });
 
@@ -441,8 +443,8 @@ labPlatformRouter.post('/orders/:id/shipment', async (req: AuthRequest, res) => 
       });
       if (!existing) return { kind: 'not_found' as const };
       if (existing.status !== 'ready') return { kind: 'invalid_status' as const };
-      if (existing.dentalLabShipment) {
-        const current = existing.dentalLabShipment;
+      const current = await tx.dentalLabShipment.findFirst({ where: { labOrderId: existing.id }, orderBy: { createdAt: 'desc' } });
+      if (current && current.status !== 'delivered') {
         const same = current.method === method && current.carrier === (method === 'COURIER' ? carrier : null)
           && current.trackingNumber === (method === 'COURIER' ? trackingNumber : null)
           && current.trackingUrl === trackingUrl;
@@ -488,7 +490,7 @@ labPlatformRouter.post('/orders/:id/shipment', async (req: AuthRequest, res) => 
       publish('labOrder.shipment_created', { clinicId: outcome.order.clinicId, labOrderId: outcome.order.id, laboratoryId: membership.labId, shipmentId: shipment.id, method, userId: req.user!.id });
     }
     return res.status(outcome.kind === 'created' ? 201 : 200).json({
-      ok: true, data: { shipment, order: serialize({ ...outcome.order, dentalLabShipment: shipment }), idempotent: outcome.kind === 'idempotent' },
+      ok: true, data: { shipment, order: serialize({ ...outcome.order, dentalLabShipments: [shipment] }), idempotent: outcome.kind === 'idempotent' },
     } satisfies ApiResponse);
   } catch (error: any) {
     if (String(error?.code || '') === 'P2002') return res.status(409).json({ ok: false, error: 'Отгрузка для этого заказа уже зарегистрирована', code: 'LAB_SHIPMENT_ALREADY_EXISTS' } satisfies ApiResponse);
@@ -522,7 +524,10 @@ labPlatformRouter.post('/orders/:id/shipment/delivery-confirmation', async (req:
         include: { dentalLabShipment: true },
       });
       if (!existing) return { kind: 'not_found' as const };
-      const shipment = existing.dentalLabShipment;
+      const shipment = await tx.dentalLabShipment.findFirst({
+        where: { labOrderId: existing.id, laboratoryId: membership.labId },
+        orderBy: { createdAt: 'desc' },
+      });
       if (!shipment) return { kind: 'shipment_required' as const };
       if (shipment.status === 'delivered' && existing.status === 'delivered') {
         const same = shipment.proofUrl === proofUrl && shipment.recipientName === recipientName;
@@ -566,9 +571,9 @@ labPlatformRouter.post('/orders/:id/shipment/delivery-confirmation', async (req:
       const treatmentCaseId = await caseIdOf(outcome.order.id) || undefined;
       publish('labOrder.status_changed', { clinicId: outcome.order.clinicId, labOrderId: outcome.order.id, patientId: outcome.order.patientId || undefined, doctorId: outcome.order.doctorId || undefined, treatmentCaseId, status: 'delivered', previousStatus: 'ready', userId: req.user!.id });
       publish('labOrder.delivery_confirmed', { clinicId: outcome.order.clinicId, labOrderId: outcome.order.id, laboratoryId: membership.labId, shipmentId: outcome.shipment.id, method: outcome.shipment.method, userId: req.user!.id });
-      return res.json({ ok: true, data: { order: serialize({ ...outcome.order, dentalLabShipment: outcome.shipment, treatmentCaseId }), shipment: outcome.shipment } } satisfies ApiResponse);
+      return res.json({ ok: true, data: { order: serialize({ ...outcome.order, dentalLabShipments: [outcome.shipment], treatmentCaseId }), shipment: outcome.shipment } } satisfies ApiResponse);
     }
-    return res.json({ ok: true, data: { order: serialize({ ...outcome.order, dentalLabShipment: outcome.shipment }), shipment: outcome.shipment, idempotent: true } } satisfies ApiResponse);
+    return res.json({ ok: true, data: { order: serialize({ ...outcome.order, dentalLabShipments: [outcome.shipment] }), shipment: outcome.shipment, idempotent: true } } satisfies ApiResponse);
   } catch (error) {
     console.error('[LabPlatform] delivery confirmation error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось подтвердить вручение заказа' } satisfies ApiResponse);
