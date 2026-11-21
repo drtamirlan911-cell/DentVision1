@@ -276,6 +276,20 @@ describe('diagnostics route contract', () => {
     expect(source).toContain('DIAGNOSTIC_RESULT_ALREADY_SIGNED');
     expect(source).toContain('DIAGNOSTIC_RESULT_STAGE_INVALID');
   });
+  it('returns already-signed conflict before evaluating a completed referral stage', () => {
+    const start = serviceSource.indexOf('export async function saveAndSignResult');
+    const end = serviceSource.indexOf('export async function amendDiagnosticCenterResult', start);
+    const signing = serviceSource.slice(start, end);
+    const preflightSigned = signing.indexOf('if (referralSnapshot.result?.signedAt)');
+    const preflightStage = signing.indexOf("if (referralSnapshot.status !== 'IN_PROGRESS')");
+    const lockedSigned = signing.indexOf('if (lockedReferral.result?.signedAt)');
+    const lockedStage = signing.indexOf("if (data.signerScope === 'diagnostic_center' && lockedReferral.status !== 'IN_PROGRESS')");
+    expect(preflightSigned).toBeGreaterThanOrEqual(0);
+    expect(preflightSigned).toBeLessThan(preflightStage);
+    expect(lockedSigned).toBeGreaterThan(lockedStage === -1 ? 0 : -1);
+    expect(lockedSigned).toBeLessThan(lockedStage);
+  });
+
 
   it('derives clinic and partner medical/file access from canonical scoped role permissions', () => {
     for (const roleKey of ['DOCTOR', 'ASSISTANT', 'OWNER', 'ADMIN', 'MANAGER']) {
