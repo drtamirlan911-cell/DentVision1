@@ -470,7 +470,7 @@ export async function getReferral(id: string) {
     if (isStorageKey(file.fileUrl || '')) {
       if (!storageConfigured()) return { ...file, fileUrl: null, unavailable: true };
       try {
-        const signedUrl = await signedDownloadUrl(keyFromStorageUrl(file.fileUrl!), 300);
+        const signedUrl = await signedDownloadUrl(keyFromStorageUrl(file.fileUrl!), 900);
         return { ...file, fileUrl: signedUrl, unavailable: false };
       } catch (error) {
         console.error('[diagnostics] signed file URL failed', { referralId: id, fileId: file.id, error });
