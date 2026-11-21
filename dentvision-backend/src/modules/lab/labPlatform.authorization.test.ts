@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { canLabManageFinance, canLabManageShipment, canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, isLabTechnicianRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeRequestReason, validateLabRemakeDecision } from './labPlatform.authorization.js';
 
 describe('Dental Lab role boundaries', () => {
+  it('allows logistics to read only through the dedicated delivery queue, not the production-assignment scope', () => {
+    for (const role of ['courier', 'logistics', 'delivery_operator', 'dispatcher']) {
+      expect(canLabMemberReadOrders(role), role).toBe(true);
+      expect(labMemberOrderReadScope({ role, userId: 'delivery-1', labId: 'lab-1' }), role).toBeNull();
+    }
+    expect(canLabMemberReadOrders('lab_finance')).toBe(false);
+  });
+
   it('recognizes only owner-level lab roles as managers', () => {
     expect(isLabManagerRole('owner')).toBe(true);
     expect(isLabManagerRole('admin')).toBe(true);
