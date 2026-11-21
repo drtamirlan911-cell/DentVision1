@@ -169,7 +169,7 @@ export default function MedicalLabWorkspace() {
                           {specimen.specimenType} · {specimen.containerType || 'Контейнер не указан'}{specimen.volume ? ' · ' + specimen.volume + ' ' + (specimen.volumeUnit || '') : ''}
                         </div>
                         {specimen.parentSpecimenId && <p className="text-xs text-txt-secondary">Аликвота родительского образца {specimen.parentSpecimenId.slice(0, 8)}</p>}
-                        {hasCapability('specimen.collect') && (specimen.status === 'received' || specimen.status === 'processing') && (
+                        {hasCapability('specimen.collect') && specimen.status === 'received' && (
                           <Button size="sm" variant="outline" disabled={aliquotMutation.isPending} onClick={() => aliquotMutation.mutate({ id: selected.order.id, specimenId: specimen.id })}>
                             Создать аликвоту
                           </Button>
