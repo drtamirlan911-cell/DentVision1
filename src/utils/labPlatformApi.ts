@@ -34,6 +34,18 @@ export interface DentalLabShipment {
   deliveryNote?: string | null;
 }
 
+export interface DentalLabInvoice {
+  id: string;
+  invoiceNumber: string;
+  amountMinor: string;
+  refundedMinor: string;
+  currency: 'KZT' | string;
+  status: 'issued' | 'paid' | 'partially_refunded' | 'refunded' | 'void' | string;
+  issuedAt: string;
+  paidAt?: string | null;
+  paymentId?: string | null;
+}
+
 export interface LabPlatformOrder {
   id: string;
   clinicId: string;
@@ -60,6 +72,7 @@ export interface LabPlatformOrder {
   qualityControl?: { checks: Record<string, boolean>; passed: boolean; note: string | null; checkedByUserId: string; checkedAt: string } | null;
   remakeRequest?: { id: string; status: 'requested' | 'accepted' | 'rejected'; reason: string; requestedByUserId: string; requestedAt: string; laboratoryId: string; decidedByUserId?: string; decidedAt?: string; responseNote?: string | null } | null;
   payment?: { paymentId: string; status: 'paid'; amountMinor: string; paidAt: string } | null;
+  invoice?: DentalLabInvoice | null;
   shipment?: DentalLabShipment | null;
 }
 
@@ -148,6 +161,8 @@ export interface LabPlatformOrderLifecycle {
 }
 export const getLabPlatformOrderLifecycle = (id: string) =>
   request<LabPlatformOrderLifecycle>(`/orders/${encodeURIComponent(id)}/lifecycle`);
+export const issueLabPlatformInvoice = (id: string, notes?: string) =>
+  request<DentalLabInvoice>(`/orders/${encodeURIComponent(id)}/invoice`, { method: 'POST', body: JSON.stringify({ notes }) });
 export const updateLabPlatformOrderStatus = (id: string, status: string) => request<LabPlatformOrder>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 export const assignLabTechnician = (id: string, technicianId: string | null) => request<LabPlatformOrder>(`/orders/${id}/technician`, { method: 'PATCH', body: JSON.stringify({ technicianId }) });
 export const updateLabPlatformQualityControl = (id: string, checks: Record<string, boolean>, note?: string) => request<LabPlatformOrder>(`/orders/${id}/qc`, { method: 'PATCH', body: JSON.stringify({ checks, note }) });
