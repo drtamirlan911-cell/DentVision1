@@ -72,3 +72,49 @@ describe('dental laboratory dispatch and proof-of-delivery contract', () => {
     expect(dispatch).not.toContain('recordPartnerEconomics(');
   });
 });
+
+
+describe('dental lab partner finance workspace contract', () => {
+  const authz = read('dentvision-backend/src/modules/lab/labPlatform.authorization.ts');
+  const financeRoutes = read('dentvision-backend/src/modules/lab/labPlatform.routes.ts');
+  const sharedFinanceRoutes = read('dentvision-backend/src/modules/finance/finance.routes.ts');
+  const payoutService = read('dentvision-backend/src/modules/finance/payout.service.ts');
+  const workspace = read('src/pages/diagnostics/DentalLabPlatform.tsx');
+
+  it('uses the canonical Laboratory id for partner wallets and scopes access to finance roles', () => {
+    expect(authz).toContain("const LAB_FINANCE_ROLES = new Set(['lab_finance', 'finance', 'accountant'])");
+    expect(authz).toContain('export function canLabManageFinance');
+    expect(financeRoutes).toContain("labPlatformRouter.get('/finance'");
+    expect(financeRoutes).toContain("labPlatformRouter.post('/payouts'");
+    expect(financeRoutes).toContain("getOrCreateWallet('PARTNER', membership.labId)");
+    expect(financeRoutes).toContain("vertical: 'DENTAL_LAB', partnerId: membership.labId");
+    expect(sharedFinanceRoutes).toContain('organizationOriginalId || req.user?.organizationId');
+  });
+
+  it('keeps the finance-only role out of the production queue and payout notifications out of production/logistics roles', () => {
+    expect(financeRoutes).toContain('!canLabMemberReadOrders(membership.role) && !canLabManageFinance(membership.role)');
+    expect(financeRoutes).toContain("membershipRole: membership.role, totals: { all: 0, active: 0, dueSoon: 0, overdue: 0 }");
+    expect(payoutService).toContain("role: { in: ['owner', 'admin', 'manager', 'director', 'lab_manager', 'lab_finance', 'finance', 'accountant'] }");
+    expect(workspace).toContain("canManageFinance = canManageQc || ['lab_finance', 'finance', 'accountant']");
+    expect(workspace).toContain("enabled: effectiveTab === 'finance' && canManageFinance");
+  });
+
+  it('uses the shared payout reservation and ledger transition rather than adding commission on delivery', () => {
+    expect(financeRoutes).toContain("requestPayout({ ownerType: 'PARTNER', ownerId: membership.labId, amountMinor })");
+    expect(financeRoutes).toContain('availableBalanceMinor(wallet.id)');
+    const deliveryStart = financeRoutes.indexOf("labPlatformRouter.post('/orders/:id/shipment/delivery-confirmation'");
+    const financeStart = financeRoutes.indexOf("labPlatformRouter.get('/finance'");
+    expect(deliveryStart).toBeGreaterThanOrEqual(0);
+    const delivery = financeRoutes.slice(deliveryStart, financeStart);
+    expect(delivery).not.toContain("getPartnerEconomicsTransparency");
+    expect(delivery).not.toContain('requestPayout(');
+  });
+
+  it('shows paid settlement, partner net, commission and payout history in the financial workspace', () => {
+    expect(workspace).toContain("label: 'Финансы'");
+    expect(workspace).toContain('Доступно к выплате');
+    expect(workspace).toContain('Комиссия DentVision');
+    expect(workspace).toContain('Доля лаборатории');
+    expect(workspace).toContain('Заявки на выплату');
+  });
+});
