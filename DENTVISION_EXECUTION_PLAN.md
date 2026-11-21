@@ -915,3 +915,83 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [ ] Complete invoice → payment → settlement → payout for the laboratory.
 - [ ] Verify durable idempotent notifications and AI operational exception summaries.
 - [ ] Complete owner/manager/technician RBAC and desktop/mobile acceptance. D10 remains OPEN.
+
+
+## Standing product mandate — world-class dental-industry operating system and measurable recognition
+
+**Persistent direction:** build DentVision as a world-class operating system for the entire dental and connected healthcare ecosystem, not as a clinic CRM with attached modules. This mandate applies across future implementation sessions and must remain visible in repository planning. Work that is only discussed in chat is not considered planned or completed until its scope, status, evidence and next action are recorded here or in the owning domain contract.
+
+### Product outcome
+
+DentVision must make the next correct action obvious for every participant: patient/buyer, doctor, clinic/group, diagnostic center, radiologist, medical laboratory, dental laboratory, technician, supplier/manufacturer, academy, lecturer, student, employer, job seeker, professional community and platform operations.
+
+The experience must combine:
+- one identity with multiple organization-scoped memberships and explicit active context;
+- first-class partner workspaces with their own teams, workflows, economics and customer relationships;
+- shared, auditable platform primitives for IAM, files, tasks, notifications, finance, settlement, search, analytics and AI;
+- task-first Command Centers, queues and entity workbenches with progressive disclosure;
+- complete web, mobile and Android/PWA workflows, not desktop-only feature parity;
+- AI that understands the active role, organization and entity, proposes safe actions, asks for confirmation when required, executes only authorized actions and verifies the result.
+
+### Non-negotiable engineering and product gates
+
+1. **Master Spec first:** `docs/DENTVISION_MASTER_SPEC.md` v5.0 is normative. `docs/PRODUCT/CABINET_UX_AND_WORKFLOW_STANDARD.md`, the domain contracts and `docs/RELEASE_BLOCKERS.md` define acceptance and release constraints. Do not create a parallel product direction or duplicate an existing canonical route/domain model.
+2. **Tenant safety:** every request, background job, file, notification, AI retrieval/tool, report and financial mutation must resolve the authenticated active context server-side. A client-supplied organization/clinic/branch/resource ID is not proof of access. Ambiguity fails closed.
+3. **Workflow completion:** each cabinet is validated through entry → context → permission → Command Center → queue → entity detail → valid action → exception/rework → persistence → notification/handoff → finance/document/result → audit → mobile. A route, component, database model or screenshot is not proof of completion.
+4. **Canonical records and event integrity:** preserve one canonical business record, explicit state machines, idempotent writes, immutable history where required, attributable actors/timestamps and compensating financial events. Do not silently overwrite or skip a workflow step.
+5. **Clinical, financial and legal safety:** no AI diagnostic or treatment output becomes a clinical decision without the required professional confirmation. Do not recognize commission on order creation or delivery alone; use the approved settlement contract. Do not represent draft legal/EDS flows as legally operative.
+6. **Real integrations only:** label manual entry, mock data, simulated providers and metadata-only DICOM as such. Do not claim PACS/LIS/CAD-CAM, carrier, Kaspi, EDS, government or equipment integration until the actual interface, credentials/contract, conformance and end-to-end evidence exist.
+7. **Security and privacy:** close RB-029 and the full RB-035 matrix with protected, reviewable evidence; maintain key lifecycle, auditability, backup/restore, retention/deletion and PHI boundaries. Never perform production/staging PHI backfills or payment operations without the required approval, backup and rollback evidence.
+8. **Quality and accessibility:** maintain generated maps/indexes, build, TypeScript, lint, unit/contract/integration/E2E, role/context isolation, browser/network, visual regression, keyboard/accessibility, responsive, Android and operational observability evidence. Do not suppress meaningful failures to make a gate green.
+9. **No false readiness:** each vertical is explicitly `OPEN`, `PARTIAL`, `CANDIDATE` or `VERIFIED`; `VERIFIED` requires exact-HEAD evidence and any required external/operator acceptance. Prior SHA results do not certify a newer SHA.
+
+### Implementation programme and current status
+
+| Priority | Workstream | Current status | Required completion evidence |
+|---|---|---|---|
+| P0 | PR #352 partner-context and ecosystem changes | CANDIDATE; open PR, not merged | Exact-HEAD CI, Quality Gate, Partner Lifecycle/Role-Context E2E, migration bootstrap, mobile and browser evidence; resolve all failures before merge |
+| P0 | CI source-map/index integrity | OPEN at `be324289` | Re-run the System Map generator, commit the generated map and prove the validation step is clean |
+| P0 | Identity, active context, RBAC and tenant isolation | PARTIAL / release-gated | Full positive/negative matrix across every org type, branch, role, deep link, file, notification, job, finance action and AI tool |
+| P0 | RB-029 PHI/AI memory lifecycle | OPEN / P0 in Release Blockers | Full reader/writer and derivative-data inventory, protected legacy backfill, key version/rotation and old-key plan, retention/deletion/export, backup/restore and approved staging reconciliation |
+| P0 | RB-035 authorization matrix; RB-031 WebKit/CORS/WebSocket; RB-033 branch protection | OPEN / evidence-gated | Independent route/role/tenant review, production configuration evidence and repository-admin verification where connector permissions are insufficient |
+| P0 | D1/D2 trial, archive and subscription lifecycle | OPEN until required staging proof | Positive-read/negative-write tests after expiry, archive/restore preservation and approved staging migration/rollback evidence |
+| P1 | Supplier / Manufacturer OS | PARTIAL | Verified onboarding, multi-seller allocations, procurement, returns/RMA/claims, carrier integrations and proof-of-delivery, invoice/refund/chargeback, settlement/payout and reconciliation |
+| P1 | Dental Laboratory OS (D10) | PARTIAL / D10 OPEN | Intake/completeness, production planning, technician workbench, digital files, CAD/CAM integrations, material/stock traceability, QC sign-off, remake authorization, shipping, invoices, settlement/payout and role/mobile acceptance |
+| P1 | Medical Laboratory OS | PARTIAL | Full LIS lifecycle, physical accession devices, courier chain of custody, analyzer interfaces, calibration/external QC, critical-value acknowledgement, corrected-result delivery and settlement |
+| P1 | Diagnostic Center OS | PARTIAL | Real RIS/PACS, DICOM receive/store/query/retrieve and modality worklist, viewer, reporting/sign-off, transfer retry/audit, maintenance/calibration and real modality conformance tests |
+| P1 | Academy / Lecturer OS | PARTIAL | Cohorts, attendance, assignments, grading/review, reliable assessment and credential verification, instructor economics, refunds/payouts and learner mobile journey |
+| P1 | Employer / Career OS | CANDIDATE / PARTIAL | Vacancy lifecycle, consent-aware messaging, interview/offer history, legal review, EDS-enabled contracts where applicable, onboarding and employer/worker lifecycle evidence |
+| P1 | Existing clinic, doctor, reception, patient, finance, BI, community and admin cabinets | AUDIT REQUIRED | Complete role journeys using the cabinet standard; prioritize safety, task success, accessibility, mobile and cross-context isolation |
+| P2 | DentVision AI Core / agents | CONTINUOUS; not certified complete | Context-bound retrieval, governed tool registry, permission checks, confirmation/verification/audit, domain evaluations, hallucination and PHI-leakage tests, latency/cost/quality observability |
+| P2 | Shared Finance Hub and partner economics | PARTIAL | One canonical invoice/payment/settlement/ledger lifecycle, idempotent callbacks, transparent gross/fees/net, refund/chargeback compensation, reconciliation and partner payout evidence |
+| P2 | Platform reliability and mobile | AUDIT REQUIRED | SLOs, monitoring/alerts, incident/recovery runbooks, backup restore tests, performance budgets, accessibility, offline boundaries and real Android runtime acceptance |
+| P3 | Kazakhstan interoperability and public-sector readiness | STRATEGIC / NOT YET CERTIFIED | Legal/regulatory gap analysis, data-protection and medical-system review, verified HL7 FHIR/DICOM/EDS/NEPZ integrations as applicable, security assessment, pilot approvals and documented procurement/support model |
+| P3 | Market credibility and industry recognition | STRATEGIC / OUTCOME-BASED | Reference customers, independently measured clinical/operational outcomes, interoperability conformance, security/privacy evidence, publications/case studies, partner ecosystem and transparent service reliability |
+
+### Recognition and public-sector readiness
+
+Recognition is an outcome of independently verifiable product quality and adoption, not a substitute for it. Build the evidence base in this order:
+
+1. Demonstrate measurable value with real clinics and partners: reduced administrative time, fewer handoff failures, faster turnaround, higher traceability, better utilization and improved patient communication. Establish baselines and obtain customer-approved measurement before publishing claims.
+2. Prove safety and trust: external security/privacy review, role and tenant isolation evidence, incident response, backup/restore drills, clinical governance and transparent AI limitations.
+3. Prove interoperability: documented APIs and versioning, conformance tests, real partner/provider/device integrations and controlled data exchange. A protocol name in code or an AE Title field alone is not interoperability evidence.
+4. Prove sustainable ecosystem economics: partners can see transparent fees and net payouts; DentVision can support the service with positive unit economics, reconciliation and reliable operations.
+5. Build a Kazakhstan adoption path: obtain qualified legal/regulatory review, define the correct medical-data and integration obligations, run documented pilots with approved organizations, and prepare a public-sector proposal only after security, governance, procurement and support requirements are evidenced.
+6. Publish credible evidence: customer-approved case studies, independent evaluations, technical documentation, standards/conformance reports and clear uptime/support commitments. Never claim government endorsement, certification, accreditation or clinical efficacy without formal evidence.
+
+### Execution discipline
+
+- Continue from the verified current branch/PR and preserve existing work; do not create duplicate branches or parallel implementations for the same domain.
+- Before each slice, inspect the Master Spec, Release Blockers, current Execution Plan, cabinet standard, domain contract, route/API, schema, UI and tests.
+- Fix the earliest real release/CI blocker before adding unrelated surface area. Commit source changes and matching docs together; regenerate generated files using their canonical scripts.
+- After every slice, record exact changed files, commit SHA, tests, external dependencies, known limitations and next unblocked action in this file and the owning domain document.
+- A CI result is valid only for the exact SHA it ran against. Do not merge, deploy or mark a vertical complete because an older run passed.
+- Keep this programme active until all applicable acceptance criteria are met; do not silently drop unfinished rows when switching workstreams.
+
+### Exact-head checkpoint — 2026-11-21
+
+- Branch: `fix/partner-workspace-context-ux-20261120`; PR #352 targets `main`; observed head `be324289b8db23ce92b0f33f186b93ab2f6388e3`. PR is OPEN and unmerged.
+- On that SHA, frontend lint, backend lint, both Quality Gate jobs and Vercel status passed; E2E was still running at the time of inspection.
+- CI `lint-test` failed before `npm test`: the job ran `npm run system-map --prefix dentvision-backend`, which changed the generated `docs/SYSTEM_MAP.md`; `git diff --exit-code -- docs/SYSTEM_MAP.md` then failed. The source had 729 unique route handlers, 683 mounted HTTP routes and 160 Prisma models, while the committed map still said 722 / 680 / 157. This is generated-document drift, not evidence of a failing unit test; unit tests were skipped by that job.
+- The same generated map reports 102 routes without a detected web/mobile consumer. This is an audit queue, not proof that every route is broken; reconcile each route to a real consumer, intentional server-only use or safe removal.
+- Next action: sync the generated System Map from the canonical generator, commit the corrected output and rerun exact-HEAD CI. Then inspect the E2E result and all remaining gates before merge.
