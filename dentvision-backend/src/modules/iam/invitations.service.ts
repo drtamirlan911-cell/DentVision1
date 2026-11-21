@@ -95,9 +95,9 @@ export function generateInviteCode(): string {
  * May this user hand out invitations for this organization?
  *
  * Read from the legacy member row rather than the unified graph on purpose:
- * `grantDiagnosticsAccess` deliberately leaves radiologists and operators
- * without a `PersonRole`, so a unified-only check would see no role at all and
- * could not tell an operator from an owner.
+ * this table is the canonical membership/manager boundary for diagnostics
+ * invites. Scoped PersonRole rows provide capabilities for each specialist,
+ * but must not allow a clinical operator or radiologist to invite colleagues.
  */
 export async function canManageMembers(
   userId: string,
