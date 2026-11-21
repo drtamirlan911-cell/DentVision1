@@ -931,7 +931,7 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Assert delivered creates no DENTAL_LAB partner-economics transaction/ledger before verified settlement.
 - [x] Verify durable event history, final clinic visibility and cross-laboratory isolation.
 - [x] Add QC checklist and authorized sign-off (manager-only `/api/lab-platform/orders/:id/qc`; six required checks: fit, margins, shade, occlusion, surface, documentation; failed QC requires a note; transactional status/event write; authorization and validation tests in `labPlatform.authorization.test.ts`).
-- [ ] Add explicit remake authorization / feedback loop.
+- [x] Add explicit remake authorization / feedback loop (clinic POST request after delivered partner case; mandatory reason; partner-manager accept/reject; rejection reason; transactional row lock and durable dental-lab event; audit trail; notifications to laboratory members and clinic; typed domain events; clinic and partner UI).
 - [ ] Add dispatch, shipping, pickup tracking and proof of delivery.
 - [x] Add independent services catalogue and pricing management (manager-scoped CRUD, published catalogue, clinic selection, immutable service-name/price snapshots; migration and `labPlatform.services.contract.test.ts`).
 - [ ] Complete invoice → payment → settlement → payout for the laboratory.
