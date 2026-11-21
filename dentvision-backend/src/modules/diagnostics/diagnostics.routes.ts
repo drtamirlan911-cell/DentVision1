@@ -814,6 +814,35 @@ diagnosticsRouter.post('/laboratories/:id/cashier/collect', async (req: AuthRequ
   } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); }
 });
 diagnosticsRouter.delete('/referrals/:id', requireReferralAccess(), async (req: AuthRequest, res) => { try { await svc.deleteReferral(req.params.id, req.user!.id); return res.json({ ok: true }); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.get('/referrals/:id/files/:fileId/download-url', requireReferralAccess(true), async (req: AuthRequest, res) => {
+  try {
+    const referralId = String(req.params.id);
+    const fileId = String(req.params.fileId);
+    const referral = await prisma.referral.findUnique({
+      where: { id: referralId },
+      select: { centerId: true },
+    });
+    if (!referral) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
+    if (!(await canReadCenterClinicalFiles(req.user, referral.centerId))) {
+      return res.status(403).json({ ok: false, error: 'Доступ к медицинским вложениям центра запрещён для этой роли.' });
+    }
+    const data = await svc.getReferralFileDownloadUrl(referralId, fileId, req.user!.id);
+    return res.json({ ok: true, data } satisfies ApiResponse);
+  } catch (error: any) {
+    const code = String(error?.code || '');
+    const status = code === 'DIAGNOSTIC_STORAGE_UNAVAILABLE' ? 503
+      : code === 'DIAGNOSTIC_FILE_NOT_FOUND' ? 404
+      : code === 'DIAGNOSTIC_FILE_LEGACY_UNAVAILABLE' ? 410
+      : code === 'DIAGNOSTIC_FILE_SCOPE_INVALID' ? 403
+      : 400;
+    return res.status(status).json({
+      ok: false,
+      error: error?.message || 'Не удалось подготовить безопасную ссылку на файл',
+      ...(code ? { code } : {}),
+    } satisfies ApiResponse);
+  }
+});
+
 diagnosticsRouter.post('/referrals/:id/files/upload', requireReferralAccess(true), limitConcurrentDiagnosticUploads, parseDiagnosticAttachment, async (req: AuthRequest, res) => {
   try {
     const referralId = String(req.params.id);
