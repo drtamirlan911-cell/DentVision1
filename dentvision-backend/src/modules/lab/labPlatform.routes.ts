@@ -15,7 +15,7 @@ import { uid } from '../../lib/helpers.js';
 import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js';
 import { createNotificationForClinic } from '../../services/notification.service.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
-import { canLabManageFinance, canLabManageShipment, canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeDecision } from './labPlatform.authorization.js';
+import { canLabManageFinance, canLabManageShipment, canLabMemberChangeStatus, canLabMemberReadOrders, isLabLogisticsRole, isLabManagerRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeDecision } from './labPlatform.authorization.js';
 
 export const labPlatformRouter = Router();
 labPlatformRouter.use(authenticate);
@@ -158,14 +158,41 @@ async function caseIdOf(orderId: string): Promise<string | null> {
 }
 
 async function ordersForLab(labId: string, role: string, userId: string, status?: string) {
-  const readScope = labMemberOrderReadScope({ role, userId, labId });
+  const logisticsOnly = isLabLogisticsRole(role);
+  const readScope = logisticsOnly
+    ? { files: { path: ['meta', 'laboratoryId'], equals: labId } }
+    : labMemberOrderReadScope({ role, userId, labId });
   if (!readScope) return null;
+  const logisticsStatuses = ['ready', 'delivered'];
+  if (logisticsOnly && status && !logisticsStatuses.includes(status)) return [];
   const rows = await prisma.labOrder.findMany({
-    where: { ...(status ? { status: status as any } : {}), ...readScope },
+    where: {
+      ...(status ? { status: status as any } : logisticsOnly ? { status: { in: logisticsStatuses as any } } : {}),
+      ...readScope,
+    },
     include: { patient: { select: { firstName: true, lastName: true } }, clinic: { select: { id: true, name: true } }, dentalLabShipments: { orderBy: { createdAt: 'desc' }, take: 1 } },
     orderBy: [{ deadline: 'asc' }, { createdAt: 'desc' }], take: 500,
   });
-  return Promise.all(rows.map(async (order) => serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) })));
+  return Promise.all(rows.map(async (order) => {
+    const result = serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) });
+    if (!logisticsOnly) return result;
+    // A courier needs the handoff and recipient context, not clinical identifiers or treatment details.
+    return {
+      ...result,
+      patientId: null,
+      patientName: '',
+      doctorId: null,
+      toothNumber: '',
+      shade: '',
+      notes: '',
+      technicianId: null,
+      qualityControl: null,
+      remakeRequest: null,
+      payment: null,
+      servicePriceSnapshot: null,
+      price: null,
+    };
+  }));
 }
 
 labPlatformRouter.get('/available-laboratories', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
