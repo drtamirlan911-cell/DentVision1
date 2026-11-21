@@ -179,7 +179,7 @@ export default function DentalLabPlatform() {
           ))}
         </div>
       </>}
-      {tab === 'priority' && <div className="grid gap-3 lg:grid-cols-2">{d.priority.map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} qcBusy={qcMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} />)}{!d.priority.length && <Card padding="lg"><p className="text-sm text-txt-muted">Критических работ сейчас нет.</p></Card>}</div>}
+      {tab === 'priority' && <div className="grid gap-3 lg:grid-cols-2">{d.priority.map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} />)}{!d.priority.length && <Card padding="lg"><p className="text-sm text-txt-muted">Критических работ сейчас нет.</p></Card>}</div>}
       {tab === 'services' && <DentalLabServicesTab canManage={canManageQc} />}
       {tab === 'team' && <Card padding="md"><div className="divide-y divide-bdr-subtle">{(team.data || []).map((member) => <div key={member.id} className="flex items-center justify-between py-3"><div><p className="text-sm font-medium">{member.firstName} {member.lastName}</p><p className="text-xs text-txt-muted">{member.email}</p></div><Badge variant="outline">{member.role || 'Сотрудник'}</Badge></div>)}{!team.data?.length && <p className="py-6 text-center text-sm text-txt-muted">Команда пока не загружена.</p>}</div></Card>}
     </div>
