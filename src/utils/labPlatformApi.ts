@@ -59,6 +59,7 @@ export interface LabPlatformOrder {
   updatedAt: string;
   qualityControl?: { checks: Record<string, boolean>; passed: boolean; note: string | null; checkedByUserId: string; checkedAt: string } | null;
   remakeRequest?: { id: string; status: 'requested' | 'accepted' | 'rejected'; reason: string; requestedByUserId: string; requestedAt: string; laboratoryId: string; decidedByUserId?: string; decidedAt?: string; responseNote?: string | null } | null;
+  payment?: { paymentId: string; status: 'paid'; amountMinor: string; paidAt: string } | null;
   shipment?: DentalLabShipment | null;
 }
 
