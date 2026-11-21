@@ -59,3 +59,17 @@ describe('clinic-authorized dental-lab remake request boundary', () => {
     expect(route).toContain("type: 'lab.remake.requested'");
   });
 });
+
+
+describe('clinic remake request and partner payment coordination', () => {
+  const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/lab/lab.routes.ts'), 'utf8');
+  it('does not open a remake dispute while an external payment remains pending', () => {
+    const start = source.indexOf("labRouter.post('/:id/remake-request'");
+    const end = source.indexOf("labRouter.delete('/:id'", start);
+    const route = source.slice(start, end);
+    expect(route).toContain("tx.payment.findFirst({");
+    expect(route).toContain("refType: 'dental_lab_order', refId: existing.id, status: 'pending'");
+    expect(route).toContain("return { kind: 'payment_pending' as const }");
+    expect(route).toContain("code: 'DENTAL_LAB_PAYMENT_PENDING'");
+  });
+});
