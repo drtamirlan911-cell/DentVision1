@@ -174,7 +174,14 @@ beforeEach(() => {
     payment: {
       updateMany: m.paymentUpdateMany,
       findUniqueOrThrow: m.paymentFindUniqueOrThrow,
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: m.paymentCreate,
     },
+    labOrder: {
+      findUnique: m.labOrderFindUnique,
+      update: m.labOrderUpdate,
+    },
+    $queryRawUnsafe: vi.fn(async () => []),
   }));
   m.paymentCreate.mockImplementation(async ({ data }: any) => ({
     id: 'payment-created-1',
