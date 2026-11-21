@@ -78,10 +78,9 @@ function payoutStatusMessage(status: PayoutStatus, amountMinor: bigint, currency
 }
 
 /**
- * Who filed this payout, as a user id to notify — the wallet only records
- * `ownerType`/`ownerId`, which is a Lecturer or Supplier id, not a user.
- * Lecturers have exactly one linked user; a supplier can have several
- * members, so all of them are notified.
+ * Resolve payout recipients from the owner record behind the wallet. Lecturer,
+ * supplier and partner wallets use different canonical owner entities; partner
+ * payouts are visible only to laboratory management and finance members.
  */
 async function resolvePayoutRequesterUserIds(
   ownerType: WalletOwnerType,
