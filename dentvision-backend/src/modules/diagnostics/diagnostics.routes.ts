@@ -197,6 +197,36 @@ async function canReadClinicDiagnosticFiles(
     .includes(String(access?.role || '').toUpperCase());
 }
 
+async function canDeleteClinicDiagnosticFiles(user: AuthRequest['user'], clinicId: string): Promise<boolean> {
+  if (!user) return false;
+  if (user.role === 'SUPERADMIN') return true;
+  if (!(await assertClinicOrgAccess(user, clinicId))) return false;
+  const organizationId = await resolveOrganizationIdForClinic(clinicId);
+  if (organizationId) {
+    const memberships = await prisma.personRole.findMany({
+      where: {
+        scopeType: 'organization',
+        scopeId: organizationId,
+        person: { userId: user.id, organizationId },
+      },
+      select: { role: { select: { key: true } } },
+    });
+    return memberships.some(({ role }) =>
+      ['OWNER', 'ORG_OWNER', 'DIRECTOR', 'ADMIN', 'ORG_ADMIN'].includes(String(role.key || '').toUpperCase()),
+    );
+  }
+  const access = await resolveClinicAccess(user.id, clinicId);
+  return ['OWNER', 'DIRECTOR', 'ADMIN'].includes(String(access?.role || '').toUpperCase());
+}
+
+async function canManagePartnerDiagnosticFiles(user: AuthRequest['user']): Promise<boolean> {
+  if (!user) return false;
+  if (user.role === 'SUPERADMIN') return true;
+  return (await activePartnerRoleKeys(user)).some((key) =>
+    /(?:^|_)(OWNER|ADMIN|MANAGER|DIRECTOR)$/.test(key.toUpperCase()),
+  );
+}
+
 async function canReadReferralClinicalFiles(
   user: AuthRequest['user'],
   referral: { clinicId: string; branchId?: string | null; doctorId?: string | null; centerId?: string | null; labId?: string | null },
@@ -723,11 +753,11 @@ diagnosticsRouter.get('/referrals/:id', requireReferralAccess(true), async (req:
   try {
     const scope = await prisma.referral.findUnique({
       where: { id: String(req.params.id) },
-      select: { centerId: true },
+      select: { clinicId: true, branchId: true, doctorId: true, centerId: true, labId: true },
     });
     if (!scope) return res.status(404).json({ ok: false, error: 'Referral not found' });
-    if (!(await canReadCenterClinicalFiles(req.user, scope.centerId))) {
-      return res.status(403).json({ ok: false, error: 'Медицинская карточка и снимки доступны только клиническим сотрудникам центра.' });
+    if (!(await canReadReferralClinicalFiles(req.user, scope))) {
+      return res.status(403).json({ ok: false, error: 'Медицинская карточка и вложения доступны только сотрудникам с правом medical.read.' });
     }
     const data = await svc.getReferral(req.params.id);
     if (!data) return res.status(404).json({ ok: false, error: 'Referral not found' });
@@ -874,11 +904,11 @@ diagnosticsRouter.get('/referrals/:id/files/:fileId/download-url', requireReferr
     const fileId = String(req.params.fileId);
     const referral = await prisma.referral.findUnique({
       where: { id: referralId },
-      select: { centerId: true },
+      select: { clinicId: true, branchId: true, doctorId: true, centerId: true, labId: true },
     });
     if (!referral) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
-    if (!(await canReadCenterClinicalFiles(req.user, referral.centerId))) {
-      return res.status(403).json({ ok: false, error: 'Доступ к медицинским вложениям центра запрещён для этой роли.' });
+    if (!(await canReadReferralClinicalFiles(req.user, referral))) {
+      return res.status(403).json({ ok: false, error: 'Доступ к медицинским вложениям запрещён для этой роли.' });
     }
     const data = await svc.getReferralFileDownloadUrl(referralId, fileId, req.user!.id);
     return res.json({ ok: true, data } satisfies ApiResponse);
@@ -902,11 +932,11 @@ diagnosticsRouter.post('/referrals/:id/files/upload', requireReferralAccess(true
     const referralId = String(req.params.id);
     const referral = await prisma.referral.findUnique({
       where: { id: referralId },
-      select: { centerId: true },
+      select: { clinicId: true, branchId: true, doctorId: true, centerId: true, labId: true },
     });
     if (!referral) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
-    if (!(await canReadCenterClinicalFiles(req.user, referral.centerId))) {
-      return res.status(403).json({ ok: false, error: 'Прикреплять медицинские файлы могут только клинические сотрудники центра.' });
+    if (!(await canReadReferralClinicalFiles(req.user, referral))) {
+      return res.status(403).json({ ok: false, error: 'Прикреплять медицинские файлы могут только сотрудники с правом medical.read.' });
     }
     const file = (req as AuthRequest & { file?: Express.Multer.File }).file;
     if (!file) return res.status(400).json({ ok: false, error: 'Выберите файл для загрузки.' });
@@ -940,11 +970,11 @@ diagnosticsRouter.post('/referrals/:id/files', requireReferralAccess(true), asyn
     const referralId = String(req.params.id);
     const referral = await prisma.referral.findUnique({
       where: { id: referralId },
-      select: { centerId: true },
+      select: { clinicId: true, branchId: true, doctorId: true, centerId: true, labId: true },
     });
     if (!referral) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
-    if (!(await canReadCenterClinicalFiles(req.user, referral.centerId))) {
-      return res.status(403).json({ ok: false, error: 'Прикреплять медицинские файлы могут только клинические сотрудники центра.' });
+    if (!(await canReadReferralClinicalFiles(req.user, referral))) {
+      return res.status(403).json({ ok: false, error: 'Прикреплять медицинские файлы могут только сотрудники с правом medical.read.' });
     }
     const fileName = String(req.body?.fileName || '').trim();
     const fileType = String(req.body?.fileType || '').trim().toLowerCase();
@@ -991,16 +1021,20 @@ diagnosticsRouter.delete('/referral-files/:id', async (req: AuthRequest, res) =>
     });
     if (!referral) return res.status(404).json({ ok: false, error: 'Направление файла не найдено' });
 
-    const doctorAllowed = referral.doctorId === req.user!.id && await referralBranchAllowed(req.user!, referral);
-    const clinicAllowed = await assertClinicOrgAccess(req.user!, referral.clinicId)
-      && await referralBranchAllowed(req.user!, referral);
+    const clinicClinicalAccess = await canReadClinicDiagnosticFiles(req.user, referral);
+    const clinicAllowed = clinicClinicalAccess
+      && await referralBranchAllowed(req.user!, referral)
+      && (file.uploadedBy === req.user!.id || await canDeleteClinicDiagnosticFiles(req.user, referral.clinicId));
     const centerActor = Boolean(referral.centerId)
       && sameOrgContext(req.user, 'DiagnosticCenter', String(referral.centerId));
     const centerClinicalAccess = centerActor && await canReadCenterClinicalFiles(req.user, referral.centerId);
     const centerAllowed = Boolean(centerClinicalAccess)
       && (file.uploadedBy === req.user!.id || await canManageDiagnosticCenterTeam(req.user));
-    const labAllowed = Boolean(referral.labId) && sameOrgContext(req.user, 'Laboratory', String(referral.labId));
-    if (req.user?.role !== 'SUPERADMIN' && !doctorAllowed && !clinicAllowed && !centerAllowed && !labAllowed) {
+    const labActor = Boolean(referral.labId) && sameOrgContext(req.user, 'Laboratory', String(referral.labId));
+    const labClinicalAccess = labActor && await canReadReferralClinicalFiles(req.user, referral);
+    const labAllowed = Boolean(labClinicalAccess)
+      && (file.uploadedBy === req.user!.id || await canManagePartnerDiagnosticFiles(req.user));
+    if (req.user?.role !== 'SUPERADMIN' && !clinicAllowed && !centerAllowed && !labAllowed) {
       return res.status(403).json({ ok: false, error: 'Нет доступа к файлу' });
     }
     if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, referral.clinicId))) return;
