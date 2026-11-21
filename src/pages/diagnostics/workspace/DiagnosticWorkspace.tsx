@@ -247,8 +247,8 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
             <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} wrap />
           </div>
 
-          {activeTab === 'worklist' && kind === 'CENTER' && <WorklistTab orgId={orgId} />}
-          {activeTab === 'modalities' && kind === 'CENTER' && <ModalitiesTab orgId={orgId} />}
+          {activeTab === 'worklist' && kind === 'CENTER' && <WorklistTab config={config} orgId={orgId} />}
+          {activeTab === 'modalities' && kind === 'CENTER' && <ModalitiesTab config={config} orgId={orgId} />}
           {activeTab === 'online-bookings' && kind === 'CENTER' && <OnlineBookingsTab centerId={orgId} />}
           {activeTab === 'cashier' && <CashierTab config={config} orgId={orgId} />}
           {activeTab === 'referrals' && (
