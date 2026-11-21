@@ -101,22 +101,9 @@ disputesRouter.post('/:id/status', requireSuperadmin, async (req: AuthRequest, r
       } satisfies ApiResponse);
     }
 
-    // Compare-and-set prevents a stale request from overwriting a concurrent transition.
-    const updated = await prisma.dispute.updateMany({
-      where: { id: existing.id, status: existing.status },
-      data: { status: requestedStatus },
-    });
-    if (updated.count !== 1) {
-      return res.status(409).json({ ok: false, error: 'Спор уже изменён другим запросом' } satisfies ApiResponse);
-    }
-
-    const dispute = await prisma.dispute.findUnique({ where: { id: existing.id } });
-    if (!dispute) {
-      return res.status(404).json({ ok: false, error: 'Спор не найден после обновления' } satisfies ApiResponse);
-    }
-
     // Item-level marketplace returns need a line-aware refund and seller settlement.
-    // The current legacy reversal is order-wide; do not apply it to a partial return.
+    // Reject them before changing dispute state: the legacy reversal is order-wide,
+    // and a 409 response must never leave the dispute marked as resolved.
     if (requestedStatus === 'resolved') {
       const returnItems = await prisma.marketplaceReturnItem.findMany({
         where: { disputeId: existing.id },
@@ -130,6 +117,20 @@ disputesRouter.post('/:id/status', requireSuperadmin, async (req: AuthRequest, r
           code: 'MARKETPLACE_PARTIAL_RETURN_FINANCE_REQUIRED',
         } satisfies ApiResponse);
       }
+    }
+
+    // Compare-and-set prevents a stale request from overwriting a concurrent transition.
+    const updated = await prisma.dispute.updateMany({
+      where: { id: existing.id, status: existing.status },
+      data: { status: requestedStatus },
+    });
+    if (updated.count !== 1) {
+      return res.status(409).json({ ok: false, error: 'Спор уже изменён другим запросом' } satisfies ApiResponse);
+    }
+
+    const dispute = await prisma.dispute.findUnique({ where: { id: existing.id } });
+    if (!dispute) {
+      return res.status(404).json({ ok: false, error: 'Спор не найден после обновления' } satisfies ApiResponse);
     }
 
     // Financial resolution is a platform-level mutation. Only supported order
