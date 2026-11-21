@@ -85,7 +85,7 @@ async function canManageDiagnosticCenterTeam(user: AuthRequest['user']): Promise
   if (!user) return false;
   if (user.role === 'SUPERADMIN') return true;
   return (await activePartnerRoleKeys(user)).some((key) =>
-    ['owner', 'admin', 'manager', 'director', 'diagnostic_owner', 'diagnostic_admin', 'diagnostic_manager', 'center_admin'].includes(key),
+    /(?:^|_)(OWNER|ADMIN|MANAGER|DIRECTOR)$/.test(key.toUpperCase()),
   );
 }
 async function referralBranchAllowed(user: AuthRequest['user'], referral: { clinicId: string; branchId?: string | null }): Promise<boolean> { if (user.role === 'SUPERADMIN') return true; return canAccessReferralBranch(user, { clinicId: referral.clinicId, branchId: referral.branchId ?? null }); }
