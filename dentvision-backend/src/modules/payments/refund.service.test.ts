@@ -242,7 +242,11 @@ describe('refundPayment', () => {
   it('locks the payment before reading it', async () => {
     paidPayment();
     await refundPayment('p1', 10_000n, 'locked');
-    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(4);
+    expect(String(tx.$executeRaw.mock.calls[0][0])).toContain('payment-refund:');
+    for (const call of tx.$executeRaw.mock.calls.slice(1)) {
+      expect(String(call[0])).toContain('wallet-funds:');
+    }
   });
 
   it('fails closed when no financial transaction exists', async () => {
