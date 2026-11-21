@@ -100,7 +100,7 @@ export function WorklistTab({ orgId }: TabProps) {
     staleTime: 30_000,
   })
 
-  const rows = worklistQuery.data?.data?.items || worklistQuery.data?.items || []
+  const rows = useMemo(() => worklistQuery.data?.data?.items || worklistQuery.data?.items || [], [worklistQuery.data])
   const modalities = modalitiesQuery.data?.data || modalitiesQuery.data || []
   const studies = studiesQuery.data?.data || studiesQuery.data || []
   const staff = staffQuery.data || []
