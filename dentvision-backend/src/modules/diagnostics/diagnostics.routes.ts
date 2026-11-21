@@ -869,7 +869,13 @@ diagnosticsRouter.post('/referrals/:id/results/sign', requireReferralAccess(true
     return res.json({ ok: true, data: { result, patientRecordUpdated: signerScope === 'clinic' } } satisfies ApiResponse);
   } catch (e: any) {
     if (e instanceof ClinicalSignoffAuthorizationError) return res.status(403).json({ ok: false, error: e.message } satisfies ApiResponse);
-    return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse);
+    const code = String(e?.code || '');
+    const conflict = ['DIAGNOSTIC_RESULT_ALREADY_SIGNED', 'DIAGNOSTIC_RESULT_STAGE_INVALID', 'DIAGNOSTIC_SIGNER_CHANGED'].includes(code);
+    return res.status(conflict ? 409 : 400).json({
+      ok: false,
+      error: e.message,
+      ...(code ? { code } : {}),
+    } satisfies ApiResponse);
   }
 });
 export default diagnosticsRouter;
