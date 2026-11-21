@@ -223,11 +223,12 @@ export default function DentalLabPlatform() {
   const canManageFinance = canManageQc || ['lab_finance', 'finance', 'accountant'].includes(memberRole);
   const canReadProduction = canManageQc || ['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician'].includes(memberRole);
   const canReadOrders = canReadProduction || ['courier', 'logistics', 'delivery_operator', 'dispatcher'].includes(memberRole);
-  const effectiveTab = !canReadProduction && canManageFinance && !canManageShipping ? 'finance'
-    : !canReadProduction && canManageShipping ? 'shipping'
+  const effectiveTab = !canReadProduction && tab === 'board' && canManageFinance ? 'finance'
+    : !canReadProduction && tab === 'board' && canManageShipping ? 'shipping'
     : (tab === 'finance' && !canManageFinance)
       || (['team', 'services'].includes(tab) && !canManageQc)
-      || (tab === 'shipping' && !canManageShipping) ? 'board' : tab;
+      || (tab === 'shipping' && !canManageShipping)
+      || (['board', 'priority'].includes(tab) && !canReadProduction) ? 'board' : tab;
   const orders = useQuery({ queryKey: ['lab-platform', 'orders', filter], queryFn: () => getLabPlatformOrders(filter), enabled: canReadOrders, refetchInterval: 30_000 });
   const team = useQuery({ queryKey: ['lab-platform', 'team'], queryFn: getLabPlatformTeam, enabled: effectiveTab === 'team' && canManageQc });
   const finance = useQuery({ queryKey: ['lab-platform', 'finance'], queryFn: getLabPlatformFinance, enabled: effectiveTab === 'finance' && canManageFinance, refetchInterval: 30_000 });
