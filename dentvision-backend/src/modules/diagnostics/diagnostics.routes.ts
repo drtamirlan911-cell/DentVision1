@@ -662,11 +662,9 @@ diagnosticsRouter.get('/centers/:centerId/worklist/:referralId', async (req: Aut
     ]);
     const visibleEvents = canReadClinical
       ? events
-      : events.map((event) => {
-          const visibleEvent = { ...event };
-          delete visibleEvent.details;
-          return visibleEvent;
-        });
+      : events.map((event) => Object.fromEntries(
+          Object.entries(event).filter(([key]) => key !== 'details'),
+        ) as typeof event);
     return res.json({
       ok: true,
       data: {
