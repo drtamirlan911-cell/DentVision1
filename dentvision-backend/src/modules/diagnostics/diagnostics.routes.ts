@@ -622,7 +622,7 @@ diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), asy
 
     const referral = await prisma.referral.findUnique({
       where: { id: String(req.params.id) },
-      select: { id: true, centerId: true, status: true, result: { select: { signedAt: true } } },
+      select: { id: true, centerId: true, status: true, radiologistId: true, result: { select: { signedAt: true } } },
     });
     if (!referral) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
 
@@ -646,11 +646,20 @@ diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), asy
     }
     if (isCenterActor) {
       const roleKeys = await activePartnerRoleKeys(req.user);
+      let isAssignedRadiologist = false;
+      if (status === 'DELIVERED' && referral.radiologistId && roleKeys.some((key) => ['radiologist', 'diagnostic_radiologist'].includes(String(key).toLowerCase()))) {
+        const assigned = await prisma.radiologist.findFirst({
+          where: { id: referral.radiologistId, centerId: referral.centerId!, userId: req.user!.id, active: true },
+          select: { id: true },
+        });
+        isAssignedRadiologist = Boolean(assigned);
+      }
       const decision = authorizeDiagnosticCenterStatusTransition({
         currentStatus: String(referral.status),
         nextStatus: status,
         roleKeys,
         resultSignedAt: referral.result?.signedAt,
+        isAssignedRadiologist,
       });
       if (!decision.allowed) {
         return res.status(decision.status).json({ ok: false, error: decision.reason, code: decision.code } satisfies ApiResponse);
@@ -754,7 +763,7 @@ diagnosticsRouter.post('/referrals/:id/confirm-ai-result', requireReferralAccess
 });
 diagnosticsRouter.post('/referrals/:id/results/sign', requireReferralAccess(true), async (req: AuthRequest, res) => {
   try {
-    const referral = await prisma.referral.findUnique({ where: { id: req.params.id }, select: { clinicId: true, doctorId: true, branchId: true, centerId: true, labId: true } });
+    const referral = await prisma.referral.findUnique({ where: { id: req.params.id }, select: { clinicId: true, doctorId: true, branchId: true, centerId: true, labId: true, radiologistId: true } });
     if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' } satisfies ApiResponse);
     // SUPERADMIN bypasses operational branch middleware, but that bypass is not
     // proof of clinical clinic membership. It may still act as a partner signer
@@ -764,7 +773,14 @@ diagnosticsRouter.post('/referrals/:id/results/sign', requireReferralAccess(true
     const laboratoryPartnerAccess = referral.labId ? sameOrgContext(req.user, 'Laboratory', referral.labId) : false;
     const partnerAccess = diagnosticPartnerAccess || laboratoryPartnerAccess;
     const partnerCanSign = diagnosticPartnerAccess
-      ? await hasScopedPartnerSignerRole(req.user!, DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS)
+      ? Boolean(
+          referral.radiologistId
+          && await prisma.radiologist.findFirst({
+            where: { id: referral.radiologistId, centerId: referral.centerId!, userId: req.user!.id, active: true },
+            select: { id: true },
+          })
+          && await hasScopedPartnerSignerRole(req.user!, DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS),
+        )
       : laboratoryPartnerAccess
         ? await hasScopedPartnerSignerRole(req.user!, LAB_RESULT_SIGNER_ROLE_KEYS)
         : false;
