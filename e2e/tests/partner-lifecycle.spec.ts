@@ -654,6 +654,13 @@ test.describe('Partner operational lifecycle', () => {
       },
     });
 
+    const clinicCannotControlCenterWorkflow = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(ownerToken),
+      data: { status: 'ACCEPTED' },
+    });
+    expect(clinicCannotControlCenterWorkflow.status()).toBe(409);
+    expect((await clinicCannotControlCenterWorkflow.json()).code).toBe('DIAGNOSTIC_CENTER_OWNS_WORKFLOW');
+
     const radiologistCannotAccept = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
       headers: auth(centerRadiologistToken),
       data: { status: 'ACCEPTED', cost: 10000 },
