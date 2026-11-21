@@ -12,6 +12,7 @@ import { medicalLabLifecycleRouter } from './medicalLab.routes.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js';
 import { validateLabRemakeRequestReason } from './labPlatform.authorization.js';
+import { createNotificationForMany } from '../../services/notification.service.js';
 
 export const labRouter = Router();
 labRouter.use('/platform', labPlatformRouter);
@@ -305,6 +306,14 @@ labRouter.post('/:id/remake-request', requirePermission('lab.write'), async (req
     if (outcome.kind === 'already_requested') return res.status(409).json({ ok: false, error: 'Запрос переделки уже ожидает ответа лаборатории' } satisfies ApiResponse);
 
     await writeAuditLog({ action: 'LAB_ORDER_REMAKE_REQUESTED', entity: 'lab_order', entityId: orderId, details: { laboratoryId: outcome.request.laboratoryId, requestId: outcome.request.id, reasonLength: reason.length }, userId: req.user!.id, clinicId });
+    const labMembers = await prisma.laboratoryMember.findMany({ where: { labId: outcome.request.laboratoryId }, select: { userId: true } });
+    await createNotificationForMany(labMembers.map((member) => member.userId), {
+      type: 'lab.remake.requested',
+      title: 'Клиника запросила переделку',
+      message: `По заказу ${orderId.slice(-8)} поступил запрос. Откройте кабинет, чтобы изучить причину и принять решение.`,
+      link: '/diagnostics/dental-lab',
+    });
+
     publish('labOrder.remake_requested' as any, { clinicId, labOrderId: orderId, laboratoryId: outcome.request.laboratoryId, requestId: outcome.request.id, userId: req.user!.id });
     return res.status(201).json({ ok: true, data: serializeLabOrder(outcome.order) } satisfies ApiResponse);
   } catch (error) {
