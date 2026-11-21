@@ -761,6 +761,67 @@ diagnosticsRouter.post('/referrals/:id/confirm-ai-result', requireReferralAccess
     return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse);
   }
 });
+diagnosticsRouter.post('/referrals/:id/results/amend', requireReferralAccess(true), async (req: AuthRequest, res) => {
+  try {
+    const referralId = String(req.params.id);
+    const referral = await prisma.referral.findUnique({
+      where: { id: referralId },
+      select: { id: true, centerId: true, radiologistId: true },
+    });
+    if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' } satisfies ApiResponse);
+    if (!referral.centerId || !sameOrgContext(req.user, 'DiagnosticCenter', referral.centerId)) {
+      return res.status(403).json({ ok: false, error: 'Исправлять заключение может только диагностический центр, выпустивший его.' } satisfies ApiResponse);
+    }
+    const assignedRadiologist = referral.radiologistId
+      ? await prisma.radiologist.findFirst({
+          where: { id: referral.radiologistId, centerId: referral.centerId, userId: req.user!.id, active: true },
+          select: { id: true },
+        })
+      : null;
+    const hasSignerRole = await hasScopedPartnerSignerRole(req.user!, DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS);
+    if (!assignedRadiologist || !hasSignerRole) {
+      return res.status(403).json({ ok: false, error: 'Исправление заключения доступно только назначенному рентгенологу этого центра.' } satisfies ApiResponse);
+    }
+    const reportText = String(req.body?.reportText || '').trim();
+    const conclusion = String(req.body?.conclusion || '').trim();
+    const changeReason = String(req.body?.changeReason || '').trim();
+    if (reportText.length < 20 || reportText.length > 20000) {
+      return res.status(400).json({ ok: false, error: 'Описание исправленного исследования должно содержать от 20 до 20000 символов.' } satisfies ApiResponse);
+    }
+    if (conclusion.length < 5 || conclusion.length > 5000) {
+      return res.status(400).json({ ok: false, error: 'Исправленное заключение должно содержать от 5 до 5000 символов.' } satisfies ApiResponse);
+    }
+    if (changeReason.length < 10 || changeReason.length > 1000) {
+      return res.status(400).json({ ok: false, error: 'Укажите причину исправления длиной от 10 до 1000 символов.' } satisfies ApiResponse);
+    }
+    const data = await svc.amendDiagnosticCenterResult({
+      referralId,
+      reportText,
+      conclusion,
+      changeReason,
+      userId: req.user!.id,
+    });
+    return res.json({
+      ok: true,
+      data: {
+        result: data.result,
+        version: data.version,
+        requiresRedelivery: data.previousStatus === 'DELIVERED',
+        referralStatus: 'COMPLETED',
+      },
+    } satisfies ApiResponse);
+  } catch (error: any) {
+    const status = String(error?.code || '').includes('FORBIDDEN') ? 403
+      : String(error?.code || '').includes('STAGE_INVALID') || String(error?.code || '').includes('SCOPE_CHANGED') ? 409
+      : 400;
+    return res.status(status).json({
+      ok: false,
+      error: error?.message || 'Не удалось исправить заключение',
+      ...(error?.code ? { code: error.code } : {}),
+    } satisfies ApiResponse);
+  }
+});
+
 diagnosticsRouter.post('/referrals/:id/results/sign', requireReferralAccess(true), async (req: AuthRequest, res) => {
   try {
     const referral = await prisma.referral.findUnique({ where: { id: req.params.id }, select: { clinicId: true, doctorId: true, branchId: true, centerId: true, labId: true, radiologistId: true } });
