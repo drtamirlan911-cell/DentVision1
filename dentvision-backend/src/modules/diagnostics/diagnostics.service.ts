@@ -840,8 +840,26 @@ export async function saveAndSignResult(data: {
         { code: 'DIAGNOSTIC_RESULT_ALREADY_SIGNED' },
       );
     }
-    if (data.signerScope === 'diagnostic_center' && lockedReferral.radiologistId !== referralSnapshot.radiologistId) {
-      throw Object.assign(new Error('Назначение рентгенолога изменилось. Обновите направление.'), { code: 'DIAGNOSTIC_SIGNER_CHANGED' });
+    if (data.signerScope === 'diagnostic_center') {
+      if (lockedReferral.radiologistId !== referralSnapshot.radiologistId) {
+        throw Object.assign(new Error('Назначение рентгенолога изменилось. Обновите направление.'), { code: 'DIAGNOSTIC_SIGNER_CHANGED' });
+      }
+      const [activeAssignment, currentSignerRole] = await Promise.all([
+        tx.radiologist.findFirst({
+          where: { id: lockedReferral.radiologistId!, centerId: lockedReferral.centerId!, userId: data.doctorId, active: true },
+          select: { id: true },
+        }),
+        prisma.organization.findFirst({
+          where: { originalType: 'DiagnosticCenter', originalId: lockedReferral.centerId!, archivedAt: null },
+          select: { id: true },
+        }),
+      ]);
+      const stillAuthorized = currentSignerRole
+        ? await hasScopedPartnerSignerRole({ id: data.doctorId, organizationId: currentSignerRole.id }, DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS)
+        : false;
+      if (!activeAssignment || !stillAuthorized) {
+        throw Object.assign(new Error('Назначение или роль рентгенолога больше не активны. Обновите направление.'), { code: 'DIAGNOSTIC_SIGNER_CHANGED' });
+      }
     }
 
     const now = new Date();
@@ -957,8 +975,10 @@ export async function saveAndSignResult(data: {
     }
   }
   if (notifyUserIds.size > 0) {
-    const title = 'Результат диагностики подтверждён';
-    const message = 'Результат по направлению подтверждён врачом и внесён в карту пациента.';
+    const title = partnerSigner ? 'Подписанное заключение диагностики готово' : 'Результат диагностики подтверждён';
+    const message = partnerSigner
+      ? 'Рентгенолог диагностического центра подписал заключение. Ожидается передача результата клинике.'
+      : 'Результат по направлению подтверждён врачом и внесён в карту пациента.';
     await dispatchNotifications(Array.from(notifyUserIds).map((userId) => ({ userId, clinicId: referral.clinicId || undefined, type: 'workflow' as const, title, message, link: `/diagnostics/referrals/${referral.id}` })));
   }
   await writeAuditLog({
@@ -1033,6 +1053,22 @@ export async function amendDiagnosticCenterResult(data: {
     }
     if (!['COMPLETED', 'DELIVERED'].includes(String(referral.status)) || !referral.result?.signedAt) {
       throw Object.assign(new Error('Состояние заключения изменилось. Обновите карточку исследования.'), { code: 'DIAGNOSTIC_AMENDMENT_STAGE_INVALID' });
+    }
+    const [activeAssignment, currentSignerRole] = await Promise.all([
+      tx.radiologist.findFirst({
+        where: { id: referral.radiologistId!, centerId: referral.centerId!, userId: data.userId, active: true },
+        select: { id: true },
+      }),
+      prisma.organization.findFirst({
+        where: { originalType: 'DiagnosticCenter', originalId: referral.centerId!, archivedAt: null },
+        select: { id: true },
+      }),
+    ]);
+    const stillAuthorized = currentSignerRole
+      ? await hasScopedPartnerSignerRole({ id: data.userId, organizationId: currentSignerRole.id }, DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS)
+      : false;
+    if (!activeAssignment || !stillAuthorized) {
+      throw Object.assign(new Error('Назначение или роль рентгенолога больше не активны.'), { code: 'DIAGNOSTIC_AMENDMENT_FORBIDDEN' });
     }
 
     const latest = await tx.diagnosticResultVersion.findFirst({
