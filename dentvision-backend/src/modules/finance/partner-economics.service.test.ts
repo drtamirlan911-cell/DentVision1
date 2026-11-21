@@ -41,10 +41,12 @@ describe('dental laboratory monthly GMV tier resolution at settlement', () => {
       partnerId: 'lab-1',
       grossMinor: 2_000_000n, // current case: ₸20,000; monthly total crosses ₸1M
       operationId: 'case-crosses-gmv-tier',
+      paymentId: 'payment-1',
     }, tx);
 
     expect(result.meta).toMatchObject({
       partnerId: 'lab-1',
+      paymentId: 'payment-1',
       rule: { percentBps: 800 },
       commissionMinor: '160000',
     });
