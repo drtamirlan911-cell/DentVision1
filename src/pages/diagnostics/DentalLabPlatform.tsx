@@ -113,6 +113,7 @@ function OrderCard({
           <p className="truncate text-sm font-semibold text-txt-primary">{order.type || 'Лабораторная работа'}</p>
           <p className="mt-1 text-xs text-txt-muted">{order.patientName || 'Пациент'} · {order.clinicName || 'Клиника'}</p>
           {order.serviceName && <p className="mt-1 text-xs text-txt-secondary">{order.serviceName}{order.servicePriceSnapshot != null ? ` · ${Number(order.servicePriceSnapshot).toLocaleString('ru-RU')} ₸` : ''}</p>}
+      {order.payment?.status === 'paid' && <div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant="success">Оплачено</Badge><span className="text-[11px] text-txt-muted">{new Date(order.payment.paidAt).toLocaleString('ru-RU')}</span></div>}
         </div>
         <Status status={order.status} />
       </div>
