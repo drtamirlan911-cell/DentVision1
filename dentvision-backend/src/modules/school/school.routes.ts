@@ -4,6 +4,7 @@ import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { requirePermission, requireSuperadmin } from '../../middleware/rbac.js';
 import { AuthRequest } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
+import { serializeBigInt } from '../../lib/money.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import {
   CLINICAL_CASES,
@@ -628,36 +629,31 @@ schoolRouter.patch('/enrollments/:id', authenticate, async (req: AuthRequest, re
     const completedLessons = Array.from(completedSet);
     const progress = lessons.length > 0 ? Math.min(99, Math.round((completedLessons.length / lessons.length) * 100)) : 0;
 
-    const updated = await prisma.schoolEnrollment.update({
-      where: { id },
-      data: {
-        progress: enrollment.completed ? 100 : progress,
-        completedLessons,
-        // Completion and certificate issuance are exam/issuer-controlled.
-        // Client-supplied progress and completed fields are intentionally ignored.
-      },
-      include: { course: true },
+    const updated = await prisma.$transaction(async (tx) => {
+      const saved = await tx.schoolEnrollment.update({
+        where: { id },
+        data: {
+          progress: enrollment.completed ? 100 : progress,
+          completedLessons,
+          // Completion and certificate issuance are exam/issuer-controlled.
+          // Client-supplied progress and completed fields are intentionally ignored.
+        },
+        include: { course: true },
+      });
+      await writeAuditLog({
+        action: 'ACADEMY_PROGRESS_UPDATED',
+        entity: 'school_enrollment',
+        entityId: saved.id,
+        details: {
+          workflow: 'learning', queueKey: 'courses', courseId: saved.courseId,
+          progress: saved.progress, completed: saved.completed,
+          completedLessonCount: completedLessons.length, lessonCount: lessons.length,
+        },
+        userId: req.user!.id,
+      }, tx);
+      return saved;
     });
-    await writeAuditLog({
-      action: 'ACADEMY_PROGRESS_UPDATED',
-      entity: 'school_enrollment',
-      entityId: updated.id,
-      details: {
-        workflow: 'learning', queueKey: 'courses', courseId: updated.courseId,
-        progress: updated.progress, completed: updated.completed,
-        completedLessonCount: completedLessons.length, lessonCount: lessons.length,
-      },
-      userId: req.user!.id,
-    });
-    return res.json({
-      ok: true,
-      data: {
-        ...updated,
-        // The enrollment row contains BigInt minor units. Keep the same
-        // JSON-safe decimal-string contract used by GET /enrollments.
-        paidAmountMinor: updated.paidAmountMinor == null ? null : updated.paidAmountMinor.toString(),
-      },
-    });
+    return res.json({ ok: true, data: serializeBigInt(updated) });
   } catch (error) {
     console.error('Update learning progress error:', error);
     return res.status(500).json({ ok: false, error: 'Failed to update enrollment' });
