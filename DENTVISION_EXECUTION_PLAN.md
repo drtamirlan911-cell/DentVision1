@@ -1035,3 +1035,14 @@ Recognition is an outcome of independently verifiable product quality and adopti
 - Added a regression contract test asserting the partial-return guard occurs before the dispute compare-and-set and before `reverseCashback`.
 - Commits: implementation `a96962b3bb50f8c28f138b352c9421623d3b4c17`; regression test `8b2d48362a90c8762ee11ef9382c7b2ad75f4ef7`.
 - Verification limitation: source was re-read from GitHub after the writes; no local test runner was available in this session. Exact-head CI is required before this fix is considered verified or merged.
+
+## Partner economy — canonical policy engine foundation — 2026-11-21
+
+- Added \`dentvision-backend/src/modules/billing/partnerEconomics.ts\` as a pure, versioned calculation layer sourced from \`docs/business/DENTVISION_PARTNER_ECONOMICS.md\` v1.2.
+- Added deterministic rules for diagnostic studies (7%, ₸500 minimum, ₸3,000 cap), medical analyses (6%, ₸150 minimum, ₸2,500 cap), dental-lab cases (10/8/7/6/5% by organization-level monthly GMV, ₸500 minimum, ₸15,000 cap), Marketplace seller tiers (8% standard, 6% high-volume, strategic 4–5% only when explicitly approved), and Academy acquisition-source splits (10/90, 25/75, 30/70).
+- The engine returns policy version, gross, rate, minimum/cap, commission, partner net before external deductions and effective take-rate. It rejects invalid amounts and refuses to invent a strategic supplier rate.
+- Added unit tests for published examples, every dental-lab volume boundary, Academy splits, invalid amounts and effective take-rate transparency.
+- **Important boundary:** this is a calculation foundation, not proof of production monetization. It is not yet wired into all settlement, subscription, invoice, payout, refund, chargeback or Finance Hub paths. Do not recognize commission on order creation, assignment or referral acceptance. The next implementation slice must integrate it into the canonical settlement transaction and persist immutable policy snapshots; existing legacy calculations must be reconciled before activation.
+- Audit finding in the active partner branch: \`diagnostics.service.ts\` currently computes a fixed 7% diagnostic fee while a referral is accepted/in progress, whereas the policy requires commission recognition only after successful settlement. This legacy path must be replaced by settlement-time calculation, with regression coverage for unpaid, paid, refunded and duplicate-settlement referrals.
+- Diagnostic-center subscription enforcement still reads the legacy \`center_subscriptions\` table and starts a 30-day trial; reconcile it with the canonical organization/branch subscription model and ₸49,900 per active billable branch before claiming partner billing complete.
+- Medical Laboratory, Dental Laboratory, Supplier and Academy must each be connected to the same versioned pricing/settlement contract, while retaining their distinct domain rates and organization-level volume aggregation.
