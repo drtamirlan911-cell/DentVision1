@@ -1,3 +1,13 @@
+## Marketplace / Supplier OS — seller shipment and proof-of-delivery slice — 2026-11-21
+
+- Added supplier-owned shipment records for carrier, tracking number/link, shipment status and proof of delivery, plus durable event history linked to the canonical order and supplier.
+- Supplier owners/managers can register a shipment only for an order in their active supplier queue. Repeating identical tracking data is idempotent; a conflicting second shipment is rejected.
+- A supplier can no longer move an order to "shipped" through the generic status endpoint. Carrier and tracking number are required.
+- Delivery close-out requires a HTTPS proof-of-delivery URL and recipient name. The actor/time/event are saved; only an order explicitly assigned to this single supplier advances the canonical order to delivered and triggers existing order-close effects.
+- For split-supplier orders, shipment status remains seller-local and does not falsely close the buyer's full order. Full per-seller allocations and global aggregation remain open.
+- The UI exposes tracking and proof-backed delivery actions. This is manual evidence entry, not a live carrier integration; label purchase, carrier APIs/webhooks, scanner hardware and automatic POD remain open.
+- Returns/RMA/refund/chargeback and seller-platform reconciliation remain open; the current dispute list is not a complete return workflow. Supplier and Marketplace remain **PARTIAL**.
+
 ## Dental Laboratory OS — partner-owned service catalogue and case price snapshots — 2026-11-21
 
 - Added a first-class catalogue scoped to the canonical Laboratory organization. Owners/managers control service code, type, material, description, published list price and turnaround days; production members receive read-only active entries.

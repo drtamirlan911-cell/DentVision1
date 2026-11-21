@@ -112,6 +112,12 @@ export default function SupplierWorkspace() {
 
   const [regForm, setRegForm] = useState({ name: '', bin: '', phone: '', email: '', contactPerson: '', legalAddress: '' })
   const [regSaving, setRegSaving] = useState(false)
+  const [shipmentOrder, setShipmentOrder] = useState<any>(null)
+  const [shipmentForm, setShipmentForm] = useState({ carrier: '', trackingNumber: '', trackingUrl: '' })
+  const [shipmentSaving, setShipmentSaving] = useState(false)
+  const [deliveryOrder, setDeliveryOrder] = useState<any>(null)
+  const [deliveryForm, setDeliveryForm] = useState({ proofUrl: '', recipientName: '', note: '' })
+  const [deliverySaving, setDeliverySaving] = useState(false)
 
   const loadAll = useCallback(async (t: string) => {
     const [meRes, dashRes, rulesRes] = await Promise.all([
@@ -304,6 +310,47 @@ export default function SupplierWorkspace() {
       await loadAll(token)
     } catch (e: any) {
       toast.error(e?.message || 'Не удалось обновить заказ')
+    }
+  }
+
+
+  const handleCreateShipment = async () => {
+    if (!token || !shipmentOrder) return
+    if (!shipmentForm.carrier.trim() || !shipmentForm.trackingNumber.trim()) {
+      toast.error('Укажите перевозчика и трек-номер')
+      return
+    }
+    setShipmentSaving(true)
+    try {
+      await api.supplierWs.createShipment(token, shipmentOrder.id, shipmentForm)
+      toast.success('Отгрузка зарегистрирована')
+      setShipmentOrder(null)
+      setShipmentForm({ carrier: '', trackingNumber: '', trackingUrl: '' })
+      await loadAll(token)
+    } catch (error: any) {
+      toast.error(error?.message || 'Не удалось зарегистрировать отгрузку')
+    } finally {
+      setShipmentSaving(false)
+    }
+  }
+
+  const handleConfirmDelivery = async () => {
+    if (!token || !deliveryOrder) return
+    if (!deliveryForm.proofUrl.trim() || !deliveryForm.recipientName.trim()) {
+      toast.error('Нужны HTTPS-ссылка на подтверждение вручения и имя получателя')
+      return
+    }
+    setDeliverySaving(true)
+    try {
+      await api.supplierWs.confirmDelivery(token, deliveryOrder.id, deliveryForm)
+      toast.success('Вручение подтверждено')
+      setDeliveryOrder(null)
+      setDeliveryForm({ proofUrl: '', recipientName: '', note: '' })
+      await loadAll(token)
+    } catch (error: any) {
+      toast.error(error?.message || 'Не удалось подтвердить доставку')
+    } finally {
+      setDeliverySaving(false)
     }
   }
 
@@ -624,15 +671,28 @@ export default function SupplierWorkspace() {
                           </div>
                         ))}
                       </div>
-                      {canWrite && !['delivered', 'cancelled', 'refunded'].includes(o.status) && (
+                      {o.supplierShipment && (
+                        <div className="rounded-lg border border-bdr-subtle bg-surface-2 p-3 text-xs space-y-1">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-semibold text-txt-primary">{o.supplierShipment.carrier} · {o.supplierShipment.trackingNumber}</span>
+                            <Badge size="xs">{o.supplierShipment.status === 'delivered' ? 'Вручено' : 'В пути'}</Badge>
+                          </div>
+                          {o.supplierShipment.trackingUrl && <a className="underline text-dv-gold" href={o.supplierShipment.trackingUrl} target="_blank" rel="noreferrer">Отследить отправление</a>}
+                          {o.supplierShipment.proofOfDeliveryUrl && <a className="block underline text-dv-gold" href={o.supplierShipment.proofOfDeliveryUrl} target="_blank" rel="noreferrer">Подтверждение вручения</a>}
+                          {(o.supplierShipment.events || []).map((event: any) => <p key={event.id} className="text-txt-muted">{event.eventType} · {new Date(event.createdAt).toLocaleString('ru-RU')}</p>)}
+                        </div>
+                      )}
+                      {canWrite && !['delivered', 'cancelled', 'refunded'].includes(o.supplierFulfillmentStatus || o.status) && (
                         <div className="flex flex-wrap gap-2 pt-1">
-                          {o.status !== 'packing' && (
+                          {o.status !== 'packing' && !o.supplierShipment && (
                             <Button size="xs" variant="secondary" className="min-h-11" onClick={() => handleOrderStatus(o.id, 'packing')}>В сборку</Button>
                           )}
-                          {o.status !== 'shipped' && (
-                            <Button size="xs" variant="secondary" className="min-h-11" onClick={() => handleOrderStatus(o.id, 'shipped')}>Отправить</Button>
+                          {(o.status === 'packing' || o.status === 'shipped') && !o.supplierShipment && (
+                            <Button size="xs" variant="secondary" className="min-h-11" onClick={() => { setShipmentOrder(o); setShipmentForm({ carrier: '', trackingNumber: '', trackingUrl: '' }) }}>Оформить отгрузку</Button>
                           )}
-                          <Button size="xs" className="min-h-11" onClick={() => handleOrderStatus(o.id, 'delivered')}>Доставлен</Button>
+                          {o.supplierShipment?.status === 'shipped' && (
+                            <Button size="xs" className="min-h-11" onClick={() => { setDeliveryOrder(o); setDeliveryForm({ proofUrl: '', recipientName: '', note: '' }) }}>Подтвердить вручение</Button>
+                          )}
                         </div>
                       )}
                     </CardContent>
@@ -905,6 +965,24 @@ export default function SupplierWorkspace() {
         </motion.div>
       </AnimatePresence>
 
+      <Modal open={!!shipmentOrder} onClose={() => { if (!shipmentSaving) setShipmentOrder(null) }} title="Регистрация отгрузки">
+        <div className="space-y-3">
+          <p className="text-sm text-txt-secondary">Укажите перевозчика и трек-номер. Заказ перейдёт в статус «В пути» только через регистрацию отгрузки.</p>
+          <Input label="Перевозчик *" value={shipmentForm.carrier} onChange={(e) => setShipmentForm(v => ({ ...v, carrier: e.target.value }))} placeholder="Казпочта / курьер / транспортная компания" />
+          <Input label="Трек-номер *" value={shipmentForm.trackingNumber} onChange={(e) => setShipmentForm(v => ({ ...v, trackingNumber: e.target.value }))} placeholder="Номер отправления" />
+          <Input label="Ссылка отслеживания" value={shipmentForm.trackingUrl} onChange={(e) => setShipmentForm(v => ({ ...v, trackingUrl: e.target.value }))} placeholder="https://…" />
+          <Button className="min-h-11 w-full" disabled={shipmentSaving || !shipmentForm.carrier.trim() || !shipmentForm.trackingNumber.trim()} loading={shipmentSaving} onClick={handleCreateShipment}>Зарегистрировать отправку</Button>
+        </div>
+      </Modal>
+      <Modal open={!!deliveryOrder} onClose={() => { if (!deliverySaving) setDeliveryOrder(null) }} title="Подтверждение вручения">
+        <div className="space-y-3">
+          <p className="text-sm text-txt-secondary">Доставка будет закрыта после сохранения HTTPS-доказательства вручения и имени получателя.</p>
+          <Input label="HTTPS-ссылка на фото / документ вручения *" value={deliveryForm.proofUrl} onChange={(e) => setDeliveryForm(v => ({ ...v, proofUrl: e.target.value }))} placeholder="https://storage…" />
+          <Input label="Получатель *" value={deliveryForm.recipientName} onChange={(e) => setDeliveryForm(v => ({ ...v, recipientName: e.target.value }))} placeholder="ФИО получателя" />
+          <Input label="Комментарий" value={deliveryForm.note} onChange={(e) => setDeliveryForm(v => ({ ...v, note: e.target.value }))} placeholder="Место и дополнительные детали" />
+          <Button className="min-h-11 w-full" disabled={deliverySaving || !deliveryForm.proofUrl.trim() || !deliveryForm.recipientName.trim()} loading={deliverySaving} onClick={handleConfirmDelivery}>Подтвердить вручение</Button>
+        </div>
+      </Modal>
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Новый товар" className="w-full max-w-full sm:max-w-lg lg:max-w-xl">
         <div className="space-y-3">
           <Input label="Название *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Имплант титановый BLT" />
