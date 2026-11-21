@@ -16,7 +16,7 @@ const SCHEDULING_ROLE_KEYS = new Set([
   'diagnostic_operator', 'operator', 'reception', 'receptionist', 'registrar', 'center_reception',
 ]);
 const ACQUISITION_ROLE_KEYS = new Set([
-  ...SCHEDULING_ROLE_KEYS, 'modality_technician', 'radiology_technician', 'radiologist',
+  ...SCHEDULING_ROLE_KEYS, 'modality_technician', 'radiology_technician', 'radiologist', 'diagnostic_radiologist',
 ]);
 
 function roleMatches(roleKeys: readonly string[], allowed: ReadonlySet<string>): boolean {
@@ -89,7 +89,7 @@ export function authorizeDiagnosticCenterStatusTransition(
     return { allowed: false, status: 403, code: 'DIAGNOSTIC_ACQUISITION_FORBIDDEN', reason: 'Начинать исследование может только владелец, менеджер, оператор или технический специалист центра.' };
   }
   if (next === 'DELIVERED') {
-    if (!manager && !roleMatches(input.roleKeys, new Set(['radiologist']))) {
+    if (!manager && !roleMatches(input.roleKeys, new Set(['radiologist', 'diagnostic_radiologist']))) {
       return { allowed: false, status: 403, code: 'DIAGNOSTIC_RELEASE_FORBIDDEN', reason: 'Передавать подписанное заключение клинике может только владелец, менеджер или рентгенолог.' };
     }
     if (!input.resultSignedAt) {
