@@ -9,6 +9,7 @@ const { tx, prismaMock } = vi.hoisted(() => {
     transaction: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
     wallet: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     payout: { findMany: vi.fn() },
+    dentalLabInvoice: { findUnique: vi.fn(), update: vi.fn() },
   };
   return {
     tx,
@@ -31,6 +32,8 @@ beforeEach(() => {
   tx.wallet.update.mockResolvedValue({});
   tx.wallet.updateMany.mockResolvedValue({ count: 1 });
   tx.payout.findMany.mockResolvedValue([]);
+  tx.dentalLabInvoice.findUnique.mockResolvedValue({ id: 'invoice-1', paymentId: 'p-dental-1', amountMinor: 10_000n, refundedMinor: 0n, status: 'paid' });
+  tx.dentalLabInvoice.update.mockImplementation(async ({ data }: any) => ({ id: 'invoice-1', ...data }));
 });
 
 function paidPayment() {
@@ -64,7 +67,7 @@ function paidDentalLabPayment() {
     status: 'paid',
     refType: 'dental_lab_order',
     refId: 'lab-order-1',
-    meta: { clinicId: 'clinic-1', laboratoryId: 'lab-1' },
+    meta: { clinicId: 'clinic-1', laboratoryId: 'lab-1', invoiceId: 'invoice-1' },
   });
   tx.transaction.findMany
     .mockResolvedValueOnce([])
@@ -138,12 +141,14 @@ describe('refundPayment', () => {
     expect(tx.wallet.updateMany).toHaveBeenCalledTimes(2);
     expect(tx.wallet.update).toHaveBeenCalledTimes(1);
     expect(tx.payment.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'refunded' } }));
+    expect(tx.dentalLabInvoice.update).toHaveBeenCalledWith({ where: { id: 'invoice-1' }, data: { refundedMinor: 10_000n, status: 'refunded' } });
   });
 
   it('supports a partial refund for a dental-laboratory case without changing the paid status', async () => {
     paidDentalLabPayment();
     const result = await refundPayment('p-dental-1', 5_000n, 'dental-partial', 'partial case refund');
     expect(result.payment.status).toBe('paid');
+    expect(tx.dentalLabInvoice.update).toHaveBeenCalledWith({ where: { id: 'invoice-1' }, data: { refundedMinor: 5_000n, status: 'partially_refunded' } });
     const entries = tx.transaction.create.mock.calls[0][0].data.ledgerEntries.create;
     expect(entries).toEqual([
       { walletId: 'gateway', direction: 'credit', amount: 5_000n },
