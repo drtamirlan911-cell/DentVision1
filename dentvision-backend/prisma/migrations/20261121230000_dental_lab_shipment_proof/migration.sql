@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS "dental_lab_shipments" (
   "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "dental_lab_shipments_pkey" PRIMARY KEY ("id")
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "dental_lab_shipments_labOrderId_key"
-  ON "dental_lab_shipments"("labOrderId");
+CREATE INDEX IF NOT EXISTS "dental_lab_shipments_labOrderId_createdAt_idx"
+  ON "dental_lab_shipments"("labOrderId", "createdAt");
 CREATE INDEX IF NOT EXISTS "dental_lab_shipments_laboratoryId_status_dispatchedAt_idx"
   ON "dental_lab_shipments"("laboratoryId", "status", "dispatchedAt");
 
