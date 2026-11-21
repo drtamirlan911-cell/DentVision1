@@ -48,7 +48,7 @@ function payoutStatusLabel(status: string): string {
 }
 
 function Status({ status }: { status: string }) {
-  const tone = status === 'ready' || status === 'delivered' ? 'success' : status === 'delayed' || status === 'remake' ? 'danger' : 'outline';
+  const tone = status === 'ready' || status === 'delivered' ? 'success' : status === 'delayed' || status === 'remake' ? 'error' : 'outline';
   const label = STAGES.find((s) => s.id === status)?.label || status;
   return <Badge variant={tone as any}>{label}</Badge>;
 }
