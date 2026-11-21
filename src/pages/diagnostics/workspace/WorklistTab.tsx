@@ -91,10 +91,17 @@ export function WorklistTab({ orgId }: TabProps) {
     queryFn: () => api.getDiagnosticCenterWorklistReferralDetail(orgId, selectedReferralId as string),
     enabled: Boolean(orgId && selectedReferralId),
   })
+  const staffQuery = useQuery({
+    queryKey: ['diagnostics', 'center-worklist-staff', orgId],
+    queryFn: () => api.getDiagnosticCenterWorklistStaff(orgId),
+    enabled: Boolean(orgId && canManage),
+    staleTime: 30_000,
+  })
 
   const rows = worklistQuery.data?.data?.items || worklistQuery.data?.items || []
   const modalities = modalitiesQuery.data?.data || modalitiesQuery.data || []
   const studies = studiesQuery.data?.data || studiesQuery.data || []
+  const staff = staffQuery.data?.data || staffQuery.data || []
   const detail = detailQuery.data?.data || detailQuery.data || null
   const referral = detail?.referral || null
   const events = Array.isArray(detail?.events) ? detail.events : []
@@ -133,6 +140,15 @@ export function WorklistTab({ orgId }: TabProps) {
       refresh()
     },
     onError: (error: Error) => toast.error(error.message || 'Не удалось изменить этап исследования'),
+  })
+  const staffAssignmentMutation = useMutation({
+    mutationFn: ({ operatorUserId, radiologistUserId }: { operatorUserId?: string | null; radiologistUserId?: string | null }) =>
+      api.assignDiagnosticCenterWorklistStaff(orgId, String(selectedReferralId), { operatorUserId, radiologistUserId }),
+    onSuccess: () => {
+      toast.success('Ответственные сотрудники назначены')
+      refresh()
+    },
+    onError: (error: Error) => toast.error(error.message || 'Не удалось назначить сотрудников'),
   })
 
   const signMutation = useMutation({
@@ -224,6 +240,12 @@ export function WorklistTab({ orgId }: TabProps) {
                 <span>Файлов: {row._count?.files || 0}</span>
                 {row.scheduledDate && <span>{formatDate(row.scheduledDate)} {row.scheduledTime || ''}</span>}
               </div>
+              {(row.operator?.user || row.radiologist?.user) && (
+                <div className="space-y-1 text-xs text-txt-muted">
+                  {row.operator?.user && <p>Оператор: {row.operator.user.firstName} {row.operator.user.lastName}</p>}
+                  {row.radiologist?.user && <p>Рентгенолог: {row.radiologist.user.firstName} {row.radiologist.user.lastName}</p>}
+                </div>
+              )}
               <div className="rounded-lg bg-surface-2 p-3">
                 <p className="text-xs font-medium text-txt-secondary">Оборудование и кабинет</p>
                 {canAssignEquipment ? (
@@ -266,6 +288,46 @@ export function WorklistTab({ orgId }: TabProps) {
                 </Badge>
               </div>
 
+              {canManage && (
+                <div className="rounded-xl border border-bdr-subtle bg-surface-2 p-3">
+                  <div className="mb-3">
+                    <p className="text-xs font-semibold text-txt-primary">Ответственные сотрудники</p>
+                    <p className="mt-1 text-[11px] text-txt-muted">Назначения доступны владельцу и менеджеру центра. Выбирайте только сотрудников с соответствующей ролью в этой организации.</p>
+                  </div>
+                  {staffQuery.isError ? (
+                    <QueryError what="список сотрудников центра" onRetry={() => staffQuery.refetch()} />
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="space-y-1 text-xs text-txt-secondary">Оператор исследования
+                        <select
+                          value={referral.operator?.user?.id || ''}
+                          disabled={staffAssignmentMutation.isPending || staffQuery.isLoading}
+                          onChange={(event) => staffAssignmentMutation.mutate({ operatorUserId: event.target.value || null })}
+                          className="min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary"
+                        >
+                          <option value="">Не назначен</option>
+                          {staff.filter((member: any) => member.role === 'operator').map((member: any) => (
+                            <option key={member.userId} value={member.userId}>{member.firstName} {member.lastName}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="space-y-1 text-xs text-txt-secondary">Рентгенолог
+                        <select
+                          value={referral.radiologist?.user?.id || ''}
+                          disabled={staffAssignmentMutation.isPending || staffQuery.isLoading}
+                          onChange={(event) => staffAssignmentMutation.mutate({ radiologistUserId: event.target.value || null })}
+                          className="min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary"
+                        >
+                          <option value="">Не назначен</option>
+                          {staff.filter((member: any) => member.role === 'radiologist').map((member: any) => (
+                            <option key={member.userId} value={member.userId}>{member.firstName} {member.lastName}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="rounded-lg bg-surface-2 p-3">
                   <p className="text-[11px] text-txt-muted">Пациент</p>
