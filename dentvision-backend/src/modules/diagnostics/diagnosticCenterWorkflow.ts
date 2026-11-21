@@ -14,7 +14,7 @@ export type DiagnosticCenterTransitionDecision =
 
 const MANAGER_ROLE_KEYS = new Set(['owner', 'admin', 'manager', 'director']);
 const SCHEDULING_ROLE_KEYS = new Set([
-  'diagnostic_operator', 'operator', 'reception', 'receptionist', 'registrar', 'center_reception',
+  'diagnostic_operator', 'operator', 'diagnostic_reception', 'reception', 'receptionist', 'registrar', 'center_reception',
 ]);
 const ACQUISITION_ROLE_KEYS = new Set([
   ...SCHEDULING_ROLE_KEYS, 'modality_technician', 'radiology_technician', 'radiologist', 'diagnostic_radiologist',
