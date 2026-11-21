@@ -303,7 +303,7 @@ export function WorklistTab({ orgId }: TabProps) {
                 <div className="space-y-2">
                   <p className="flex items-center gap-2 text-xs font-semibold text-txt-primary"><FileText size={14} /> Материалы и заключение</p>
                   <div className="rounded-lg border border-bdr-subtle p-3">
-                    {!!referral.files?.length ? referral.files.map((file: any) => (
+                    {referral.files?.length ? referral.files.map((file: any) => (
                       <a key={file.id} href={file.fileUrl} target="_blank" rel="noreferrer" className="mb-2 flex min-h-9 items-center justify-between gap-2 text-xs text-accent underline">
                         <span className="truncate">{file.fileName || 'Файл исследования'}</span><span>{file.fileType || 'Файл'}</span>
                       </a>
