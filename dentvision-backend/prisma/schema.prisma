@@ -1287,8 +1287,10 @@ model Supplier {
   documents     SupplierDocument[]
   members       SupplierMember[]
   deliveryZones DeliveryZone[]
-  orders        Order[]
-  promotions    ShopPromotion[]
+  orders         Order[]
+  shipments      SupplierShipment[]
+  shipmentEvents SupplierShipmentEvent[]
+  promotions     ShopPromotion[]
 
   @@index([city])
   @@index([status])
@@ -1406,6 +1408,8 @@ model Order {
   user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   supplier Supplier?    @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   reviews  ShopReview[]
+  supplierShipments SupplierShipment[]
+  supplierShipmentEvents SupplierShipmentEvent[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -1415,6 +1419,58 @@ model Order {
   @@index([supplierId])
   @@index([status])
   @@map("orders")
+}
+
+model SupplierShipment {
+  id                  String   @id @default(uuid())
+  orderId             String
+  supplierId          String
+  carrier             String
+  trackingNumber      String
+  trackingUrl         String?
+  status              String   @default("shipped")
+  shippedAt           DateTime @default(now())
+  deliveredAt         DateTime?
+  proofOfDeliveryUrl  String?
+  recipientName       String?
+  deliveryNote        String?
+  createdByUserId     String
+  deliveredByUserId   String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  events   SupplierShipmentEvent[]
+
+  @@unique([supplierId, orderId])
+  @@unique([supplierId, trackingNumber])
+  @@index([supplierId, status, shippedAt])
+  @@index([orderId, createdAt])
+  @@map("supplier_shipments")
+}
+
+model SupplierShipmentEvent {
+  id           String   @id @default(uuid())
+  shipmentId   String
+  orderId      String
+  supplierId   String
+  eventType    String
+  fromStatus   String?
+  toStatus     String?
+  note         String?
+  actorUserId  String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  shipment SupplierShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  order    Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplier Supplier         @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, createdAt])
+  @@index([supplierId, createdAt])
+  @@index([orderId, createdAt])
+  @@map("supplier_shipment_events")
 }
 
 model Favorite {

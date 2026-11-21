@@ -133,6 +133,9 @@ jobs:
       - name: Apply dental laboratory service catalogue and case price snapshots
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261121180000_dental_lab_service_catalog/migration.sql
         working-directory: dentvision-backend
+      - name: Apply supplier shipment and proof-of-delivery records
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261121200000_supplier_shipment_delivery_evidence/migration.sql
+        working-directory: dentvision-backend
       - name: Apply medical laboratory price snapshot required by order creation
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260920120000_medical_lab_price_snapshot/migration.sql
         working-directory: dentvision-backend

@@ -38,6 +38,30 @@ export async function getSupplierOrders(supplierId: string) {
     },
   });
 
+  const shipments = orders.length > 0
+    ? await prisma.supplierShipment.findMany({
+        where: { supplierId, orderId: { in: orders.map((order) => order.id) } },
+        orderBy: { createdAt: 'desc' },
+      })
+    : [];
+  const shipmentByOrder = new Map<string, (typeof shipments)[number]>();
+  for (const shipment of shipments) {
+    if (!shipmentByOrder.has(shipment.orderId)) shipmentByOrder.set(shipment.orderId, shipment);
+  }
+  const shipmentIds = shipments.map((shipment) => shipment.id);
+  const shipmentEvents = shipmentIds.length > 0
+    ? await prisma.supplierShipmentEvent.findMany({
+        where: { supplierId, shipmentId: { in: shipmentIds } },
+        orderBy: { createdAt: 'asc' },
+      })
+    : [];
+  const eventsByShipment = new Map<string, typeof shipmentEvents>();
+  for (const event of shipmentEvents) {
+    const previous = eventsByShipment.get(event.shipmentId) || [];
+    previous.push(event);
+    eventsByShipment.set(event.shipmentId, previous);
+  }
+
   return orders
     .map((order) => {
       const items = parseOrderItems(order.items)
@@ -64,6 +88,11 @@ export async function getSupplierOrders(supplierId: string) {
       return {
         id: order.id,
         status: order.status,
+        supplierShipment: (() => {
+          const shipment = shipmentByOrder.get(order.id);
+          return shipment ? { ...shipment, events: eventsByShipment.get(shipment.id) || [] } : null;
+        })(),
+        supplierFulfillmentStatus: shipmentByOrder.get(order.id)?.status || order.status,
         createdAt: order.createdAt,
         clinicName: order.clinic?.name || 'Клиника',
         clinicCity: order.clinic?.city || null,
