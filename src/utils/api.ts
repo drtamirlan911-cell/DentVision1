@@ -159,7 +159,13 @@ export async function apiRequest(path: string, options: RequestInit = {}): Promi
   }
   const tz = clientTimezoneHeader(); if (tz) headers['X-Client-Timezone'] = tz;
   if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase())) { const csrfMatch = document.cookie.match(/(?:^|;\s*)dv_csrf=([^;]*)/); if (csrfMatch) headers['x-csrf-token'] = csrfMatch[1]; }
-  const finalOptions: RequestInit = { ...options, headers, credentials: 'include' }; headers['Content-Type'] = 'application/json';
+  if (typeof FormData !== 'undefined' && options.body instanceof FormData) {
+    // Let the browser set the multipart boundary for binary uploads.
+    delete headers['Content-Type'];
+  } else if (!headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+  const finalOptions: RequestInit = { ...options, headers, credentials: 'include' };
   let res = await fetch(`${API_URL}${path}`, finalOptions); let data = await res.json();
   if (res.status === 401) {
     try {
@@ -739,7 +745,14 @@ export async function updateDiagnosticReferral(id: string, data: any): Promise<a
 export async function changeDiagnosticReferralStatus(id: string, status: string, reason?: string, extra?: Record<string, any>): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${id}/status`, { method: 'POST', body: JSON.stringify({ status, reason, ...extra }) }); }
 export async function deleteDiagnosticReferral(id: string): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${id}`, { method: 'DELETE' }); }
 export async function addDiagnosticComment(referralId: string, text: string): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${referralId}/comments`, { method: 'POST', body: JSON.stringify({ text }) }); }
-export async function uploadDiagnosticFile(data: { referralId: string; fileName: string; fileData: string; fileType?: string; fileSize?: number }): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${data.referralId}/files`, { method: 'POST', body: JSON.stringify({ fileName: data.fileName, fileData: data.fileData, fileType: data.fileType, fileSize: data.fileSize }) }); }
+export async function uploadDiagnosticFile(data: { referralId: string; file: File }): Promise<any> {
+  const form = new FormData();
+  form.set('file', data.file);
+  return apiRequest(`/api/diagnostics/referrals/${encodeURIComponent(data.referralId)}/files/upload`, {
+    method: 'POST',
+    body: form,
+  });
+}
 export async function deleteDiagnosticFile(id: string): Promise<any> { return apiRequest(`/api/diagnostics/referral-files/${id}`, { method: 'DELETE' }); }
 export async function aiGenerateDiagnosticResult(referralId: string): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${referralId}/ai-result`, { method: 'POST', body: '{}' }); }
 export async function signDiagnosticResult(referralId: string, reportText: string, conclusion?: string): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${referralId}/results/sign`, { method: 'POST', body: JSON.stringify({ reportText, conclusion }) }); }
