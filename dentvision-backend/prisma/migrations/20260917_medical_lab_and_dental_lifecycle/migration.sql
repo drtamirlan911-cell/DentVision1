@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS "medical_lab_order_tests" (
   "id" TEXT NOT NULL,
   "orderId" TEXT NOT NULL,
   "testId" TEXT,
+  "priceMinor" BIGINT,
   "name" TEXT NOT NULL,
   "analyteCode" TEXT,
   "result" TEXT,
@@ -60,6 +61,8 @@ CREATE TABLE IF NOT EXISTS "medical_lab_order_tests" (
   "updatedAt" TIMESTAMP(3),
   CONSTRAINT "medical_lab_order_tests_pkey" PRIMARY KEY ("id")
 );
+-- Upgrade installations where the idempotent lifecycle table already exists.
+ALTER TABLE "medical_lab_order_tests" ADD COLUMN IF NOT EXISTS "priceMinor" BIGINT;
 CREATE INDEX IF NOT EXISTS "medical_lab_order_tests_orderId_idx" ON "medical_lab_order_tests"("orderId");
 CREATE INDEX IF NOT EXISTS "medical_lab_order_tests_testId_idx" ON "medical_lab_order_tests"("testId");
 DO $$ BEGIN
