@@ -323,6 +323,32 @@ describe('diagnostics route contract', () => {
     expect(source).toContain('canReadReferralMedicalDetail(req.user, scope)');
   });
 
+  it('separates operational detail, clinical detail and attachment permissions in the center worklist', () => {
+    const start = source.indexOf("diagnosticsRouter.get('/centers/:centerId/worklist/:referralId'");
+    const end = source.indexOf("diagnosticsRouter.get('/centers/:id/worklist/staff'", start);
+    const route = source.slice(start, end);
+    expect(route).toContain('canReadDiagnosticCenterClinicalDetail(roleKeys)');
+    expect(route).toContain("await hasPartnerScopedPermission(req.user, 'medical.read')");
+    expect(route).toContain('redactDiagnosticCenterOperationalReferral(detail)');
+    expect(route).toContain("canReadFiles: await hasPartnerScopedPermission(req.user, 'files.read')");
+    expect(source).toContain("'diagnostic_reception'");
+    expect(source).toContain("DIAGNOSTIC_RADIOLOGIST: 'RADIOLOGIST'");
+  });
+
+  it('requires files.write for diagnostic attachment uploads and never returns internal S3 keys', () => {
+    const uploadStart = source.indexOf("diagnosticsRouter.post('/referrals/:id/files/upload'");
+    const legacyStart = source.indexOf("diagnosticsRouter.post('/referrals/:id/files'", uploadStart);
+    const deleteStart = source.indexOf("diagnosticsRouter.delete('/referral-files/:id'", legacyStart);
+    const multipartRoute = source.slice(uploadStart, legacyStart);
+    const legacyRoute = source.slice(legacyStart, deleteStart);
+    expect(multipartRoute).toContain('canWriteReferralClinicalFiles(req.user, referral)');
+    expect(legacyRoute).toContain('canWriteReferralClinicalFiles(req.user, referral)');
+    expect(multipartRoute).toContain('downloadAvailable: true');
+    expect(legacyRoute).toContain('downloadAvailable: true');
+    expect(multipartRoute).not.toContain('fileUrl: data.fileUrl');
+    expect(legacyRoute).not.toContain('fileUrl: data.fileUrl');
+  });
+
   it('issues fresh short-lived diagnostic attachment URLs only after scoped clinical access', () => {
     const start = source.indexOf("diagnosticsRouter.get('/referrals/:id/files/:fileId/download-url'");
     const end = source.indexOf("diagnosticsRouter.post('/referrals/:id/files/upload'", start);
