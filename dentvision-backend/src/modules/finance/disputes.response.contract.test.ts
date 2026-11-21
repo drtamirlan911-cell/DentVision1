@@ -15,4 +15,12 @@ describe('platform dispute adjudication response visibility', () => {
     expect(list).toContain('orderBy: { createdAt: \'asc\' }');
     expect(list).toContain('supplier: { select: { id: true, name: true, status: true } }');
   });
+
+  it('provides the seller evidence in the superadmin finance review UI', () => {
+    const financeUi = readFileSync(resolve(process.cwd(), 'src/pages/superadmin/FinanceTab.tsx'), 'utf8');
+    expect(financeUi).toContain('Ответы поставщиков');
+    expect(financeUi).toContain('disputeDetail.supplierResponses.map');
+    expect(financeUi).toContain('response.supplier?.name');
+    expect(financeUi).toContain('сами по себе не выполняют возврат');
+  });
 });
