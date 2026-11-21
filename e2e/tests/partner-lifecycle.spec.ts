@@ -823,15 +823,72 @@ test.describe('Partner operational lifecycle', () => {
     medicalLabOrderIds.push(orderId);
     expect(order.status).toBe('ordered');
 
+    expect(order.accessionRequired).toBe(true);
     const moveTo = async (token: string, status: string) => api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/status', {
       headers: auth(token),
       data: { status },
     });
-    for (const status of ['sample_collected', 'received', 'processing']) {
-      const response = await moveTo(labOwnerToken, status);
-      expect(response.status(), 'medical laboratory stage ' + status).toBe(200);
-      expect((await response.json()).data.status).toBe(status);
-    }
+
+    const clinicCannotAccession = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens', {
+      headers: auth(ownerToken),
+      data: { specimenType: 'blood' },
+    });
+    expect(clinicCannotAccession.status()).toBe(403);
+    const statusOnlyCollection = await moveTo(labOwnerToken, 'sample_collected');
+    expect(statusOnlyCollection.status()).toBe(409);
+
+    const accession = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { specimenType: 'blood', containerType: 'EDTA tube', volume: 5, volumeUnit: 'mL', location: 'Accession desk' },
+    });
+    const accessionBody = await accession.json();
+    expect(accession.status(), JSON.stringify(accessionBody)).toBe(201);
+    const specimen = accessionBody.data;
+    expect(specimen.accessionNumber).toMatch(/^DVL-[A-Z0-9]{12,16}$/);
+    expect(specimen.status).toBe('collected');
+
+    const statusOnlyReceipt = await moveTo(labOwnerToken, 'received');
+    expect(statusOnlyReceipt.status()).toBe(409);
+    const unknownBarcode = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/scan', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { barcode: 'DVL-UNKNOWN0000', action: 'received' },
+    });
+    expect(unknownBarcode.status()).toBe(404);
+
+    const scannedReceipt = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/scan', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { barcode: specimen.accessionNumber, action: 'received', location: 'Intake rack A' },
+    });
+    const scannedBody = await scannedReceipt.json();
+    expect(scannedReceipt.status(), JSON.stringify(scannedBody)).toBe(200);
+    expect(scannedBody.data.orderAdvanced).toBe(true);
+    expect(scannedBody.data.order.status).toBe('received');
+
+    const duplicateScan = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/scan', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { barcode: specimen.accessionNumber, action: 'received' },
+    });
+    expect(duplicateScan.status()).toBe(409);
+
+    const aliquotResponse = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/' + specimen.id + '/aliquots', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { volume: 1, volumeUnit: 'mL', containerType: 'Aliquot tube' },
+    });
+    const aliquotBody = await aliquotResponse.json();
+    expect(aliquotResponse.status(), JSON.stringify(aliquotBody)).toBe(201);
+    expect(aliquotBody.data.parentSpecimenId).toBe(specimen.id);
+    expect(aliquotBody.data.accessionNumber).not.toBe(specimen.accessionNumber);
+
+    const custodyDetail = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    const custodyPayload = (await custodyDetail.json()).data;
+    expect(custodyPayload.specimens).toHaveLength(2);
+    expect(custodyPayload.specimenEvents.map((event: any) => event.eventType)).toEqual(expect.arrayContaining(['COLLECTED', 'RECEIVED', 'ALIQUOT_CREATED']));
+
+    const processing = await moveTo(labOwnerToken, 'processing');
+    expect(processing.status()).toBe(200);
+    expect((await processing.json()).data.status).toBe('processing');
 
     const technicianDetail = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
       headers: auth(medicalLabTechnicianToken),
