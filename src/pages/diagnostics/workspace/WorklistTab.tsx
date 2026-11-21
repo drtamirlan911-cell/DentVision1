@@ -66,8 +66,7 @@ export function WorklistTab({ orgId }: TabProps) {
   const canSchedule = canManage || SCHEDULING_ROLES.includes(role)
   const canAcquire = canManage || ACQUISITION_ROLES.includes(role)
   const canReadDetails = canManage || canAcquire
-  const canSign = role === 'radiologist' || role.endsWith('_radiologist')
-  const canRelease = canManage || canSign
+  const hasRadiologistRole = role === 'radiologist' || role.endsWith('_radiologist')
   const canAssignEquipment = canManage
 
   const worklistQuery = useQuery({
@@ -165,6 +164,9 @@ export function WorklistTab({ orgId }: TabProps) {
   const selectedRow = rows.find((row: any) => row.id === selectedReferralId)
   const selectedPrice = selectedRow ? resolvePrice(selectedRow, studies) : undefined
   const resultSigned = Boolean(referral?.result?.signedAt)
+  const isAssignedRadiologist = Boolean(referral?.radiologist?.user?.id && referral.radiologist.user.id === user?.id)
+  const canSign = hasRadiologistRole && isAssignedRadiologist
+  const canRelease = canManage || canSign
 
   const openDetails = (id: string) => {
     setSelectedReferralId((current) => current === id ? null : id)
@@ -438,7 +440,11 @@ export function WorklistTab({ orgId }: TabProps) {
               )}
 
               {referral.status === 'IN_PROGRESS' && !canSign && (
-                <p className="rounded-lg bg-surface-2 p-3 text-xs text-txt-muted">Исследование выполняется. Подписать заключение может только сотрудник с ролью рентгенолога.</p>
+                <p className="rounded-lg bg-surface-2 p-3 text-xs text-txt-muted">
+                  {hasRadiologistRole
+                    ? 'Вы не назначены рентгенологом этого исследования. Владелец или менеджер центра должен назначить ответственного специалиста.'
+                    : 'Исследование выполняется. Подписать заключение может только назначенный рентгенолог.'}
+                </p>
               )}
 
               <div className="space-y-2 border-t border-bdr-subtle pt-3">
