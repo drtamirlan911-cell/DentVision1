@@ -866,6 +866,8 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     let trustedSellerType: string | null | undefined = sellerType;
     let trustedSellerId: string | null | undefined = sellerId;
     let trustedDomain: string | null | undefined = domain;
+    let dentalLabInvoiceId: string | null = null;
+    let dentalLabExpectedAmountMinor: bigint | null = null;
 
     // P1-1 fix: never trust the client-submitted amount. For order/shop refTypes
     // we recompute the expected total server-side and reconcile with what the
@@ -916,24 +918,24 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       if (!canAccessDentalLabOrderBranch(req.user, labOrder.branchId)) {
         return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу, которому принадлежит зуботехнический заказ' } satisfies ApiResponse);
       }
-      const invoiceId = String(req.body?.invoiceId || '').trim();
-      if (!invoiceId || !labOrder.invoice || labOrder.invoice.id !== invoiceId) {
+      dentalLabInvoiceId = String(req.body?.invoiceId || '').trim();
+      if (!dentalLabInvoiceId || !labOrder.invoice || labOrder.invoice.id !== dentalLabInvoiceId) {
         return res.status(409).json({ ok: false, error: 'Сначала запросите официальный счёт зуботехнической лаборатории', code: 'DENTAL_LAB_INVOICE_REQUIRED' } satisfies ApiResponse);
       }
       if (labOrder.invoice.status !== 'issued' || labOrder.invoice.paymentId) {
         return res.status(409).json({ ok: false, error: 'Счёт уже оплачен или недоступен для оплаты', code: 'DENTAL_LAB_INVOICE_NOT_PAYABLE' } satisfies ApiResponse);
       }
-      const expectedMinor = tengeToMinor(labOrder.servicePriceSnapshot);
-      if (labOrder.invoice.amountMinor !== expectedMinor || minor !== expectedMinor) {
+      dentalLabExpectedAmountMinor = tengeToMinor(labOrder.servicePriceSnapshot);
+      if (labOrder.invoice.amountMinor !== dentalLabExpectedAmountMinor || minor !== dentalLabExpectedAmountMinor) {
         return res.status(409).json({ ok: false, error: 'Сумма не совпадает с зафиксированным счётом зуботехнической услуги' } satisfies ApiResponse);
       }
-      idempotencyKey = `dental-lab-invoice:${invoiceId}`;
+      idempotencyKey = `dental-lab-invoice:${dentalLabInvoiceId}`;
       trustedMeta = {
         ...trustedMeta,
         clinicId: labOrder.clinicId,
         laboratoryId: labOrder.laboratoryId,
         labOrderId: labOrder.id,
-        invoiceId,
+        invoiceId: dentalLabInvoiceId,
         branchId: labOrder.branchId,
         userId: req.user!.id,
       };
@@ -1176,10 +1178,10 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
           if (remakeRequest?.status === 'requested') {
             throw new DentalLabPaymentStateError('Нельзя создать оплату, пока по заказу ожидает решения запрос переделки');
           }
-          if (!currentOrder.invoice || currentOrder.invoice.id !== invoiceId || currentOrder.invoice.status !== 'issued' || currentOrder.invoice.paymentId) {
+          if (!dentalLabInvoiceId || dentalLabExpectedAmountMinor === null || !currentOrder.invoice || currentOrder.invoice.id !== dentalLabInvoiceId || currentOrder.invoice.status !== 'issued' || currentOrder.invoice.paymentId) {
             throw new DentalLabPaymentStateError('Счёт изменился или больше не доступен для оплаты');
           }
-          if (currentOrder.invoice.amountMinor !== expectedMinor) {
+          if (currentOrder.invoice.amountMinor !== dentalLabExpectedAmountMinor) {
             throw new DentalLabPaymentStateError('Сумма счёта изменилась: требуется повторная проверка');
           }
           const existingPayment = await tx.payment.findFirst({
