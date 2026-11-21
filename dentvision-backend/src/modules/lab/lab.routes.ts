@@ -85,6 +85,7 @@ function serializeLabOrder(order: {
     remakeOfId: meta.remakeOfId || null, appointmentId: meta.appointmentId || null,
     tryInDate: meta.tryInDate || null,
     remakeRequest: meta.remakeRequest || null,
+    payment: meta.payment || null,
     treatmentCaseId: meta.treatmentCaseId || null, doctorId: order.doctorId ?? meta.doctorId ?? null,
     serviceId: order.serviceId ?? null, serviceName: order.serviceNameSnapshot ?? null, servicePriceSnapshot: order.servicePriceSnapshot ?? null,
     dueDate: order.deadline, notes: order.notes, status: order.status, price: order.price,
