@@ -669,14 +669,15 @@ test.describe('Partner operational lifecycle', () => {
       { headers: auth(operatorScopedToken) },
     );
     expect(operatorOperationalDetail.status(), await operatorOperationalDetail.text()).toBe(200);
-    const operatorReferral = (await operatorOperationalDetail.json()).data.referral;
+    const operatorDetailBody = await operatorOperationalDetail.json();
+    const operatorReferral = operatorDetailBody.data.referral;
     expect(operatorReferral.patientName).toBe('Partner Lifecycle');
     expect(operatorReferral.allergies).toBeUndefined();
     expect(operatorReferral.specialNotes).toBeUndefined();
     expect(operatorReferral.pregnancy).toBeUndefined();
     expect(operatorReferral.preliminaryDx).toBeUndefined();
     expect(operatorReferral.result).toBeUndefined();
-    expect((await operatorOperationalDetail.json()).data.capabilities).toMatchObject({
+    expect(operatorDetailBody.data.capabilities).toMatchObject({
       canReadClinical: false,
       canReadFiles: true,
     });
