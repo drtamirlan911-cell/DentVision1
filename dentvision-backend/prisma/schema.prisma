@@ -1412,6 +1412,7 @@ model Order {
   supplierShipments SupplierShipment[]
   supplierShipmentEvents SupplierShipmentEvent[]
   supplierDisputeResponses SupplierDisputeResponse[]
+  marketplaceReturnItems MarketplaceReturnItem[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -2313,6 +2314,10 @@ model Dispute {
   updatedAt DateTime? @updatedAt
 
   supplierResponses SupplierDisputeResponse[]
+  returnItems MarketplaceReturnItem[]
+  requesterUserId String?
+  clientRequestKey String? @unique
+  requestFingerprint String?
 
   @@index([refType, refId])
   @@map("disputes")
@@ -2336,6 +2341,29 @@ model SupplierDisputeResponse {
   @@index([supplierId, createdAt])
   @@index([orderId, createdAt])
   @@map("supplier_dispute_responses")
+}
+
+model MarketplaceReturnItem {
+  id           String   @id @default(uuid())
+  disputeId    String
+  orderId      String
+  lineIndex    Int
+  productId    String
+  supplierId   String?
+  productName  String
+  quantity     Int
+  unitPrice    Int
+  reasonCode   String
+  note         String?
+  createdAt    DateTime @default(now())
+
+  dispute Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([disputeId, lineIndex])
+  @@index([orderId, lineIndex])
+  @@index([supplierId, createdAt])
+  @@map("marketplace_return_items")
 }
 
 // --- DENT CASHBACK ---

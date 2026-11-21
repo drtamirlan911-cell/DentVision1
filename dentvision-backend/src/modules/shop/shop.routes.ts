@@ -13,6 +13,7 @@ import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } f
 import { normalizeCheckoutItems } from './checkout.validation.js';
 import { compensateDeterministicCheckoutFailure } from './checkout.compensation.js';
 import { cancelBuyerShopOrder } from './buyerOrderCancellation.js';
+import { canRequestMarketplaceReturn, normalizeMarketplaceReturnItems } from './marketplaceReturnRequest.js';
 import { assertCheckoutSupplierEligibility } from './supplierIntegrity.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 import { audiencesFromProductTags, canExposeCatalogItem, resolveActiveContentContext } from '../../iam/contentCatalogAccess.js';
@@ -681,6 +682,12 @@ shopRouter.get('/orders', authenticate, async (req: AuthRequest, res) => {
         orderBy: { createdAt: 'desc' },
         skip,
         take,
+        include: {
+          marketplaceReturnItems: {
+            orderBy: { createdAt: 'asc' },
+            include: { dispute: { select: { id: true, status: true, reason: true, createdAt: true } } },
+          },
+        },
       }),
       prisma.order.count({ where }),
     ]);
@@ -694,10 +701,36 @@ shopRouter.get('/orders', authenticate, async (req: AuthRequest, res) => {
         deliveryMethod: meta.delivery_method || null,
         items: rawItems.map((it: any, idx: number) => ({
           id: it.id || `${o.id}-${idx}`,
+          lineIndex: idx,
+          productId: String(it.product_id || it.productId || ''),
+          supplierId: it.supplier_id || it.supplierId || null,
           productName: it.productName || it.name || 'Товар',
           quantity: Number(it.quantity || it.qty || 1),
           price: Number(it.price || 0),
         })),
+        returnRequests: (() => {
+          const grouped = new Map<string, { id: string; status: string; reason: string; createdAt: Date; items: any[] }>();
+          for (const item of (o as any).marketplaceReturnItems || []) {
+            const dispute = item.dispute;
+            if (!dispute) continue;
+            const entry = grouped.get(dispute.id) || {
+              id: dispute.id,
+              status: dispute.status,
+              reason: dispute.reason,
+              createdAt: dispute.createdAt,
+              items: [],
+            };
+            entry.items.push({
+              lineIndex: item.lineIndex,
+              productName: item.productName,
+              quantity: item.quantity,
+              reasonCode: item.reasonCode,
+              note: item.note,
+            });
+            grouped.set(dispute.id, entry);
+          }
+          return Array.from(grouped.values());
+        })(),
         meta,
       };
     });
@@ -705,6 +738,115 @@ shopRouter.get('/orders', authenticate, async (req: AuthRequest, res) => {
     res.json({ ok: true, data: paginatedResponse(data, total, page, limit) });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch orders' });
+  }
+});
+
+
+shopRouter.post('/orders/:id/returns', authenticate, async (req: AuthRequest, res) => {
+  const orderId = String(req.params.id || '').trim();
+  const idempotencyToken = String(req.get('Idempotency-Key') || '').trim();
+  if (idempotencyToken.length < 8 || idempotencyToken.length > 128) {
+    return res.status(400).json({ ok: false, error: 'Требуется корректный ключ повторной отправки запроса' });
+  }
+  const rawItems = req.body?.items;
+  const requestFingerprint = createHash('sha256').update(JSON.stringify({ orderId, items: rawItems })).digest('hex');
+  const clientRequestKey = createHash('sha256').update(`marketplace-return:${req.user!.id}:${orderId}:${idempotencyToken}`).digest('hex');
+
+  try {
+    const outcome = await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE
+      `;
+      if (!locked.length) return { kind: 'not_found' as const };
+
+      const order = await tx.order.findUnique({ where: { id: orderId } });
+      if (!order || order.userId !== req.user!.id) return { kind: 'not_found' as const };
+
+      const existing = await tx.dispute.findUnique({
+        where: { clientRequestKey },
+        include: { returnItems: true },
+      });
+      if (existing) {
+        if (existing.requestFingerprint !== requestFingerprint) return { kind: 'idempotency_conflict' as const };
+        return { kind: 'existing' as const, dispute: existing };
+      }
+
+      const priorDisputes = await tx.dispute.findMany({
+        where: {
+          refType: 'order',
+          refId: orderId,
+          status: { in: ['open', 'review', 'resolved'] },
+          returnItems: { some: {} },
+        },
+        select: { returnItems: { select: { lineIndex: true, quantity: true } } },
+      });
+      const previouslyRequested = new Map<number, number>();
+      for (const dispute of priorDisputes) {
+        for (const item of dispute.returnItems) {
+          previouslyRequested.set(item.lineIndex, (previouslyRequested.get(item.lineIndex) || 0) + item.quantity);
+        }
+      }
+
+      const normalizedItems = normalizeMarketplaceReturnItems(rawItems, order.items, previouslyRequested);
+      if (!normalizedItems) return { kind: 'invalid_items' as const };
+      if (!canRequestMarketplaceReturn(order, normalizedItems)) return { kind: 'not_eligible' as const };
+
+      const reason = normalizedItems
+        .map((item) => `${item.productName} × ${item.quantity}: ${item.reasonCode}`)
+        .join('; ')
+        .slice(0, 2000);
+      const dispute = await tx.dispute.create({
+        data: {
+          refType: 'order',
+          refId: order.id,
+          reason: `Возврат по заказу: ${reason}`,
+          requesterUserId: req.user!.id,
+          clientRequestKey,
+          requestFingerprint,
+          returnItems: {
+            create: normalizedItems.map((item) => ({
+              id: uid(),
+              orderId: order.id,
+              lineIndex: item.lineIndex,
+              productId: item.productId,
+              supplierId: item.supplierId,
+              productName: item.productName,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              reasonCode: item.reasonCode,
+              note: item.note,
+            })),
+          },
+        },
+        include: { returnItems: true },
+      });
+      return { kind: 'created' as const, dispute };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден' });
+    if (outcome.kind === 'idempotency_conflict') return res.status(409).json({ ok: false, error: 'Ключ повторной отправки уже использован с другими данными' });
+    if (outcome.kind === 'invalid_items') return res.status(400).json({ ok: false, error: 'Проверьте выбранные позиции, причины и количество возврата' });
+    if (outcome.kind === 'not_eligible') return res.status(409).json({ ok: false, error: 'Для этого статуса или способа оплаты запрос возврата недоступен' });
+
+    if (outcome.kind === 'created') {
+      await auditFromReq(req, {
+        action: 'marketplace.return.requested',
+        entity: 'dispute',
+        entityId: outcome.dispute.id,
+        details: {
+          orderId,
+          itemCount: outcome.dispute.returnItems.length,
+          supplierIds: [...new Set(outcome.dispute.returnItems.map((item) => item.supplierId).filter(Boolean))],
+        },
+      }).catch((error) => console.error('[marketplace return audit]', error));
+    }
+    return res.status(outcome.kind === 'created' ? 201 : 200).json({ ok: true, data: outcome.dispute });
+  } catch (error: any) {
+    if (String(error?.code || '') === 'P2034') {
+      return res.status(409).json({ ok: false, error: 'Заказ одновременно изменился. Обновите его и повторите запрос.' });
+    }
+    console.error('[marketplace return request]', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось зарегистрировать запрос возврата' });
   }
 });
 

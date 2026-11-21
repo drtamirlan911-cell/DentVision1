@@ -259,14 +259,23 @@ supplierWorkspaceRouter.post('/orders/:id/delivery-confirmation', requireSupplie
 
 
 
-async function supplierOwnsOrderLine(supplierId: string, orderId: string, client: any = prisma): Promise<boolean> {
-  const [order, products] = await Promise.all([
+async function supplierOwnsOrderLine(supplierId: string, disputeId: string, orderId: string, client: any = prisma): Promise<boolean> {
+  const [order, requestedItems] = await Promise.all([
     client.order.findUnique({ where: { id: orderId }, select: { id: true, items: true } }),
-    client.product.findMany({ where: { supplierId }, select: { id: true } }),
+    client.marketplaceReturnItem.findMany({
+      where: { disputeId, orderId, supplierId },
+      select: { lineIndex: true, productId: true },
+    }),
   ]);
-  if (!order) return false;
-  const productIds = new Set<string>(products.map((product: { id: string }) => String(product.id)));
-  return orderHasSupplierLine(order.items, supplierId, productIds);
+  if (!order || requestedItems.length === 0) return false;
+  const lines = Array.isArray(order.items) ? order.items as Array<Record<string, unknown>> : [];
+  return requestedItems.some((item: { lineIndex: number; productId: string }) => {
+    const line = lines[item.lineIndex];
+    if (!line || typeof line !== 'object') return false;
+    const productId = String(line.product_id ?? line.productId ?? '');
+    const lineSupplierId = String(line.supplier_id ?? line.supplierId ?? '').trim();
+    return productId === item.productId && lineSupplierId === supplierId;
+  });
 }
 
 // Supplier answers are evidence for platform adjudication, not a financial instruction.
@@ -296,7 +305,7 @@ supplierWorkspaceRouter.post('/returns/:id/respond', requireSupplierWrite, async
       if (!dispute || !['order', 'shop_order'].includes(dispute.refType.trim().toLowerCase())) {
         return { status: 404, body: { ok: false, error: 'Претензия не найдена в заказах текущего поставщика' } };
       }
-      if (!await supplierOwnsOrderLine(supplierId, dispute.refId, tx)) {
+      if (!await supplierOwnsOrderLine(supplierId, disputeId, dispute.refId, tx)) {
         return { status: 404, body: { ok: false, error: 'Претензия не найдена в заказах текущего поставщика' } };
       }
       if (!['open', 'review', 'pending'].includes(dispute.status.trim().toLowerCase())) {

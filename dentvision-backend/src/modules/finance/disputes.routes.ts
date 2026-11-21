@@ -69,6 +69,7 @@ disputesRouter.get('/', requireSuperadmin, async (req: AuthRequest, res) => {
           supplier: { select: { id: true, name: true, status: true } },
         },
       },
+      returnItems: { orderBy: { lineIndex: 'asc' } },
     },
   });
   return res.json({ ok: true, data: disputes } satisfies ApiResponse);
@@ -112,6 +113,23 @@ disputesRouter.post('/:id/status', requireSuperadmin, async (req: AuthRequest, r
     const dispute = await prisma.dispute.findUnique({ where: { id: existing.id } });
     if (!dispute) {
       return res.status(404).json({ ok: false, error: 'Спор не найден после обновления' } satisfies ApiResponse);
+    }
+
+    // Item-level marketplace returns need a line-aware refund and seller settlement.
+    // The current legacy reversal is order-wide; do not apply it to a partial return.
+    if (requestedStatus === 'resolved') {
+      const returnItems = await prisma.marketplaceReturnItem.findMany({
+        where: { disputeId: existing.id },
+        select: { id: true },
+        take: 1,
+      });
+      if (returnItems.length > 0) {
+        return res.status(409).json({
+          ok: false,
+          error: 'Позиционный возврат требует подтверждения осмотра и частичного расчёта в Finance. Автоматический полный возврат заказа запрещён.',
+          code: 'MARKETPLACE_PARTIAL_RETURN_FINANCE_REQUIRED',
+        } satisfies ApiResponse);
+      }
     }
 
     // Financial resolution is a platform-level mutation. Only supported order

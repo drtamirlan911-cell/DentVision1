@@ -139,6 +139,9 @@ jobs:
       - name: Apply supplier dispute response records
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261121210000_supplier_dispute_response/migration.sql
         working-directory: dentvision-backend
+      - name: Apply marketplace return item records
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261121220000_marketplace_return_items/migration.sql
+        working-directory: dentvision-backend
       - name: Apply medical laboratory price snapshot required by order creation
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260920120000_medical_lab_price_snapshot/migration.sql
         working-directory: dentvision-backend

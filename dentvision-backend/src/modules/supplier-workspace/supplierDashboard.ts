@@ -321,23 +321,23 @@ export async function buildSupplierDashboard(supplierId: string) {
     buildSupplierInsights(supplierId),
     getSupplierOrders(supplierId),
   ]);
-  const productIds = products.map((p) => p.id);
-  const myOrderIds = (orders as any[]).map((o) => o.id);
-  const disputeScope: any[] = [];
-  if (myOrderIds.length) disputeScope.push({
-    refType: { in: ['order', 'ORDER', 'shop_order', 'SHOP_ORDER'] }, refId: { in: myOrderIds },
+  const returns = await prisma.dispute.findMany({
+    where: { returnItems: { some: { supplierId } } },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+    include: {
+      supplierResponses: {
+        where: { supplierId },
+        select: { id: true, responseType: true, note: true, actorUserId: true, createdAt: true },
+        take: 1,
+      },
+      returnItems: {
+        where: { supplierId },
+        select: { id: true, lineIndex: true, productId: true, productName: true, quantity: true, unitPrice: true, reasonCode: true, note: true },
+        orderBy: { lineIndex: 'asc' },
+      },
+    },
   });
-  if (productIds.length) disputeScope.push({ refType: { in: ['product', 'PRODUCT'] }, refId: { in: productIds } });
-  const returns = disputeScope.length
-    ? await prisma.dispute.findMany({
-        where: { OR: disputeScope }, orderBy: { createdAt: 'desc' }, take: 200,
-        include: { supplierResponses: {
-          where: { supplierId },
-          select: { id: true, responseType: true, note: true, actorUserId: true, createdAt: true },
-          take: 1,
-        } },
-      })
-    : [];
 
   const rated = products.filter((p) => p.rating != null);
   const avgRating = rated.length
@@ -394,8 +394,10 @@ export async function buildSupplierDashboard(supplierId: string) {
       refId: r.refId,
       createdAt: r.createdAt,
       supplierResponse: r.supplierResponses?.[0] || null,
+      returnItems: r.returnItems || [],
       canRespond: ['order', 'shop_order'].includes(String(r.refType).toLowerCase())
         && ['open', 'review', 'pending'].includes(String(r.status).toLowerCase())
+        && Boolean(r.returnItems?.length)
         && !(r.supplierResponses?.length),
     })),
     stock: {

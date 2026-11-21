@@ -8,6 +8,16 @@
 - The UI exposes tracking and proof-backed delivery actions. This is manual evidence entry, not a live carrier integration; label purchase, carrier APIs/webhooks, scanner hardware and automatic POD remain open.
 - Returns/RMA/refund/chargeback and seller-platform reconciliation remain open; the current dispute list is not a complete return workflow. Supplier and Marketplace remain **PARTIAL**.
 
+## Marketplace — buyer-side item-level return request — 2026-11-21
+
+- Added a buyer-owned `POST /api/shop/orders/:id/returns` workflow backed by the existing canonical Dispute lifecycle. The order owner is checked server-side; product names, IDs, quantities, prices and seller attribution are snapshotted from persisted order lines, never trusted from the browser.
+- Added `MarketplaceReturnItem` records for exact order-line index, product/seller snapshot, quantity, unit price, reason code and buyer note. One request can contain several lines and sellers; duplicate lines and quantities above the remaining purchased balance are rejected.
+- The endpoint locks the order row, validates delivery/payment status and remaining quantity, requires an idempotency key plus payload fingerprint, and writes an audit event. Paid shipped orders accept non-delivery claims; delivered paid and delivered cash-on-delivery orders accept item-condition claims.
+- Buyer order history now returns line indexes and the return-request history. The Finance dispute projection includes the line-level request snapshot.
+- Supplier responses are allowed only for the exact return-request lines assigned to that seller. The supplier dashboard queries return claims by the line-level seller snapshot rather than the latest-200 global orders.
+- Item-level return resolution is blocked in the legacy order-wide cashback reversal path. Until Finance can approve exact quantities and issue provider refunds, cashback/commission compensation and seller settlement reversals per line, an item-level dispute cannot be marked `resolved` through the old full-order path.
+- **Boundary:** no evidence-file upload, physical pickup/RMA label, warehouse inspection/disposition, supplier warranty/remake, provider refund or line-level settlement/reconciliation yet. No date-window policy is enforced because a structured returns policy has not yet been agreed. Marketplace/Supplier remains **PARTIAL**.
+
 ## Marketplace / Supplier OS — seller-side claim response — 2026-11-21
 
 - Added `SupplierDisputeResponse`, an immutable supplier response linked to the canonical dispute, order and supplier. A unique dispute/supplier constraint prevents contradictory duplicate submissions; identical retries are idempotent.
