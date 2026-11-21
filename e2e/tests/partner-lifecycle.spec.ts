@@ -908,6 +908,7 @@ test.describe('Partner operational lifecycle', () => {
       { role: 'ADMIN', roleKey: 'admin' },
       { role: 'MANAGER', roleKey: 'manager' },
       { role: 'ASSISTANT', roleKey: 'assistant' },
+      { role: 'CASHIER', roleKey: 'cashier' },
     ] as const;
     const operationalTokens: string[] = [];
     const organization = await prisma.organization.findFirst({
@@ -973,6 +974,17 @@ test.describe('Partner operational lifecycle', () => {
     await prisma.diagnosticResult.create({
       data: { referralId: aiReferral.id, reportText: 'RB037 AI draft', aiGenerated: true },
     });
+    const cashierToken = operationalTokens[operationalRoles.findIndex((entry) => entry.role === 'CASHIER')];
+    expect(cashierToken).toBeTruthy();
+    const cashierCannotReadReferral = await api.get(`${BASE}/api/diagnostics/referrals/${aiReferral.id}`, {
+      headers: auth(cashierToken),
+    });
+    expect(cashierCannotReadReferral.status()).toBe(403);
+    const cashierCannotRequestAttachment = await api.get(
+      `${BASE}/api/diagnostics/referrals/${aiReferral.id}/files/${randomUUID()}/download-url`,
+      { headers: auth(cashierToken) },
+    );
+    expect(cashierCannotRequestAttachment.status()).toBe(403);
     for (const token of [ownerToken, ...operationalTokens, superadminToken, crossClinicDoctorToken]) {
       const denied = await api.post(`${BASE}/api/diagnostics/referrals/${aiReferral.id}/confirm-ai-result`, {
         headers: auth(token),
