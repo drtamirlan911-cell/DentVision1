@@ -10,6 +10,7 @@ import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billi
 import { uid } from '../../lib/helpers.js';
 import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js';
 import { createNotificationForClinic } from '../../services/notification.service.js';
+import { writeAuditLog } from '../compliance/audit.service.js';
 import { canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeDecision } from './labPlatform.authorization.js';
 
 export const labPlatformRouter = Router();
