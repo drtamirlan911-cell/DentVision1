@@ -13,6 +13,10 @@ export function isLabTechnicianRole(role: unknown): boolean {
   return LAB_TECHNICIAN_ROLES.has(String(role || '').trim().toLowerCase());
 }
 
+export function isLabLogisticsRole(role: unknown): boolean {
+  return LAB_LOGISTICS_ROLES.has(String(role || '').trim().toLowerCase());
+}
+
 /** Delivery staff may record dispatch and proof-of-delivery, but cannot manage QC or pricing. */
 export function canLabManageShipment(role: unknown): boolean {
   const normalized = String(role || '').trim().toLowerCase();
@@ -27,7 +31,7 @@ export function canLabManageFinance(role: unknown): boolean {
 
 /** Managers read the organization queue; production roles read assigned work only. */
 export function canLabMemberReadOrders(role: unknown): boolean {
-  return isLabManagerRole(role) || isLabTechnicianRole(role);
+  return isLabManagerRole(role) || isLabTechnicianRole(role) || isLabLogisticsRole(role);
 }
 
 /** A technician's order queries include both the lab and assigned-user scope. */
