@@ -38,7 +38,7 @@ function formatMinor(value: string | number | null | undefined): string {
 }
 
 function payoutAmountToMinor(value: string): bigint | null {
-  const match = /^(\\d+)(?:\\.(\\d{1,2}))?$/.exec(value.trim());
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value.trim());
   if (!match) return null;
   return BigInt(match[1]) * 100n + BigInt((match[2] || '').padEnd(2, '0'));
 }
