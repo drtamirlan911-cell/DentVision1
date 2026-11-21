@@ -281,6 +281,195 @@ medicalLabLifecycleRouter.get('/orders/:id', async (req: AuthRequest, res) => {
   } catch (e: any) { return res.status(500).json({ ok: false, error: e.message || 'Ошибка направления' } satisfies ApiResponse); }
 });
 
+
+medicalLabLifecycleRouter.post('/orders/:id/specimens', async (req: AuthRequest, res) => {
+  try {
+    const order = await getOrder(req.params.id as string);
+    if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
+    if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+    const isLabWorkspace = String(req.user?.organizationType || '').toUpperCase() === 'LABORATORY';
+    if (!isLabWorkspace || !order.labId || !(await requireMedicalLabCapability(req.user, 'specimen.collect'))) {
+      return res.status(403).json({ ok: false, error: 'Регистрация проб доступна только уполномоченной роли принимающей лаборатории', code: 'MEDICAL_LAB_SPECIMEN_ACCESSION_FORBIDDEN' });
+    }
+    if (!order.accessionRequired) return res.status(409).json({ ok: false, error: 'Accession-контур не включён для этого исторического направления' });
+    if (!['ordered', 'sample_collected'].includes(order.status)) {
+      return res.status(409).json({ ok: false, error: 'Проба регистрируется до приёмки в лаборатории' });
+    }
+    const specimenType = String(req.body?.specimenType || order.specimenType || '').trim().slice(0, 120);
+    const containerType = String(req.body?.containerType || '').trim().slice(0, 80) || null;
+    const location = String(req.body?.location || '').trim().slice(0, 120) || null;
+    const volume = req.body?.volume === undefined || req.body?.volume === null || req.body?.volume === '' ? null : Number(req.body.volume);
+    const volumeUnit = String(req.body?.volumeUnit || '').trim().slice(0, 16) || null;
+    if (!specimenType) return res.status(400).json({ ok: false, error: 'Укажите тип биоматериала' });
+    if (volume !== null && (!Number.isFinite(volume) || volume <= 0 || volume > 100000)) return res.status(400).json({ ok: false, error: 'Некорректный объём образца' });
+    if (volume !== null && !volumeUnit) return res.status(400).json({ ok: false, error: 'Укажите единицу объёма' });
+    const id = uid();
+    const suppliedBarcode = req.body?.barcode === undefined ? null : normalizeMedicalLabBarcode(req.body.barcode);
+    if (req.body?.barcode !== undefined && !suppliedBarcode) return res.status(400).json({ ok: false, error: 'Barcode имеет недопустимый формат' });
+    const barcode = suppliedBarcode || buildMedicalLabBarcode(id);
+    let specimen: any;
+    await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRawUnsafe<Array<{ id: string; status: string; labId: string | null }>>(
+        'SELECT "id","status","labId" FROM "medical_lab_orders" WHERE "id"=$1 FOR UPDATE', order.id,
+      );
+      if (!locked[0] || locked[0].labId !== order.labId || !['ordered', 'sample_collected'].includes(locked[0].status)) {
+        throw new Error('Статус направления изменился. Обновите карточку.');
+      }
+      const rows = await tx.$queryRawUnsafe<any[]>(
+        'INSERT INTO "medical_lab_specimens" ("id","orderId","labId","accessionNumber","specimenType","containerType","volume","volumeUnit","status","location","collectedAt","createdByUserId","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,\'collected\',$9,CURRENT_TIMESTAMP,$10,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING *',
+        id, order.id, order.labId, barcode, specimenType, containerType, volume, volumeUnit, location, req.user!.id,
+      );
+      specimen = rows[0];
+      await tx.$executeRawUnsafe(
+        'INSERT INTO "medical_lab_specimen_events" ("id","specimenId","orderId","labId","eventType","fromStatus","toStatus","location","note","actorUserId","createdAt") VALUES ($1,$2,$3,$4,\'COLLECTED\',NULL,\'collected\',$5,$6,$7,CURRENT_TIMESTAMP)',
+        uid(), id, order.id, order.labId, location, 'Образец зарегистрирован и получил accession barcode.', req.user!.id,
+      );
+      if (locked[0].status === 'ordered') {
+        await tx.$executeRawUnsafe(
+          'UPDATE "medical_lab_orders" SET "status"=\'sample_collected\',"collectedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "status"=\'ordered\'',
+          order.id,
+        );
+        await tx.$executeRawUnsafe(
+          'INSERT INTO "medical_lab_events" ("id","orderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt") VALUES ($1,$2,$3,\'ordered\',\'sample_collected\',$4,$5,CURRENT_TIMESTAMP)',
+          uid(), order.id, order.clinicId, 'Первый физический образец зарегистрирован.', req.user!.id,
+        );
+      }
+    });
+    publish('medicalLabSpecimen.accessioned', { orderId: order.id, specimenId: id, labId: order.labId, accessionNumber: barcode, userId: req.user!.id });
+    return res.status(201).json({ ok: true, data: specimen } satisfies ApiResponse);
+  } catch (error: any) {
+    const message = String(error?.message || '');
+    const duplicate = /unique|duplicate/i.test(message) || String(error?.meta?.code || '') === '23505';
+    return res.status(duplicate ? 409 : 400).json({ ok: false, error: duplicate ? 'Такой barcode уже зарегистрирован' : (message || 'Не удалось зарегистрировать образец'), code: duplicate ? 'MEDICAL_LAB_BARCODE_DUPLICATE' : undefined } satisfies ApiResponse);
+  }
+});
+
+/** Barcode scan at receiving: update custody, audit and order state together. */
+medicalLabLifecycleRouter.post('/orders/:id/specimens/scan', async (req: AuthRequest, res) => {
+  try {
+    const order = await getOrder(req.params.id as string);
+    if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
+    if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+    const isLabWorkspace = String(req.user?.organizationType || '').toUpperCase() === 'LABORATORY';
+    if (!isLabWorkspace || !order.labId || !(await requireMedicalLabCapability(req.user, 'specimen.receive'))) {
+      return res.status(403).json({ ok: false, error: 'Сканирование доступно только уполномоченной роли принимающей лаборатории' });
+    }
+    const barcode = normalizeMedicalLabBarcode(req.body?.barcode);
+    if (!barcode) return res.status(400).json({ ok: false, error: 'Отсканируйте или введите корректный barcode' });
+    const action = String(req.body?.action || 'received').trim().toLowerCase();
+    if (action !== 'received' && action !== 'rejected') return res.status(400).json({ ok: false, error: 'Допустимые действия: received или rejected' });
+    const note = String(req.body?.note || '').trim().slice(0, 500);
+    if (action === 'rejected' && !note) return res.status(400).json({ ok: false, error: 'Для отклонения образца укажите причину' });
+    let specimen: any;
+    let orderAdvanced = false;
+    await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRawUnsafe<Array<{ status: string; labId: string | null }>>(
+        'SELECT "status","labId" FROM "medical_lab_orders" WHERE "id"=$1 FOR UPDATE', order.id,
+      );
+      if (!locked[0] || locked[0].labId !== order.labId) throw new Error('Направление не относится к активной лаборатории');
+      const found = await tx.$queryRawUnsafe<any[]>(
+        'SELECT * FROM "medical_lab_specimens" WHERE "orderId"=$1 AND "labId"=$2 AND "accessionNumber"=$3 FOR UPDATE',
+        order.id, order.labId, barcode,
+      );
+      if (!found[0]) throw new Error('Образец с таким barcode не найден в этом направлении');
+      if (!isMedicalLabSpecimenTransitionAllowed(String(found[0].status), action as any)) {
+        throw new Error('Для образца уже выполнено это или несовместимое действие');
+      }
+      const rows = await tx.$queryRawUnsafe<any[]>(
+        'UPDATE "medical_lab_specimens" SET "status"=$1,"receivedAt"=CASE WHEN $1=\'received\' THEN CURRENT_TIMESTAMP ELSE "receivedAt" END,"receivedByUserId"=CASE WHEN $1=\'received\' THEN $2 ELSE "receivedByUserId" END,"location"=COALESCE($3,"location"),"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$4 AND "status"=$5 RETURNING *',
+        action, req.user!.id, String(req.body?.location || '').trim().slice(0, 120) || null, found[0].id, found[0].status,
+      );
+      if (!rows[0]) throw new Error('Состояние образца изменилось. Повторите сканирование.');
+      specimen = rows[0];
+      await tx.$executeRawUnsafe(
+        'INSERT INTO "medical_lab_specimen_events" ("id","specimenId","orderId","labId","eventType","fromStatus","toStatus","location","note","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP)',
+        uid(), specimen.id, order.id, order.labId, action === 'received' ? 'RECEIVED' : 'REJECTED',
+        found[0].status, action, specimen.location, note || (action === 'received' ? 'Barcode scanned at laboratory intake.' : null), req.user!.id,
+      );
+      if (action === 'received' && locked[0].status === 'sample_collected') {
+        const countRows = await tx.$queryRawUnsafe<Array<{ pending: bigint; accepted: bigint }>>(
+          'SELECT COUNT(*) FILTER (WHERE "status"=\'collected\') AS pending, COUNT(*) FILTER (WHERE "status" IN (\'received\',\'processing\',\'consumed\')) AS accepted FROM "medical_lab_specimens" WHERE "orderId"=$1 AND "labId"=$2',
+          order.id, order.labId,
+        );
+        if (Number(countRows[0]?.pending || 0) === 0 && Number(countRows[0]?.accepted || 0) > 0) {
+          const changed = await tx.$executeRawUnsafe(
+            'UPDATE "medical_lab_orders" SET "status"=\'received\',"receivedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "status"=\'sample_collected\'',
+            order.id,
+          );
+          if (changed === 1) {
+            orderAdvanced = true;
+            await tx.$executeRawUnsafe(
+              'INSERT INTO "medical_lab_events" ("id","orderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt") VALUES ($1,$2,$3,\'sample_collected\',\'received\',$4,$5,CURRENT_TIMESTAMP)',
+              uid(), order.id, order.clinicId, 'Все зарегистрированные образцы прошли barcode-приёмку.', req.user!.id,
+            );
+          }
+        }
+      }
+    });
+    publish('medicalLabSpecimen.scanned', { orderId: order.id, specimenId: specimen.id, labId: order.labId, action, orderAdvanced, userId: req.user!.id });
+    return res.json({ ok: true, data: { specimen, order: await getOrder(order.id), orderAdvanced } } satisfies ApiResponse);
+  } catch (error: any) {
+    const message = String(error?.message || 'Не удалось обработать barcode');
+    return res.status(message.includes('не найден') ? 404 : 409).json({ ok: false, error: message } satisfies ApiResponse);
+  }
+});
+
+/** Create a child aliquot without losing the parent specimen identity. */
+medicalLabLifecycleRouter.post('/orders/:id/specimens/:specimenId/aliquots', async (req: AuthRequest, res) => {
+  try {
+    const order = await getOrder(req.params.id as string);
+    if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
+    if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+    const isLabWorkspace = String(req.user?.organizationType || '').toUpperCase() === 'LABORATORY';
+    if (!isLabWorkspace || !order.labId || !(await requireMedicalLabCapability(req.user, 'specimen.collect'))) {
+      return res.status(403).json({ ok: false, error: 'Создание аликвот доступно только уполномоченной роли лаборатории' });
+    }
+    const id = uid();
+    const supplied = req.body?.barcode === undefined ? null : normalizeMedicalLabBarcode(req.body.barcode);
+    if (req.body?.barcode !== undefined && !supplied) return res.status(400).json({ ok: false, error: 'Barcode аликвоты имеет недопустимый формат' });
+    const barcode = supplied || buildMedicalLabBarcode(id);
+    const volume = req.body?.volume === undefined || req.body?.volume === null || req.body?.volume === '' ? null : Number(req.body.volume);
+    const volumeUnit = String(req.body?.volumeUnit || '').trim().slice(0, 16) || null;
+    if (volume !== null && (!Number.isFinite(volume) || volume <= 0 || volume > 100000)) return res.status(400).json({ ok: false, error: 'Некорректный объём аликвоты' });
+    let aliquot: any;
+    await prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRawUnsafe<any[]>(
+        'SELECT * FROM "medical_lab_specimens" WHERE "id"=$1 AND "orderId"=$2 AND "labId"=$3 FOR UPDATE',
+        req.params.specimenId, order.id, order.labId,
+      );
+      const parent = rows[0];
+      if (!parent) throw new Error('Исходный образец не найден');
+      if (!['received', 'processing'].includes(String(parent.status))) throw new Error('Аликвоту можно создать только из принятого образца');
+      if (volume !== null && parent.volume !== null) {
+        if (volumeUnit !== String(parent.volumeUnit || '')) throw new Error('Единица объёма аликвоты должна совпадать с исходным образцом');
+        const allocated = await tx.$queryRawUnsafe<Array<{ total: string | number | null }>>(
+          'SELECT COALESCE(SUM("volume"),0) AS total FROM "medical_lab_specimens" WHERE "parentSpecimenId"=$1 AND "status"<>\'rejected\'',
+          parent.id,
+        );
+        if (Number(allocated[0]?.total || 0) + volume > Number(parent.volume)) throw new Error('Недостаточный остаток объёма исходного образца');
+      }
+      const childRows = await tx.$queryRawUnsafe<any[]>(
+        'INSERT INTO "medical_lab_specimens" ("id","orderId","labId","accessionNumber","parentSpecimenId","specimenType","containerType","volume","volumeUnit","status","location","collectedAt","receivedAt","createdByUserId","receivedByUserId","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,\'received\',$10,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,$11,$11,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING *',
+        id, order.id, order.labId, barcode, parent.id, String(req.body?.specimenType || parent.specimenType).trim().slice(0, 120),
+        String(req.body?.containerType || 'Aliquot tube').trim().slice(0, 80), volume, volumeUnit || (volume === null ? null : parent.volumeUnit),
+        String(req.body?.location || parent.location || '').trim().slice(0, 120) || null, req.user!.id,
+      );
+      aliquot = childRows[0];
+      await tx.$executeRawUnsafe(
+        'INSERT INTO "medical_lab_specimen_events" ("id","specimenId","orderId","labId","eventType","fromStatus","toStatus","location","note","actorUserId","metadata","createdAt") VALUES ($1,$2,$3,$4,\'ALIQUOT_CREATED\',NULL,\'received\',$5,$6,$7,$8::jsonb,CURRENT_TIMESTAMP)',
+        uid(), id, order.id, order.labId, aliquot.location, 'Аликвота создана из образца ' + parent.accessionNumber + '.', req.user!.id,
+        JSON.stringify({ parentSpecimenId: parent.id, parentBarcode: parent.accessionNumber }),
+      );
+    });
+    publish('medicalLabSpecimen.aliquot_created', { orderId: order.id, specimenId: id, parentSpecimenId: req.params.specimenId, labId: order.labId, userId: req.user!.id });
+    return res.status(201).json({ ok: true, data: aliquot } satisfies ApiResponse);
+  } catch (error: any) {
+    const message = String(error?.message || 'Не удалось создать аликвоту');
+    const duplicate = /unique|duplicate/i.test(message);
+    return res.status(duplicate ? 409 : 400).json({ ok: false, error: duplicate ? 'Такой barcode уже зарегистрирован' : message } satisfies ApiResponse);
+  }
+});
+
 medicalLabLifecycleRouter.post('/orders/:id/status', async (req: AuthRequest, res) => {
   try {
     const order = await getOrder(req.params.id as string);
