@@ -3650,8 +3650,27 @@ model DiagnosticResult {
 
   referral Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
   signer   User?    @relation(fields: [signedBy], references: [id])
+  versions DiagnosticResultVersion[]
 
   @@map("diagnostic_results")
+}
+
+model DiagnosticResultVersion {
+  id                 String   @id @default(uuid())
+  diagnosticResultId String
+  version            Int
+  reportText         String?
+  conclusion         String?
+  signedBy           String?
+  signedAt           DateTime?
+  changeReason       String?
+  createdAt          DateTime @default(now())
+
+  result DiagnosticResult @relation(fields: [diagnosticResultId], references: [id], onDelete: Cascade)
+
+  @@unique([diagnosticResultId, version])
+  @@index([signedBy, signedAt])
+  @@map("diagnostic_result_versions")
 }
 
 model DiagnosticBooking {
