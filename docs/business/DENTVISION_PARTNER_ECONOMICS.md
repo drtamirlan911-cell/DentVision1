@@ -15,6 +15,54 @@ A critical distinction applies: DentVision can control its own fees and platform
 
 This policy complements the canonical Product Mission and Marketplace specification. DentVision remains an AI Operating System for Digital Dentistry; CRM, Marketplace and School are ecosystem modules, not isolated products.
 
+## Strategic monetization amendment — ecosystem access is free
+
+**Decision:** DentVision charges a subscription only for the dental-clinic CRM. Every other ecosystem participant receives its core organization account and operating cabinet without a DentVision subscription or mandatory platform commission.
+
+This rule supersedes any conflicting subscription, branch-fee, seat-fee, listing-fee, referral-fee, order-fee or transaction-commission proposal elsewhere in this document. The legacy pricing examples below are historical proposals and MUST NOT be implemented or invoiced unless this policy is explicitly revised by the product owner.
+
+### Free partner participation
+
+The following participants receive free core access to their organization cabinet, onboarding, team membership within fair-use/abuse safeguards, catalog/profile presence, incoming work queues and standard workflow handoffs:
+
+- diagnostic centers and radiology providers;
+- medical-analysis laboratories;
+- dental laboratories and technicians;
+- suppliers, manufacturers and distributors;
+- academies, education centers, lecturers and instructors;
+- employers and professional groups;
+- other non-clinic ecosystem organizations approved by the platform.
+
+No mandatory monthly/annual partner plan, per-branch charge, paid listing, seat charge, onboarding fee, referral charge or platform take-rate may block their participation or core workflow.
+
+### Clinic CRM is the sole standard subscription
+
+- Paid recurring SaaS plans apply to dental clinics and clinic groups for the CRM/practice-management operating system.
+- Clinic pricing is tied to CRM capability and agreed plan limits; it is not a percentage of clinical treatment revenue.
+- A clinic may use free public DentVision capabilities (professional profile, discovery, education, marketplace browsing and patient-facing access) without buying CRM.
+- Do not force a clinic to buy CRM merely to refer a patient, receive a result, communicate with a laboratory or use another independent partner's service.
+
+### Revenue and cost controls
+
+- The primary recurring revenue engine is dental-clinic CRM subscriptions.
+- Core partner access is an ecosystem acquisition and network-liquidity investment, not a billable SKU.
+- Payment-provider/acquirer charges, taxes and legally required third-party costs must be disclosed separately and passed through only where contractually permitted; they must never be disguised as a DentVision commission.
+- Optional premium services may be introduced only as genuinely optional, separately priced products that do not degrade or lock the free core partner workflow. They require explicit product-owner approval and bilateral unit-economics review.
+- Finance Hub must report clinic CRM MRR separately from optional-service revenue and pass-through costs. Do not report partner GMV as DentVision revenue.
+- Migration of any existing partner pricing code to this policy requires an audit of billing plans, entitlements, checkout, settlement, invoices, contracts, analytics and tests. Existing fee code must not silently charge partners.
+
+### Implementation and release gates
+
+1. Add a participant-type monetization matrix and enforce it server-side, not only in UI.
+2. Ensure non-clinic partner organizations can create/join an organization, invite staff, receive orders/referrals and complete core workflows with no billing subscription.
+3. Ensure only eligible dental-clinic CRM subscriptions create recurring DentVision subscription invoices.
+4. Add negative billing tests proving partner organization types cannot be charged a subscription, branch fee or mandatory commission.
+5. Add end-to-end tests for a free diagnostic center, medical lab, dental lab, supplier, academy and employer completing their core workflow.
+6. Audit existing pricing/commission logic and remove or disable any conflicting mandatory partner charge before production rollout.
+7. Keep any optional premium service behind explicit opt-in and transparent confirmation; never silently convert a free partner to a paid plan.
+
+---
+
 ## 1. Universal economic rules
 
 1. Never take a percentage of a clinic's entire clinical revenue as the default SaaS model.
