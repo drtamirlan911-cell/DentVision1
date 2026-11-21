@@ -16,6 +16,15 @@ describe('canonical partner economics v1.2', () => {
     }).rateBps).toBe(expectedBps);
   });
 
+  it('uses exact floor arithmetic for marketplace commission like the finance ledger', () => {
+    const snapshot = calculatePartnerTransactionFee({
+      domain: 'MARKETPLACE_SALE', grossAmountKzt: 1_007, supplierTier: 'STANDARD',
+    });
+    // 1,007 × 8% = 80.56 KZT; commission is floored to 80, never rounded up to 81.
+    expect(snapshot.commissionKzt).toBe(80);
+    expect(snapshot.partnerNetBeforeExternalDeductionsKzt).toBe(927);
+  });
+
   it('does not invent a strategic supplier rate', () => {
     expect(() => calculatePartnerTransactionFee({
       domain: 'MARKETPLACE_SALE', grossAmountKzt: 10_000, supplierTier: 'STRATEGIC',
