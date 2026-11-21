@@ -218,7 +218,8 @@ describe('diagnostics route contract', () => {
     expect(assignRoute).toContain("role: 'operator'");
     expect(assignRoute).toContain("role: 'radiologist'");
     expect(assignRoute).toContain('tx.personRole.findFirst');
-    expect(assignRoute).toContain('tx.audit');
+    expect(assignRoute).toContain('auditFromReq(req,');
+    expect(assignRoute).toContain("action: 'diagnostics.worklist.assignees.assign'");
     expect(assignRoute).toContain('FOR UPDATE');
   });
 
