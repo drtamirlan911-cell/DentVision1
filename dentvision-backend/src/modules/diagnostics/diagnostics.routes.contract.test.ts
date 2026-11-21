@@ -37,7 +37,7 @@ describe('diagnostics route contract', () => {
   it('does not grant cashier roles partner pricing/catalog mutation access', () => {
     expect(source).toContain('function canManagePartnerCatalog');
     expect(source).not.toContain("if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' })");
-    const pricingSection = source.slice(source.indexOf("diagnosticsRouter.patch('/centers/:id/pricing'"), source.indexOf("diagnosticsRouter.get('/referrals'")); 
+    const pricingSection = source.slice(source.indexOf("diagnosticsRouter.patch('/centers/:id/pricing'"), source.indexOf("diagnosticsRouter.get('/centers/:id/modalities'")); 
     expect((pricingSection.match(/if \(!canManagePartnerCatalog\(req\.user\)\)/g) || [])).toHaveLength(4);
     const billingSection = source.slice(source.indexOf("diagnosticsRouter.post('/referrals/:id/mark-paid'"), source.indexOf("diagnosticsRouter.delete('/referrals/:id'")); 
     expect((billingSection.match(/if \(!canManagePartnerBilling\(req\.user\)\)/g) || [])).toHaveLength(3);
