@@ -352,7 +352,7 @@ export default function DentalLabPlatform() {
                   <div className="divide-y divide-bdr-subtle">
                     {finance.data.payouts.map((payout) => <div key={payout.id} className="flex items-center justify-between gap-3 py-3">
                       <div><p className="text-sm font-medium text-txt-primary">{formatMinor(payout.amount)}</p><p className="text-xs text-txt-muted">{new Date(payout.createdAt).toLocaleString('ru-RU')}</p></div>
-                      <Badge variant={payout.status === 'paid' ? 'success' : payout.status === 'rejected' ? 'danger' : 'outline'}>{payoutStatusLabel(payout.status)}</Badge>
+                      <Badge variant={payout.status === 'paid' ? 'success' : payout.status === 'rejected' ? 'error' : 'outline'}>{payoutStatusLabel(payout.status)}</Badge>
                     </div>)}
                     {!finance.data.payouts.length && <p className="py-5 text-center text-xs text-txt-muted">Заявок на выплату пока нет.</p>}
                   </div>
