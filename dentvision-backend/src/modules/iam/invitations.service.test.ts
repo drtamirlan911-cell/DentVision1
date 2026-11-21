@@ -143,9 +143,8 @@ describe('canManageMembers', () => {
   });
 
   it('refuses an operator', async () => {
-    // Read from the legacy member row on purpose: `grantDiagnosticsAccess`
-    // leaves operators without a PersonRole, so the unified graph cannot tell
-    // an operator from an owner.
+    // Manager authority remains anchored to the legacy center-member role;
+    // having a canonical operational PersonRole must not grant invite powers.
     centerFindFirst.mockResolvedValue({ role: 'operator' });
     expect(await canManageMembers('u1', CENTER_ORG)).toBe(false);
   });
