@@ -1028,3 +1028,12 @@ Recognition is an outcome of independently verifiable product quality and adopti
 - Required implementation audit before release: billing plans and entitlements, subscription creation, checkout, invoice generation, settlement/commission code, branch billing, webhooks, Finance Hub metrics, contracts and negative tests for every non-clinic organization type.
 - Required acceptance: diagnostic center, medical lab, dental lab, supplier, academy and employer can onboard staff and complete their core workflows without a paid plan or platform take-rate; clinic CRM subscription remains independently billable.
 - Current commit for the economics policy: `91d792bfcc17411849a92e73eedd8c7def6df868`. Exact-head CI is pending/not yet evidenced for this commit. Do not merge or claim release readiness until the next exact-head checks pass.
+
+
+### Finance correctness fix — partial marketplace return dispute — 2026-11-21
+
+- Found a state-integrity defect in `dentvision-backend/src/modules/finance/disputes.routes.ts`: the platform status endpoint changed a dispute to `resolved` before checking whether it contained item-level return records. The endpoint then returned HTTP 409 for the unsupported order-wide refund, leaving the dispute incorrectly marked resolved.
+- Reordered the guard so item-level return disputes are rejected before the compare-and-set status mutation. The legacy full-order DentCash reversal remains unavailable for partial returns.
+- Added a regression contract test asserting the partial-return guard occurs before the dispute compare-and-set and before `reverseCashback`.
+- Commits: implementation `a96962b3bb50f8c28f138b352c9421623d3b4c17`; regression test `8b2d48362a90c8762ee11ef9382c7b2ad75f4ef7`.
+- Verification limitation: source was re-read from GitHub after the writes; no local test runner was available in this session. Exact-head CI is required before this fix is considered verified or merged.
