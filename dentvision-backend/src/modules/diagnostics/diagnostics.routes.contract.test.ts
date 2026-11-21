@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CLINIC_ROLE_BY_KEY } from '../../lib/clinicRoleAccessRegistry.js';
+import { PARTNER_ROLE_BY_KEY } from '../../lib/roleAccessRegistry.js';
 
 const source = readFileSync(
   resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts'),
@@ -276,19 +277,47 @@ describe('diagnostics route contract', () => {
     expect(source).toContain('DIAGNOSTIC_RESULT_STAGE_INVALID');
   });
 
-  it('uses the canonical clinic medical.read permission rather than general clinic membership for attachments', () => {
-    expect(CLINIC_ROLE_BY_KEY.DOCTOR.permissions).toContain('medical.read');
-    expect(CLINIC_ROLE_BY_KEY.ASSISTANT.permissions).toContain('medical.read');
-    expect(CLINIC_ROLE_BY_KEY.OWNER.permissions).toContain('medical.read');
-    expect(CLINIC_ROLE_BY_KEY.ADMIN.permissions).toContain('medical.read');
-    expect(CLINIC_ROLE_BY_KEY.MANAGER.permissions).toContain('medical.read');
-    expect(CLINIC_ROLE_BY_KEY.CASHIER.permissions).not.toContain('medical.read');
-    expect(CLINIC_ROLE_BY_KEY.ACCOUNTANT.permissions).not.toContain('medical.read');
-    expect(CLINIC_ROLE_BY_KEY.RECEPTIONIST.permissions).not.toContain('medical.read');
+  it('derives clinic and partner medical/file access from canonical scoped role permissions', () => {
+    for (const roleKey of ['DOCTOR', 'ASSISTANT', 'OWNER', 'ADMIN', 'MANAGER']) {
+      expect(CLINIC_ROLE_BY_KEY[roleKey].permissions).toContain('medical.read');
+    }
+    for (const roleKey of ['CASHIER', 'ACCOUNTANT', 'RECEPTIONIST']) {
+      expect(CLINIC_ROLE_BY_KEY[roleKey].permissions).not.toContain('medical.read');
+    }
+
+    expect(PARTNER_ROLE_BY_KEY.DIAGNOSTIC_OWNER.permissions).toContain('files.read');
+    expect(PARTNER_ROLE_BY_KEY.DIAGNOSTIC_OWNER.permissions).toContain('medical.read');
+    expect(PARTNER_ROLE_BY_KEY.RADIOLOGIST.permissions).toContain('medical.read');
+    expect(PARTNER_ROLE_BY_KEY.DIAGNOSTIC_OPERATOR.permissions).toContain('files.read');
+    expect(PARTNER_ROLE_BY_KEY.DIAGNOSTIC_OPERATOR.permissions).not.toContain('medical.read');
+    expect(PARTNER_ROLE_BY_KEY.DIAGNOSTIC_RECEPTION.permissions).toContain('files.read');
+    expect(PARTNER_ROLE_BY_KEY.DIAGNOSTIC_RECEPTION.permissions).not.toContain('medical.read');
+    expect(PARTNER_ROLE_BY_KEY.DIAGNOSTIC_FINANCE.permissions).not.toContain('files.read');
+    expect(PARTNER_ROLE_BY_KEY.MEDICAL_LAB_TECHNICIAN.permissions).toContain('files.read');
+    expect(PARTNER_ROLE_BY_KEY.MEDICAL_LAB_TECHNICIAN.permissions).not.toContain('medical.read');
+    expect(PARTNER_ROLE_BY_KEY.MEDICAL_LAB_DOCTOR.permissions).toContain('medical.read');
+
+    expect(source).toContain('async function hasPartnerScopedPermission');
+    expect(source).toContain("permissions.includes(permission)");
     expect(source).toContain('async function canReadClinicDiagnosticFiles');
     expect(source).toContain("role?.permissions.includes('medical.read')");
-    expect(source).toContain('canReadReferralClinicalFiles(req.user, referral)');
+    expect(source).toContain('async function canReadReferralClinicalFiles');
+    expect(source).toContain("hasPartnerScopedPermission(user, 'files.read')");
+    expect(source).toContain("hasPartnerScopedPermission(user, 'medical.read')");
+    expect(source).toContain('async function canWriteReferralClinicalFiles');
+    expect(source).toContain("hasPartnerScopedPermission(user, 'files.write')");
     expect(source).toContain('async function canDeleteClinicDiagnosticFiles');
+  });
+
+  it('keeps operational diagnostic-center cards redacted unless the scoped role has medical.read', () => {
+    expect(source).toContain('canReadDiagnosticCenterClinicalDetail(roleKeys)');
+    expect(source).toContain("await hasPartnerScopedPermission(req.user, 'medical.read')");
+    expect(source).toContain('redactDiagnosticCenterOperationalReferral(detail)');
+    expect(source).toContain("delete operational['patientIin']");
+    expect(source).toContain("delete operational['allergies']");
+    expect(source).toContain("delete operational['result']");
+    expect(source).toContain('delete visibleEvent.details');
+    expect(source).toContain('canReadReferralMedicalDetail(req.user, scope)');
   });
 
   it('issues fresh short-lived diagnostic attachment URLs only after scoped clinical access', () => {
@@ -328,7 +357,7 @@ describe('diagnostics route contract', () => {
     const deleteRoute = source.slice(deleteStart, deleteEnd);
     expect(deleteRoute).toContain('file.uploadedBy === req.user!.id');
     expect(deleteRoute).toContain('canManageDiagnosticCenterTeam(req.user)');
-    expect(deleteRoute).toContain('canReadCenterClinicalFiles(req.user, referral.centerId)');
+    expect(deleteRoute).toContain('canReadPartnerDiagnosticFiles(req.user)');
   });
 
   it('stores signed report versions, backfills legacy signatures and exposes controlled amendments', () => {
