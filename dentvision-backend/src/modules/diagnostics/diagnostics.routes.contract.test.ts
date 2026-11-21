@@ -30,6 +30,10 @@ const staffMigration = readFileSync(
   resolve(process.cwd(), 'dentvision-backend/prisma/migrations/20261121240000_diagnostic_center_staff_assignments/migration.sql'),
   'utf8',
 );
+const signedHistoryMigration = readFileSync(
+  resolve(process.cwd(), 'dentvision-backend/prisma/migrations/20261122020000_diagnostic_signed_result_history/migration.sql'),
+  'utf8',
+);
 const worklistUi = readFileSync(
   resolve(process.cwd(), 'src/pages/diagnostics/workspace/WorklistTab.tsx'),
   'utf8',
@@ -259,6 +263,35 @@ describe('diagnostics route contract', () => {
     expect(serviceSource).toContain('assignedRadiologist');
     expect(serviceSource).toContain('hasSignerRole');
     expect(worklistUi).toContain('referral.radiologist.user.id === user?.id');
+  });
+
+  it('only allows a diagnostic-center radiologist to sign after acquisition and makes the first signature immutable', () => {
+    expect(serviceSource).toContain('DIAGNOSTIC_RESULT_STAGE_INVALID');
+    expect(serviceSource).toContain('DIAGNOSTIC_RESULT_ALREADY_SIGNED');
+    expect(serviceSource).toContain("lockedReferral.status !== 'IN_PROGRESS'");
+    expect(serviceSource).toContain('lockedReferral.result?.signedAt');
+    expect(serviceSource).toContain('WHERE "id" = ${data.referralId} FOR UPDATE');
+    expect(source).toContain('DIAGNOSTIC_RESULT_ALREADY_SIGNED');
+    expect(source).toContain('DIAGNOSTIC_RESULT_STAGE_INVALID');
+  });
+
+  it('stores signed report versions, backfills legacy signatures and exposes controlled amendments', () => {
+    expect(schemaSource).toContain('model DiagnosticResultVersion');
+    expect(schemaSource).toContain('versions DiagnosticResultVersion[]');
+    expect(schemaSource).toContain('@@unique([diagnosticResultId, version])');
+    expect(signedHistoryMigration).toContain('INSERT INTO "diagnostic_result_versions"');
+    expect(signedHistoryMigration).toContain('WHERE result."signedAt" IS NOT NULL');
+    expect(serviceSource).toContain('tx.diagnosticResultVersion.create');
+    expect(serviceSource).toContain('export async function amendDiagnosticCenterResult');
+    expect(serviceSource).toContain('changeReason: reason');
+    expect(serviceSource).toContain("action: 'DIAGNOSTIC_RESULT_AMENDED'");
+    expect(serviceSource).toContain("data: { status: 'COMPLETED', completedAt: now }");
+    expect(serviceSource).toContain('versions: { orderBy: { version: \'asc\' } }');
+    expect(source).toContain("diagnosticsRouter.post('/referrals/:id/results/amend'");
+    expect(source).toContain("sameOrgContext(req.user, 'DiagnosticCenter', referral.centerId)");
+    expect(worklistUi).toContain('История подписанных версий');
+    expect(worklistUi).toContain('Подписать новую версию и вернуть на повторную передачу');
+    expect(worklistUi).toContain('amendDiagnosticResult');
   });
 
 });
