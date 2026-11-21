@@ -113,6 +113,8 @@ function OrderCard({
   assignmentBusy: boolean;
 }) {
   const [responseNote, setResponseNote] = useState('');
+  const [showTimeline, setShowTimeline] = useState(false);
+  const timeline = useQuery({ queryKey: ['lab-platform', 'lifecycle', order.id], queryFn: () => getLabPlatformOrderLifecycle(order.id), enabled: showTimeline, staleTime: 15_000 });
   const [shipmentMethod, setShipmentMethod] = useState<'COURIER' | 'PICKUP'>('COURIER');
   const [carrier, setCarrier] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
@@ -263,6 +265,43 @@ function OrderCard({
           </div>}
         </div>
       )}
+      <div className="border-t border-bdr-subtle pt-2">
+        <Button size="sm" variant="ghost" className="w-full justify-between" onClick={() => setShowTimeline((value) => !value)}>
+          <span className="inline-flex items-center gap-2"><History size={14} /> История заказа и отгрузок</span>
+          <span>{showTimeline ? 'Скрыть' : 'Показать'}</span>
+        </Button>
+        {showTimeline && (
+          <div className="mt-2 space-y-2">
+            {timeline.isLoading && <p className="text-xs text-txt-muted">Загрузка истории…</p>}
+            {timeline.isError && <QueryError what="историю производственного цикла" onRetry={() => timeline.refetch()} />}
+            {timeline.data && (
+              <>
+                {[...timeline.data.events.map((event) => ({
+                  id: event.id,
+                  at: event.createdAt,
+                  title: event.fromStatus ? `${event.fromStatus} → ${event.toStatus}` : event.toStatus,
+                  note: event.note,
+                })), ...timeline.data.shipmentEvents.map((event) => ({
+                  id: event.id,
+                  at: event.createdAt,
+                  title: event.eventType,
+                  note: event.note,
+                }))].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).map((event) => (
+                  <div key={event.id} className="rounded-lg bg-surface-2 px-3 py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-medium text-txt-primary">{event.title}</p>
+                      <p className="text-[10px] text-txt-muted">{new Date(event.at).toLocaleString('ru-RU')}</p>
+                    </div>
+                    {event.note && <p className="mt-1 text-xs text-txt-secondary">{event.note}</p>}
+                  </div>
+                ))}
+                {!timeline.data.events.length && !timeline.data.shipmentEvents.length && <p className="py-3 text-center text-xs text-txt-muted">История пока пуста.</p>}
+                {timeline.data.shipments.length > 1 && <p className="text-[10px] text-txt-muted">Всего отправок: {timeline.data.shipments.length}, включая повторные отправки после переделки.</p>}
+              </>
+            )}
+          </div>
+        )}
+      </div>
       {primary && order.status !== 'qc' && <Button size="sm" variant="secondary" className="w-full" onClick={() => onStatus(order.id, primary)}>Следующий этап <ArrowRight size={14} /></Button>}
     </Card>
   );
