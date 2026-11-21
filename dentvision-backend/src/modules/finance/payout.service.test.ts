@@ -18,7 +18,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const { tx, prismaMock } = vi.hoisted(() => {
   const delegate = () => ({
-    wallet: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
+    wallet: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     payout: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
     transaction: { create: vi.fn() },
     lecturer: { findUnique: vi.fn() },
@@ -63,6 +63,7 @@ beforeEach(() => {
   tx.wallet.create.mockResolvedValue({ id: 'w1', balance: 0n, currency: 'KZT' });
   tx.transaction.create.mockResolvedValue({ id: 't1' });
   tx.wallet.update.mockResolvedValue({});
+  tx.wallet.updateMany.mockResolvedValue({ count: 1 });
 });
 
 describe('available balance is the balance minus what is already claimed', () => {
@@ -125,12 +126,15 @@ describe('concurrent payout protection', () => {
     walletHolding(100_000n);
     await requestPayout({ ownerType: 'LECTURER', ownerId: 'lect-1', amountMinor: 50_000n });
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(String(tx.$executeRaw.mock.calls[0][0])).toContain('wallet-funds:');
   });
 
   it('locks the payout before reading its current status', async () => {
     payoutAtForConcurrency('approved');
     await transitionPayout('p1', 'paid');
-    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(String(tx.$executeRaw.mock.calls[0][0])).toContain('payout-transition:');
+    expect(String(tx.$executeRaw.mock.calls[1][0])).toContain('wallet-funds:');
   });
 
   function payoutAtForConcurrency(status: string) {
@@ -224,9 +228,10 @@ describe('paying out keeps the ledger balanced', () => {
   it('moves both balances by the same amount, so the net stays zero', async () => {
     await transitionPayout('p1', 'paid');
 
-    const updates = tx.wallet.update.mock.calls.map((c: never[]) => c[0]);
-    const seller = updates.find((u: { where: { id: string } }) => u.where.id === 'w1');
-    const gateway = updates.find((u: { where: { id: string } }) => u.where.id === 'gw');
+    const debits = tx.wallet.updateMany.mock.calls.map((c: never[]) => c[0]);
+    const seller = debits.find((u: { where: { id: string } }) => u.where.id === 'w1');
+    const gateway = tx.wallet.update.mock.calls.map((c: never[]) => c[0]).find((u: { where: { id: string } }) => u.where.id === 'gw');
+    expect(seller.where.balance.gte).toBe(50_000n);
     expect(seller.data.balance.decrement).toBe(50_000n);
     expect(gateway.data.balance.increment).toBe(50_000n);
   });
@@ -248,6 +253,7 @@ describe('paying out keeps the ledger balanced', () => {
       status: 'approved',
       wallet: { id: 'w1', balance: 10_000n, currency: 'KZT' },
     });
+    tx.wallet.updateMany.mockResolvedValueOnce({ count: 0 });
     await expect(transitionPayout('p1', 'paid')).rejects.toMatchObject({
       code: 'INSUFFICIENT_FUNDS',
     });
