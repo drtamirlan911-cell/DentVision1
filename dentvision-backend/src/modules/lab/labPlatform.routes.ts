@@ -143,6 +143,17 @@ function serialize(order: any) {
     qualityControl: meta.qualityControl || null,
     remakeRequest: meta.remakeRequest || null,
     payment: meta.payment || null,
+    invoice: order.dentalLabInvoice ? {
+      id: order.dentalLabInvoice.id,
+      invoiceNumber: order.dentalLabInvoice.invoiceNumber,
+      amountMinor: order.dentalLabInvoice.amountMinor.toString(),
+      refundedMinor: order.dentalLabInvoice.refundedMinor.toString(),
+      currency: order.dentalLabInvoice.currency,
+      status: order.dentalLabInvoice.status,
+      issuedAt: order.dentalLabInvoice.issuedAt,
+      paidAt: order.dentalLabInvoice.paidAt,
+      paymentId: order.dentalLabInvoice.paymentId,
+    } : null,
     serviceId: order.serviceId || null,
     serviceName: order.serviceNameSnapshot || null,
     servicePriceSnapshot: order.servicePriceSnapshot ?? null,
@@ -170,7 +181,7 @@ async function ordersForLab(labId: string, role: string, userId: string, status?
       ...(status ? { status: status as any } : logisticsOnly ? { status: { in: logisticsStatuses as any } } : {}),
       ...readScope,
     },
-    include: { patient: { select: { firstName: true, lastName: true } }, clinic: { select: { id: true, name: true } }, dentalLabShipments: { orderBy: { createdAt: 'desc' }, take: 1 } },
+    include: { patient: { select: { firstName: true, lastName: true, branchId: true } }, clinic: { select: { id: true, name: true } }, dentalLabShipments: { orderBy: { createdAt: 'desc' }, take: 1 }, dentalLabInvoice: true },
     orderBy: [{ deadline: 'asc' }, { createdAt: 'desc' }], take: 500,
   });
   return Promise.all(rows.map(async (order) => {
@@ -857,6 +868,85 @@ labPlatformRouter.patch('/orders/:id/remake-request', async (req: AuthRequest, r
   } catch (error) {
     console.error('[LabPlatform] remake response error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось сохранить решение по переделке' } satisfies ApiResponse);
+  }
+});
+
+labPlatformRouter.post('/orders/:id/invoice', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
+    if (!canLabManageFinance(membership.role)) return res.status(403).json({ ok: false, error: 'Выставлять счета может только владелец, менеджер или финансовый сотрудник лаборатории' } satisfies ApiResponse);
+    await ensureDentalLabOrderEventsTable();
+
+    const outcome = await prisma.$transaction(async (tx) => {
+      const orderId = String(req.params.id);
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} FOR UPDATE`;
+      const order = await tx.labOrder.findFirst({
+        where: { id: orderId, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } },
+        include: { patient: { select: { branchId: true } }, dentalLabInvoice: true },
+      });
+      if (!order) return { kind: 'not_found' as const };
+      if (order.status !== 'delivered') return { kind: 'not_delivered' as const };
+      if (!order.serviceId || !order.serviceNameSnapshot || !Number.isSafeInteger(order.servicePriceSnapshot) || Number(order.servicePriceSnapshot) <= 0) {
+        return { kind: 'price_snapshot_missing' as const };
+      }
+      const meta = metaOf(order.files);
+      if (meta.remakeRequest?.status === 'requested') return { kind: 'remake_pending' as const };
+      if (order.dentalLabInvoice) return { kind: 'existing' as const, invoice: order.dentalLabInvoice };
+
+      const invoice = await tx.dentalLabInvoice.create({
+        data: {
+          id: uid(),
+          invoiceNumber: `DL-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${uid().slice(-6).toUpperCase()}`,
+          labOrderId: order.id,
+          laboratoryId: membership.labId,
+          clinicId: order.clinicId,
+          branchId: order.patient?.branchId ?? null,
+          serviceId: order.serviceId,
+          serviceNameSnapshot: order.serviceNameSnapshot,
+          amountMinor: parseTengeToMinor(String(order.servicePriceSnapshot)),
+          status: 'issued',
+          issuedByUserId: req.user!.id,
+          notes: typeof req.body?.notes === 'string' ? req.body.notes.trim().slice(0, 1000) || null : null,
+        },
+      });
+      await appendEventInTransaction(tx, order, order.status, order.status, req.user!.id, `Выставлен счёт ${invoice.invoiceNumber}`);
+      return { kind: 'created' as const, invoice, order };
+    });
+
+    if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
+    if (outcome.kind === 'not_delivered') return res.status(409).json({ ok: false, error: 'Счёт можно выставить только после подтверждённого вручения заказа' } satisfies ApiResponse);
+    if (outcome.kind === 'price_snapshot_missing') return res.status(409).json({ ok: false, error: 'Для счёта нужна опубликованная услуга и зафиксированная цена заказа' } satisfies ApiResponse);
+    if (outcome.kind === 'remake_pending') return res.status(409).json({ ok: false, error: 'Сначала завершите ожидающий запрос переделки' } satisfies ApiResponse);
+
+    if (outcome.kind === 'created') {
+      await writeAuditLog({
+        action: 'DENTAL_LAB_INVOICE_ISSUED', entity: 'dental_lab_invoice', entityId: outcome.invoice.id,
+        details: { invoiceNumber: outcome.invoice.invoiceNumber, labOrderId: outcome.invoice.labOrderId, amountMinor: outcome.invoice.amountMinor.toString() },
+        userId: req.user!.id, clinicId: outcome.order.clinicId,
+      });
+      await createNotificationForClinic(outcome.order.clinicId, {
+        type: 'lab.invoice.issued',
+        title: 'Зуботехническая лаборатория выставила счёт',
+        message: `Счёт ${outcome.invoice.invoiceNumber} готов к оплате по заказу лаборатории.`,
+        link: '/crm/lab',
+      });
+      publish('labOrder.invoice_issued', {
+        clinicId: outcome.order.clinicId,
+        labOrderId: outcome.order.id,
+        laboratoryId: membership.labId,
+        invoiceId: outcome.invoice.id,
+        userId: req.user!.id,
+      });
+    }
+    return res.status(outcome.kind === 'created' ? 201 : 200).json({
+      ok: true,
+      data: serializeBigInt(outcome.invoice),
+      idempotent: outcome.kind === 'existing',
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[LabPlatform] invoice issue error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось выставить счёт лаборатории' } satisfies ApiResponse);
   }
 });
 
