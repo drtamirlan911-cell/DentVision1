@@ -1,4 +1,5 @@
 import prisma from '../../lib/prisma.js';
+import { deleteObject, isStorageKey, keyFromStorageUrl, signedDownloadUrl, storageConfigured, toStorageUrl, uploadObject } from '../../lib/storage.js';
 import { resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { assertClinicDoctorSignoff } from './clinicalSignoffAuthorization.js';
 import { DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS, hasScopedPartnerSignerRole } from './signingAuthorization.js';
@@ -454,13 +455,34 @@ export async function getReferral(id: string) {
           versions: { orderBy: { version: 'asc' } },
         },
       },
+      files: {
+        select: { id: true, fileName: true, fileType: true, fileSize: true, fileUrl: true, createdAt: true },
+        orderBy: { createdAt: 'asc' },
+      },
       comments: {
         include: { author: { select: { id: true, firstName: true, lastName: true } } },
         orderBy: { createdAt: 'asc' },
       },
     },
   });
-  if (!referral?.result) return referral;
+  if (!referral) return referral;
+  const files = await Promise.all(referral.files.map(async (file) => {
+    if (isStorageKey(file.fileUrl || '')) {
+      if (!storageConfigured()) return { ...file, fileUrl: null, unavailable: true };
+      try {
+        const signedUrl = await signedDownloadUrl(keyFromStorageUrl(file.fileUrl!), 300);
+        return { ...file, fileUrl: signedUrl, unavailable: false };
+      } catch (error) {
+        console.error('[diagnostics] signed file URL failed', { referralId: id, fileId: file.id, error });
+        return { ...file, fileUrl: null, unavailable: true };
+      }
+    }
+    // Legacy data URLs and mock-storage references are not reliable file
+    // delivery mechanisms. Keep their metadata visible without exposing
+    // multi-megabyte base64 payloads through the referral API.
+    return { ...file, fileUrl: null, unavailable: true };
+  }));
+  if (!referral.result) return { ...referral, files };
   const signerIds = [...new Set([
     referral.result.signedBy,
     ...referral.result.versions.map((version) => version.signedBy),
@@ -474,6 +496,7 @@ export async function getReferral(id: string) {
   const signerById = new Map(signers.map((signer) => [signer.id, signer]));
   return {
     ...referral,
+    files,
     result: {
       ...referral.result,
       signer: referral.result.signedBy ? signerById.get(referral.result.signedBy) || null : null,
@@ -666,17 +689,92 @@ export async function deleteReferral(id: string, userId: string) {
 
 // ─── Files ───
 
-export async function uploadReferralFile(data: { referralId: string; fileName: string; fileData: string; fileType: string; fileSize?: number; uploadedBy: string; }) {
-  const file = await prisma.referralFile.create({ data: { id: uid(), referralId: data.referralId, fileName: data.fileName, fileUrl: data.fileData, fileType: data.fileType, fileSize: data.fileSize, uploadedBy: data.uploadedBy } });
-  await writeAuditLog({ action: 'FILE_UPLOADED', entity: 'referral', entityId: data.referralId, details: { fileType: data.fileType }, userId: data.uploadedBy });
-  return file;
+export async function uploadReferralFile(data: {
+  referralId: string;
+  fileName: string;
+  buffer: Buffer;
+  fileType: string;
+  fileSize?: number;
+  uploadedBy: string;
+}) {
+  if (!storageConfigured()) {
+    throw Object.assign(new Error('Файловое хранилище не настроено. Обратитесь к администратору.'), { code: 'DIAGNOSTIC_STORAGE_UNAVAILABLE' });
+  }
+  const referral = await prisma.referral.findUnique({
+    where: { id: data.referralId },
+    select: { id: true, clinicId: true },
+  });
+  if (!referral) throw new Error('Referral not found');
+  if (!referral.clinicId) throw new Error('Для файла направления не определена клиника-владелец.');
+
+  const originalName = String(data.fileName || 'study-file').trim().replace(/[\\/\\u0000-\\u001f<>:"|?*]/g, '_').slice(0, 180) || 'study-file';
+  const extension = originalName.match(/\\.[A-Za-z0-9]{1,12}$/)?.[0].toLowerCase() || '';
+  const fileId = uid();
+  const storageKey = `clinics/${referral.clinicId}/diagnostics/${referral.id}/${fileId}${extension}`;
+  await uploadObject(storageKey, data.buffer, data.fileType || 'application/octet-stream');
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const file = await tx.referralFile.create({
+        data: {
+          id: fileId,
+          referralId: referral.id,
+          fileName: originalName,
+          fileUrl: toStorageUrl(storageKey),
+          fileType: data.fileType,
+          fileSize: data.fileSize ?? data.buffer.byteLength,
+          uploadedBy: data.uploadedBy,
+        },
+        select: { id: true, referralId: true, fileName: true, fileType: true, fileSize: true, createdAt: true },
+      });
+      await writeAuditLog({
+        action: 'FILE_UPLOADED',
+        entity: 'referral',
+        entityId: referral.id,
+        details: { fileId, fileType: data.fileType, fileSize: data.fileSize ?? data.buffer.byteLength, storage: 's3' },
+        userId: data.uploadedBy,
+        clinicId: referral.clinicId,
+      }, tx);
+      return file;
+    });
+  } catch (error) {
+    await deleteObject(storageKey).catch((cleanupError) => {
+      console.error('[diagnostics] orphaned S3 object after failed metadata commit', { referralId: referral.id, storageKey, cleanupError });
+    });
+    throw error;
+  }
 }
 
 export async function deleteReferralFile(id: string, userId: string) {
   const file = await prisma.referralFile.findUnique({ where: { id } });
   if (!file) throw new Error('File not found');
-  await prisma.referralFile.delete({ where: { id } });
-  await writeAuditLog({ action: 'FILE_DELETED', entity: 'referral', entityId: file.referralId, userId });
+  if (isStorageKey(file.fileUrl)) {
+    if (!storageConfigured()) {
+      throw Object.assign(new Error('Файловое хранилище недоступно. Запись не удалена.'), { code: 'DIAGNOSTIC_STORAGE_UNAVAILABLE' });
+    }
+    const referral = await prisma.referral.findUnique({
+      where: { id: file.referralId },
+      select: { id: true, clinicId: true },
+    });
+    const expectedPrefix = referral?.clinicId
+      ? `clinics/${referral.clinicId}/diagnostics/${file.referralId}/`
+      : '';
+    const storageKey = keyFromStorageUrl(file.fileUrl);
+    if (!expectedPrefix || !storageKey.startsWith(expectedPrefix)) {
+      throw new Error('Storage key does not belong to this diagnostic referral');
+    }
+    await deleteObject(storageKey);
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.referralFile.delete({ where: { id } });
+    await writeAuditLog({
+      action: 'FILE_DELETED',
+      entity: 'referral',
+      entityId: file.referralId,
+      details: { fileId: id, storage: isStorageKey(file.fileUrl) ? 's3' : 'legacy' },
+      userId,
+    }, tx);
+  });
 }
 
 // ─── Comments ───
