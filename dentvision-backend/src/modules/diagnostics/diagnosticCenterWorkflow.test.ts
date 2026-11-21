@@ -47,6 +47,15 @@ describe('diagnostic center referral workflow authorization', () => {
     })).toMatchObject({ allowed: false, status: 403, code: 'DIAGNOSTIC_RELEASE_FORBIDDEN' });
   });
 
+  it('recognizes the canonical diagnostic reception role for operational booking without granting clinical data access', () => {
+    const reception = ['diagnostic_reception'];
+    expect(authorizeDiagnosticCenterStatusTransition({
+      currentStatus: 'ACCEPTED', nextStatus: 'SCHEDULED', roleKeys: reception,
+    }).allowed).toBe(true);
+    expect(canReadDiagnosticCenterClinicalDetail(reception)).toBe(true);
+    expect(canReadDiagnosticCenterClinicalDetail(['diagnostic_finance'])).toBe(false);
+  });
+
   it('does not treat finance or unrelated roles as clinical operators', () => {
     expect(authorizeDiagnosticCenterStatusTransition({
       currentStatus: 'ACCEPTED', nextStatus: 'SCHEDULED', roleKeys: ['diagnostic_finance'],
