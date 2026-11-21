@@ -204,6 +204,7 @@ async function ordersForLab(labId: string, role: string, userId: string, status?
       qualityControl: null,
       remakeRequest: null,
       payment: null,
+      invoice: null,
       servicePriceSnapshot: null,
       price: null,
     };
