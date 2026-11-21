@@ -36,6 +36,9 @@ export interface LabPlatformOrder {
   technicianId?: string | null;
   remakeOfId?: string | null;
   appointmentId?: string | null;
+  serviceId?: string | null;
+  serviceName?: string | null;
+  servicePriceSnapshot?: number | null;
   createdAt: string;
   updatedAt: string;
   qualityControl?: { checks: Record<string, boolean>; passed: boolean; note: string | null; checkedByUserId: string; checkedAt: string } | null;
@@ -64,4 +67,21 @@ export const updateLabPlatformOrderStatus = (id: string, status: string) => requ
 export const assignLabTechnician = (id: string, technicianId: string | null) => request<LabPlatformOrder>(`/orders/${id}/technician`, { method: 'PATCH', body: JSON.stringify({ technicianId }) });
 export const updateLabPlatformQualityControl = (id: string, checks: Record<string, boolean>, note?: string) => request<LabPlatformOrder>(`/orders/${id}/qc`, { method: 'PATCH', body: JSON.stringify({ checks, note }) });
 export const getLabPlatformTeam = () => request<Array<{ id: string; role?: string; firstName: string; lastName: string; email: string; avatar?: string | null }>>('/team');
-export const assignClinicLabOrder = (orderId: string, laboratoryId: string) => request<LabPlatformOrder>('/assign', { method: 'POST', body: JSON.stringify({ orderId, laboratoryId }) });
+export const assignClinicLabOrder = (orderId: string, laboratoryId: string, serviceId?: string) => request<LabPlatformOrder>('/assign', { method: 'POST', body: JSON.stringify({ orderId, laboratoryId, ...(serviceId ? { serviceId } : {}) }) });
+
+export interface DentalLabService {
+  id: string; labId: string; code: string; name: string; category: string;
+  description?: string | null; material?: string | null; defaultPrice: number;
+  turnaroundDays: number; active: boolean; createdAt: string; updatedAt: string;
+}
+export interface AvailableDentalLabService {
+  id: string; code: string; name: string; category: string;
+  description?: string | null; material?: string | null; defaultPrice: number; turnaroundDays: number;
+}
+export const getDentalLabServices = () => request<DentalLabService[]>('/services');
+export const createDentalLabService = (body: { code: string; name: string; category: string; description?: string; material?: string; defaultPrice: number; turnaroundDays: number }) =>
+  request<DentalLabService>('/services', { method: 'POST', body: JSON.stringify(body) });
+export const updateDentalLabService = (id: string, body: Partial<Pick<DentalLabService, 'code' | 'name' | 'category' | 'description' | 'material' | 'defaultPrice' | 'turnaroundDays' | 'active'>>) =>
+  request<DentalLabService>(`/services/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) });
+export const getAvailableDentalLabServices = (labId: string) =>
+  request<AvailableDentalLabService[]>(`/available-laboratories/${encodeURIComponent(labId)}/services`);

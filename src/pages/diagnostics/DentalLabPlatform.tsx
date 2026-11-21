@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/ui/ds/StatCard';
 import { QueryError } from '@/components/ui/ds/QueryError';
 import { Tabs } from '@/components/ui/ds/Misc';
 import { getLabPlatformDashboard, getLabPlatformOrders, getLabPlatformTeam, updateLabPlatformOrderStatus, updateLabPlatformQualityControl, type LabPlatformOrder } from '@/utils/labPlatformApi';
+import DentalLabServicesTab from './DentalLabServicesTab';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
 
@@ -82,6 +83,7 @@ function OrderCard({ order, onStatus, onQc, canManageQc, qcBusy }: { order: LabP
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-txt-primary">{order.type || 'Лабораторная работа'}</p>
           <p className="mt-1 text-xs text-txt-muted">{order.patientName || 'Пациент'} · {order.clinicName || 'Клиника'}</p>
+          {order.serviceName && <p className="mt-1 text-xs text-txt-secondary">{order.serviceName}{order.servicePriceSnapshot != null ? ` · ${Number(order.servicePriceSnapshot).toLocaleString('ru-RU')} ₸` : ''}</p>}
         </div>
         <Status status={order.status} />
       </div>
@@ -99,12 +101,12 @@ function OrderCard({ order, onStatus, onQc, canManageQc, qcBusy }: { order: LabP
 export default function DentalLabPlatform() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
-  const validTab = requestedTab === 'priority' || requestedTab === 'team' ? requestedTab : 'board';
+  const validTab = requestedTab === 'priority' || requestedTab === 'team' || requestedTab === 'services' ? requestedTab : 'board';
   const [tab, setTab] = useState(validTab);
   const [filter, setFilter] = useState<string | undefined>();
 
   const changeTab = (nextTab: string) => {
-    const selected = nextTab === 'priority' || nextTab === 'team' ? nextTab : 'board';
+    const selected = nextTab === 'priority' || nextTab === 'team' || nextTab === 'services' ? nextTab : 'board';
     setTab(selected);
     const nextParams = new URLSearchParams(searchParams);
     if (selected === 'board') nextParams.delete('tab');
@@ -136,6 +138,7 @@ export default function DentalLabPlatform() {
     { id: 'board', label: 'Производство', icon: <Wrench size={14} /> },
     { id: 'priority', label: 'Приоритет', icon: <AlertTriangle size={14} /> },
     { id: 'team', label: 'Команда', icon: <Users size={14} /> },
+    { id: 'services', label: 'Услуги и цены', icon: <PackageCheck size={14} /> },
   ];
 
   return (
@@ -173,6 +176,7 @@ export default function DentalLabPlatform() {
         </div>
       </>}
       {tab === 'priority' && <div className="grid gap-3 lg:grid-cols-2">{d.priority.map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} qcBusy={qcMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} />)}{!d.priority.length && <Card padding="lg"><p className="text-sm text-txt-muted">Критических работ сейчас нет.</p></Card>}</div>}
+      {tab === 'services' && <DentalLabServicesTab canManage={canManageQc} />}
       {tab === 'team' && <Card padding="md"><div className="divide-y divide-bdr-subtle">{(team.data || []).map((member) => <div key={member.id} className="flex items-center justify-between py-3"><div><p className="text-sm font-medium">{member.firstName} {member.lastName}</p><p className="text-xs text-txt-muted">{member.email}</p></div><Badge variant="outline">{member.role || 'Сотрудник'}</Badge></div>)}{!team.data?.length && <p className="py-6 text-center text-sm text-txt-muted">Команда пока не загружена.</p>}</div></Card>}
     </div>
   );

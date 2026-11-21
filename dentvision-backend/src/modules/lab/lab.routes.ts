@@ -70,7 +70,7 @@ function branchScopedLabOrder(req: AuthRequest): Record<string, unknown> {
 function serializeLabOrder(order: {
   id: string; clinicId: string; patientId: string | null; labName: string | null;
   status: string; type: string | null; notes: string | null; files: unknown;
-  deadline: Date | null; price: number | null; createdAt: Date; updatedAt: Date;
+  deadline: Date | null; price: number | null; serviceId?: string | null; serviceNameSnapshot?: string | null; servicePriceSnapshot?: number | null; createdAt: Date; updatedAt: Date;
   doctorId?: string | null;
 }) {
   const meta = (order.files as { meta?: LabOrderMeta } | null)?.meta || {};
@@ -82,6 +82,7 @@ function serializeLabOrder(order: {
     remakeOfId: meta.remakeOfId || null, appointmentId: meta.appointmentId || null,
     tryInDate: meta.tryInDate || null,
     treatmentCaseId: meta.treatmentCaseId || null, doctorId: order.doctorId ?? meta.doctorId ?? null,
+    serviceId: order.serviceId ?? null, serviceName: order.serviceNameSnapshot ?? null, servicePriceSnapshot: order.servicePriceSnapshot ?? null,
     dueDate: order.deadline, notes: order.notes, status: order.status, price: order.price,
     createdAt: order.createdAt, updatedAt: order.updatedAt,
   };

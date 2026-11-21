@@ -1048,18 +1048,44 @@ test.describe('Partner operational lifecycle', () => {
     expect(availablePartnerIds).toContain(fixtureAlternativeDentalLabId);
     expect(availablePartnerIds).not.toContain(fixtureLabId);
 
+    const createService = await api.post(`${BASE}/api/lab-orders/platform/services`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { code: 'CROWN-ZR', name: 'Коронка из диоксида циркония', category: 'crown', material: 'zirconia', description: 'Полноанатомическая циркониевая коронка', defaultPrice: 52000, turnaroundDays: 7 },
+    });
+    const createdServiceBody = await createService.json();
+    expect(createService.status(), JSON.stringify(createdServiceBody)).toBe(201);
+    const dentalService = createdServiceBody.data;
+    const partnerServiceList = await api.get(`${BASE}/api/lab-orders/platform/services`, { headers: auth(dentalLabOwnerToken) });
+    expect(partnerServiceList.status()).toBe(200);
+    expect((await partnerServiceList.json()).data.some((item: any) => item.id === dentalService.id)).toBe(true);
+    const buyerServiceList = await api.get(`${BASE}/api/lab-orders/platform/available-laboratories/${fixtureDentalLabId}/services`, { headers: auth(ownerToken) });
+    expect(buyerServiceList.status()).toBe(200);
+    expect((await buyerServiceList.json()).data).toEqual(expect.arrayContaining([expect.objectContaining({ id: dentalService.id, defaultPrice: 52000 })]));
+    const clinicCannotReadPrivatePartnerCatalog = await api.get(`${BASE}/api/lab-orders/platform/services`, { headers: auth(ownerToken) });
+    expect(clinicCannotReadPrivatePartnerCatalog.status()).toBe(403);
+    const clinicCannotCreatePartnerService = await api.post(`${BASE}/api/lab-orders/platform/services`, {
+      headers: auth(ownerToken), data: { code: 'FOREIGN', name: 'Foreign service', category: 'crown', defaultPrice: 1 },
+    });
+    expect(clinicCannotCreatePartnerService.status()).toBe(403);
+
     const assignment = await api.post(`${BASE}/api/lab-orders/platform/assign`, {
       headers: auth(ownerToken),
-      data: { orderId: order.id, laboratoryId: fixtureDentalLabId },
+      data: { orderId: order.id, laboratoryId: fixtureDentalLabId, serviceId: dentalService.id },
     });
     expect(assignment.status()).toBe(200);
 
     const assignedLifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/lifecycle`, { headers: auth(dentalLabOwnerToken) });
     expect(assignedLifecycle.status()).toBe(200);
+    const assignedOrder = (await assignedLifecycle.json()).data.order;
+    expect(assignedOrder).toMatchObject({ serviceId: dentalService.id, serviceName: 'Коронка из диоксида циркония', servicePriceSnapshot: 52000, price: 52000 });
     const initialEventCount = (await assignedLifecycle.json()).data.events.length;
+    const priceChange = await api.patch(`${BASE}/api/lab-orders/platform/services/${dentalService.id}`, { headers: auth(dentalLabOwnerToken), data: { defaultPrice: 61000 } });
+    expect(priceChange.status()).toBe(200);
+    const immutableSnapshot = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/lifecycle`, { headers: auth(dentalLabOwnerToken) });
+    expect((await immutableSnapshot.json()).data.order).toMatchObject({ servicePriceSnapshot: 52000, price: 52000 });
     const repeatedAssignment = await api.post(`${BASE}/api/lab-orders/platform/assign`, {
       headers: auth(ownerToken),
-      data: { orderId: order.id, laboratoryId: fixtureDentalLabId },
+      data: { orderId: order.id, laboratoryId: fixtureDentalLabId, serviceId: dentalService.id },
     });
     expect(repeatedAssignment.status()).toBe(200);
     expect((await repeatedAssignment.json()).data.assignmentIdempotent).toBe(true);

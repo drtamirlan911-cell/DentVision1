@@ -1,3 +1,12 @@
+## Dental Laboratory OS — partner-owned service catalogue and case price snapshots — 2026-11-21
+
+- Added a first-class catalogue scoped to the canonical Laboratory organization. Owners/managers control service code, type, material, description, published list price and turnaround days; production members receive read-only active entries.
+- Verified clinics can inspect active services and prices from a verified/published partner before transferring a case.
+- On assignment, the selected service is revalidated against the receiving laboratory and active catalogue. The canonical LabOrder stores service ID, service-name snapshot, service-price snapshot and case price; later catalogue price edits do not rewrite an accepted case.
+- Legacy clinic-created orders remain assignable without catalogue selection for backward compatibility; the new transfer UI offers explicit service/tariff selection and displays the proposed price before handoff.
+- No invoice, payment, settlement, payout, refund or commission is recognized by catalogue publication or order assignment. DentVision commission remains disabled until successful, idempotent settlement evidence is implemented under D10 and the Settlement Payment Contract.
+- Exact-head CI/E2E and role/mobile evidence are pending. Dental Laboratory remains **PARTIAL**; D10 remains **OPEN**.
+
 ## Medical Laboratory OS — accession barcode and specimen custody — 2026-11-21 (candidate PR #352)
 
 - New orders assigned to a medical laboratory now require accession; pre-existing orders remain legacy-compatible and are not assigned invented historical barcodes.
