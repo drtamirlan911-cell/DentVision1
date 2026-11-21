@@ -1,3 +1,14 @@
+## Medical Laboratory OS — accession barcode and specimen custody — 2026-11-21 (candidate PR #352)
+
+- New orders assigned to a medical laboratory now require accession; pre-existing orders remain legacy-compatible and are not assigned invented historical barcodes.
+- Added one canonical specimen record per physical tube, unique accession barcode, specimen/container type, optional measured volume, current location, collection/receipt actor and timestamps.
+- Added barcode scanning for laboratory intake. Receipt/rejection is order- and active-lab-scoped, changes one specimen under transaction lock and writes a durable custody event. The canonical order advances to `received` only after all registered tubes have a disposition and at least one is accepted.
+- Added child aliquots with a separate accession barcode and immutable parent reference; measured aliquot volume is checked against the parent volume when known.
+- Entering processing now transitions accepted tubes into processing and writes per-specimen events in the same order transaction. Status-only collection/receipt is blocked for accession-required orders.
+- The Medical Lab cabinet now exposes barcode registration, scanner input, specimen/aliquot lineage and custody history. Added helper, contract and Partner Lifecycle E2E coverage for access denial, bypass attempts, barcode validation, receipt, duplicate scan, aliquot lineage and custody events.
+- **Boundary:** source candidate only. No physical scanner/label-printer device protocol, specimen courier chain between clinic and lab, analyzer/LIS protocol integration, calibration/external QC program, critical-value acknowledgement, corrected-result delivery, settlement/payout or complete mobile/production acceptance is certified. Medical Laboratory remains **PARTIAL**; exact-head CI/E2E and operator evidence are required before merge or production use.
+
+---
 ## Diagnostic Center OS vertical slice — 2026-11-21 (candidate PR #352)
 
 - Added a scoped equipment register for CBCT, OPG, TRG, intraoral, CT, MRI and other modalities, including manufacturer/model/serial number, room, DICOM AE Title metadata and maintenance date/status.
