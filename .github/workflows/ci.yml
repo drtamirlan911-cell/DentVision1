@@ -124,6 +124,9 @@ jobs:
       - name: Apply raw lifecycle tables required by E2E
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260917_medical_lab_and_dental_lifecycle/migration.sql
         working-directory: dentvision-backend
+      - name: Apply medical laboratory accession and chain-of-custody tables
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261121160000_medical_lab_accession_chain_of_custody/migration.sql
+        working-directory: dentvision-backend
       - name: Apply diagnostic modality inventory and referral assignment
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261121140000_diagnostic_modality_registry/migration.sql
         working-directory: dentvision-backend
