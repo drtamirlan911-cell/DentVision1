@@ -661,7 +661,8 @@ async function assertPaymentOwner(
   const clinicScopedPayment = payment.provider === 'clinic_kaspi'
     || meta.merchantScope === 'clinic'
     || payment.refType === 'appointment'
-    || payment.refType === 'crm_invoice';
+    || payment.refType === 'crm_invoice'
+    || payment.refType === 'dental_lab_order';
   if (clinicScopedPayment) {
     const clinicId = clinicPaymentScope(payment);
     if (!clinicId) return false;
