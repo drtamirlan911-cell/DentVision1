@@ -707,8 +707,8 @@ export async function uploadReferralFile(data: {
   if (!referral) throw new Error('Referral not found');
   if (!referral.clinicId) throw new Error('Для файла направления не определена клиника-владелец.');
 
-  const originalName = String(data.fileName || 'study-file').trim().replace(/[\\/\\u0000-\\u001f<>:"|?*]/g, '_').slice(0, 180) || 'study-file';
-  const extension = originalName.match(/\\.[A-Za-z0-9]{1,12}$/)?.[0].toLowerCase() || '';
+  const originalName = String(data.fileName || 'study-file').trim().replace(/[\/\\\u0000-\u001f<>:"|?*]/g, '_').slice(0, 180) || 'study-file';
+  const extension = originalName.match(/\.[A-Za-z0-9]{1,12}$/)?.[0].toLowerCase() || '';
   const fileId = uid();
   const storageKey = `clinics/${referral.clinicId}/diagnostics/${referral.id}/${fileId}${extension}`;
   await uploadObject(storageKey, data.buffer, data.fileType || 'application/octet-stream');
