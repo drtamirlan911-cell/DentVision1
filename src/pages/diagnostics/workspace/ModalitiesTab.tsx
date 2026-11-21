@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '@/store/auth.store'
 import { Plus, Wrench } from 'lucide-react'
 import { Card } from '@/components/ui/ds/Card'
 import { Badge } from '@/components/ui/ds/Badge'
@@ -18,6 +19,10 @@ const STATES: Record<string, string> = { active: 'Работает', maintenance
 export function ModalitiesTab({ orgId }: TabProps) {
   const queryClient = useQueryClient()
   const toast = useToast()
+  const { activeWorkspace, user } = useAuth()
+  const role = String(activeWorkspace?.roleKey || activeWorkspace?.role || user?.role || '').toLowerCase()
+  const canManage = user?.role === 'superadmin'
+    || ['owner', 'admin', 'manager', 'director'].some((suffix) => role.endsWith(suffix))
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<Draft>(EMPTY)
   const query = useQuery({
@@ -56,11 +61,11 @@ export function ModalitiesTab({ orgId }: TabProps) {
             <h3 className="flex items-center gap-2 text-sm font-semibold text-txt-primary"><Wrench size={16} /> Оборудование и кабинеты</h3>
             <p className="mt-1 text-xs text-txt-muted">Аппараты, помещения, серийные номера, DICOM AE Title и дата обслуживания.</p>
           </div>
-          <Button variant="primary" size="sm" onClick={() => setOpen((value) => !value)}><Plus size={14} /> Добавить аппарат</Button>
+          {canManage && <Button variant="primary" size="sm" onClick={() => setOpen((value) => !value)}><Plus size={14} /> Добавить аппарат</Button>}
         </div>
       </Card>
 
-      {open && (
+      {open && canManage && (
         <Card padding="md" className="space-y-3">
           <h4 className="text-sm font-semibold text-txt-primary">Новый аппарат</h4>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -118,15 +123,19 @@ export function ModalitiesTab({ orgId }: TabProps) {
                 <span>AE Title: {item.aeTitle || 'Не задан'}</span>
                 <span>Обслуживание: {item.nextMaintenanceAt ? new Date(item.nextMaintenanceAt).toLocaleDateString('ru-RU') : 'Не запланировано'}</span>
               </div>
-              <label className="flex items-center gap-2 text-xs text-txt-secondary">Статус:
-                <select aria-label={'Статус аппарата ' + item.name} value={item.status} disabled={statusMutation.isPending}
-                  onChange={(event) => statusMutation.mutate({ id: item.id, status: event.target.value })}
-                  className="min-h-11 flex-1 rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary">
-                  <option value="active">Работает</option>
-                  <option value="maintenance">Обслуживание</option>
-                  <option value="out_of_service">Неисправно</option>
-                </select>
-              </label>
+              {canManage ? (
+                <label className="flex items-center gap-2 text-xs text-txt-secondary">Статус:
+                  <select aria-label={'Статус аппарата ' + item.name} value={item.status} disabled={statusMutation.isPending}
+                    onChange={(event) => statusMutation.mutate({ id: item.id, status: event.target.value })}
+                    className="min-h-11 flex-1 rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary">
+                    <option value="active">Работает</option>
+                    <option value="maintenance">Обслуживание</option>
+                    <option value="out_of_service">Неисправно</option>
+                  </select>
+                </label>
+              ) : (
+                <p className="text-xs text-txt-secondary">Статус: {STATES[item.status] || item.status}</p>
+              )}
             </Card>
           ))}
         </div>
