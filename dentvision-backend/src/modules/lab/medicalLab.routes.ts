@@ -578,6 +578,22 @@ medicalLabLifecycleRouter.post('/orders/:id/status', async (req: AuthRequest, re
         );
       }
       if (changed !== 1) throw new Error('Medical laboratory order changed. Refresh and retry.');
+      if (order.accessionRequired && next === 'processing' && order.status === 'received') {
+        const acceptedSpecimens = await tx.$queryRawUnsafe<Array<{ id: string; status: string; location: string | null }>>(
+          'SELECT "id","status","location" FROM "medical_lab_specimens" WHERE "orderId"=$1 AND "labId"=$2 AND "status"=\'received\' FOR UPDATE',
+          order.id, order.labId,
+        );
+        for (const specimen of acceptedSpecimens) {
+          await tx.$executeRawUnsafe(
+            'UPDATE "medical_lab_specimens" SET "status"=\'processing\',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "status"=\'received\'',
+            specimen.id,
+          );
+          await tx.$executeRawUnsafe(
+            'INSERT INTO "medical_lab_specimen_events" ("id","specimenId","orderId","labId","eventType","fromStatus","toStatus","location","note","actorUserId","createdAt") VALUES ($1,$2,$3,$4,\'PROCESSING_STARTED\',\'received\',\'processing\',$5,$6,$7,CURRENT_TIMESTAMP)',
+            uid(), specimen.id, order.id, order.labId, specimen.location, 'Образец передан на этап лабораторного исследования.', req.user!.id,
+          );
+        }
+      }
       await tx.$executeRawUnsafe(
         `INSERT INTO "medical_lab_events" ("id","orderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt")
          VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP)`,
