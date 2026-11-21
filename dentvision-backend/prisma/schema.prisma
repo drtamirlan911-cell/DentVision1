@@ -906,7 +906,10 @@ model LabOrder {
   notes     String?
   files     Json?
   deadline  DateTime?
-  price     Int?
+  price                Int?
+  serviceId            String?
+  serviceNameSnapshot  String?
+  servicePriceSnapshot Int?
 
   /// Who ordered the work.
   ///
@@ -922,6 +925,7 @@ model LabOrder {
   patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
   doctor  User?    @relation("LabOrderDoctor", fields: [doctorId], references: [id], onDelete: SetNull)
   treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)
+  dentalLabService DentalLabService? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -930,6 +934,7 @@ model LabOrder {
   @@index([patientId])
   @@index([doctorId])
   @@index([treatmentCaseId])
+  @@index([serviceId])
   @@map("lab_orders")
 }
 
@@ -3151,6 +3156,7 @@ model Laboratory {
   referrals Referral[]          @relation("LabReferral")
   tests     LaboratoryTest[]
   bookings  DiagnosticBooking[]
+  dentalServices DentalLabService[]
 
   @@map("laboratories")
 }
@@ -3168,6 +3174,28 @@ model LaboratoryMember {
   @@unique([labId, userId])
   @@index([userId])
   @@map("laboratory_members")
+}
+
+model DentalLabService {
+  id             String   @id @default(uuid())
+  labId          String
+  code           String
+  name           String
+  category       String
+  description    String?
+  material       String?
+  defaultPrice   Int
+  turnaroundDays Int      @default(5)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  lab    Laboratory @relation(fields: [labId], references: [id], onDelete: Cascade)
+  orders LabOrder[]
+
+  @@unique([labId, code])
+  @@index([labId, active])
+  @@map("dental_lab_services")
 }
 
 model DiagnosticModality {
