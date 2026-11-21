@@ -321,7 +321,7 @@ export function WorklistTab({ orgId }: TabProps) {
                   <p className="mt-1 text-xs text-txt-muted">Стоимость будет взята из действующего прайс-листа центра и зафиксирована при принятии.</p>
                   <Button className="mt-3 w-full" size="sm" variant="primary" loading={statusMutation.isPending}
                     disabled={statusMutation.isPending || !selectedPrice}
-                    onClick={() => transition('ACCEPTED', { cost: selectedPrice })}>
+                    onClick={() => transition('ACCEPTED')}>
                     {selectedPrice ? 'Принять · ' + selectedPrice.toLocaleString('ru-RU') + ' ₸' : 'Добавьте услугу и цену в прайс-лист'}
                   </Button>
                 </div>
