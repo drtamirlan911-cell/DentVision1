@@ -17,8 +17,11 @@ describe('supplier return response boundary', () => {
   });
   it('requires the active supplier write role and verifies ownership of an order line', () => {
     expect(routes).toContain("supplierWorkspaceRouter.post('/returns/:id/respond', requireSupplierWrite");
-    expect(routes).toContain('supplierOwnsOrderLine(supplierId, dispute.refId, tx)');
-    expect(routes).toContain('orderHasSupplierLine(order.items, supplierId, productIds)');
+    expect(routes).toContain('async function supplierOwnsOrderLine(supplierId: string, disputeId: string, orderId: string, client: any = prisma)');
+    expect(routes).toContain('supplierOwnsOrderLine(supplierId, disputeId, dispute.refId, tx)');
+    expect(routes).toContain('where: { disputeId, orderId, supplierId }');
+    expect(routes).toContain('lineSupplierId === supplierId');
+    expect(routes).not.toContain('orderHasSupplierLine(');
     expect(routes).toContain("['order', 'shop_order'].includes(refType)");
     expect(routes).toContain('ACKNOWLEDGE_RETURN_REQUEST');
     expect(routes).toContain('CONTEST_RETURN_REQUEST');
@@ -35,9 +38,9 @@ describe('supplier return response boundary', () => {
     expect(response).toContain('}, tx);');
   });
   it('returns only disputes attached to supplier-owned orders/products and scopes responses to this supplier', () => {
-    expect(dashboard).toContain('const disputeScope');
-    expect(dashboard).toContain('where: { OR: disputeScope }');
-    expect(dashboard).toContain('where: { supplierId }');
+    expect(dashboard).toContain('where: { returnItems: { some: { supplierId } } }');
+    expect(dashboard).toContain('supplierResponses: {\n        where: { supplierId }');
+    expect(dashboard).toContain('returnItems: {\n        where: { supplierId }');
     expect(dashboard).toContain('supplierResponses');
   });
   it('wires an audited response composer into the supplier workspace', () => {
