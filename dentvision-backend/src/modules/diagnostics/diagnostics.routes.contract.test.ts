@@ -275,6 +275,40 @@ describe('diagnostics route contract', () => {
     expect(source).toContain('DIAGNOSTIC_RESULT_STAGE_INVALID');
   });
 
+  it('issues fresh short-lived diagnostic attachment URLs only after scoped clinical access', () => {
+    const start = source.indexOf("diagnosticsRouter.get('/referrals/:id/files/:fileId/download-url'");
+    const end = source.indexOf("diagnosticsRouter.post('/referrals/:id/files/upload'", start);
+    const route = source.slice(start, end);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(route).toContain('requireReferralAccess(true)');
+    expect(route).toContain('canReadCenterClinicalFiles(req.user, referral.centerId)');
+    expect(route).toContain('svc.getReferralFileDownloadUrl(referralId, fileId, req.user!.id)');
+    expect(route).toContain("code === 'DIAGNOSTIC_STORAGE_UNAVAILABLE' ? 503");
+
+    expect(serviceSource).toContain('export async function getReferralFileDownloadUrl');
+    expect(serviceSource).toContain('where: { id: fileId, referralId }');
+    expect(serviceSource).toContain('clinics/${referral.clinicId}/diagnostics/${referral.id}/');
+    expect(serviceSource).toContain('const expiresInSeconds = 300');
+    expect(serviceSource).toContain("action: 'DIAGNOSTIC_FILE_ACCESS_SIGNED'");
+    expect(serviceSource).toContain('downloadAvailable: isStorageKey(file.fileUrl || \'\') && storageConfigured()');
+    const detailStart = serviceSource.indexOf('export async function getReferral(id: string)');
+    const detailEnd = serviceSource.indexOf('export async function createReferral', detailStart);
+    expect(serviceSource.slice(detailStart, detailEnd)).not.toContain('signedDownloadUrl(');
+    expect(worklistUi).toContain('getDiagnosticReferralFileDownloadUrl');
+    expect(worklistUi).toContain('window.location.assign(target)');
+  });
+
+  it('deletes referral-file metadata and audit before best-effort object cleanup', () => {
+    const start = serviceSource.indexOf('export async function deleteReferralFile');
+    const end = serviceSource.indexOf('// ─── Comments ───', start);
+    const remove = serviceSource.slice(start, end);
+    expect(remove.indexOf('await tx.referralFile.delete')).toBeGreaterThanOrEqual(0);
+    expect(remove.indexOf('await tx.referralFile.delete')).toBeLessThan(remove.indexOf('await deleteObject(storageKey)'));
+    expect(remove).toContain('objectCleanupPending: Boolean(storageKey)');
+    expect(remove).toContain('private orphaned S3 object after metadata deletion');
+    expect(source).toContain("diagnosticsRouter.delete('/referral-files/:id'");
+  });
+
   it('stores signed report versions, backfills legacy signatures and exposes controlled amendments', () => {
     expect(schemaSource).toContain('model DiagnosticResultVersion');
     expect(schemaSource).toContain('versions DiagnosticResultVersion[]');
