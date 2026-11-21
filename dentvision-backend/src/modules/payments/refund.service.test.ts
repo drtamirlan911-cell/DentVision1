@@ -51,6 +51,29 @@ function paidPayment() {
     }]);
 }
 
+function paidDentalLabPayment() {
+  tx.payment.findUnique.mockResolvedValue({
+    id: 'p-dental-1',
+    amount: 10_000n,
+    currency: 'KZT',
+    status: 'paid',
+    refType: 'dental_lab_order',
+    refId: 'lab-order-1',
+    meta: { clinicId: 'clinic-1', laboratoryId: 'lab-1' },
+  });
+  tx.transaction.findMany
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([{
+      id: 'partner-economics-1',
+      amount: 10_000n,
+      ledgerEntries: [
+        { walletId: 'gateway', direction: 'debit', amount: 10_000n },
+        { walletId: 'partner', direction: 'credit', amount: 9_200n },
+        { walletId: 'platform', direction: 'credit', amount: 800n },
+      ],
+    }]);
+}
+
 describe('refundPayment', () => {
 
   it('validates clinic-cash appointment and invoice references before creating a payment', () => {
@@ -94,6 +117,33 @@ describe('refundPayment', () => {
     const clinicCashEnd = routeSource.indexOf("// Platform Kaspi", clinicCashStart);
     const clinicCashBlock = routeSource.slice(clinicCashStart, clinicCashEnd);
     expect(clinicCashBlock).toContain("assertClinicPaymentStaffAccess(req.user!.id, clinicId)");
+  });
+
+  it('reverses the dental-laboratory partner/platform ledger on a full case refund', async () => {
+    paidDentalLabPayment();
+    const result = await refundPayment('p-dental-1', 10_000n, 'dental-full', 'case refund');
+    expect(result.alreadyProcessed).toBe(false);
+    const args = tx.transaction.create.mock.calls[0][0].data;
+    expect(args.meta.originalTransactionIds).toEqual(['partner-economics-1']);
+    expect(args.ledgerEntries.create).toEqual([
+      { walletId: 'gateway', direction: 'credit', amount: 10_000n },
+      { walletId: 'partner', direction: 'debit', amount: 9_200n },
+      { walletId: 'platform', direction: 'debit', amount: 800n },
+    ]);
+    expect(tx.wallet.update).toHaveBeenCalledTimes(3);
+    expect(tx.payment.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'refunded' } }));
+  });
+
+  it('supports a partial refund for a dental-laboratory case without changing the paid status', async () => {
+    paidDentalLabPayment();
+    const result = await refundPayment('p-dental-1', 5_000n, 'dental-partial', 'partial case refund');
+    expect(result.payment.status).toBe('paid');
+    const entries = tx.transaction.create.mock.calls[0][0].data.ledgerEntries.create;
+    expect(entries).toEqual([
+      { walletId: 'gateway', direction: 'credit', amount: 5_000n },
+      { walletId: 'partner', direction: 'debit', amount: 4_600n },
+      { walletId: 'platform', direction: 'debit', amount: 400n },
+    ]);
   });
 
   it('reverses the original ledger with opposite directions', async () => {
