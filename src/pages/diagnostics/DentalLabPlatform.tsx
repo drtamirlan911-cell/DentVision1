@@ -287,7 +287,7 @@ export default function DentalLabPlatform() {
   return (
     <div className="max-w-full space-y-6 overflow-x-hidden p-4 sm:p-6">
       {context.patientId || context.caseId ? <EcosystemRelationRail node="lab-order" title="Клинический контекст заказа" patientId={context.patientId} caseId={context.caseId} branchId={context.branchId} organizationId={context.organizationId} /> : null}
-      <PageHeader title={d.lab.name} subtitle="Dental Lab · производство, контроль качества и выдача" icon={<FlaskConical size={22} />} actions={<Button size="sm" variant="ghost" onClick={() => { dashboard.refetch(); orders.refetch(); }}><RefreshCw size={15} /> Обновить</Button>} />
+      <PageHeader title={d.lab.name} subtitle="Dental Lab · производство, контроль качества и выдача" icon={<FlaskConical size={22} />} actions={<Button size="sm" variant="ghost" onClick={() => { dashboard.refetch(); if (canReadOrders) orders.refetch(); if (effectiveTab === 'finance' && canManageFinance) finance.refetch(); }}><RefreshCw size={15} /> Обновить</Button>} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           ['В работе', d.totals.active, <Wrench size={18} />],
