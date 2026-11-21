@@ -538,7 +538,7 @@ labPlatformRouter.patch('/orders/:id/remake-request', async (req: AuthRequest, r
       details: { requestId: outcome.remakeRequest.id, decision: decision.decision, responseNoteLength: decision.note?.length || 0 },
       userId: req.user!.id, clinicId: outcome.order.clinicId,
     });
-    publish('labOrder.remake_response' as any, {
+    publish('labOrder.remake_response', {
       clinicId: outcome.order.clinicId, labOrderId: outcome.order.id, laboratoryId: membership.labId,
       requestId: outcome.remakeRequest.id, decision: decision.decision, userId: req.user!.id,
     });
