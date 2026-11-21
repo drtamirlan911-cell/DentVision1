@@ -14,7 +14,6 @@ import * as api from '@/utils/api';
 import { queryKeys } from '@/queries/keys';
 import FileUploader from '@/components/diagnostics/FileUploader';
 import ToothSelector from '@/components/diagnostics/ToothSelector';
-import { fileToDataUrl } from '@/lib/image-upload';
 import { withEcosystemContext } from '@/config/ecosystemContextLink';
 import type { EcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 
@@ -111,30 +110,79 @@ export default function ReferralForm() {
 
   const selectedClinicId = clinic?.id || activeMembership?.clinicId || '';
   const clinicCity = clinic?.city || '';
-  const [files, setFiles] = useState<{ id: string; fileName: string; fileType: string; fileUrl: string; fileSize?: number }[]>([]);
+  type ReferralDraftFile = { id: string; fileName: string; fileType: string; fileSize?: number; file?: File; fileUrl?: string };
+  const [files, setFiles] = useState<ReferralDraftFile[]>([]);
   const [referralId, setReferralId] = useState<string | null>(null);
+  const [uploadingPendingFiles, setUploadingPendingFiles] = useState(false);
   const [teeth, setTeeth] = useState<number[]>([]);
 
-  const handleFileUpload = useCallback(async (file: File, dataUrl: string) => {
-    if (!referralId) {
-      const id = Math.random().toString(36).slice(2);
-      setFiles(prev => [...prev, { id, fileName: file.name, fileType: file.type, fileUrl: dataUrl, fileSize: file.size }]);
+  const uploadPendingFiles = useCallback(async (targetReferralId: string, pending: ReferralDraftFile[]) => {
+    if (!pending.length) {
+      navigate(withEcosystemContext(`/diagnostics/referrals/${targetReferralId}`, ecosystemContext));
       return;
     }
-    await api.uploadDiagnosticFile({
-      referralId, fileName: file.name, fileData: dataUrl, fileType: file.type, fileSize: file.size,
-    });
+    setUploadingPendingFiles(true);
+    const uploaded: ReferralDraftFile[] = [];
+    const failed: ReferralDraftFile[] = [];
+    for (const item of pending) {
+      if (!item.file) continue;
+      try {
+        const response = await api.uploadDiagnosticFile({ referralId: targetReferralId, file: item.file });
+        uploaded.push({
+          id: response.id,
+          fileName: response.fileName || item.fileName,
+          fileType: response.fileType || item.fileType,
+          fileSize: response.fileSize || item.fileSize,
+          fileUrl: 'stored',
+        });
+      } catch {
+        failed.push(item);
+      }
+    }
+    setFiles(current => [
+      ...current.filter(item => !pending.some(pendingItem => pendingItem.id === item.id)),
+      ...uploaded,
+      ...failed,
+    ]);
+    setUploadingPendingFiles(false);
+    if (failed.length) {
+      toast.error(`Направление создано. Не удалось загрузить файлов: ${failed.length}. Повторите загрузку или удалите файл.`);
+      return;
+    }
+    toast.success('Направление и файлы сохранены');
+    navigate(withEcosystemContext(`/diagnostics/referrals/${targetReferralId}`, ecosystemContext));
+  }, [navigate, ecosystemContext, toast]);
+
+  const handleFileUpload = useCallback(async (file: File) => {
+    if (!referralId) {
+      const id = crypto.randomUUID();
+      setFiles(prev => [...prev, { id, fileName: file.name, fileType: file.type, fileSize: file.size, file }]);
+      return;
+    }
+    const response = await api.uploadDiagnosticFile({ referralId, file });
+    setFiles(prev => [...prev, {
+      id: response.id,
+      fileName: response.fileName || file.name,
+      fileType: response.fileType || file.type,
+      fileSize: response.fileSize || file.size,
+      fileUrl: 'stored',
+    }]);
   }, [referralId]);
 
   const handleDeleteFile = useCallback(async (id: string) => {
-    const file = files.find(f => f.id === id);
+    const file = files.find(item => item.id === id);
     if (!file) return;
-    if (file.fileUrl.startsWith('data:')) {
-      setFiles(prev => prev.filter(f => f.id !== id));
-    } else {
-      await api.deleteDiagnosticFile(id);
+    if (file.file) {
+      setFiles(prev => prev.filter(item => item.id !== id));
+      return;
     }
-  }, [files]);
+    try {
+      await api.deleteDiagnosticFile(id);
+      setFiles(prev => prev.filter(item => item.id !== id));
+    } catch (error: any) {
+      toast.error(error?.message || 'Не удалось удалить файл');
+    }
+  }, [files, toast]);
 
   // Filter centers by clinic city when the clinic has one; otherwise show all.
   const centersQuery = useQuery({
@@ -188,20 +236,22 @@ export default function ReferralForm() {
     mutationFn: (data: any) => api.createDiagnosticReferral(data),
     onSuccess: async (result: any) => {
       const rid = result?.data?.id || result?.id;
-      setReferralId(rid);
-      if (files.length > 0) {
-        for (const f of files) {
-          try { await api.uploadDiagnosticFile({ referralId: rid, fileName: f.fileName, fileData: f.fileUrl, fileType: f.fileType, fileSize: f.fileSize }); } catch { /* file upload failed, continue */ }
-        }
+      if (!rid) {
+        toast.error('Сервер создал направление, но не вернул его идентификатор.');
+        return;
       }
-      toast.success('Направление создано');
-      navigate(withEcosystemContext('/diagnostics/referrals', ecosystemContext));
+      setReferralId(rid);
+      await uploadPendingFiles(rid, files);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (referralId) {
+      void uploadPendingFiles(referralId, files.filter(file => Boolean(file.file)));
+      return;
+    }
     if (!form.patientName.trim()) { toast.warn('Введите имя пациента'); return; }
     if (!form.studyType) { toast.warn('Выберите тип исследования'); return; }
 
@@ -398,9 +448,15 @@ export default function ReferralForm() {
           {selectedClinicId ? 'Направление от клиники — без ограничений' : 'Личный режим — до 5 направлений в день'}
         </div>
         <div className="flex gap-2">
-          <Button type="button" variant="ghost" className="min-h-11" onClick={() => navigate(withEcosystemContext('/diagnostics', ecosystemContext))}>Отмена</Button>
-          <Button type="submit" variant="primary" className="min-h-11" loading={createMutation.isPending} icon={<Send size={16} />}>
-            Отправить направление
+          {!referralId && <Button type="button" variant="ghost" className="min-h-11" onClick={() => navigate(withEcosystemContext('/diagnostics', ecosystemContext))}>Отмена</Button>}
+          {referralId && files.some(file => Boolean(file.file)) && (
+            <Button type="button" variant="secondary" className="min-h-11" loading={uploadingPendingFiles} onClick={() => void uploadPendingFiles(referralId, files.filter(file => Boolean(file.file)))}>
+              Повторить загрузку файлов
+            </Button>
+          )}
+          <Button type={referralId ? 'button' : 'submit'} variant="primary" className="min-h-11" loading={createMutation.isPending || uploadingPendingFiles} disabled={uploadingPendingFiles}
+            onClick={referralId ? () => navigate(withEcosystemContext(`/diagnostics/referrals/${referralId}`, ecosystemContext)) : undefined} icon={<Send size={16} />}>
+            {referralId ? 'Открыть направление' : 'Отправить направление'}
           </Button>
         </div>
       </div>
