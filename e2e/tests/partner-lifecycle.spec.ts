@@ -1341,6 +1341,36 @@ test.describe('Partner operational lifecycle', () => {
       headers: auth(labOwnerToken),
     });
     expect(otherLabRead.status()).toBe(404);
+
+    for (const status of ['sent', 'in_progress', 'qc']) {
+      const step = await api.patch(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/status`, {
+        headers: auth(dentalLabOwnerToken),
+        data: { status, note: `PARTNER-003 pickup preparation ${status}` },
+      });
+      expect(step.status()).toBe(200);
+    }
+    const pickupQc = await api.patch(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/qc`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { checks: { fit: true, margins: true, shade: true, occlusion: true, surface: true, documentation: true }, note: 'PARTNER-003 pickup QC approved' },
+    });
+    expect(pickupQc.status()).toBe(200);
+
+    const pickup = await api.post(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/shipment`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { method: 'PICKUP', note: 'PARTNER-003 ready for clinic pickup' },
+    });
+    expect(pickup.status()).toBe(201);
+    expect((await pickup.json()).data.shipment).toMatchObject({ method: 'PICKUP', status: 'ready_for_pickup', carrier: null, trackingNumber: null });
+
+    const pickupDelivery = await api.post(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/shipment/delivery-confirmation`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { proofUrl: 'https://proof.example/receipts/partner-003-pickup', recipientName: 'Clinic Courier', note: 'PARTNER-003 pickup handed to clinic courier' },
+    });
+    expect(pickupDelivery.status()).toBe(200);
+    expect((await pickupDelivery.json()).data.order.status).toBe('delivered');
+    const pickupLifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/lifecycle`, { headers: auth(dentalLabOwnerToken) });
+    expect(pickupLifecycle.status()).toBe(200);
+    expect((await pickupLifecycle.json()).data.shipmentEvents.map((event: any) => event.eventType)).toEqual(['READY_FOR_PICKUP', 'DELIVERED']);
   });
 
 });
