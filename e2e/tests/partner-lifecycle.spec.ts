@@ -1390,6 +1390,63 @@ test.describe('Partner operational lifecycle', () => {
     const pickupLifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/lifecycle`, { headers: auth(dentalLabOwnerToken) });
     expect(pickupLifecycle.status()).toBe(200);
     expect((await pickupLifecycle.json()).data.shipmentEvents.map((event: any) => event.eventType)).toEqual(['READY_FOR_PICKUP', 'DELIVERED']);
+
+    const remakeRequest = await api.post(`${BASE}/api/lab-orders/${unrelatedOrder.id}/remake-request`, {
+      headers: auth(ownerToken),
+      data: { reason: 'Clinic requested correction after fitting review.' },
+    });
+    expect(remakeRequest.status()).toBe(201);
+    expect((await remakeRequest.json()).data.remakeRequest.status).toBe('requested');
+
+    const acceptedRemake = await api.patch(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/remake-request`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { decision: 'accept', note: 'Remake accepted under laboratory quality review.' },
+    });
+    expect(acceptedRemake.status()).toBe(200);
+    expect((await acceptedRemake.json()).data.status).toBe('remake');
+
+    const remakeStarted = await api.patch(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/status`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { status: 'in_progress', note: 'Remake production started.' },
+    });
+    expect(remakeStarted.status()).toBe(200);
+    const remakeAtQc = await api.patch(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/status`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { status: 'qc', note: 'Remake completed and submitted to QC.' },
+    });
+    expect(remakeAtQc.status()).toBe(200);
+    const remakeQc = await api.patch(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/qc`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { checks: { fit: true, margins: true, shade: true, occlusion: true, surface: true, documentation: true }, note: 'Remake passed final QC.' },
+    });
+    expect(remakeQc.status()).toBe(200);
+    expect((await remakeQc.json()).data.status).toBe('ready');
+
+    const remakePickup = await api.post(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/shipment`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { method: 'PICKUP', note: 'Corrected case is ready for the second pickup.' },
+    });
+    expect(remakePickup.status()).toBe(201);
+    expect((await remakePickup.json()).data.shipment.status).toBe('ready_for_pickup');
+
+    const remakeDelivery = await api.post(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/shipment/delivery-confirmation`, {
+      headers: auth(dentalLabOwnerToken),
+      data: {
+        proofUrl: 'https://proof.example/receipts/partner-003-remake',
+        recipientName: 'Clinic Reception',
+        note: 'Corrected case received by clinic.',
+      },
+    });
+    expect(remakeDelivery.status()).toBe(200);
+    expect((await remakeDelivery.json()).data.order.status).toBe('delivered');
+
+    const remakeLifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/lifecycle`, { headers: auth(dentalLabOwnerToken) });
+    expect(remakeLifecycle.status()).toBe(200);
+    const remakeHistory = (await remakeLifecycle.json()).data;
+    expect(remakeHistory.shipments).toHaveLength(2);
+    expect(remakeHistory.shipmentEvents.map((event: any) => event.eventType)).toEqual([
+      'READY_FOR_PICKUP', 'DELIVERED', 'READY_FOR_PICKUP', 'DELIVERED',
+    ]);
   });
 
 });
