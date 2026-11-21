@@ -10,6 +10,10 @@ const serviceSource = readFileSync(
   resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnostics.service.ts'),
   'utf8',
 );
+const workflowSource = readFileSync(
+  resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnosticCenterWorkflow.ts'),
+  'utf8',
+);
 
 describe('diagnostics route contract', () => {
   it('has no shadowed duplicate HTTP method + path handlers', () => {
@@ -34,7 +38,7 @@ describe('diagnostics route contract', () => {
   it('keeps payment transition separate from referral status', () => {
     expect((source.match(/diagnosticsRouter\.post\('\/referrals\/:id\/mark-paid'/g) || [])).toHaveLength(1);
     expect(source).toContain("diagnosticsRouter.post('/referrals/:id/status'");
-    expect(source).toContain("'REVIEWED','DELIVERED','CLOSED'");
+    expect(source).toContain("'REVIEWED', 'DELIVERED', 'CLOSED'");
     expect(source).not.toContain("status === 'PAID'");
   });
 
@@ -97,4 +101,32 @@ describe('diagnostics route contract', () => {
     expect((source.match(/diagnosticsRouter\.post\('\/centers\/:id\/cashier\/collect'/g) || [])).toHaveLength(1);
     expect((source.match(/diagnosticsRouter\.post\('\/laboratories\/:id\/cashier\/collect'/g) || [])).toHaveLength(1);
   });
+
+  it('restricts diagnostic-center status updates to the canonical role-aware workflow', () => {
+    expect(source).toContain('authorizeDiagnosticCenterStatusTransition');
+    expect(source).toContain('activePartnerRoleKeys(req.user)');
+    expect(source).toContain("sameOrgContext(req.user, 'DiagnosticCenter', String(referral.centerId))");
+    expect(source).toContain("code: 'DIAGNOSTIC_SCHEDULE_REQUIRED'");
+    expect(source).toContain('expectedStatus: referral.status');
+    expect(serviceSource).toContain('REFERRAL_STATUS_CONFLICT');
+    expect(serviceSource).toContain('where: { id, status: options?.expectedStatus ?? referral.status }');
+    expect(workflowSource).toContain("SENT: ['ACCEPTED']");
+    expect(workflowSource).toContain("ACCEPTED: ['SCHEDULED']");
+    expect(workflowSource).toContain("PATIENT_ARRIVED: ['IN_PROGRESS']");
+    expect(workflowSource).toContain('DIAGNOSTIC_RESULT_SIGN_REQUIRED');
+    expect(workflowSource).toContain('DIAGNOSTIC_RESULT_UNSIGNED');
+  });
+
+  it('exposes center-only detail cards with audit history, not a broad clinic query', () => {
+    const start = source.indexOf("diagnosticsRouter.get('/centers/:centerId/worklist/:referralId'");
+    const end = source.indexOf("diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/modality'", start);
+    const detailRoute = source.slice(start, end);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(detailRoute).toContain("sameOrgContext(req.user, 'DiagnosticCenter', centerId)");
+    expect(detailRoute).toContain('where: { id: referralId, centerId }');
+    expect(detailRoute).toContain("where: { entity: 'referral', entityId: referralId }");
+    expect(detailRoute).toContain('svc.getReferral(referralId)');
+    expect(detailRoute).toContain('events');
+  });
+
 });
