@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, isLabTechnicianRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeRequestReason, validateLabRemakeDecision } from './labPlatform.authorization.js';
+import { canLabManageShipment, canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, isLabTechnicianRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeRequestReason, validateLabRemakeDecision } from './labPlatform.authorization.js';
 
 describe('Dental Lab role boundaries', () => {
   it('recognizes only owner-level lab roles as managers', () => {
@@ -7,6 +7,25 @@ describe('Dental Lab role boundaries', () => {
     expect(isLabManagerRole('admin')).toBe(true);
     expect(isLabManagerRole('manager')).toBe(true);
     expect(isLabManagerRole('technician')).toBe(false);
+  });
+
+  it('grants shipment permissions to managers and logistics, not to production or finance roles', () => {
+    for (const role of ['owner', 'admin', 'manager', 'director', 'lab_manager', 'courier', 'logistics', 'delivery_operator', 'dispatcher']) {
+      expect(canLabManageShipment(role), role).toBe(true);
+    }
+    for (const role of ['technician', 'dental_technician', 'cad_designer', 'ceramist', 'orthodontic_technician', 'qc_specialist', 'lab_finance', 'viewer', 'clinic_owner']) {
+      expect(canLabManageShipment(role), role).toBe(false);
+    }
+    expect(canLabManageShipment(' LOGISTICS ')).toBe(true);
+    expect(canLabManageShipment(null)).toBe(false);
+  });
+
+  it('keeps shipment permissions separate from QC and price-management authority', () => {
+    expect(canLabManageShipment('courier')).toBe(true);
+    expect(isLabManagerRole('courier')).toBe(false);
+    expect(canLabMemberChangeStatus({ role: 'courier', userId: 'courier-1', nextStatus: 'ready' })).toBe(false);
+    expect(canLabManageShipment('lab_finance')).toBe(false);
+    expect(isLabManagerRole('lab_finance')).toBe(false);
   });
 
   it('allows an assigned technician to progress production but not sign off or deliver', () => {
