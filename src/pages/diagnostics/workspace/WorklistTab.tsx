@@ -65,6 +65,7 @@ export function WorklistTab({ orgId }: TabProps) {
   const canManage = user?.role === 'superadmin' || roleCanManage(role)
   const canSchedule = canManage || SCHEDULING_ROLES.includes(role)
   const canAcquire = canManage || ACQUISITION_ROLES.includes(role)
+  const canReadDetails = canManage || canAcquire
   const canSign = role === 'radiologist' || role.endsWith('_radiologist')
   const canRelease = canManage || canSign
   const canAssignEquipment = canManage
@@ -239,9 +240,11 @@ export function WorklistTab({ orgId }: TabProps) {
                   <p className="mt-1 text-sm text-txt-primary">{row.modality?.name || 'Не назначено'}{row.modality?.room ? ' · ' + row.modality.room : ''}</p>
                 )}
               </div>
-              <Button size="sm" variant={selectedReferralId === row.id ? 'secondary' : 'ghost'} className="w-full" onClick={() => openDetails(row.id)}>
-                <FileText size={14} /> {selectedReferralId === row.id ? 'Скрыть карточку исследования' : 'Открыть карточку исследования'}
-              </Button>
+              {canReadDetails && (
+                <Button size="sm" variant={selectedReferralId === row.id ? 'secondary' : 'ghost'} className="w-full" onClick={() => openDetails(row.id)}>
+                  <FileText size={14} /> {selectedReferralId === row.id ? 'Скрыть карточку исследования' : 'Открыть карточку исследования'}
+                </Button>
+              )}
             </Card>
           ))}
         </div>
