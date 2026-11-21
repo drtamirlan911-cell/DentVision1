@@ -9,7 +9,7 @@ import { assertClinicOrgAccess } from '../../lib/orgContext.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { uid } from '../../lib/helpers.js';
 import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js';
-import { canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, labMemberOrderReadScope, validateLabQualityControl } from './labPlatform.authorization.js';
+import { canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeDecision } from './labPlatform.authorization.js';
 
 export const labPlatformRouter = Router();
 labPlatformRouter.use(authenticate);
@@ -25,6 +25,7 @@ type LabMeta = {
   appointmentId?: string;
   tryInDate?: string;
   qualityControl?: { checks: Record<string, boolean>; passed: boolean; note: string | null; checkedByUserId: string; checkedAt: string };
+  remakeRequest?: { id: string; status: 'requested' | 'accepted' | 'rejected'; reason: string; requestedByUserId: string; requestedAt: string; laboratoryId: string; decidedByUserId?: string; decidedAt?: string; responseNote?: string | null };
 };
 
 const STATUS_FLOW: Record<string, string[]> = {
@@ -134,6 +135,7 @@ function serialize(order: any) {
     shade: meta.shade || '', notes: order.notes || '', deadline: order.deadline, price: order.price, status: order.status,
     technicianId: meta.technicianId || null, remakeOfId: meta.remakeOfId || null, appointmentId: meta.appointmentId || null,
     qualityControl: meta.qualityControl || null,
+    remakeRequest: meta.remakeRequest || null,
     serviceId: order.serviceId || null,
     serviceName: order.serviceNameSnapshot || null,
     servicePriceSnapshot: order.servicePriceSnapshot ?? null,
@@ -471,6 +473,77 @@ labPlatformRouter.patch('/orders/:id/qc', async (req: AuthRequest, res) => {
     });
     return res.json({ ok: true, data: serialize({ ...order, treatmentCaseId }) } satisfies ApiResponse);
   } catch (error) { console.error('[LabPlatform] QC error:', error); return res.status(500).json({ ok: false, error: 'Не удалось сохранить результат контроля качества' } satisfies ApiResponse); }
+});
+
+labPlatformRouter.patch('/orders/:id/remake-request', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
+    if (!isLabManagerRole(membership.role)) return res.status(403).json({ ok: false, error: 'Решать запросы переделки может только владелец или менеджер лаборатории' } satisfies ApiResponse);
+    const decision = validateLabRemakeDecision(req.body?.decision, req.body?.note);
+    if (!decision) return res.status(400).json({ ok: false, error: 'Выберите решение; при отклонении укажите причину от 5 до 2000 символов' } satisfies ApiResponse);
+
+    await ensureDentalLabOrderEventsTable();
+    const outcome = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${req.params.id} FOR UPDATE`;
+      const existing = await tx.labOrder.findFirst({
+        where: { id: req.params.id, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } },
+      });
+      if (!existing) return { kind: 'not_found' as const };
+      if (existing.status !== 'delivered') return { kind: 'invalid_status' as const };
+      const meta = metaOf(existing.files);
+      const request = meta.remakeRequest;
+      if (!request || request.status !== 'requested' || request.laboratoryId !== membership.labId) {
+        return { kind: 'no_request' as const };
+      }
+      const nextStatus = decision.decision === 'accept' ? 'remake' : 'delivered';
+      const remakeRequest = {
+        ...request,
+        status: decision.decision === 'accept' ? 'accepted' as const : 'rejected' as const,
+        decidedByUserId: req.user!.id,
+        decidedAt: new Date().toISOString(),
+        responseNote: decision.note,
+      };
+      const currentFiles = existing.files && typeof existing.files === 'object' && !Array.isArray(existing.files)
+        ? existing.files as Record<string, unknown>
+        : {};
+      const order = await tx.labOrder.update({
+        where: { id: existing.id },
+        data: { status: nextStatus as any, files: { ...currentFiles, meta: { ...meta, remakeRequest } } },
+      });
+      const eventNote = decision.decision === 'accept'
+        ? `Лаборатория приняла запрос на переделку. ${decision.note || ''}`.trim()
+        : `Лаборатория отклонила запрос на переделку: ${decision.note}`;
+      await appendEventInTransaction(tx, order, existing.status, nextStatus, req.user!.id, eventNote);
+      return { kind: 'updated' as const, order, previousStatus: existing.status, nextStatus, remakeRequest };
+    });
+
+    if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Запрос переделки не найден в этой лаборатории' } satisfies ApiResponse);
+    if (outcome.kind === 'invalid_status') return res.status(409).json({ ok: false, error: 'Решение доступно только для доставленного заказа' } satisfies ApiResponse);
+    if (outcome.kind === 'no_request') return res.status(409).json({ ok: false, error: 'Нет ожидающего решения запроса на переделку' } satisfies ApiResponse);
+
+    await writeAuditLog({
+      action: decision.decision === 'accept' ? 'LAB_ORDER_REMAKE_ACCEPTED' : 'LAB_ORDER_REMAKE_REJECTED',
+      entity: 'lab_order', entityId: outcome.order.id,
+      details: { requestId: outcome.remakeRequest.id, decision: decision.decision, responseNoteLength: decision.note?.length || 0 },
+      userId: req.user!.id, clinicId: outcome.order.clinicId,
+    });
+    publish('labOrder.remake_response' as any, {
+      clinicId: outcome.order.clinicId, labOrderId: outcome.order.id, laboratoryId: membership.labId,
+      requestId: outcome.remakeRequest.id, decision: decision.decision, userId: req.user!.id,
+    });
+    if (decision.decision === 'accept') {
+      publish('labOrder.status_changed', {
+        clinicId: outcome.order.clinicId, labOrderId: outcome.order.id, patientId: outcome.order.patientId || undefined,
+        doctorId: outcome.order.doctorId || undefined, status: outcome.nextStatus, previousStatus: outcome.previousStatus, userId: req.user!.id,
+      });
+    }
+    const treatmentCaseId = await caseIdOf(outcome.order.id) || undefined;
+    return res.json({ ok: true, data: serialize({ ...outcome.order, treatmentCaseId }) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[LabPlatform] remake response error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось сохранить решение по переделке' } satisfies ApiResponse);
+  }
 });
 
 labPlatformRouter.get('/team', async (req: AuthRequest, res) => {
