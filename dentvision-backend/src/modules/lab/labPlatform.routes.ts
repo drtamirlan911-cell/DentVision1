@@ -182,6 +182,10 @@ async function ordersForLab(labId: string, role: string, userId: string, status?
       patientId: null,
       patientName: '',
       doctorId: null,
+      type: 'Заказ лаборатории',
+      material: '',
+      serviceId: null,
+      serviceName: null,
       toothNumber: '',
       shade: '',
       notes: '',
@@ -298,8 +302,8 @@ labPlatformRouter.get('/available-laboratories/:id/services', requirePermission(
 labPlatformRouter.get('/services', async (req: AuthRequest, res) => {
   try {
     const membership = await resolveLab(req);
-    if (!membership || !canLabMemberReadOrders(membership.role)) {
-      return res.status(403).json({ ok: false, error: 'Нет доступа к каталогу лаборатории' } satisfies ApiResponse);
+    if (!membership || !canLabMemberReadOrders(membership.role) || isLabLogisticsRole(membership.role)) {
+      return res.status(403).json({ ok: false, error: 'Каталог услуг доступен производственным и управляющим ролям лаборатории' } satisfies ApiResponse);
     }
     const services = await prisma.dentalLabService.findMany({
       where: { labId: membership.labId, ...(isLabManagerRole(membership.role) ? {} : { active: true }) },
