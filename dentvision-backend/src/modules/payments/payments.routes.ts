@@ -34,7 +34,7 @@ import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } f
 export const paymentsRouter = Router();
 
 const SERVER_OWNED_PAYMENT_META_KEYS = new Set([
-  'userid', 'clinicid', 'merchantscope', 'clinicpaymode', 'qr',
+  'userid', 'clinicid', 'merchantscope', 'clinicpaymode', 'qr', 'laboratoryid', 'laborderid', 'branchid',
 ]);
 
 function clientSafePaymentMeta(value: unknown): Record<string, unknown> {
