@@ -803,7 +803,7 @@ export async function deleteReferralFile(id: string, userId: string) {
       action: 'FILE_DELETED',
       entity: 'referral',
       entityId: file.referralId,
-      details: { fileId: id, storage: storageKey ? 's3' : 'legacy', objectCleanupPending: Boolean(storageKey) },
+      details: { fileId: id, storage: storageKey ? 's3' : 'legacy', objectCleanupScheduled: Boolean(storageKey) },
       userId,
     }, tx);
   });
