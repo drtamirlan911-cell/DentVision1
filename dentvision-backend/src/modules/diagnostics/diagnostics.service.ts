@@ -513,7 +513,7 @@ export async function changeReferralStatus(
   userId: string,
   reason?: string,
   cost?: number,
-  options?: { expectedStatus?: ReferralStatus; scheduledDate?: Date; scheduledTime?: string },
+  options?: { expectedStatus?: ReferralStatus; scheduledDate?: Date; scheduledTime?: string; useCenterCatalogPrice?: boolean },
 ) {
   const referral = await prisma.referral.findUnique({ where: { id } });
   if (!referral) throw new Error('Referral not found');
@@ -527,7 +527,7 @@ export async function changeReferralStatus(
     if (!sub.active) throw new Error('Подписка диагностического центра истекла. Приём новых направлений приостановлен до продления.');
   }
   if (status === 'ACCEPTED') {
-    const resolvedCost = cost ?? await resolveCenterStudyPrice(referral);
+    const resolvedCost = options?.useCenterCatalogPrice ? await resolveCenterStudyPrice(referral) : (cost ?? await resolveCenterStudyPrice(referral));
     if (resolvedCost === undefined || !Number.isFinite(resolvedCost) || resolvedCost <= 0) {
       throw new Error('Для принятия направления установите положительную цену услуги в прайс-листе центра.');
     }
