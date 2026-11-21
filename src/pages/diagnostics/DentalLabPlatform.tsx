@@ -235,14 +235,31 @@ function OrderCard({
               <div>
                 <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-txt-primary"><Activity size={14} /> История производства</p>
                 <div className="space-y-2">
-                  {lifecycleQuery.data.events.map((event) => (
-                    <div key={event.id} className="border-l-2 border-bdr-subtle pl-3">
-                      <p className="text-xs font-medium text-txt-primary">{event.fromStatus ? STAGES.find((stage) => stage.id === event.fromStatus)?.label || event.fromStatus : 'Заказ передан'} → {STAGES.find((stage) => stage.id === event.toStatus)?.label || event.toStatus}</p>
+                  {[
+                    ...lifecycleQuery.data.events.map((event) => ({
+                      key: `order-${event.id}`,
+                      at: event.createdAt,
+                      title: `${event.fromStatus ? STAGES.find((stage) => stage.id === event.fromStatus)?.label || event.fromStatus : 'Заказ передан'} → ${STAGES.find((stage) => stage.id === event.toStatus)?.label || event.toStatus}`,
+                      note: event.note,
+                      actorUserId: event.actorUserId,
+                    })),
+                    ...lifecycleQuery.data.shipmentEvents.map((event) => ({
+                      key: `shipment-${event.id}`,
+                      at: event.createdAt,
+                      title: event.eventType === 'DISPATCHED' ? 'Передано перевозчику'
+                        : event.eventType === 'READY_FOR_PICKUP' ? 'Подготовлено к самовывозу'
+                        : event.eventType === 'DELIVERED' ? 'Вручено получателю' : event.eventType,
+                      note: event.note,
+                      actorUserId: event.actorUserId,
+                    })),
+                  ].sort((left, right) => new Date(left.at).getTime() - new Date(right.at).getTime()).map((event) => (
+                    <div key={event.key} className="border-l-2 border-bdr-subtle pl-3">
+                      <p className="text-xs font-medium text-txt-primary">{event.title}</p>
                       {event.note && <p className="mt-1 text-xs text-txt-secondary">{event.note}</p>}
-                      <p className="mt-1 text-[10px] text-txt-muted">{new Date(event.createdAt).toLocaleString('ru-RU')} · действие сотрудника</p>
+                      <p className="mt-1 text-[10px] text-txt-muted">{new Date(event.at).toLocaleString('ru-RU')} · действие сотрудника {event.actorUserId ? event.actorUserId.slice(0, 8) : ''}</p>
                     </div>
                   ))}
-                  {!lifecycleQuery.data.events.length && <p className="text-xs text-txt-muted">Событий пока нет.</p>}
+                  {!lifecycleQuery.data.events.length && !lifecycleQuery.data.shipmentEvents.length && <p className="text-xs text-txt-muted">Событий пока нет.</p>}
                 </div>
               </div>
               {!!lifecycleQuery.data.shipments.length && <div>
