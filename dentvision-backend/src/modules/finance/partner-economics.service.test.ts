@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculatePartnerEconomics, buildPartnerEconomicsDashboard, canonicalPartnerEconomicsRules, getPartnerEconomicsTransparency, reconcilePartnerEconomics } from './partner-economics.service.js';
+import { calculatePartnerEconomics, buildPartnerEconomicsDashboard, canonicalPartnerEconomicsRules, getPartnerEconomicsTransparency, reconcilePartnerEconomics, recordPartnerEconomics } from './partner-economics.service.js';
 
 const [diagnostic, analysis, dentalLab] = canonicalPartnerEconomicsRules();
 
@@ -12,6 +12,44 @@ const base = {
   refundReserveMinor: 0n,
   taxMinor: 0n,
 };
+
+describe('dental laboratory monthly GMV tier resolution at settlement', () => {
+  it('includes the current case before selecting its commission tier', async () => {
+    const tx = {
+      $executeRaw: async () => undefined,
+      transaction: {
+        findFirst: async () => null,
+        findMany: async () => [{
+          amount: 99_000_000n, // prior monthly GMV: ₸990,000
+          meta: { partnerId: 'lab-1' },
+        }],
+        create: async ({ data }: any) => ({ id: 'partner-economics-current', ...data }),
+      },
+      commissionRule: {
+        findFirst: async () => null,
+        create: async ({ data }: any) => ({ domain: data.domain, percentBps: data.percentBps, splitJson: data.splitJson }),
+      },
+      wallet: {
+        findUnique: async () => null,
+        create: async ({ data }: any) => ({ id: `${data.ownerType}:${data.ownerId}`, ...data }),
+        update: async () => ({}),
+      },
+    } as any;
+
+    const result = await recordPartnerEconomics({
+      vertical: 'DENTAL_LAB',
+      partnerId: 'lab-1',
+      grossMinor: 2_000_000n, // current case: ₸20,000; monthly total crosses ₸1M
+      operationId: 'case-crosses-gmv-tier',
+    }, tx);
+
+    expect(result.meta).toMatchObject({
+      partnerId: 'lab-1',
+      rule: { percentBps: 800 },
+      commissionMinor: '160000',
+    });
+  });
+});
 
 describe('partner economics calculator', () => {
   it('applies diagnostic 7% with a 500 KZT floor', () => {
