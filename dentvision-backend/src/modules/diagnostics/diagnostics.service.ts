@@ -444,7 +444,21 @@ export async function listReferrals(opts: { clinicId?: string; doctorId?: string
 }
 
 export async function getReferral(id: string) {
-  return prisma.referral.findUnique({ where: { id }, include: { ...referralInclude, comments: { include: { author: { select: { id: true, firstName: true, lastName: true } } }, orderBy: { createdAt: 'asc' } } } });
+  return prisma.referral.findUnique({
+    where: { id },
+    include: {
+      ...referralInclude,
+      result: {
+        include: {
+          versions: { orderBy: { version: 'asc' } },
+        },
+      },
+      comments: {
+        include: { author: { select: { id: true, firstName: true, lastName: true } } },
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+  });
 }
 
 export async function createReferral(data: {
