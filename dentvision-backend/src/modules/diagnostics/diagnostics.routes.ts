@@ -630,6 +630,20 @@ diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), asy
       && req.user?.role !== 'SUPERADMIN'
       && sameOrgContext(req.user, 'DiagnosticCenter', String(referral.centerId));
     let options: { expectedStatus?: any; scheduledDate?: Date; scheduledTime?: string; useCenterCatalogPrice?: boolean } | undefined;
+    if (referral.centerId && req.user?.role !== 'SUPERADMIN' && !isCenterActor) {
+      const cancelReason = String(req.body?.reason || '').trim();
+      const mayCancelBeforeAcquisition = status === 'CANCELLED'
+        && ['SENT', 'ACCEPTED', 'SCHEDULED'].includes(String(referral.status))
+        && cancelReason.length >= 5;
+      if (!mayCancelBeforeAcquisition) {
+        return res.status(409).json({
+          ok: false,
+          error: 'Направление передано диагностическому центру. Его операционные этапы меняет центр; клиника может запросить отмену до начала исследования.',
+          code: 'DIAGNOSTIC_CENTER_OWNS_WORKFLOW',
+        } satisfies ApiResponse);
+      }
+      options = { expectedStatus: referral.status };
+    }
     if (isCenterActor) {
       const roleKeys = await activePartnerRoleKeys(req.user);
       const decision = authorizeDiagnosticCenterStatusTransition({
