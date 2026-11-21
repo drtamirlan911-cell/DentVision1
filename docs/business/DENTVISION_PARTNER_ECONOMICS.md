@@ -15,6 +15,39 @@ A critical distinction applies: DentVision can control its own fees and platform
 
 This policy complements the canonical Product Mission and Marketplace specification. DentVision remains an AI Operating System for Digital Dentistry; CRM, Marketplace and School are ecosystem modules, not isolated products.
 
+## Partner monetization — active commission and branch model
+
+**Decision:** DentVision monetizes partner organizations through the applicable vertical's branch subscriptions and/or commissions on commercial transactions generated or processed through DentVision. Partner cabinets are operating products with an explicit economic model; they are not universally free.
+
+The vertical-specific defaults, minimums, caps, volume tiers and revenue splits in Sections 5–9 are active business-policy inputs for implementation, Finance Hub calculations and partner contracts. They are not historical examples and must not be disabled by a blanket free-partner rule.
+
+### Commercial and settlement safeguards
+
+- Apply a fee only where the relevant vertical and transaction model below defines one or an approved contract explicitly sets one.
+- Transaction commission is earned on successful commercial settlement, not merely when a referral, order or case is created.
+- Branch subscriptions and transaction commissions are separate economic layers. A branch existing by itself does not create a transaction commission.
+- Show gross amount, DentVision fee, payment-provider costs where known, other deductions and expected partner net before confirmation.
+- Keep refunds, cancellations, remakes and chargebacks as compensating financial events; preserve the original settlement snapshot.
+- Do not apply a blanket commission to a clinic's total clinical treatment revenue. Clinic CRM subscription and partner transaction economics remain distinct.
+- Do not invent a tariff for a vertical that has no defined rate in this policy. Such a model requires an approved commercial decision before billing.
+
+### Vertical policy
+
+- Diagnostic / 3D centers: branch subscription and 7% transaction commission, subject to the per-study minimum and cap in Section 5.
+- Medical-analysis laboratories: branch subscription and 6% transaction commission, subject to the per-analysis minimum and cap in Section 6.
+- Dental laboratories: branch subscription and case commission with the volume tiers and limits in Section 7.
+- Marketplace suppliers / sellers: transaction take-rate and approved high-volume / strategic rates in Section 8.
+- Academies / lecturers: acquisition-source revenue split in Section 9.
+- Employers and other organization types: do not assume free or paid status from organization type alone; implement only an explicitly approved model.
+
+### Implementation and release gates
+
+1. Enforce the applicable participant-type and transaction-domain pricing server-side.
+2. Snapshot policy version, rate, minimum/cap, volume tier, gross amount, payment costs and partner net at settlement.
+3. Add positive tests proving each defined partner tariff is applied correctly and negative tests proving unrelated organizations or transactions cannot be charged.
+4. Keep Finance Hub reporting separated by CRM subscription, branch subscription, transaction commission, payment-provider costs, refunds and partner payouts.
+5. Verify partner-facing price previews, contracts, invoices, refunds and settlement reconciliation before release.
+
 ## 1. Universal economic rules
 
 1. Never take a percentage of a clinic's entire clinical revenue as the default SaaS model.

@@ -44,21 +44,40 @@ async function ensureClinicSubscriptionWritableIfClinicActor(req: AuthRequest, r
 }
 
 function sameOrgContext(user: AuthRequest['user'], type: 'DiagnosticCenter' | 'Laboratory', id: string): boolean { if (!user || !id) return false; if (user.role === 'SUPERADMIN') return true; const expected = type === 'DiagnosticCenter' ? 'DIAGNOSTIC_CENTER' : 'LABORATORY'; const entityId = (user as any).organizationOriginalId || user.organizationId; return entityId === id && (user as any).organizationType === expected; }
-function canManagePartnerBilling(user: AuthRequest['user']): boolean {
-  if (!user) return false;
-  const role = String(user.role || '').toUpperCase();
-  if (['SUPERADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'DIRECTOR', 'CASHIER'].includes(role)) return true;
-  // Partner-specific roles follow the same financial-control suffixes while
-  // keeping registrars/operators out of money-state mutations.
-  return /_(OWNER|ADMIN|MANAGER|DIRECTOR|CASHIER|FINANCE)$/.test(role);
+/**
+ * Partner role checks must use the canonical organization-scoped PersonRole.
+ * Auth middleware maps partner-only roles to the least-privileged STUDENT
+ * compatibility enum, so req.user.role is not the permission source.
+ */
+async function activePartnerRoleKeys(user: AuthRequest['user']): Promise<string[]> {
+  const organizationId = user?.organizationId;
+  if (!user || !organizationId) return [];
+  const memberships = await prisma.personRole.findMany({
+    where: {
+      scopeType: 'organization',
+      scopeId: organizationId,
+      person: { userId: user.id, organizationId },
+    },
+    select: { role: { select: { key: true } } },
+  });
+  return memberships.map((membership) => String(membership.role.key || '').trim().toLowerCase()).filter(Boolean);
 }
-function canManagePartnerCatalog(user: AuthRequest['user']): boolean {
+function hasPartnerManagementSuffix(keys: string[], allowCashier: boolean): boolean {
+  const suffix = allowCashier
+    ? /(?:^|_)(OWNER|ADMIN|MANAGER|DIRECTOR|CASHIER|FINANCE)$/
+    : /(?:^|_)(OWNER|ADMIN|MANAGER|DIRECTOR|FINANCE)$/;
+  return keys.some((key) => suffix.test(key.toUpperCase()));
+}
+async function canManagePartnerBilling(user: AuthRequest['user']): Promise<boolean> {
   if (!user) return false;
-  const role = String(user.role || '').toUpperCase();
-  if (['SUPERADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'DIRECTOR'].includes(role)) return true;
-  // Catalog/pricing is a privileged configuration mutation, not a cashier
-  // collection action. Partner-specific cashier roles must not reach it.
-  return /_(OWNER|ADMIN|MANAGER|DIRECTOR|FINANCE)$/.test(role);
+  if (user.role === 'SUPERADMIN') return true;
+  return hasPartnerManagementSuffix(await activePartnerRoleKeys(user), true);
+}
+async function canManagePartnerCatalog(user: AuthRequest['user']): Promise<boolean> {
+  if (!user) return false;
+  if (user.role === 'SUPERADMIN') return true;
+  // Cashiers can collect payments but must never change the catalogue/equipment.
+  return hasPartnerManagementSuffix(await activePartnerRoleKeys(user), false);
 }
 async function referralBranchAllowed(user: AuthRequest['user'], referral: { clinicId: string; branchId?: string | null }): Promise<boolean> { if (user.role === 'SUPERADMIN') return true; return canAccessReferralBranch(user, { clinicId: referral.clinicId, branchId: referral.branchId ?? null }); }
 async function referralListBranchIds(user: AuthRequest['user'], clinicId?: string): Promise<string[] | undefined> {
@@ -202,7 +221,7 @@ diagnosticsRouter.get('/lab-tests', async (req: AuthRequest, res) => {
 diagnosticsRouter.patch('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'DiagnosticCenter', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к центру' });
-    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
+    if (!(await canManagePartnerCatalog(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
     const studies = Array.isArray(req.body?.studies) ? req.body.studies : [];
     const ids = studies.map((x: any) => String(x?.id || '')).filter(Boolean);
     if (!ids.length) return res.json({ ok: true, data: [] } satisfies ApiResponse);
@@ -217,7 +236,7 @@ diagnosticsRouter.patch('/centers/:id/pricing', async (req: AuthRequest, res) =>
 diagnosticsRouter.post('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'DiagnosticCenter', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к центру' });
-    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
+    if (!(await canManagePartnerCatalog(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
     const name = String(req.body?.name || '').trim();
     const category = String(req.body?.category || '').toUpperCase();
     if (!name || !category) return res.status(400).json({ ok: false, error: 'Название и категория обязательны' });
@@ -228,7 +247,7 @@ diagnosticsRouter.post('/centers/:id/pricing', async (req: AuthRequest, res) => 
 diagnosticsRouter.patch('/laboratories/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'Laboratory', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к лаборатории' });
-    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
+    if (!(await canManagePartnerCatalog(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
     const tests = Array.isArray(req.body?.tests) ? req.body.tests : [];
     const ids = tests.map((x: any) => String(x?.id || '')).filter(Boolean);
     if (!ids.length) return res.json({ ok: true, data: [] } satisfies ApiResponse);
@@ -243,7 +262,7 @@ diagnosticsRouter.patch('/laboratories/:id/pricing', async (req: AuthRequest, re
 diagnosticsRouter.post('/laboratories/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'Laboratory', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к лаборатории' });
-    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
+    if (!(await canManagePartnerCatalog(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
     const name = String(req.body?.name || '').trim();
     const category = String(req.body?.category || '').toUpperCase();
     if (!name || !category) return res.status(400).json({ ok: false, error: 'Название и категория обязательны' });
@@ -251,6 +270,131 @@ diagnosticsRouter.post('/laboratories/:id/pricing', async (req: AuthRequest, res
     return res.status(201).json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); }
 });
+
+const DIAGNOSTIC_MODALITY_KINDS = new Set(['CBCT', 'OPG', 'TRG', 'INTRAORAL', 'PANORAMIC', 'CT', 'MRI', 'OTHER']);
+const DIAGNOSTIC_MODALITY_STATUSES = new Set(['active', 'maintenance', 'out_of_service']);
+function optionalMaintenanceDate(value: unknown): Date | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) throw new Error('Некорректная дата обслуживания оборудования');
+  return date;
+}
+
+diagnosticsRouter.get('/centers/:id/modalities', async (req: AuthRequest, res) => {
+  try {
+    const centerId = String(req.params.id);
+    if (!sameOrgContext(req.user, 'DiagnosticCenter', centerId)) return res.status(403).json({ ok: false, error: 'Нет доступа к оборудованию центра' });
+    return res.json({ ok: true, data: await svc.listDiagnosticModalities(centerId) } satisfies ApiResponse);
+  } catch {
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить оборудование центра' } satisfies ApiResponse);
+  }
+});
+
+diagnosticsRouter.post('/centers/:id/modalities', async (req: AuthRequest, res) => {
+  try {
+    const centerId = String(req.params.id);
+    if (!sameOrgContext(req.user, 'DiagnosticCenter', centerId)) return res.status(403).json({ ok: false, error: 'Нет доступа к оборудованию центра' });
+    if (!(await canManagePartnerCatalog(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления оборудованием' });
+    const name = String(req.body?.name || '').trim();
+    const kind = String(req.body?.kind || '').trim().toUpperCase();
+    const aeTitle = String(req.body?.aeTitle || '').trim().toUpperCase();
+    if (name.length < 2 || name.length > 120) return res.status(400).json({ ok: false, error: 'Название оборудования должно содержать от 2 до 120 символов' });
+    if (!DIAGNOSTIC_MODALITY_KINDS.has(kind)) return res.status(400).json({ ok: false, error: 'Неизвестный тип диагностического оборудования' });
+    if (aeTitle && aeTitle.length > 16) return res.status(400).json({ ok: false, error: 'DICOM AE Title не должен превышать 16 символов' });
+    const data = await svc.createDiagnosticModality(centerId, {
+      name, kind,
+      manufacturer: String(req.body?.manufacturer || '').trim() || undefined,
+      model: String(req.body?.model || '').trim() || undefined,
+      serialNumber: String(req.body?.serialNumber || '').trim() || undefined,
+      room: String(req.body?.room || '').trim() || undefined,
+      aeTitle: aeTitle || undefined,
+      nextMaintenanceAt: optionalMaintenanceDate(req.body?.nextMaintenanceAt),
+    });
+    await auditFromReq(req, { action: 'diagnostics.modality.create', entity: 'diagnostic_modality', entityId: data.id });
+    return res.status(201).json({ ok: true, data } satisfies ApiResponse);
+  } catch (error: any) {
+    const duplicate = String(error?.code || '') === 'P2002';
+    return res.status(400).json({ ok: false, error: duplicate ? 'Оборудование с таким серийным номером уже зарегистрировано' : (error?.message || 'Не удалось добавить оборудование') } satisfies ApiResponse);
+  }
+});
+
+diagnosticsRouter.patch('/centers/:id/modalities/:modalityId', async (req: AuthRequest, res) => {
+  try {
+    const centerId = String(req.params.id);
+    const modalityId = String(req.params.modalityId);
+    if (!sameOrgContext(req.user, 'DiagnosticCenter', centerId)) return res.status(403).json({ ok: false, error: 'Нет доступа к оборудованию центра' });
+    if (!(await canManagePartnerCatalog(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления оборудованием' });
+    const patch: Record<string, unknown> = {};
+    if ('name' in req.body) patch.name = String(req.body.name || '').trim();
+    if ('kind' in req.body) patch.kind = String(req.body.kind || '').trim().toUpperCase();
+    for (const key of ['manufacturer', 'model', 'serialNumber', 'room'] as const) {
+      if (key in req.body) patch[key] = String(req.body[key] || '').trim() || null;
+    }
+    if ('aeTitle' in req.body) {
+      const aeTitle = String(req.body.aeTitle || '').trim().toUpperCase();
+      if (aeTitle.length > 16) return res.status(400).json({ ok: false, error: 'DICOM AE Title не должен превышать 16 символов' });
+      patch.aeTitle = aeTitle || null;
+    }
+    if ('status' in req.body) {
+      const status = String(req.body.status || '').trim();
+      if (!DIAGNOSTIC_MODALITY_STATUSES.has(status)) return res.status(400).json({ ok: false, error: 'Недопустимый статус оборудования' });
+      patch.status = status;
+    }
+    if ('lastMaintenanceAt' in req.body) patch.lastMaintenanceAt = optionalMaintenanceDate(req.body.lastMaintenanceAt);
+    if ('nextMaintenanceAt' in req.body) patch.nextMaintenanceAt = optionalMaintenanceDate(req.body.nextMaintenanceAt);
+    if ('kind' in patch && !DIAGNOSTIC_MODALITY_KINDS.has(String(patch.kind))) return res.status(400).json({ ok: false, error: 'Неизвестный тип диагностического оборудования' });
+    if ('name' in patch && (String(patch.name).length < 2 || String(patch.name).length > 120)) return res.status(400).json({ ok: false, error: 'Некорректное название оборудования' });
+    if (Object.keys(patch).length === 0) return res.status(400).json({ ok: false, error: 'Нет полей для обновления' });
+    const data = await svc.updateDiagnosticModality(centerId, modalityId, patch as any);
+    await auditFromReq(req, { action: 'diagnostics.modality.update', entity: 'diagnostic_modality', entityId: modalityId });
+    return res.json({ ok: true, data } satisfies ApiResponse);
+  } catch (error: any) {
+    const duplicate = String(error?.code || '') === 'P2002';
+    return res.status(400).json({ ok: false, error: duplicate ? 'Оборудование с таким серийным номером уже зарегистрировано' : (error?.message || 'Не удалось обновить оборудование') } satisfies ApiResponse);
+  }
+});
+
+diagnosticsRouter.get('/centers/:id/worklist', async (req: AuthRequest, res) => {
+  try {
+    const centerId = String(req.params.id);
+    if (!sameOrgContext(req.user, 'DiagnosticCenter', centerId)) return res.status(403).json({ ok: false, error: 'Нет доступа к рабочей очереди центра' });
+    const status = req.query.status ? String(req.query.status).toUpperCase() : undefined;
+    const priority = req.query.priority ? String(req.query.priority).toUpperCase() : undefined;
+    const allowedStatuses = new Set(['SENT', 'ACCEPTED', 'SCHEDULED', 'PATIENT_ARRIVED', 'IN_PROGRESS', 'COMPLETED', 'REVIEWED', 'DELIVERED']);
+    const allowedPriorities = new Set(['NORMAL', 'URGENT', 'EMERGENCY']);
+    if (status && !allowedStatuses.has(status)) return res.status(400).json({ ok: false, error: 'Недопустимый фильтр статуса' });
+    if (priority && !allowedPriorities.has(priority)) return res.status(400).json({ ok: false, error: 'Недопустимый фильтр приоритета' });
+    const search = String(req.query.search || '').trim().slice(0, 80);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 100);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    return res.json({ ok: true, data: await svc.getDiagnosticCenterWorklist(centerId, { status, priority, search: search || undefined, limit, offset }) } satisfies ApiResponse);
+  } catch {
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить рабочую очередь центра' } satisfies ApiResponse);
+  }
+});
+
+diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/modality', async (req: AuthRequest, res) => {
+  try {
+    const centerId = String(req.params.centerId);
+    const referralId = String(req.params.referralId);
+    if (!sameOrgContext(req.user, 'DiagnosticCenter', centerId)) return res.status(403).json({ ok: false, error: 'Нет доступа к рабочей очереди центра' });
+    if (!(await canManagePartnerCatalog(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для назначения оборудования' });
+    const referral = await prisma.referral.findFirst({ where: { id: referralId, centerId }, select: { id: true } });
+    if (!referral) return res.status(404).json({ ok: false, error: 'Исследование не найдено в очереди этого центра' });
+    const modalityId = req.body?.modalityId ? String(req.body.modalityId) : null;
+    if (modalityId) {
+      const modality = await prisma.diagnosticModality.findFirst({ where: { id: modalityId, centerId, status: 'active' }, select: { id: true } });
+      if (!modality) return res.status(400).json({ ok: false, error: 'Можно назначить только активное оборудование этого центра' });
+    }
+    await prisma.referral.update({ where: { id: referralId }, data: { modalityId } });
+    await auditFromReq(req, { action: 'diagnostics.worklist.modality.assign', entity: 'referral', entityId: referralId });
+    return res.json({ ok: true, data: { referralId, modalityId } } satisfies ApiResponse);
+  } catch (error: any) {
+    return res.status(400).json({ ok: false, error: error?.message || 'Не удалось назначить оборудование' } satisfies ApiResponse);
+  }
+});
+
 diagnosticsRouter.get('/referrals', async (req: AuthRequest, res) => {
   try {
     const q = req.query as Record<string, string | undefined>;
@@ -289,7 +433,7 @@ diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), asy
 // Keep it separate from /status so COMPLETED and PAID cannot be conflated.
 diagnosticsRouter.post('/referrals/:id/mark-paid', requireReferralAccess(true), async (req: AuthRequest, res: any) => {
   try {
-    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
+    if (!(await canManagePartnerBilling(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
     const cost = req.body?.cost === undefined ? undefined : Number(req.body.cost);
     if (cost !== undefined && (!Number.isFinite(cost) || cost < 0)) return res.status(400).json({ ok: false, error: 'Некорректная стоимость' });
     const won = await claimReferralPaid(req.params.id, { paid: true, paidAt: new Date(), ...(cost !== undefined ? { cost } : {}),  });
@@ -301,7 +445,7 @@ diagnosticsRouter.post('/referrals/:id/mark-paid', requireReferralAccess(true), 
 diagnosticsRouter.post('/centers/:id/cashier/collect', async (req: AuthRequest, res: any) => {
   try {
     if (!sameOrgContext(req.user, 'DiagnosticCenter', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к центру' });
-    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
+    if (!(await canManagePartnerBilling(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
     const referralId = String(req.body?.referralId || '');
     const cost = Number(req.body?.cost);
     const platformFee = undefined;
@@ -316,7 +460,7 @@ diagnosticsRouter.post('/centers/:id/cashier/collect', async (req: AuthRequest, 
 diagnosticsRouter.post('/laboratories/:id/cashier/collect', async (req: AuthRequest, res: any) => {
   try {
     if (!sameOrgContext(req.user, 'Laboratory', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к лаборатории' });
-    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
+    if (!(await canManagePartnerBilling(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
     const referralId = String(req.body?.referralId || '');
     const cost = Number(req.body?.cost);
     if (!referralId || !Number.isFinite(cost) || cost <= 0) return res.status(400).json({ ok: false, error: 'Некорректные данные оплаты' });

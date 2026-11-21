@@ -1007,6 +1007,32 @@ export default function FinanceTab() {
                 <p className="text-sm text-txt-secondary">{disputeDetail.description || disputeDetail.subject || disputeDetail.title || disputeDetail.reason}</p>
               </div>
             )}
+            {Array.isArray(disputeDetail.supplierResponses) && disputeDetail.supplierResponses.length > 0 && (
+              <section className="space-y-3 rounded-xl border border-bdr-subtle bg-surface-1 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-txt-primary">Ответы поставщиков</p>
+                    <p className="text-xs text-txt-muted">Материалы для рассмотрения платформой · сами по себе не выполняют возврат</p>
+                  </div>
+                  <Badge size="sm">{disputeDetail.supplierResponses.length}</Badge>
+                </div>
+                {disputeDetail.supplierResponses.map((response: any) => (
+                  <article key={response.id} className="rounded-lg border border-bdr-subtle bg-surface-2 p-3 space-y-2">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-txt-primary">{response.supplier?.name || 'Поставщик'}</p>
+                        <p className="text-xs text-txt-muted">
+                          {response.responseType === 'ACKNOWLEDGE_RETURN_REQUEST' ? 'Подтвердил получение претензии' : 'Оспаривает претензию'}
+                        </p>
+                      </div>
+                      <span className="text-xs text-txt-muted">{fd(response.createdAt)}</span>
+                    </div>
+                    <p className="text-sm text-txt-secondary whitespace-pre-wrap break-words">{response.note}</p>
+                    <p className="text-[11px] text-txt-muted">Участник: {response.actorUserId || '—'} · {response.supplier?.status || 'Статус не указан'}</p>
+                  </article>
+                ))}
+              </section>
+            )}
             {disputeDetail.walletId && (
               <div>
                 <p className="text-xs text-txt-muted mb-1">Кошелёк</p>

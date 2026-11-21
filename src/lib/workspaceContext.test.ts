@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { contextRequestHeaders, workflowContext, workspaceContextFrom } from './workspaceContext'
+import { contextRequestHeaders, selectWorkspaceContext, workflowContext, workspaceContextFrom } from './workspaceContext'
 
 describe('workspace context contract', () => {
   const source = {
@@ -40,5 +40,40 @@ describe('workspace context contract', () => {
     expect(headers['X-DentVision-Organization-Id']).toBe('org-a')
     expect(headers['X-DentVision-Branch-Id']).toBe('branch-a')
     expect(headers['X-DentVision-Workspace-Id']).toBe('workspace-a')
+  })
+
+  it('prefers the exact active scope over the first membership', () => {
+    const contexts = [
+      { scopeId: 'supplier-a', organizationId: 'org-a' },
+      { scopeId: 'supplier-b', organizationId: 'org-b' },
+    ]
+    expect(selectWorkspaceContext(contexts, { scopeId: 'supplier-b', organizationId: 'org-b' })?.scopeId).toBe('supplier-b')
+  })
+
+  it('falls back to the canonical organization id when the legacy scope is unavailable', () => {
+    const contexts = [
+      { scopeId: 'lecturer-a', organizationId: 'org-a' },
+      { scopeId: 'lecturer-b', organizationId: 'org-b' },
+    ]
+    expect(selectWorkspaceContext(contexts, { organizationId: 'org-b' })?.scopeId).toBe('lecturer-b')
+  })
+
+  it('fails closed when the active identity does not match an available membership', () => {
+    const contexts = [
+      { scopeId: 'supplier-a', organizationId: 'org-a' },
+      { scopeId: 'supplier-b', organizationId: 'org-b' },
+    ]
+    expect(selectWorkspaceContext(contexts, { scopeId: 'missing', organizationId: 'missing' })).toBeNull()
+  })
+
+  it('auto-selects only a sole membership when there is no active identity', () => {
+    const single = [{ scopeId: 'supplier-a', organizationId: 'org-a' }]
+    const multiple = [
+      { scopeId: 'supplier-a', organizationId: 'org-a' },
+      { scopeId: 'supplier-b', organizationId: 'org-b' },
+    ]
+    expect(selectWorkspaceContext(single)?.scopeId).toBe('supplier-a')
+    expect(selectWorkspaceContext(multiple)).toBeNull()
+    expect(selectWorkspaceContext([])).toBeNull()
   })
 })

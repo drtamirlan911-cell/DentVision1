@@ -162,6 +162,11 @@ export default function SchoolCourse() {
       if (res?.status === 'paid' || res?.settled || res?.alreadyPaid) {
         setPendingPay(null);
         await reloadEnrollment();
+        // The pre-purchase detail response is intentionally a safe preview.
+        // Fetch again only after provider settlement so the server can verify
+        // the new entitlement and return the protected lesson content.
+        const unlocked = await api.getSchoolCourse(id!);
+        setCourse(unlocked?.data || unlocked);
         toast.showToast('Оплата прошла — курс открыт', 'success');
       } else {
         toast.showToast('Оплата ещё не подтверждена', 'info');
@@ -176,19 +181,29 @@ export default function SchoolCourse() {
   const markComplete = async (lessonId: string) => {
     if (!enrollmentId) { toast.showToast('Сначала запишитесь на курс', 'error'); return; }
     if (completedLessons.includes(lessonId)) { toast.showToast('Урок уже пройден', 'info'); return; }
-    const arr = [...completedLessons, lessonId];
-    const prog = totalLessons > 0 ? Math.round((arr.length / totalLessons) * 100) : 100;
-    setCompletedLessons(arr);
-    setProgress(prog);
+
+    const previousLessons = completedLessons;
+    const nextLessons = [...previousLessons, lessonId];
     try {
-      await api.updateEnrollment(enrollmentId, { progress: prog, completedLessons: arr });
+      const response = await api.updateEnrollment(enrollmentId, { completedLessons: nextLessons });
+      const saved = response?.data || response;
+      const savedLessons = parseLessons(saved?.completedLessons);
+      setCompletedLessons(savedLessons);
+      setProgress(Number(saved?.progress ?? 0));
       toast.showToast('Урок отмечен как пройденный', 'success');
-      if (prog >= 100) {
-        const certs = await api.getSchoolCertificates(user!.id);
-        const cert = certs.find((c: any) => c.courseId === id);
-        if (cert) setCertificate(cert);
+
+      // Lesson completion is not course completion. The server issues the
+      // credential only after a successful, persisted final assessment.
+      if (saved?.completed === true) {
+        const certResponse = await api.getSchoolCertificates(user!.id);
+        const certs = Array.isArray(certResponse) ? certResponse : certResponse?.data || [];
+        const issued = certs.find((item: any) => item.courseId === id);
+        if (issued) setCertificate(issued);
       }
-    } catch { toast.showToast('Не удалось сохранить прогресс', 'error'); }
+    } catch {
+      setCompletedLessons(previousLessons);
+      toast.showToast('Не удалось сохранить прогресс. Попробуйте ещё раз.', 'error');
+    }
   };
 
   const submitExam = async () => {
@@ -199,12 +214,9 @@ export default function SchoolCourse() {
       const result = await api.submitLessonExam(activeLesson.id, examAnswers, id);
       setExamResult(result);
       if (result.passed) {
-        if (!completedLessons.includes(activeLesson.id)) {
-          setCompletedLessons((prev) => [...prev, activeLesson.id]);
-        }
-        if (result.score) setProgress((p) => Math.max(p, result.score));
+        await reloadEnrollment();
         if (result.certificate) setCertificate(result.certificate);
-        toast.showToast(`Сдано: ${result.score}%`, 'success');
+        toast.showToast(`Экзамен сдан: ${result.score}%`, 'success');
       } else {
         toast.showToast(`Не сдано: ${result.score}% (нужно ${result.passingScore || result.passScore || 70}%)`, 'warning');
       }

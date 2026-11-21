@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { BriefcaseBusiness, Users, Plus, ArrowLeft, RefreshCw } from 'lucide-react';
+import { BriefcaseBusiness, Users, Plus, ArrowLeft, RefreshCw, CalendarClock } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Button } from '@/components/ui/ds/Button';
@@ -16,6 +16,9 @@ import {
   getEmployerResumes,
   getEmployerVacancyApplications,
   updateEmployerApplicationStatus,
+  createEmployerInvitation,
+  createEmployerInterview,
+  createEmployerJobOffer,
 } from '@/utils/api';
 
 type EmployerVacancy = { id: string; title: string; city: string; status: string; applicationsCount?: number };
@@ -30,15 +33,19 @@ type EmployerResume = {
   description?: string;
   tags?: string[];
   createdAt?: string;
+  user?: { firstName?: string; lastName?: string };
 };
 type EmployerApplication = {
   id: string;
   vacancyId: string;
   userName?: string;
-  user?: { firstName?: string; lastName?: string; email?: string };
+  user?: { firstName?: string; lastName?: string };
   coverNote?: string;
   status: string;
   createdAt: string;
+  events?: Array<{ id: string; eventType: string; fromStatus?: string | null; toStatus?: string | null; message?: string | null; candidateVisible: boolean; createdAt: string }>;
+  interviews?: Array<{ id: string; scheduledAt: string; timezone: string; durationMinutes: number; mode: string; location?: string | null; meetingUrl?: string | null; status: string; candidateResponse?: string | null; candidateRespondedAt?: string | null }>;
+  offers?: Array<{ id: string; title: string; salary?: string | null; currency: string; employmentType: string; expiresAt: string; status: string; version: number; respondedAt?: string | null; candidateMessage?: string | null }>;
 };
 
 const NEXT_STATUS: Record<string, string[]> = {
@@ -82,6 +89,15 @@ export default function JobsEmployerWorkspace() {
   const [appsLoading, setAppsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
+  const [interviewDraftId, setInterviewDraftId] = useState<string | null>(null);
+  const [interviewDateTime, setInterviewDateTime] = useState('');
+  const [interviewMeetingUrl, setInterviewMeetingUrl] = useState('');
+  const [interviewAgenda, setInterviewAgenda] = useState('');
+  const [offerDraftId, setOfferDraftId] = useState<string | null>(null);
+  const [offerSalary, setOfferSalary] = useState('');
+  const [offerStartAt, setOfferStartAt] = useState('');
+  const [offerExpiresAt, setOfferExpiresAt] = useState(() => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16));
+  const [actionBusyId, setActionBusyId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
 
@@ -212,6 +228,80 @@ export default function JobsEmployerWorkspace() {
     }
   };
 
+  const inviteCandidate = async (resume: EmployerResume) => {
+    if (!selectedVacancyId) {
+      toast.error('Сначала выберите вакансию, к которой относится приглашение');
+      return;
+    }
+    setActionBusyId(resume.id);
+    try {
+      await createEmployerInvitation({
+        resumeId: resume.id,
+        vacancyId: selectedVacancyId,
+        message: `Мы заинтересованы в вашем профиле и хотим обсудить вакансию «${selectedVacancy?.title || ''}».`,
+      });
+      toast.success('Приглашение отправлено кандидату');
+    } catch (error: any) {
+      toast.error(error?.message || 'Не удалось отправить приглашение');
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
+  const scheduleInterview = async (application: EmployerApplication) => {
+    if (!interviewDateTime || !interviewMeetingUrl.trim()) {
+      toast.error('Укажите дату и ссылку на онлайн-собеседование');
+      return;
+    }
+    setActionBusyId(application.id);
+    try {
+      await createEmployerInterview(application.id, {
+        scheduledAt: new Date(interviewDateTime).toISOString(),
+        durationMinutes: 30,
+        timezone: 'Asia/Almaty',
+        mode: 'online',
+        meetingUrl: interviewMeetingUrl.trim(),
+        agenda: interviewAgenda.trim() || undefined,
+      });
+      toast.success('Собеседование назначено. Кандидат получил уведомление');
+      setInterviewDraftId(null);
+      setInterviewDateTime('');
+      setInterviewMeetingUrl('');
+      setInterviewAgenda('');
+      await loadApplications(application.vacancyId);
+    } catch (error: any) {
+      toast.error(error?.message || 'Не удалось назначить собеседование');
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
+  const sendJobOffer = async (application: EmployerApplication) => {
+    if (!offerExpiresAt) {
+      toast.error('Укажите срок действия предложения');
+      return;
+    }
+    setActionBusyId(application.id);
+    try {
+      await createEmployerJobOffer(application.id, {
+        title: selectedVacancy?.title || 'Предложение о работе',
+        salary: offerSalary.trim() || undefined,
+        currency: 'KZT',
+        employmentType: 'Полная занятость',
+        startAt: offerStartAt ? new Date(offerStartAt).toISOString() : undefined,
+        expiresAt: new Date(offerExpiresAt).toISOString(),
+      });
+      toast.success('Предложение отправлено кандидату. Договор оформляется отдельно');
+      setOfferDraftId(null);
+      setOfferSalary('');
+      await loadApplications(application.vacancyId);
+    } catch (error: any) {
+      toast.error(error?.message || 'Не удалось отправить предложение');
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
   return (
     <main className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
       <PageHeader
@@ -317,11 +407,100 @@ export default function JobsEmployerWorkspace() {
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <p className="font-medium text-txt-primary">{name}</p>
-                        <p className="text-xs text-txt-muted">{application.user?.email}</p>
                       </div>
                       <Badge>{STATUS_LABEL[application.status] || application.status}</Badge>
                     </div>
                     {application.coverNote && <p className="mt-2 whitespace-pre-wrap text-sm text-txt-secondary">{application.coverNote}</p>}
+                    {!!application.events?.length && (
+                      <div className="mt-3 space-y-2 rounded-lg bg-surface-2 p-3">
+                        <p className="text-xs font-semibold text-txt-secondary">История отклика и ответы кандидата</p>
+                        <ol className="space-y-2">
+                          {application.events.map((event) => (
+                            <li key={event.id} className="flex gap-2 text-xs">
+                              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-dv-gold" />
+                              <div className="min-w-0">
+                                <p className="text-txt-primary">{event.message || event.toStatus || event.eventType}</p>
+                                <p className="mt-0.5 text-txt-muted">{new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Almaty' }).format(new Date(event.createdAt))}</p>
+                              </div>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    )}
+                    {!!application.interviews?.length && (
+                      <div className="mt-3 space-y-2">
+                        {application.interviews.map((interview) => (
+                          <div key={interview.id} className="rounded-lg border border-bdr-subtle p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-xs font-semibold text-txt-primary">Собеседование · {new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short', timeZone: interview.timezone || 'Asia/Almaty' }).format(new Date(interview.scheduledAt))}</p>
+                              <Badge variant={interview.candidateResponse === 'confirmed' ? 'success' : interview.candidateResponse === 'declined' ? 'warning' : 'outline'}>
+                                {interview.candidateResponse === 'confirmed' ? 'Кандидат подтвердил' : interview.candidateResponse === 'declined' ? 'Кандидат отклонил' : interview.candidateResponse === 'reschedule_requested' ? 'Просит перенести' : interview.status === 'proposed' ? 'Ожидает ответа' : interview.status}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-txt-muted">{interview.mode === 'online' ? 'Онлайн' : interview.mode === 'in_person' ? 'Лично' : 'Телефон'} · {interview.durationMinutes} мин.</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {!!application.offers?.length && (
+                      <div className="mt-3 space-y-2">
+                        {application.offers.map((offer) => (
+                          <div key={offer.id} className="rounded-lg border border-bdr-subtle p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-xs font-semibold text-txt-primary">Оффер · версия {offer.version} · {offer.title}</p>
+                              <Badge variant={offer.status === 'accepted' ? 'success' : offer.status === 'declined' ? 'warning' : 'outline'}>
+                                {offer.status === 'accepted' ? 'Кандидат принял' : offer.status === 'declined' ? 'Кандидат отклонил' : offer.status === 'expired' ? 'Срок истёк' : 'Ожидает ответа'}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-txt-muted">{offer.salary || 'Условия обсуждаются'} {offer.currency} · действительно до {new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeZone: 'Asia/Almaty' }).format(new Date(offer.expiresAt))}</p>
+                            {offer.candidateMessage && <p className="mt-2 text-xs text-txt-secondary">Ответ: {offer.candidateMessage}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(application.status === 'reviewing' || application.status === 'interview') && (
+                        <Button size="sm" className="min-h-10" variant="secondary" onClick={() => { setInterviewDraftId(interviewDraftId === application.id ? null : application.id); setOfferDraftId(null); }}>
+                          <CalendarClock size={14} /> Назначить собеседование
+                        </Button>
+                      )}
+                      {(application.status === 'interview' || application.status === 'offer') && (
+                        <Button size="sm" className="min-h-10" variant="secondary" onClick={() => { setOfferDraftId(offerDraftId === application.id ? null : application.id); setInterviewDraftId(null); }}>
+                          <BriefcaseBusiness size={14} /> Отправить предложение
+                        </Button>
+                      )}
+                    </div>
+                    {interviewDraftId === application.id && (
+                      <div className="mt-3 space-y-3 rounded-lg border border-bdr-subtle bg-surface-2 p-3">
+                        <p className="text-sm font-semibold text-txt-primary">Назначить онлайн-собеседование</p>
+                        <label className="block text-xs text-txt-muted">Дата и время (Тараз, UTC+5)
+                          <input type="datetime-local" value={interviewDateTime} onChange={(event) => setInterviewDateTime(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" />
+                        </label>
+                        <Input label="Ссылка на встречу" value={interviewMeetingUrl} onChange={(event) => setInterviewMeetingUrl(event.target.value)} placeholder="https://…" />
+                        <Textarea label="Повестка" value={interviewAgenda} onChange={(event) => setInterviewAgenda(event.target.value)} />
+                        <div className="flex flex-wrap gap-2">
+                          <Button className="min-h-10" size="sm" loading={actionBusyId === application.id} disabled={!!actionBusyId} onClick={() => void scheduleInterview(application)}>Отправить приглашение</Button>
+                          <Button className="min-h-10" size="sm" variant="ghost" onClick={() => setInterviewDraftId(null)}>Отмена</Button>
+                        </div>
+                      </div>
+                    )}
+                    {offerDraftId === application.id && (
+                      <div className="mt-3 space-y-3 rounded-lg border border-bdr-subtle bg-surface-2 p-3">
+                        <p className="text-sm font-semibold text-txt-primary">Предложение о работе</p>
+                        <Input label="Зарплата" value={offerSalary} onChange={(event) => setOfferSalary(event.target.value)} placeholder="Например, 500 000 ₸" />
+                        <label className="block text-xs text-txt-muted">Предполагаемая дата выхода
+                          <input type="datetime-local" value={offerStartAt} onChange={(event) => setOfferStartAt(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" />
+                        </label>
+                        <label className="block text-xs text-txt-muted">Предложение действительно до
+                          <input type="datetime-local" value={offerExpiresAt} onChange={(event) => setOfferExpiresAt(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" />
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          <Button className="min-h-10" size="sm" loading={actionBusyId === application.id} disabled={!!actionBusyId} onClick={() => void sendJobOffer(application)}>Отправить предложение</Button>
+                          <Button className="min-h-10" size="sm" variant="ghost" onClick={() => setOfferDraftId(null)}>Отмена</Button>
+                        </div>
+                        <p className="text-xs text-txt-muted">Принятие предложения кандидатом не считается подписанием трудового договора.</p>
+                      </div>
+                    )}
                     {next.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {next.map((status) => (
@@ -389,6 +568,12 @@ export default function JobsEmployerWorkspace() {
                       {resume.tags.map((tag) => <Badge key={tag} variant="outline" size="xs">{tag}</Badge>)}
                     </div>
                   )}
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <p className="truncate text-xs text-txt-muted">{[resume.user?.firstName, resume.user?.lastName].filter(Boolean).join(' ') || 'Специалист DentVision'}</p>
+                    <Button className="min-h-10 shrink-0" size="sm" variant="secondary" loading={actionBusyId === resume.id} disabled={!!actionBusyId || !selectedVacancyId} onClick={() => void inviteCandidate(resume)}>
+                      Пригласить
+                    </Button>
+                  </div>
                 </article>
               ))}
             </div>

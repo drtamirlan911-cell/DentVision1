@@ -7,6 +7,8 @@ import {
   Megaphone, Tag, Star, Truck, ArrowRight, Box, Percent, Camera, ImageIcon,
 } from 'lucide-react'
 import * as api from '@/utils/api'
+import { useAuth } from '@/store/auth.store'
+import { selectWorkspaceContext } from '@/lib/workspaceContext'
 import { useToast } from '@/components/ui/ds/Toast'
 import { Button } from '@/components/ui/ds/Button'
 import { Input } from '@/components/ui/ds/Input'
@@ -19,9 +21,13 @@ import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload'
 import { SUPPLIER_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits';
 
 type TabId = 'overview' | 'sales' | 'stock' | 'returns' | 'ads' | 'analytics' | 'catalog' | 'profile'
+type SupplierDisputeResponseType = 'ACKNOWLEDGE_RETURN_REQUEST' | 'CONTEST_RETURN_REQUEST'
 
 interface SupplierCtx {
   scopeId: string
+  organizationId?: string
+  name?: string
+  roleLabel?: string
   role: string
   supplier?: { id: string; name: string; status: string }
 }
@@ -75,9 +81,11 @@ const severityClass: Record<string, string> = {
 
 export default function SupplierWorkspace() {
   const toast = useToast()
+  const { activeWorkspace } = useAuth()
   const [loading, setLoading] = useState(true)
   const [contexts, setContexts] = useState<SupplierCtx[]>([])
   const [token, setToken] = useState<string | null>(null)
+  const [contextSwitching, setContextSwitching] = useState(false)
   const [tab, setTab] = useState<TabId>('overview')
 
   const [me, setMe] = useState<any>(null)
@@ -105,6 +113,15 @@ export default function SupplierWorkspace() {
 
   const [regForm, setRegForm] = useState({ name: '', bin: '', phone: '', email: '', contactPerson: '', legalAddress: '' })
   const [regSaving, setRegSaving] = useState(false)
+  const [shipmentOrder, setShipmentOrder] = useState<any>(null)
+  const [shipmentForm, setShipmentForm] = useState({ carrier: '', trackingNumber: '', trackingUrl: '' })
+  const [shipmentSaving, setShipmentSaving] = useState(false)
+  const [deliveryOrder, setDeliveryOrder] = useState<any>(null)
+  const [deliveryForm, setDeliveryForm] = useState({ proofUrl: '', recipientName: '', note: '' })
+  const [deliverySaving, setDeliverySaving] = useState(false)
+  const [returnResponseDispute, setReturnResponseDispute] = useState<any>(null)
+  const [returnResponseNote, setReturnResponseNote] = useState('')
+  const [returnResponseSaving, setReturnResponseSaving] = useState(false)
 
   const loadAll = useCallback(async (t: string) => {
     const [meRes, dashRes, rulesRes] = await Promise.all([
@@ -121,12 +138,17 @@ export default function SupplierWorkspace() {
   }, [])
 
   const enterSupplier = useCallback(async (scopeId: string) => {
+    setContextSwitching(true)
+    setToken(null)
     try {
       const res = await api.switchContext('SUPPLIER', scopeId)
       setToken(res.accessToken)
       await loadAll(res.accessToken)
     } catch {
-      toast.error('Не удалось войти в кабинет поставщика')
+      setToken(null)
+      toast.error('Не удалось войти в выбранную организацию поставщика')
+    } finally {
+      setContextSwitching(false)
     }
   }, [loadAll, toast])
 
@@ -134,20 +156,40 @@ export default function SupplierWorkspace() {
     ;(async () => {
       try {
         const res = await api.getMyContexts()
-        const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER')
+        const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER') as SupplierCtx[]
         setContexts(sup)
-        if (sup.length > 0) await enterSupplier(sup[0].scopeId)
+        const preferred = selectWorkspaceContext(sup, {
+          scopeId: activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.scopeId : null,
+          organizationId: activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.organizationId : null,
+        })
+        if (preferred) await enterSupplier(preferred.scopeId)
       } catch { /* ignore */ } finally {
         setLoading(false)
       }
     })()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    const handleWorkspaceSwitch = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string; scopeId?: string; scopeType?: string }>).detail
+      if (detail?.scopeType !== 'SUPPLIER') return
+      const prefix = 'SUPPLIER:'
+      const scopeId = detail.scopeId || (String(detail.id || '').startsWith(prefix) ? String(detail.id).slice(prefix.length) : '')
+      if (scopeId) void enterSupplier(scopeId)
+    }
+    window.addEventListener('dentvision:workspace-switched', handleWorkspaceSwitch)
+    return () => window.removeEventListener('dentvision:workspace-switched', handleWorkspaceSwitch)
+  }, [enterSupplier])
+
   const reloadContexts = async () => {
     const res = await api.getMyContexts()
-    const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER')
+    const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER') as SupplierCtx[]
     setContexts(sup)
-    if (sup.length > 0) await enterSupplier(sup[0].scopeId)
+    const preferred = selectWorkspaceContext(sup, {
+          scopeId: activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.scopeId : null,
+          organizationId: activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.organizationId : null,
+        })
+    if (preferred) await enterSupplier(preferred.scopeId)
   }
 
   const handleRegister = async () => {
@@ -275,6 +317,65 @@ export default function SupplierWorkspace() {
     }
   }
 
+
+  const handleCreateShipment = async () => {
+    if (!token || !shipmentOrder) return
+    if (!shipmentForm.carrier.trim() || !shipmentForm.trackingNumber.trim()) {
+      toast.error('Укажите перевозчика и трек-номер')
+      return
+    }
+    setShipmentSaving(true)
+    try {
+      await api.supplierWs.createShipment(token, shipmentOrder.id, shipmentForm)
+      toast.success('Отгрузка зарегистрирована')
+      setShipmentOrder(null)
+      setShipmentForm({ carrier: '', trackingNumber: '', trackingUrl: '' })
+      await loadAll(token)
+    } catch (error: any) {
+      toast.error(error?.message || 'Не удалось зарегистрировать отгрузку')
+    } finally {
+      setShipmentSaving(false)
+    }
+  }
+
+  const handleConfirmDelivery = async () => {
+    if (!token || !deliveryOrder) return
+    if (!deliveryForm.proofUrl.trim() || !deliveryForm.recipientName.trim()) {
+      toast.error('Нужны HTTPS-ссылка на подтверждение вручения и имя получателя')
+      return
+    }
+    setDeliverySaving(true)
+    try {
+      await api.supplierWs.confirmDelivery(token, deliveryOrder.id, deliveryForm)
+      toast.success('Вручение подтверждено')
+      setDeliveryOrder(null)
+      setDeliveryForm({ proofUrl: '', recipientName: '', note: '' })
+      await loadAll(token)
+    } catch (error: any) {
+      toast.error(error?.message || 'Не удалось подтвердить доставку')
+    } finally {
+      setDeliverySaving(false)
+    }
+  }
+
+  const handleSupplierDisputeResponse = async (responseType: SupplierDisputeResponseType) => {
+    if (!token || !returnResponseDispute) return
+    const note = returnResponseNote.trim()
+    if (note.length < 10 || note.length > 2000) { toast.error('Комментарий должен содержать от 10 до 2000 символов'); return }
+    setReturnResponseSaving(true)
+    try {
+      await api.supplierWs.respondToReturn(token, returnResponseDispute.id, { responseType, note })
+      toast.success('Позиция поставщика зарегистрирована')
+      setReturnResponseDispute(null)
+      setReturnResponseNote('')
+      await loadAll(token)
+    } catch (error: any) {
+      toast.error(error?.message || 'Не удалось отправить ответ')
+    } finally {
+      setReturnResponseSaving(false)
+    }
+  }
+
   const handlePromo = async () => {
     if (!token || !promoForm.productId) { toast.error('Выберите товар'); return }
     setSaving(true)
@@ -359,6 +460,35 @@ export default function SupplierWorkspace() {
   if (loading) {
     return (
       <ListSkeleton count={6} />
+    )
+  }
+
+  if (contexts.length > 0 && !token) {
+    return (
+      <div className="mx-auto max-w-[900px] space-y-4 overflow-x-hidden p-4 sm:p-6">
+        <PageHeader
+          title="Выберите организацию"
+          subtitle="У вас есть доступ к нескольким рабочим пространствам поставщиков. Выберите, с каким бизнесом продолжить."
+          icon={<Store size={22} />}
+        />
+        <div className="grid gap-3">
+          {contexts.map((context) => (
+            <Card key={context.scopeId}>
+              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-txt-primary">
+                    {context.name || context.supplier?.name || 'Организация поставщика'}
+                  </p>
+                  <p className="mt-1 text-xs text-txt-muted">{context.roleLabel || context.role || 'Участник'}</p>
+                </div>
+                <Button className="min-h-11" disabled={contextSwitching} onClick={() => void enterSupplier(context.scopeId)}>
+                  {contextSwitching ? 'Открываем…' : 'Открыть кабинет'}
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
     )
   }
 
@@ -551,7 +681,7 @@ export default function SupplierWorkspace() {
                           </p>
                         </div>
                         <div className="text-right">
-                          <Badge size="xs">{ORDER_STATUS[o.status] || o.status}</Badge>
+                          <Badge size="xs">{ORDER_STATUS[o.supplierFulfillmentStatus || o.status] || o.supplierFulfillmentStatus || o.status}</Badge>
                           <p className="text-sm font-bold text-dv-gold mt-1">{fmtTenge(o.subtotal)}</p>
                         </div>
                       </div>
@@ -563,15 +693,28 @@ export default function SupplierWorkspace() {
                           </div>
                         ))}
                       </div>
-                      {canWrite && !['delivered', 'cancelled', 'refunded'].includes(o.status) && (
+                      {o.supplierShipment && (
+                        <div className="rounded-lg border border-bdr-subtle bg-surface-2 p-3 text-xs space-y-1">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-semibold text-txt-primary">{o.supplierShipment.carrier} · {o.supplierShipment.trackingNumber}</span>
+                            <Badge size="xs">{o.supplierShipment.status === 'delivered' ? 'Вручено' : 'В пути'}</Badge>
+                          </div>
+                          {o.supplierShipment.trackingUrl && <a className="underline text-dv-gold" href={o.supplierShipment.trackingUrl} target="_blank" rel="noreferrer">Отследить отправление</a>}
+                          {o.supplierShipment.proofOfDeliveryUrl && <a className="block underline text-dv-gold" href={o.supplierShipment.proofOfDeliveryUrl} target="_blank" rel="noreferrer">Подтверждение вручения</a>}
+                          {(o.supplierShipment.events || []).map((event: any) => <p key={event.id} className="text-txt-muted">{event.eventType} · {new Date(event.createdAt).toLocaleString('ru-RU')}</p>)}
+                        </div>
+                      )}
+                      {canWrite && !['delivered', 'cancelled', 'refunded'].includes(o.supplierFulfillmentStatus || o.status) && (
                         <div className="flex flex-wrap gap-2 pt-1">
-                          {o.status !== 'packing' && (
+                          {!['packing', 'shipped'].includes(o.status) && !o.supplierShipment && (
                             <Button size="xs" variant="secondary" className="min-h-11" onClick={() => handleOrderStatus(o.id, 'packing')}>В сборку</Button>
                           )}
-                          {o.status !== 'shipped' && (
-                            <Button size="xs" variant="secondary" className="min-h-11" onClick={() => handleOrderStatus(o.id, 'shipped')}>Отправить</Button>
+                          {(o.status === 'packing' || o.status === 'shipped') && !o.supplierShipment && (
+                            <Button size="xs" variant="secondary" className="min-h-11" onClick={() => { setShipmentOrder(o); setShipmentForm({ carrier: '', trackingNumber: '', trackingUrl: '' }) }}>Оформить отгрузку</Button>
                           )}
-                          <Button size="xs" className="min-h-11" onClick={() => handleOrderStatus(o.id, 'delivered')}>Доставлен</Button>
+                          {o.supplierShipment?.status === 'shipped' && (
+                            <Button size="xs" className="min-h-11" onClick={() => { setDeliveryOrder(o); setDeliveryForm({ proofUrl: '', recipientName: '', note: '' }) }}>Подтвердить вручение</Button>
+                          )}
                         </div>
                       )}
                     </CardContent>
@@ -624,18 +767,34 @@ export default function SupplierWorkspace() {
 
           {tab === 'returns' && (
             <div className="space-y-3">
-              <p className="text-sm text-txt-muted">Возвраты и споры по вашим заказам</p>
+              <p className="text-sm text-txt-muted">Претензии по заказам и товарам поставщика. Ответ фиксирует вашу позицию для платформенного рассмотрения и не выполняет возврат денег.</p>
               {(dash?.returns || []).length === 0 ? (
-                <EmptyState icon={<RotateCcw size={28} />} title="Возвратов нет" description="Открытые споры появятся здесь автоматически." />
+                <EmptyState icon={<RotateCcw size={28} />} title="Претензий нет" description="Обращения по вашим заказам и товарам появятся здесь." />
               ) : (
                 (dash.returns as any[]).map((r) => (
                   <Card key={r.id}>
-                    <CardContent className="p-4 flex flex-wrap justify-between gap-3">
-                      <div>
-                        <p className="text-sm text-txt-primary">{r.reason}</p>
-                        <p className="text-xs text-txt-muted mt-1">{r.refType} · {r.refId}</p>
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-txt-primary">{r.reason}</p>
+                          <p className="text-xs text-txt-muted mt-1">{r.refType} · {r.refId} · {new Date(r.createdAt).toLocaleString('ru-RU')}</p>
+                        </div>
+                        <Badge size="xs">{r.status}</Badge>
                       </div>
-                      <Badge size="xs">{r.status}</Badge>
+                      {r.supplierResponse ? (
+                        <div className="rounded-lg border border-bdr-subtle bg-surface-2 p-3 space-y-1">
+                          <p className="text-xs font-semibold text-txt-primary">{r.supplierResponse.responseType === 'ACKNOWLEDGE_RETURN_REQUEST' ? 'Поставщик подтвердил получение претензии' : 'Поставщик оспаривает претензию'}</p>
+                          <p className="text-sm text-txt-secondary whitespace-pre-wrap">{r.supplierResponse.note}</p>
+                          <p className="text-[11px] text-txt-muted">{new Date(r.supplierResponse.createdAt).toLocaleString('ru-RU')}</p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-txt-muted">{r.canRespond ? 'Ожидается официальный ответ поставщика.' : 'Для этого обращения ответ поставщика в текущем процессе не предусмотрен.'}</p>
+                      )}
+                      {canWrite && r.canRespond && !r.supplierResponse && (
+                        <div className="flex flex-wrap justify-end">
+                          <Button size="sm" className="min-h-11" onClick={() => { setReturnResponseDispute(r); setReturnResponseNote('') }}>Ответить на претензию</Button>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))
@@ -844,6 +1003,43 @@ export default function SupplierWorkspace() {
         </motion.div>
       </AnimatePresence>
 
+      <Modal open={!!shipmentOrder} onClose={() => { if (!shipmentSaving) setShipmentOrder(null) }} title="Регистрация отгрузки">
+        <div className="space-y-3">
+          <p className="text-sm text-txt-secondary">Укажите перевозчика и трек-номер. Заказ перейдёт в статус «В пути» только через регистрацию отгрузки.</p>
+          <Input label="Перевозчик *" value={shipmentForm.carrier} onChange={(e) => setShipmentForm(v => ({ ...v, carrier: e.target.value }))} placeholder="Казпочта / курьер / транспортная компания" />
+          <Input label="Трек-номер *" value={shipmentForm.trackingNumber} onChange={(e) => setShipmentForm(v => ({ ...v, trackingNumber: e.target.value }))} placeholder="Номер отправления" />
+          <Input label="Ссылка отслеживания" value={shipmentForm.trackingUrl} onChange={(e) => setShipmentForm(v => ({ ...v, trackingUrl: e.target.value }))} placeholder="https://…" />
+          <Button className="min-h-11 w-full" disabled={shipmentSaving || !shipmentForm.carrier.trim() || !shipmentForm.trackingNumber.trim()} loading={shipmentSaving} onClick={handleCreateShipment}>Зарегистрировать отправку</Button>
+        </div>
+      </Modal>
+      <Modal open={!!deliveryOrder} onClose={() => { if (!deliverySaving) setDeliveryOrder(null) }} title="Подтверждение вручения">
+        <div className="space-y-3">
+          <p className="text-sm text-txt-secondary">Доставка будет закрыта после сохранения HTTPS-доказательства вручения и имени получателя.</p>
+          <Input label="HTTPS-ссылка на фото / документ вручения *" value={deliveryForm.proofUrl} onChange={(e) => setDeliveryForm(v => ({ ...v, proofUrl: e.target.value }))} placeholder="https://storage…" />
+          <Input label="Получатель *" value={deliveryForm.recipientName} onChange={(e) => setDeliveryForm(v => ({ ...v, recipientName: e.target.value }))} placeholder="ФИО получателя" />
+          <Input label="Комментарий" value={deliveryForm.note} onChange={(e) => setDeliveryForm(v => ({ ...v, note: e.target.value }))} placeholder="Место и дополнительные детали" />
+          <Button className="min-h-11 w-full" disabled={deliverySaving || !deliveryForm.proofUrl.trim() || !deliveryForm.recipientName.trim()} loading={deliverySaving} onClick={handleConfirmDelivery}>Подтвердить вручение</Button>
+        </div>
+      </Modal>
+      <Modal open={!!returnResponseDispute} onClose={() => { if (!returnResponseSaving) setReturnResponseDispute(null) }} title="Ответ по претензии">
+        <div className="space-y-3">
+          <p className="text-sm text-txt-secondary">Выберите позицию и изложите факты. Ответ будет сохранён в истории претензии и передан на рассмотрение платформе. Он не меняет статус спора, не подтверждает автоматический возврат и не списывает средства.</p>
+          <div className="rounded-lg border border-bdr-subtle bg-surface-2 p-3">
+            <p className="text-xs text-txt-muted">Претензия</p>
+            <p className="text-sm text-txt-primary mt-1">{returnResponseDispute?.reason || '—'}</p>
+            <p className="text-xs text-txt-muted mt-1">{returnResponseDispute?.refType} · {returnResponseDispute?.refId}</p>
+          </div>
+          <label className="block text-xs text-txt-muted" htmlFor="supplier-return-response-note">Пояснение поставщика *</label>
+          <textarea id="supplier-return-response-note" value={returnResponseNote} onChange={(event) => setReturnResponseNote(event.target.value)} maxLength={2000} rows={5}
+            className="w-full rounded-lg bg-surface-1 border border-bdr-subtle px-3 py-2 text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-2 focus:ring-dv-gold/40"
+            placeholder="Укажите факты, сроки, комплектность, состояние товара и предложенный вариант урегулирования…" />
+          <p className="text-[11px] text-txt-muted">{returnResponseNote.trim().length}/2000 · минимум 10 символов</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Button className="min-h-11" variant="secondary" loading={returnResponseSaving} disabled={returnResponseSaving || returnResponseNote.trim().length < 10} onClick={() => void handleSupplierDisputeResponse('ACKNOWLEDGE_RETURN_REQUEST')}>Подтвердить получение</Button>
+            <Button className="min-h-11" loading={returnResponseSaving} disabled={returnResponseSaving || returnResponseNote.trim().length < 10} onClick={() => void handleSupplierDisputeResponse('CONTEST_RETURN_REQUEST')}>Оспорить претензию</Button>
+          </div>
+        </div>
+      </Modal>
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Новый товар" className="w-full max-w-full sm:max-w-lg lg:max-w-xl">
         <div className="space-y-3">
           <Input label="Название *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Имплант титановый BLT" />

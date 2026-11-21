@@ -161,63 +161,60 @@ test.describe('Academy / Course Workflow', () => {
     expect(Array.isArray(enrollments)).toBe(true);
   });
 
-  test('ACADEMY-005: Course progress update → 200', async () => {
-    const coursesRes = await api.get(`${BASE_URL}/api/academies/courses`, {
-      headers: auth(ownerToken),
-    });
+  test('ACADEMY-005: learner cannot forge lesson progress or course completion', async () => {
+    const coursesRes = await api.get(`${BASE_URL}/api/academies/courses`, { headers: auth(ownerToken) });
     const endpoint = coursesRes.status() === 404 ? '/api/school/courses' : '/api/academies/courses';
     const base = enrollmentBase(endpoint);
-    const enrollRes = await api.get(`${BASE_URL}${base}/enrollments`, {
-      headers: auth(ownerToken),
-    });
+    const enrollRes = await api.get(`${BASE_URL}${base}/enrollments`, { headers: auth(ownerToken) });
     const enrollBody = await enrollRes.json();
     const enrollData = enrollBody.data || enrollBody;
     const enrollments = enrollData.enrollments || enrollData;
+    const enrollment = Array.isArray(enrollments)
+      ? enrollments.find((row: any) => !row.completed && row.accessStatus === 'active')
+      : null;
 
-    if (Array.isArray(enrollments) && enrollments.length > 0) {
-      const enrollment = enrollments[0];
-      // PATCH /enrollments/:id, not a /progress sub-route — school.routes.ts
-      // registers no such path, only the plain enrollment update.
-      const res = await api.patch(
-        `${BASE_URL}${base}/enrollments/${enrollment.id}`,
-        {
-          headers: auth(ownerToken),
-          data: { progress: 50, completedLessons: ['lesson-1'] },
-        },
-      );
-      expect(res.status()).toBe(200);
+    if (enrollment) {
+      const beforeProgress = enrollment.progress;
+      const forged = await api.patch(`${BASE_URL}${base}/enrollments/${enrollment.id}`, {
+        headers: auth(ownerToken),
+        data: { progress: 100, completed: true },
+      });
+      expect(forged.status()).toBe(400);
+
+      const refreshed = await api.get(`${BASE_URL}${base}/enrollments`, { headers: auth(ownerToken) });
+      const refreshedBody = await refreshed.json();
+      const refreshedData = refreshedBody.data || refreshedBody;
+      const rows = refreshedData.enrollments || refreshedData;
+      const unchanged = rows.find((row: any) => row.id === enrollment.id);
+      expect(unchanged.completed).toBe(false);
+      expect(unchanged.progress).toBe(beforeProgress);
     }
   });
 
-  test('ACADEMY-006: Complete course → 200 + certificate', async () => {
-    const coursesRes = await api.get(`${BASE_URL}/api/academies/courses`, {
-      headers: auth(ownerToken),
-    });
+  test('ACADEMY-006: course certificate is not issued from a client-side progress update', async () => {
+    const coursesRes = await api.get(`${BASE_URL}/api/academies/courses`, { headers: auth(ownerToken) });
     const endpoint = coursesRes.status() === 404 ? '/api/school/courses' : '/api/academies/courses';
     const base = enrollmentBase(endpoint);
-    const enrollRes = await api.get(`${BASE_URL}${base}/enrollments`, {
-      headers: auth(ownerToken),
-    });
+    const enrollRes = await api.get(`${BASE_URL}${base}/enrollments`, { headers: auth(ownerToken) });
     const enrollBody = await enrollRes.json();
     const enrollData = enrollBody.data || enrollBody;
     const enrollments = enrollData.enrollments || enrollData;
+    const enrollment = Array.isArray(enrollments)
+      ? enrollments.find((row: any) => !row.completed && row.accessStatus === 'active')
+      : null;
 
-    if (Array.isArray(enrollments) && enrollments.length > 0) {
-      const enrollment = enrollments[0];
-      // The route only issues a certificateUrl when `completed: true` is
-      // sent explicitly — it doesn't infer completion from progress
-      // reaching 100 (school.routes.ts's PATCH /enrollments/:id).
-      const res = await api.patch(
-        `${BASE_URL}${base}/enrollments/${enrollment.id}`,
-        {
-          headers: auth(ownerToken),
-          data: { progress: 100, completed: true },
-        },
-      );
-      expect(res.status()).toBe(200);
-      const body = await res.json();
-      const data = body.data || body;
-      expect(data.certificateUrl || data.completed || data.progress).toBeDefined();
+    if (enrollment) {
+      const forged = await api.patch(`${BASE_URL}${base}/enrollments/${enrollment.id}`, {
+        headers: auth(ownerToken),
+        data: { progress: 100, completed: true },
+      });
+      expect(forged.status()).toBe(400);
+
+      const certificates = await api.get(`${BASE_URL}/api/school/certificates`, { headers: auth(ownerToken) });
+      expect(certificates.status()).toBe(200);
+      const certificateBody = await certificates.json();
+      const certificateData = certificateBody.data || certificateBody;
+      expect(certificateData.some((item: any) => item.courseId === enrollment.courseId)).toBe(false);
     }
   });
 

@@ -102,13 +102,252 @@ supplierWorkspaceRouter.get('/orders', async (req: AuthRequest, res) => {
   }
 });
 
+
+function isSecureEvidenceUrl(value: unknown): boolean {
+  const raw = String(value || '').trim();
+  if (raw.length < 8 || raw.length > 2048) return false;
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'https:' && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+supplierWorkspaceRouter.get('/orders/:id/fulfillment', async (req: AuthRequest, res) => {
+  try {
+    const supplierId = req.user!.supplierId!;
+    const orderId = String(req.params.id);
+    const mine = await getSupplierOrders(supplierId);
+    if (!(mine as any[]).some((order) => order.id === orderId)) {
+      return res.status(404).json({ ok: false, error: 'Заказ не найден в текущем кабинете поставщика' } satisfies ApiResponse);
+    }
+    const [shipment, events] = await Promise.all([
+      prisma.supplierShipment.findFirst({ where: { orderId, supplierId }, orderBy: { createdAt: 'desc' } }),
+      prisma.supplierShipmentEvent.findMany({ where: { orderId, supplierId }, orderBy: { createdAt: 'asc' } }),
+    ]);
+    return res.json({ ok: true, data: { shipment, events } } satisfies ApiResponse);
+  } catch {
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить данные отгрузки' } satisfies ApiResponse);
+  }
+});
+
+supplierWorkspaceRouter.post('/orders/:id/shipments', requireSupplierWrite, async (req: AuthRequest, res) => {
+  try {
+    const supplierId = req.user!.supplierId!;
+    const orderId = String(req.params.id);
+    const mine = await getSupplierOrders(supplierId);
+    if (!(mine as any[]).some((order) => order.id === orderId)) return res.status(404).json({ ok: false, error: 'Заказ не найден в текущем кабинете поставщика' });
+    const carrier = String(req.body?.carrier || '').trim().slice(0, 100);
+    const trackingNumber = String(req.body?.trackingNumber || '').trim().slice(0, 120);
+    const trackingUrl = req.body?.trackingUrl ? String(req.body.trackingUrl).trim() : null;
+    if (carrier.length < 2 || trackingNumber.length < 4) return res.status(400).json({ ok: false, error: 'Укажите перевозчика и корректный трек-номер' } satisfies ApiResponse);
+    if (trackingUrl && !isSecureEvidenceUrl(trackingUrl)) return res.status(400).json({ ok: false, error: 'Ссылка отслеживания должна быть защищённым HTTPS-адресом' } satisfies ApiResponse);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRawUnsafe<Array<{ id: string; status: string; supplierId: string | null }>>(
+        `SELECT "id","status","supplierId" FROM "orders" WHERE "id"=$1 FOR UPDATE`, orderId,
+      );
+      if (!locked[0]) return { kind: 'not_found' as const };
+      if (locked[0].supplierId && locked[0].supplierId !== supplierId) return { kind: 'foreign_supplier' as const };
+      const existing = await tx.supplierShipment.findFirst({ where: { orderId, supplierId } });
+      if (existing) {
+        const same = existing.carrier === carrier && existing.trackingNumber === trackingNumber && existing.trackingUrl === trackingUrl;
+        return same ? { kind: 'idempotent' as const, shipment: existing, orderStatus: locked[0].status } : { kind: 'already_exists' as const };
+      }
+      if (!['packing', 'shipped'].includes(locked[0].status)) return { kind: 'invalid_status' as const };
+      const shipment = await tx.supplierShipment.create({
+        data: { id: uid(), orderId, supplierId, carrier, trackingNumber, trackingUrl, status: 'shipped', shippedAt: new Date(), createdByUserId: req.user!.id },
+      });
+      await tx.supplierShipmentEvent.create({
+        data: {
+          id: uid(), shipmentId: shipment.id, orderId, supplierId,
+          eventType: 'DISPATCHED', toStatus: 'shipped',
+          note: 'Отгрузка зарегистрирована поставщиком.', actorUserId: req.user!.id,
+          metadata: { carrier, trackingNumber, trackingUrl },
+        },
+      });
+      let orderStatus = locked[0].status;
+      if (locked[0].supplierId === supplierId && locked[0].status === 'packing') {
+        const update = await tx.order.updateMany({ where: { id: orderId, status: 'packing', supplierId }, data: { status: 'shipped' } });
+        if (update.count !== 1) throw new Error('Статус заказа изменился. Обновите страницу.');
+        orderStatus = 'shipped';
+      }
+      return { kind: 'created' as const, shipment, orderStatus };
+    });
+    if (result.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден' } satisfies ApiResponse);
+    if (result.kind === 'foreign_supplier') return res.status(403).json({ ok: false, error: 'Заказ закреплён за другим поставщиком' } satisfies ApiResponse);
+    if (result.kind === 'already_exists') return res.status(409).json({ ok: false, error: 'Для этого заказа уже зарегистрирована отгрузка', code: 'SUPPLIER_SHIPMENT_ALREADY_EXISTS' } satisfies ApiResponse);
+    if (result.kind === 'invalid_status') return res.status(409).json({ ok: false, error: 'Сначала переведите заказ в сборку', code: 'SUPPLIER_ORDER_NOT_PACKED' } satisfies ApiResponse);
+    if (result.kind === 'created') {
+      await writeAuditLog({ action: 'SUPPLIER_SHIPMENT_CREATED', entity: 'supplier_shipment', entityId: result.shipment.id, details: { orderId, supplierId, carrier, trackingNumber }, userId: req.user!.id });
+    }
+    return res.status(result.kind === 'created' ? 201 : 200).json({ ok: true, data: { shipment: result.shipment, orderStatus: result.orderStatus, idempotent: result.kind === 'idempotent' } } satisfies ApiResponse);
+  } catch (error: any) {
+    if (String(error?.code || '') === 'P2002') return res.status(409).json({ ok: false, error: 'Этот трек-номер уже используется поставщиком', code: 'SUPPLIER_TRACKING_DUPLICATE' } satisfies ApiResponse);
+    console.error('Supplier shipment create error:', error);
+    return res.status(400).json({ ok: false, error: 'Не удалось зарегистрировать отгрузку' } satisfies ApiResponse);
+  }
+});
+
+supplierWorkspaceRouter.post('/orders/:id/delivery-confirmation', requireSupplierWrite, async (req: AuthRequest, res) => {
+  try {
+    const supplierId = req.user!.supplierId!;
+    const orderId = String(req.params.id);
+    const mine = await getSupplierOrders(supplierId);
+    if (!(mine as any[]).some((order) => order.id === orderId)) return res.status(404).json({ ok: false, error: 'Заказ не найден в текущем кабинете поставщика' });
+    const proofUrl = String(req.body?.proofUrl || '').trim();
+    const recipientName = String(req.body?.recipientName || '').trim().slice(0, 120);
+    const deliveryNote = String(req.body?.note || '').trim().slice(0, 500) || null;
+    if (!isSecureEvidenceUrl(proofUrl)) return res.status(400).json({ ok: false, error: 'Для подтверждения доставки нужна HTTPS-ссылка на доказательство вручения' } satisfies ApiResponse);
+    if (recipientName.length < 2) return res.status(400).json({ ok: false, error: 'Укажите имя получателя' } satisfies ApiResponse);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRawUnsafe<Array<{ id: string; status: string; supplierId: string | null }>>(
+        `SELECT "id","status","supplierId" FROM "orders" WHERE "id"=$1 FOR UPDATE`, orderId,
+      );
+      if (!locked[0]) return { kind: 'not_found' as const };
+      if (locked[0].supplierId && locked[0].supplierId !== supplierId) return { kind: 'foreign_supplier' as const };
+      const shipment = await tx.supplierShipment.findFirst({ where: { orderId, supplierId } });
+      if (!shipment) return { kind: 'shipment_required' as const };
+      if (shipment.status === 'delivered') {
+        const same = shipment.proofOfDeliveryUrl === proofUrl && shipment.recipientName === recipientName;
+        return same ? { kind: 'idempotent' as const, shipment } : { kind: 'already_delivered' as const };
+      }
+      if (shipment.status !== 'shipped') return { kind: 'invalid_shipment_status' as const };
+      const updated = await tx.supplierShipment.updateMany({
+        where: { id: shipment.id, status: 'shipped' },
+        data: { status: 'delivered', deliveredAt: new Date(), proofOfDeliveryUrl: proofUrl, recipientName, deliveryNote, deliveredByUserId: req.user!.id },
+      });
+      if (updated.count !== 1) throw new Error('Состояние отгрузки уже изменилось. Обновите страницу.');
+      await tx.supplierShipmentEvent.create({
+        data: {
+          id: uid(), shipmentId: shipment.id, orderId, supplierId,
+          eventType: 'DELIVERED', fromStatus: 'shipped', toStatus: 'delivered',
+          note: deliveryNote || 'Поставка вручена получателю; доказательство сохранено.',
+          actorUserId: req.user!.id, metadata: { proofOfDeliveryUrl: proofUrl, recipientName },
+        },
+      });
+      let orderCompleted = false;
+      if (locked[0].supplierId === supplierId) {
+        const orderUpdate = await tx.order.updateMany({ where: { id: orderId, supplierId, status: 'shipped' }, data: { status: 'delivered', deliveredAt: new Date() } });
+        orderCompleted = orderUpdate.count === 1;
+      }
+      return { kind: 'delivered' as const, shipment: await tx.supplierShipment.findUnique({ where: { id: shipment.id } }), orderCompleted };
+    });
+    if (result.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден' } satisfies ApiResponse);
+    if (result.kind === 'foreign_supplier') return res.status(403).json({ ok: false, error: 'Заказ закреплён за другим поставщиком' } satisfies ApiResponse);
+    if (result.kind === 'shipment_required') return res.status(409).json({ ok: false, error: 'Сначала зарегистрируйте отгрузку и трек-номер', code: 'SUPPLIER_SHIPMENT_REQUIRED' } satisfies ApiResponse);
+    if (result.kind === 'invalid_shipment_status') return res.status(409).json({ ok: false, error: 'Отгрузка не находится в пути', code: 'SUPPLIER_SHIPMENT_NOT_IN_TRANSIT' } satisfies ApiResponse);
+    if (result.kind === 'already_delivered') return res.status(409).json({ ok: false, error: 'Доставка уже подтверждена другим доказательством', code: 'SUPPLIER_DELIVERY_ALREADY_CONFIRMED' } satisfies ApiResponse);
+    if (result.kind === 'delivered') {
+      await writeAuditLog({ action: 'SUPPLIER_DELIVERY_CONFIRMED', entity: 'supplier_shipment', entityId: result.shipment?.id || orderId, details: { orderId, supplierId, orderCompleted: result.orderCompleted, recipientName }, userId: req.user!.id });
+      if (result.orderCompleted) {
+        const { releaseOrderCashback } = await import('../dentcash/cashback.engine.js');
+        await releaseOrderCashback(orderId).catch((error) => console.error('[dentcash release]', error));
+        const { restockFromOrder } = await import('../inventory/orderRestock.js');
+        await restockFromOrder(orderId).catch((error) => console.error('[inventory restock]', error));
+      }
+    }
+    return res.status(200).json({ ok: true, data: { shipment: result.shipment, orderCompleted: result.kind === 'delivered' ? result.orderCompleted : false, idempotent: result.kind === 'idempotent' } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Supplier delivery confirmation error:', error);
+    return res.status(400).json({ ok: false, error: 'Не удалось подтвердить доставку' } satisfies ApiResponse);
+  }
+});
+
+
+
+async function supplierOwnsOrderLine(supplierId: string, disputeId: string, orderId: string, client: any = prisma): Promise<boolean> {
+  const [order, requestedItems] = await Promise.all([
+    client.order.findUnique({ where: { id: orderId }, select: { id: true, items: true } }),
+    client.marketplaceReturnItem.findMany({
+      where: { disputeId, orderId, supplierId },
+      select: { lineIndex: true, productId: true },
+    }),
+  ]);
+  if (!order || requestedItems.length === 0) return false;
+  const lines = Array.isArray(order.items) ? order.items as Array<Record<string, unknown>> : [];
+  return requestedItems.some((item: { lineIndex: number; productId: string }) => {
+    const line = lines[item.lineIndex];
+    if (!line || typeof line !== 'object') return false;
+    const productId = String(line.product_id ?? line.productId ?? '');
+    const lineSupplierId = String(line.supplier_id ?? line.supplierId ?? '').trim();
+    return productId === item.productId && lineSupplierId === supplierId;
+  });
+}
+
+// Supplier answers are evidence for platform adjudication, not a financial instruction.
+// Lock the canonical dispute while checking state, ownership and recording the response.
+supplierWorkspaceRouter.post('/returns/:id/respond', requireSupplierWrite, async (req: AuthRequest, res) => {
+  const supplierId = req.user!.supplierId!;
+  const disputeId = String(req.params.id);
+  const responseType = String(req.body?.responseType || '').trim().toUpperCase();
+  const note = String(req.body?.note || '').trim();
+  if (!['ACKNOWLEDGE_RETURN_REQUEST', 'CONTEST_RETURN_REQUEST'].includes(responseType)) {
+    return res.status(400).json({ ok: false, error: 'Выберите корректную позицию по претензии' } satisfies ApiResponse);
+  }
+  if (note.length < 10 || note.length > 2000) {
+    return res.status(400).json({ ok: false, error: 'Комментарий должен содержать от 10 до 2000 символов' } satisfies ApiResponse);
+  }
+
+  try {
+    const outcome = await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string; refType: string; refId: string; status: string }>>`
+        SELECT "id", "refType", "refId", "status"
+        FROM "disputes"
+        WHERE "id" = ${disputeId}
+        FOR UPDATE
+      `;
+      const dispute = locked[0];
+      // Non-owned and unsupported references return the same result to avoid claim enumeration.
+      if (!dispute || !['order', 'shop_order'].includes(dispute.refType.trim().toLowerCase())) {
+        return { status: 404, body: { ok: false, error: 'Претензия не найдена в заказах текущего поставщика' } };
+      }
+      if (!await supplierOwnsOrderLine(supplierId, disputeId, dispute.refId, tx)) {
+        return { status: 404, body: { ok: false, error: 'Претензия не найдена в заказах текущего поставщика' } };
+      }
+      if (!['open', 'review', 'pending'].includes(dispute.status.trim().toLowerCase())) {
+        return { status: 409, body: { ok: false, error: 'Претензия уже закрыта и не принимает ответы' } };
+      }
+
+      const existing = await tx.supplierDisputeResponse.findUnique({
+        where: { disputeId_supplierId: { disputeId, supplierId } },
+      });
+      if (existing) {
+        const same = existing.responseType === responseType && existing.note === note;
+        if (!same) {
+          return { status: 409, body: { ok: false, error: 'Ответ уже зарегистрирован; новая позиция требует рассмотрения платформой' } };
+        }
+        return { status: 200, body: { ok: true, data: { response: existing, idempotent: true } } };
+      }
+
+      const created = await tx.supplierDisputeResponse.create({
+        data: { id: uid(), disputeId, orderId: dispute.refId, supplierId, responseType, note, actorUserId: req.user!.id },
+      });
+      await writeAuditLog({
+        action: 'SUPPLIER_DISPUTE_RESPONDED',
+        entity: 'supplier_dispute_response',
+        entityId: created.id,
+        details: { disputeId, orderId: dispute.refId, supplierId, responseType },
+        userId: req.user!.id,
+      }, tx);
+      return { status: 201, body: { ok: true, data: { response: created, idempotent: false } } };
+    });
+    return res.status(outcome.status).json(outcome.body as ApiResponse);
+  } catch (error: any) {
+    console.error('Supplier dispute response error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось зарегистрировать ответ по претензии' } satisfies ApiResponse);
+  }
+});
+
 supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async (req: AuthRequest, res) => {
   try {
     const status = String(req.body?.status || '').toLowerCase();
-    const allowed = ['packing', 'shipped', 'delivered', 'cancelled'];
-    if (!allowed.includes(status)) {
-      return res.status(400).json({ ok: false, error: 'Недопустимый статус' } satisfies ApiResponse);
-    }
+    if (status === 'shipped') return res.status(409).json({ ok: false, error: 'Зарегистрируйте перевозчика и трек-номер в форме отгрузки', code: 'SUPPLIER_SHIPMENT_REQUIRED' } satisfies ApiResponse);
+    if (status === 'delivered') return res.status(409).json({ ok: false, error: 'Доставка закрывается только с подтверждением вручения', code: 'SUPPLIER_DELIVERY_PROOF_REQUIRED' } satisfies ApiResponse);
+    const allowed = ['packing', 'cancelled'];
+    if (!allowed.includes(status)) return res.status(400).json({ ok: false, error: 'Недопустимый статус' } satisfies ApiResponse);
 
     const mine = await getSupplierOrders(req.user!.supplierId!);
     const owned = (mine as any[]).find((o) => o.id === req.params.id);

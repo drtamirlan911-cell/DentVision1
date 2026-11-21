@@ -1,3 +1,98 @@
+## Marketplace / Supplier OS — seller shipment and proof-of-delivery slice — 2026-11-21
+
+- Added supplier-owned shipment records for carrier, tracking number/link, shipment status and proof of delivery, plus durable event history linked to the canonical order and supplier.
+- Supplier owners/managers can register a shipment only for an order in their active supplier queue. Repeating identical tracking data is idempotent; a conflicting second shipment is rejected.
+- A supplier can no longer move an order to "shipped" through the generic status endpoint. Carrier and tracking number are required.
+- Delivery close-out requires a HTTPS proof-of-delivery URL and recipient name. The actor/time/event are saved; only an order explicitly assigned to this single supplier advances the canonical order to delivered and triggers existing order-close effects.
+- For split-supplier orders, shipment status remains seller-local and does not falsely close the buyer's full order. Full per-seller allocations and global aggregation remain open.
+- The UI exposes tracking and proof-backed delivery actions. This is manual evidence entry, not a live carrier integration; label purchase, carrier APIs/webhooks, scanner hardware and automatic POD remain open.
+- Returns/RMA/refund/chargeback and seller-platform reconciliation remain open; the current dispute list is not a complete return workflow. Supplier and Marketplace remain **PARTIAL**.
+
+## Marketplace — buyer-side item-level return request — 2026-11-21
+
+- Added a buyer-owned `POST /api/shop/orders/:id/returns` workflow backed by the existing canonical Dispute lifecycle. The order owner is checked server-side; product names, IDs, quantities, prices and seller attribution are snapshotted from persisted order lines, never trusted from the browser.
+- Added `MarketplaceReturnItem` records for exact order-line index, product/seller snapshot, quantity, unit price, reason code and buyer note. One request can contain several lines and sellers; duplicate lines and quantities above the remaining purchased balance are rejected.
+- The endpoint locks the order row, validates delivery/payment status and remaining quantity, requires an idempotency key plus payload fingerprint, and writes an audit event. Paid shipped orders accept non-delivery claims; delivered paid and delivered cash-on-delivery orders accept item-condition claims.
+- Buyer order history now returns line indexes and the return-request history. The Finance dispute projection includes the line-level request snapshot.
+- Supplier responses are allowed only for the exact return-request lines assigned to that seller. The supplier dashboard queries return claims by the line-level seller snapshot rather than the latest-200 global orders.
+- Item-level return resolution is blocked in the legacy order-wide cashback reversal path. Until Finance can approve exact quantities and issue provider refunds, cashback/commission compensation and seller settlement reversals per line, an item-level dispute cannot be marked `resolved` through the old full-order path.
+- **Boundary:** no evidence-file upload, physical pickup/RMA label, warehouse inspection/disposition, supplier warranty/remake, provider refund or line-level settlement/reconciliation yet. No date-window policy is enforced because a structured returns policy has not yet been agreed. Marketplace/Supplier remains **PARTIAL**.
+
+## Marketplace / Supplier OS — seller-side claim response — 2026-11-21
+
+- Added `SupplierDisputeResponse`, an immutable supplier response linked to the canonical dispute, order and supplier. A unique dispute/supplier constraint prevents contradictory duplicate submissions; identical retries are idempotent.
+- Only an owner/manager in the active supplier workspace can respond, after the server verifies that at least one canonical order line belongs to that supplier. Ownership is resolved from the immutable per-line `supplier_id` checkout snapshot, not the order-level primary supplier pointer; historical lines without a seller snapshot use current product ownership as a compatibility fallback. This preserves independent seller access in multi-supplier orders while denying unrelated sellers. Product-only claims remain visible but do not expose this order-response action.
+- The supplier can acknowledge receipt of a return request or contest the claim and must provide a 10–2,000 character explanation. The actor and timestamp are preserved and the action is audit-logged.
+- The response is evidence for platform adjudication only: it does not alter global dispute/order status, create a refund, reverse cashback, issue a chargeback or move wallet/ledger balances. Financial decisions remain in the governed platform/Finance workflow.
+- The supplier dashboard queries only disputes associated with the supplier's visible order lines/products and returns the current supplier's own response. The previous global latest-50 disputes query and client-side filtering are removed.
+- The existing superadmin-only `GET /api/disputes` projection now includes supplier responses and the related supplier identity, so platform adjudicators can inspect the seller's recorded position without opening seller-private cross-tenant data. The superadmin Finance → Disputes detail view renders the supplier position, supplier identity, status and timestamp as evidence for review.
+- Response creation and its audit event are committed in one database transaction while the canonical dispute row is locked; this prevents a response from being recorded concurrently after platform resolution. Non-owned/unsupported claims return the same not-found result to avoid claim-ID enumeration.
+- The additive migration is included in the isolated E2E database bootstrap. No production/staging database migration or financial operation was performed.
+- **Boundary:** one immutable response per supplier per order claim; no evidence-file upload, buyer/seller conversation thread, RMA authorization/label, courier pickup/inspection, refund/payment-provider action, chargeback workflow or complete multi-seller line-allocation lifecycle. Supplier/Marketplace remains **PARTIAL** pending exact-head CI/E2E, mobile/operator and end-to-end financial reconciliation evidence.
+
+## Dental Laboratory OS — partner-owned service catalogue and case price snapshots — 2026-11-21
+
+- Added a first-class catalogue scoped to the canonical Laboratory organization. Owners/managers control service code, type, material, description, published list price and turnaround days; production members receive read-only active entries.
+- Verified clinics can inspect active services and prices from a verified/published partner before transferring a case.
+- On assignment, the selected service is revalidated against the receiving laboratory and active catalogue. The canonical LabOrder stores service ID, service-name snapshot, service-price snapshot and case price; later catalogue price edits do not rewrite an accepted case.
+- Legacy clinic-created orders remain assignable without catalogue selection for backward compatibility; the new transfer UI offers explicit service/tariff selection and displays the proposed price before handoff.
+- No invoice, payment, settlement, payout, refund or commission is recognized by catalogue publication or order assignment. DentVision commission remains disabled until successful, idempotent settlement evidence is implemented under D10 and the Settlement Payment Contract.
+- Exact-head CI/E2E and role/mobile evidence are pending. Dental Laboratory remains **PARTIAL**; D10 remains **OPEN**.
+
+## Medical Laboratory OS — accession barcode and specimen custody — 2026-11-21 (candidate PR #352)
+
+- New orders assigned to a medical laboratory now require accession; pre-existing orders remain legacy-compatible and are not assigned invented historical barcodes.
+- Added one canonical specimen record per physical tube, unique accession barcode, specimen/container type, optional measured volume, current location, collection/receipt actor and timestamps.
+- Added barcode scanning for laboratory intake. Receipt/rejection is order- and active-lab-scoped, changes one specimen under transaction lock and writes a durable custody event. The canonical order advances to `received` only after all registered tubes have a disposition and at least one is accepted.
+- Added child aliquots with a separate accession barcode and immutable parent reference; measured aliquot volume is checked against the parent volume when known.
+- Entering processing now transitions accepted tubes into processing and writes per-specimen events in the same order transaction. Status-only collection/receipt is blocked for accession-required orders.
+- The Medical Lab cabinet now exposes barcode registration, scanner input, specimen/aliquot lineage and custody history. Added helper, contract and Partner Lifecycle E2E coverage for access denial, bypass attempts, barcode validation, receipt, duplicate scan, aliquot lineage and custody events.
+- **Boundary:** source candidate only. No physical scanner/label-printer device protocol, specimen courier chain between clinic and lab, analyzer/LIS protocol integration, calibration/external QC program, critical-value acknowledgement, corrected-result delivery, settlement/payout or complete mobile/production acceptance is certified. Medical Laboratory remains **PARTIAL**; exact-head CI/E2E and operator evidence are required before merge or production use.
+
+---
+## Diagnostic Center OS vertical slice — 2026-11-21 (candidate PR #352)
+
+- Added a scoped equipment register for CBCT, OPG, TRG, intraoral, CT, MRI and other modalities, including manufacturer/model/serial number, room, DICOM AE Title metadata and maintenance date/status.
+- Added a diagnostic-center worklist with server-side center scope, status filtering, emergency/urgent priority ordering, a minimized patient-data projection, and assignment of active equipment to a referral. Mutations require the active diagnostic-center context and an authorized organization manager role; changes are audit-recorded.
+- The cabinet now has dedicated **Worklist** and **Equipment** tabs. The active IAM workspace is preferred over membership ordering; ambiguous or unrelated contexts require explicit workspace selection rather than silently opening the first diagnostic organization.
+- Added the migration to the CI E2E database bootstrap and route/data-contract coverage.
+- **Boundary:** this is an equipment register and queue-routing slice, not RIS/PACS. It does not transfer DICOM objects, implement DICOMweb/QIDO-RS/WADO-RS/STOW-RS, connect a PACS archive, provide a diagnostic image viewer, complete radiology report validation/sign-off, or implement calibration/QC schedules. Those remain open release work. The migration has not been deployed to staging/production.
+- Exact-head CI, Quality Gate and E2E are required before merge. Diagnostic Center remains **PARTIAL**.
+
+## Implementation checkpoint — Student OS, Career OS and Medical Laboratory controls — 2026-11-20
+
+- **Scope:** candidate-branch source work only; `docs/DENTVISION_MASTER_SPEC.md` v5.0 and `docs/PRODUCT/CABINET_UX_AND_WORKFLOW_STANDARD.md` remain normative.
+- **Student OS:** paid-course discovery now returns a safe public preview before purchase; course materials/file URLs remain entitlement-gated. The player reloads the full detail after confirmed payment; lesson progress comes from the server; client-submitted completion cannot issue a certificate; the certificate remains tied to a successful server-side final assessment. Added an isolated E2E path for public preview, purchase-entitlement serialization, exam, certificate verification and cross-student isolation.
+- **Career OS:** employer applications now return event history, interview records and offer responses to the employer pipeline; the employer workspace displays candidate confirmation, reschedule/decline and offer decisions. Added an employer/candidate lifecycle E2E through invitation, application, interview, offer and the explicit contract-required boundary. Candidate acceptance does not mark a person as hired.
+- **Medical Laboratory OS:** active lab scope now fails closed when the organization/source entity does not resolve or legacy membership is ambiguous. Operational capabilities derive only from canonical organization-scoped PersonRole keys. Generic status updates cannot release results. A technician must submit a complete, order-bound result set; QC is a separate role and person; failed QC requires a reason and cannot be overwritten without rework; rework archives prior values/author/time, clears active results and old QC; a separate validator releases; the lab doctor interprets only after verification. The detail API exposes capabilities and the active-lab context; the UI shows role-appropriate controls and the specimen/result timeline.
+- **Medical-lab regression coverage added/updated:** capability matrix and ambiguous-scope tests; complete/foreign/duplicate/missing result tests; prior-attempt history tests; Partner Lifecycle E2E updated to run technician → failed QC → rework → new results → passed QC → validator release → doctor interpretation, plus generic-release bypass and cross-partner isolation checks.
+- **Important boundary:** these changes strengthen result-entry, QC and authorization controls; they do **not** yet implement full LIS accession/barcode/scan evidence, specimen parent/child/aliquot and chain-of-custody capture, workstation/analyzer integration, calibration/external QC programs, critical-value acknowledgement, corrected-result notification, lab settlement, or full mobile/production acceptance. Medical Laboratory remains **PARTIAL**.
+- **Verification state at this checkpoint:** first exact-head Quality Gate on predecessor `7c9a91de068d30371aa95e4f0a1f12077b4f6958` passed TypeScript but failed frontend ESLint because the Medical Lab workspace added two hook-dependency warnings above the existing repository warning budget (14 vs max 13). The warnings were corrected on the subsequent candidate. Fresh exact-head CI, Quality Gate, E2E, browser UX, role/context, mobile and visual evidence are pending. Do not treat prior/cancelled runs as evidence for the new SHA; do not merge or mark any cabinet complete until all required gates pass.
+
+---
+
+## Standing cabinet quality directive — 2026-11-20
+
+- **Persistent user requirement:** every existing DentVision cabinet must be easy for its intended role, complete across its real domain workflow, safe across organization/branch boundaries and usable on mobile. This is a continuing product priority, not a one-time feature request.
+- **Normative parent:** `docs/DENTVISION_MASTER_SPEC.md` v5.0. The practical acceptance contract is `docs/PRODUCT/CABINET_UX_AND_WORKFLOW_STANDARD.md`. This contract covers diagnostic center/RIS-PACS, medical LIS, dental-lab production/CAD-CAM/QC/delivery, marketplace/supplier commerce, Academy/cohorts/assessment/certificates, employer/hiring/contract, and every other existing cabinet (clinic, doctor, reception, patient, finance, BI, community, platform admin and AI).
+- **Audit rule:** evaluate a complete role journey — entry → context → permission → Command Center → queue → entity detail → happy path → exception path → persistence → notification/handoff → finance/document/result → audit → mobile. A route, page, dashboard tile or Prisma model is inventory evidence only, never completion proof.
+- **Current-source classification recorded:** Diagnostic Center PARTIAL; Medical Laboratory PARTIAL; Dental Laboratory PARTIAL; Marketplace/Supplier PARTIAL; Academy/Lecturer PARTIAL; Student OS and expanded Career OS are candidate-branch implementation; remaining existing cabinets require the same role-by-role journey audit. See the table in the cabinet standard. Do not claim a production-ready RIS/PACS, LIS, delivery/payout, accredited credential or EDS employment process without external and exact-head evidence.
+- **Implementation sequence:** P0 identity/context, RBAC, tenant isolation and audit; P1 role-first Command Center, queues, detail, notifications and mobile; P2 domain integrations and operational/economic closure; P3 AI optimization and personalization. Do not polish around missing P0/P1 controls.
+- **Design constraint:** progressive disclosure, task-first screens, contextual next actions, one canonical record per business object, explicit statuses and complete event histories. Avoid dashboard clutter, duplicate menus, redundant forms and cross-cabinet navigation for ordinary work.
+- **Before starting any new cabinet task:** re-read the Master Spec, current Execution Plan, this standard and relevant domain execution contract; inspect existing page/API/schema/tests before changing implementation.
+
+---
+
+## Partner workspace UX parity — 2026-11-20 (active remediation)
+
+- **Audited source baseline:** `main` at `758ffe7f39112848df701a8b988f44af03845597`; normative product contract: `docs/DENTVISION_MASTER_SPEC.md` v5.0.
+- **Confirmed source-level UX gaps:** the backend emits first-class `EMPLOYER` workspace contexts, but the shared workspace switcher did not list or navigate them; Supplier and Lecturer pages selected the first membership on entry instead of the active scope; partner context switches did not refresh those pages while the route remained mounted; canonical `/dental-lab` had no route even though its subroutes redirected there, with some incorrectly escaping to clinic CRM/diagnostics; a single `LABORATORY` token type is shared by medical and dental labs.
+- **Bounded remediation on `fix/partner-workspace-context-ux-20261120`:** add EMPLOYER to the context picker; preserve and respond to the selected supplier/lecturer context; fail closed if an active organization cannot be matched and show an explicit organization chooser instead of silently opening another business; auto-select only a sole unambiguous membership; publish selected scope IDs in the workspace-switch event; route lecturer contexts directly to the lecturer workbench; mount the existing `LabDashboard` dispatcher at `/dental-lab` behind the existing LABORATORY scope guard so the scoped role chooses medical vs. dental lab UI; keep dental-lab child paths within the partner workspace and make the existing team tab deep-linkable; add unit coverage for context selection and ambiguity.
+- **Verification status:** candidate source only until exact-head frontend/backend lint, TypeScript, unit suite, Quality Gate, Role/Context E2E, partner lifecycle E2E, browser UX/mobile and visual evidence pass. No live data, PHI, staging/production configuration, payments, legal signatures or deployment operations are in scope.
+- **Still partial after this slice:** independent medical-laboratory accession/chain-of-custody/QC/release/settlement; diagnostic modality/equipment/worklist/DICOM/report chain; dental-lab remake authorization, shipping/proof-of-delivery, independent invoices and commercial settlement; supplier KYB, multi-seller fulfillment, returns/refunds and ledger reconciliation; separate academy-owner/cohort operations; full employer interview/offer/contract lifecycle; public discovery and Android parity. This remediation does not certify any partner cabinet as complete or change the Master Spec release gate.
+
+---
+
 ## Government partnership strategy alignment — 2026-11-20
 
 - Approved strategic direction: state-private partnership-oriented national dental digital infrastructure, with all eligible support routes evaluated (innovation grants, Astana Hub eligibility, regional pilot support, public procurement and formal PPP where legally justified).
@@ -835,10 +930,164 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Cover dashboard/orders, team visibility, technician assignment and production progression to delivered.
 - [x] Assert delivered creates no DENTAL_LAB partner-economics transaction/ledger before verified settlement.
 - [x] Verify durable event history, final clinic visibility and cross-laboratory isolation.
-- [ ] Add QC checklist and authorized sign-off.
-- [ ] Add explicit remake authorization / feedback loop.
+- [x] Add QC checklist and authorized sign-off (manager-only `/api/lab-platform/orders/:id/qc`; six required checks: fit, margins, shade, occlusion, surface, documentation; failed QC requires a note; transactional status/event write; authorization and validation tests in `labPlatform.authorization.test.ts`).
+- [x] Add explicit remake authorization / feedback loop (clinic POST request after delivered partner case; mandatory reason; partner-manager accept/reject; rejection reason; transactional row lock and durable dental-lab event; audit trail; notifications to laboratory members and clinic; typed domain events; clinic and partner UI).
 - [ ] Add dispatch, shipping, pickup tracking and proof of delivery.
-- [ ] Add independent services catalogue and pricing management.
+- [x] Add independent services catalogue and pricing management (manager-scoped CRUD, published catalogue, clinic selection, immutable service-name/price snapshots; migration and `labPlatform.services.contract.test.ts`).
 - [ ] Complete invoice → payment → settlement → payout for the laboratory.
 - [ ] Verify durable idempotent notifications and AI operational exception summaries.
 - [ ] Complete owner/manager/technician RBAC and desktop/mobile acceptance. D10 remains OPEN.
+
+
+## Standing product mandate — world-class dental-industry operating system and measurable recognition
+
+**Persistent direction:** build DentVision as a world-class operating system for the entire dental and connected healthcare ecosystem, not as a clinic CRM with attached modules. This mandate applies across future implementation sessions and must remain visible in repository planning. Work that is only discussed in chat is not considered planned or completed until its scope, status, evidence and next action are recorded here or in the owning domain contract.
+
+### Product outcome
+
+DentVision must make the next correct action obvious for every participant: patient/buyer, doctor, clinic/group, diagnostic center, radiologist, medical laboratory, dental laboratory, technician, supplier/manufacturer, academy, lecturer, student, employer, job seeker, professional community and platform operations.
+
+The experience must combine:
+- one identity with multiple organization-scoped memberships and explicit active context;
+- first-class partner workspaces with their own teams, workflows, economics and customer relationships;
+- shared, auditable platform primitives for IAM, files, tasks, notifications, finance, settlement, search, analytics and AI;
+- task-first Command Centers, queues and entity workbenches with progressive disclosure;
+- complete web, mobile and Android/PWA workflows, not desktop-only feature parity;
+- AI that understands the active role, organization and entity, proposes safe actions, asks for confirmation when required, executes only authorized actions and verifies the result.
+
+### Non-negotiable engineering and product gates
+
+1. **Master Spec first:** `docs/DENTVISION_MASTER_SPEC.md` v5.0 is normative. `docs/PRODUCT/CABINET_UX_AND_WORKFLOW_STANDARD.md`, the domain contracts and `docs/RELEASE_BLOCKERS.md` define acceptance and release constraints. Do not create a parallel product direction or duplicate an existing canonical route/domain model.
+2. **Tenant safety:** every request, background job, file, notification, AI retrieval/tool, report and financial mutation must resolve the authenticated active context server-side. A client-supplied organization/clinic/branch/resource ID is not proof of access. Ambiguity fails closed.
+3. **Workflow completion:** each cabinet is validated through entry → context → permission → Command Center → queue → entity detail → valid action → exception/rework → persistence → notification/handoff → finance/document/result → audit → mobile. A route, component, database model or screenshot is not proof of completion.
+4. **Canonical records and event integrity:** preserve one canonical business record, explicit state machines, idempotent writes, immutable history where required, attributable actors/timestamps and compensating financial events. Do not silently overwrite or skip a workflow step.
+5. **Clinical, financial and legal safety:** no AI diagnostic or treatment output becomes a clinical decision without the required professional confirmation. Do not recognize commission on order creation or delivery alone; use the approved settlement contract. Do not represent draft legal/EDS flows as legally operative.
+6. **Real integrations only:** label manual entry, mock data, simulated providers and metadata-only DICOM as such. Do not claim PACS/LIS/CAD-CAM, carrier, Kaspi, EDS, government or equipment integration until the actual interface, credentials/contract, conformance and end-to-end evidence exist.
+7. **Security and privacy:** close RB-029 and the full RB-035 matrix with protected, reviewable evidence; maintain key lifecycle, auditability, backup/restore, retention/deletion and PHI boundaries. Never perform production/staging PHI backfills or payment operations without the required approval, backup and rollback evidence.
+8. **Quality and accessibility:** maintain generated maps/indexes, build, TypeScript, lint, unit/contract/integration/E2E, role/context isolation, browser/network, visual regression, keyboard/accessibility, responsive, Android and operational observability evidence. Do not suppress meaningful failures to make a gate green.
+9. **No false readiness:** each vertical is explicitly `OPEN`, `PARTIAL`, `CANDIDATE` or `VERIFIED`; `VERIFIED` requires exact-HEAD evidence and any required external/operator acceptance. Prior SHA results do not certify a newer SHA.
+
+### Implementation programme and current status
+
+| Priority | Workstream | Current status | Required completion evidence |
+|---|---|---|---|
+| P0 | PR #352 partner-context and ecosystem changes | CANDIDATE; open PR, not merged | Exact-HEAD CI, Quality Gate, Partner Lifecycle/Role-Context E2E, migration bootstrap, mobile and browser evidence; resolve all failures before merge |
+| P0 | CI source-map/index integrity | OPEN at `be324289` | Re-run the System Map generator, commit the generated map and prove the validation step is clean |
+| P0 | Identity, active context, RBAC and tenant isolation | PARTIAL / release-gated | Full positive/negative matrix across every org type, branch, role, deep link, file, notification, job, finance action and AI tool |
+| P0 | RB-029 PHI/AI memory lifecycle | OPEN / P0 in Release Blockers | Full reader/writer and derivative-data inventory, protected legacy backfill, key version/rotation and old-key plan, retention/deletion/export, backup/restore and approved staging reconciliation |
+| P0 | RB-035 authorization matrix; RB-031 WebKit/CORS/WebSocket; RB-033 branch protection | OPEN / evidence-gated | Independent route/role/tenant review, production configuration evidence and repository-admin verification where connector permissions are insufficient |
+| P0 | D1/D2 trial, archive and subscription lifecycle | OPEN until required staging proof | Positive-read/negative-write tests after expiry, archive/restore preservation and approved staging migration/rollback evidence |
+| P1 | Supplier / Manufacturer OS | PARTIAL | Verified onboarding, multi-seller allocations, procurement, returns/RMA/claims, carrier integrations and proof-of-delivery, invoice/refund/chargeback, settlement/payout and reconciliation |
+| P1 | Dental Laboratory OS (D10) | PARTIAL / D10 OPEN | Intake/completeness, production planning, technician workbench, digital files, CAD/CAM integrations, material/stock traceability, QC sign-off, remake authorization, shipping, invoices, settlement/payout and role/mobile acceptance |
+| P1 | Medical Laboratory OS | PARTIAL | Full LIS lifecycle, physical accession devices, courier chain of custody, analyzer interfaces, calibration/external QC, critical-value acknowledgement, corrected-result delivery and settlement |
+| P1 | Diagnostic Center OS | PARTIAL | Real RIS/PACS, DICOM receive/store/query/retrieve and modality worklist, viewer, reporting/sign-off, transfer retry/audit, maintenance/calibration and real modality conformance tests |
+| P1 | Academy / Lecturer OS | PARTIAL | Cohorts, attendance, assignments, grading/review, reliable assessment and credential verification, instructor economics, refunds/payouts and learner mobile journey |
+| P1 | Employer / Career OS | CANDIDATE / PARTIAL | Vacancy lifecycle, consent-aware messaging, interview/offer history, legal review, EDS-enabled contracts where applicable, onboarding and employer/worker lifecycle evidence |
+| P1 | Existing clinic, doctor, reception, patient, finance, BI, community and admin cabinets | AUDIT REQUIRED | Complete role journeys using the cabinet standard; prioritize safety, task success, accessibility, mobile and cross-context isolation |
+| P2 | DentVision AI Core / agents | CONTINUOUS; not certified complete | Context-bound retrieval, governed tool registry, permission checks, confirmation/verification/audit, domain evaluations, hallucination and PHI-leakage tests, latency/cost/quality observability |
+| P2 | Shared Finance Hub and partner economics | PARTIAL | One canonical invoice/payment/settlement/ledger lifecycle, idempotent callbacks, transparent gross/fees/net, refund/chargeback compensation, reconciliation and partner payout evidence |
+| P2 | Platform reliability and mobile | AUDIT REQUIRED | SLOs, monitoring/alerts, incident/recovery runbooks, backup restore tests, performance budgets, accessibility, offline boundaries and real Android runtime acceptance |
+| P3 | Kazakhstan interoperability and public-sector readiness | STRATEGIC / NOT YET CERTIFIED | Legal/regulatory gap analysis, data-protection and medical-system review, verified HL7 FHIR/DICOM/EDS/NEPZ integrations as applicable, security assessment, pilot approvals and documented procurement/support model |
+| P3 | Market credibility and industry recognition | STRATEGIC / OUTCOME-BASED | Reference customers, independently measured clinical/operational outcomes, interoperability conformance, security/privacy evidence, publications/case studies, partner ecosystem and transparent service reliability |
+
+### Recognition and public-sector readiness
+
+Recognition is an outcome of independently verifiable product quality and adoption, not a substitute for it. Build the evidence base in this order:
+
+1. Demonstrate measurable value with real clinics and partners: reduced administrative time, fewer handoff failures, faster turnaround, higher traceability, better utilization and improved patient communication. Establish baselines and obtain customer-approved measurement before publishing claims.
+2. Prove safety and trust: external security/privacy review, role and tenant isolation evidence, incident response, backup/restore drills, clinical governance and transparent AI limitations.
+3. Prove interoperability: documented APIs and versioning, conformance tests, real partner/provider/device integrations and controlled data exchange. A protocol name in code or an AE Title field alone is not interoperability evidence.
+4. Prove sustainable ecosystem economics: partners can see transparent fees and net payouts; DentVision can support the service with positive unit economics, reconciliation and reliable operations.
+5. Build a Kazakhstan adoption path: obtain qualified legal/regulatory review, define the correct medical-data and integration obligations, run documented pilots with approved organizations, and prepare a public-sector proposal only after security, governance, procurement and support requirements are evidenced.
+6. Publish credible evidence: customer-approved case studies, independent evaluations, technical documentation, standards/conformance reports and clear uptime/support commitments. Never claim government endorsement, certification, accreditation or clinical efficacy without formal evidence.
+
+### Execution discipline
+
+- Continue from the verified current branch/PR and preserve existing work; do not create duplicate branches or parallel implementations for the same domain.
+- Before each slice, inspect the Master Spec, Release Blockers, current Execution Plan, cabinet standard, domain contract, route/API, schema, UI and tests.
+- Fix the earliest real release/CI blocker before adding unrelated surface area. Commit source changes and matching docs together; regenerate generated files using their canonical scripts.
+- After every slice, record exact changed files, commit SHA, tests, external dependencies, known limitations and next unblocked action in this file and the owning domain document.
+- A CI result is valid only for the exact SHA it ran against. Do not merge, deploy or mark a vertical complete because an older run passed.
+- Keep this programme active until all applicable acceptance criteria are met; do not silently drop unfinished rows when switching workstreams.
+
+### Exact-head checkpoint — 2026-11-21
+
+- Branch: `fix/partner-workspace-context-ux-20261120`; PR #352 targets `main`; observed head `be324289b8db23ce92b0f33f186b93ab2f6388e3`. PR is OPEN and unmerged.
+- On that SHA, frontend lint, backend lint, both Quality Gate jobs and Vercel status passed; E2E was still running at the time of inspection.
+- CI `lint-test` failed before `npm test`: the job ran `npm run system-map --prefix dentvision-backend`, which changed the generated `docs/SYSTEM_MAP.md`; `git diff --exit-code -- docs/SYSTEM_MAP.md` then failed. The source had 729 unique route handlers, 683 mounted HTTP routes and 160 Prisma models, while the committed map still said 722 / 680 / 157. This is generated-document drift, not evidence of a failing unit test; unit tests were skipped by that job.
+- The same generated map reports 102 routes without a detected web/mobile consumer. This is an audit queue, not proof that every route is broken; reconcile each route to a real consumer, intentional server-only use or safe removal.
+- Next action: sync the generated System Map from the canonical generator, commit the corrected output and rerun exact-HEAD CI. Then inspect the E2E result and all remaining gates before merge.
+
+
+### Partner monetization correction — 2026-11-21
+
+- Product-owner correction: partner cabinets are **not universally free**. DentVision's partner economy is defined by vertical-specific branch subscriptions, transaction commissions and revenue splits in `docs/business/DENTVISION_PARTNER_ECONOMICS.md`.
+- The earlier blanket-free amendment in that document contradicted its canonical commission tables and is removed. The commission and branch rates in Sections 5–9 are active policy inputs, subject to settlement-first recognition, transparent fee disclosure, volume tiers, minimums/caps and approved contract exceptions.
+- Defined models: diagnostic centers 7% per DentVision-originated order plus branch subscription; medical-analysis laboratories 6% per analysis/order plus branch subscription; dental laboratories case commissions with volume tiers plus branch subscription; Marketplace sellers 8% standard take-rate with high-volume/strategic reductions; Academy/lecturer splits of 10/90, 25/75 or 30/70 according to acquisition source.
+- Do not invent a tariff for employers or other verticals that lack an explicit rate. Clinic CRM subscriptions remain separate; do not charge a percentage of the clinic's total treatment revenue.
+- Implementation must enforce pricing server-side and record immutable settlement snapshots. Verify billing, checkout, invoices, payouts, refunds, chargebacks and Finance Hub before treating a vertical as complete.
+- The policy document has been corrected on the active PR branch. Exact-head CI is still required; no merge or release readiness is implied.
+
+### Finance correctness fix — partial marketplace return dispute — 2026-11-21
+
+- Found a state-integrity defect in `dentvision-backend/src/modules/finance/disputes.routes.ts`: the platform status endpoint changed a dispute to `resolved` before checking whether it contained item-level return records. The endpoint then returned HTTP 409 for the unsupported order-wide refund, leaving the dispute incorrectly marked resolved.
+- Reordered the guard so item-level return disputes are rejected before the compare-and-set status mutation. The legacy full-order DentCash reversal remains unavailable for partial returns.
+- Added a regression contract test asserting the partial-return guard occurs before the dispute compare-and-set and before `reverseCashback`.
+- Commits: implementation `a96962b3bb50f8c28f138b352c9421623d3b4c17`; regression test `8b2d48362a90c8762ee11ef9382c7b2ad75f4ef7`.
+- Verification limitation: source was re-read from GitHub after the writes; no local test runner was available in this session. Exact-head CI is required before this fix is considered verified or merged.
+
+## Partner economy — canonical policy engine foundation — 2026-11-21
+
+- Added \`dentvision-backend/src/modules/billing/partnerEconomics.ts\` as a pure, versioned calculation layer sourced from \`docs/business/DENTVISION_PARTNER_ECONOMICS.md\` v1.2.
+- Added deterministic rules for diagnostic studies (7%, ₸500 minimum, ₸3,000 cap), medical analyses (6%, ₸150 minimum, ₸2,500 cap), dental-lab cases (10/8/7/6/5% by organization-level monthly GMV, ₸500 minimum, ₸15,000 cap), Marketplace seller tiers (8% standard, 6% high-volume, strategic 4–5% only when explicitly approved), and Academy acquisition-source splits (10/90, 25/75, 30/70).
+- The engine returns policy version, gross, rate, minimum/cap, commission, partner net before external deductions and effective take-rate. It rejects invalid amounts and refuses to invent a strategic supplier rate.
+- Added unit tests for published examples, every dental-lab volume boundary, Academy splits, invalid amounts and effective take-rate transparency.
+- **Important boundary:** this is a calculation foundation, not proof of production monetization. It is not yet wired into all settlement, subscription, invoice, payout, refund, chargeback or Finance Hub paths. Do not recognize commission on order creation, assignment or referral acceptance. The next implementation slice must integrate it into the canonical settlement transaction and persist immutable policy snapshots; existing legacy calculations must be reconciled before activation.
+- Audit finding in the active partner branch: \`diagnostics.service.ts\` currently computes a fixed 7% diagnostic fee while a referral is accepted/in progress, whereas the policy requires commission recognition only after successful settlement. This legacy path must be replaced by settlement-time calculation, with regression coverage for unpaid, paid, refunded and duplicate-settlement referrals.
+- Diagnostic-center subscription enforcement still reads the legacy \`center_subscriptions\` table and starts a 30-day trial; reconcile it with the canonical organization/branch subscription model and ₸49,900 per active billable branch before claiming partner billing complete.
+- Medical Laboratory, Dental Laboratory, Supplier and Academy must each be connected to the same versioned pricing/settlement contract, while retaining their distinct domain rates and organization-level volume aggregation.
+
+
+### Exact-head continuation checkpoint — 2026-11-21 (partner economics / CI)
+
+- Branch head: `93fc0df503f819e62d64372f506606393073061b` on PR #352; PR remains OPEN and unmerged.
+- Previous CI on `b31dc721fa338e8f53d7fbc166e35f0e23c63ecf` exposed two actionable failures: backend TypeScript rejected runtime use of `Prisma.TransactionIsolationLevel` because `Prisma` was imported with `import type`; generated System Map was stale (731 unique handlers, 685 mounted routes, 103 routes without detected web/mobile consumer, 162 Prisma models).
+- Fixed the runtime import in `dentvision-backend/src/modules/shop/shop.routes.ts` and synchronized `docs/SYSTEM_MAP.md` from the CI generator output. These changes are committed in the active PR branch.
+- Audited diagnostic referral status handling and removed the legacy 7% `platformFee` calculation/write from ACCEPTED / IN_PROGRESS transitions, and stopped publishing that mutable field in referral status events. Referral cost/pricing remains available; commission is resolved by the paid-referral settlement path. Added a contract regression asserting pre-settlement fee calculation/publication is absent.
+- CI rerun for the prior corrective head `2b65edc2655c7cfcb0b9a9f95c74d96dc58bcb47` was started; its checks were still in progress when this checkpoint was recorded. The newer diagnostic fix commit above requires its own exact-head CI evidence; do not treat earlier results as certification.
+- Important integration audit finding: the repository already has a production-facing `modules/finance/partner-economics.service.ts` using minor-unit ledger accounting and persisted `CommissionRule` records, while the newly added `modules/billing/partnerEconomics.ts` is a separate KZT calculation foundation. The finance service currently declares numeric economics version 1 and only three partner verticals; the pure helper declares policy version 1.2 and includes Marketplace / Academy. These are duplicate policy authorities until explicitly unified. Do not activate a second calculator or claim Marketplace / Academy monetization complete.
+- Diagnostic center subscription still uses legacy `center_subscriptions` and a 30-day trial; its acceptance error text still advertises ₸20,000/month, contradicting the canonical ₸49,900 / active billable branch policy. This remains OPEN and must be migrated with organization/branch billing, not patched by changing only the message.
+- Next: verify exact-head CI on `93fc0df`; then reconcile the two economics engines into one minor-unit settlement contract with immutable policy-version snapshots, and migrate diagnostic branch billing to the canonical subscription model. Preserve existing ledger/idempotency/refund behavior and add tests before enabling new partner charges.
+
+
+### Partner settlement integration audit — follow-up evidence — 2026-11-21
+
+- Existing Marketplace and Academy payments already converge on `finance.service.ts::recordSaleTx` from the successful payment-settlement path. It performs a balanced GATEWAY → seller net / PLATFORM commission ledger transaction and writes platform revenue; this is the correct existing integration seam and must be extended rather than duplicated with a second ledger write.
+- Current `recordSaleTx` defaults are shop/marketplace 8% and school/academy 10%; scope-specific `CommissionRule` rows can override the rate. The current snapshot stores rate, net and min/max, but does not store the canonical policy version, seller tier/acquisition source, or a resolved Academy 10/25/30% split. The documented policy therefore is not yet fully represented in this path.
+- Existing `partner-economics.service.ts::recordPartnerEconomics` already provides idempotent partner-economics transactions, partner/platform wallets, balanced ledger entries and reconciliation for diagnostic / medical-analysis / dental-lab verticals. It is called after paid diagnostic referrals are swept into settlements and from successful medical-lab order payment. Preserve this accounting path; do not call it on top of `recordSaleTx` for Marketplace orders, which would double-book the gross amount.
+- Diagnostic acceptance / in-progress no longer calculates or publishes a mutable platform fee. The paid-referral settlement service recomputes commission from its canonical rule rather than trusting legacy `Referral.platformFee`; the new contract test protects the pre-settlement boundary.
+- Remaining P0 finance slice: converge the KZT helper and minor-unit finance services on one versioned policy resolver; stamp immutable `policyVersion`, exact rate/min/cap/tier/acquisition source and partner net into existing sale/partner-economics snapshots; enforce approved strategic supplier rates and Academy source split from server-authoritative records; add refunds/partial returns/chargeback compensation and reconciliation tests. Do not add a second transaction for Marketplace commission.
+
+
+### Partner finance snapshot hardening — 2026-11-21
+
+- Extended the existing successful-sale ledger snapshot in `modules/finance/finance.service.ts::recordSaleTx` with canonical `policyVersion: 1.2`, domain, seller type/id, organization and branch scope, alongside the resolved bps, min/cap and net amounts. This remains the single balanced ledger transaction for Marketplace / Academy sales.
+- Extended diagnostic / medical / dental partner-economics ledger metadata with the same canonical policy version while retaining the legacy numeric `economicsVersion` for existing read models and reconciliation compatibility.
+- Added a finance unit assertion that the sale ledger stores the policy version and authoritative seller/domain scope. The test has been committed; exact-head CI is the verification gate.
+- Academy source attribution is not yet modeled as a server-authoritative enrollment field: current `SchoolEnrollment.acquisitionType` describes purchase/free/invitation/grant, not lecturer-vs-DentVision acquisition. Do not infer the 10/25/30% split from a client-provided field. Add verified campaign/referral attribution and persist it before applying split economics.
+- Supplier tiers likewise require an approved, auditable tier/contract record; current `CommissionRule` can override rates but does not itself prove STANDARD / HIGH_VOLUME / STRATEGIC qualification. Enforce the 4–5% strategic range only after that approval source is modeled.
+
+
+### D10 evidence reconciliation — Dental Laboratory QC — 2026-11-21
+
+- Re-read the active implementation rather than treating the D10 checklist as an unimplemented roadmap. Dental-lab QC already exists: assigned technicians can move production to `qc` but cannot sign off, set `ready`, deliver or authorize remake; only manager-level roles can submit the six-item checklist. A pass moves the case to `ready`; a failure requires a written note and moves it to `remake`. The transition, QC snapshot and durable event are written in one database transaction, then clinic handoff events are published.
+- Evidence: `dentvision-backend/src/modules/lab/labPlatform.authorization.ts`, `labPlatform.routes.ts`, and `labPlatform.authorization.test.ts`. The existing test covers manager/technician role boundaries, assigned-only technician progression, six required boolean checks, rejection of extra/missing checks and failure-note requirement.
+- D10 checklist updated to mark only this specific QC slice complete. This does **not** close D10: explicit clinic-authorized remake initiation/feedback, shipping/dispatch and proof of delivery, invoice/payment/settlement/payout, and full owner/manager/technician mobile acceptance remain OPEN.
+## Partner economy — exact fee arithmetic alignment — 2026-11-21
+
+- Audited the new whole-KZT billing/partnerEconomics.ts calculation against the existing Finance Hub finance/partner-economics.service.ts integer-minor-unit calculation.
+- Found a deterministic discrepancy: the new helper used Math.round, while the ledger calculation floors integer division. For example, a standard supplier sale of ₸1,007 at 8% produced ₸81 in the helper but ₸80 in the ledger.
+- Changed the helper to exact BigInt multiplication/division and reject invalid basis-point rates. The minimum/cap rules are applied after exact percentage calculation.
+- Added a regression test for ₸1,007 × 8% = ₸80 and partner net ₸927.
+- This closes the arithmetic mismatch only. It does not claim that all verticals are connected to one settlement service. The legacy Finance Hub service still exposes only diagnostic, medical-analysis and dental-lab verticals; supplier Marketplace and Academy acquisition splits must be wired through a single approved settlement contract before their commission/payout lifecycle is considered complete.
+- Exact-head backend tests, lint, E2E and Quality Gate are required after this change; no result is inferred from earlier commits.

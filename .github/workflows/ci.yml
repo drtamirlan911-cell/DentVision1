@@ -124,6 +124,27 @@ jobs:
       - name: Apply raw lifecycle tables required by E2E
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260917_medical_lab_and_dental_lifecycle/migration.sql
         working-directory: dentvision-backend
+      - name: Apply medical laboratory accession and chain-of-custody tables
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261121160000_medical_lab_accession_chain_of_custody/migration.sql
+        working-directory: dentvision-backend
+      - name: Apply diagnostic modality inventory and referral assignment
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261121140000_diagnostic_modality_registry/migration.sql
+        working-directory: dentvision-backend
+      - name: Apply dental laboratory service catalogue and case price snapshots
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261121180000_dental_lab_service_catalog/migration.sql
+        working-directory: dentvision-backend
+      - name: Apply supplier shipment and proof-of-delivery records
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261121200000_supplier_shipment_delivery_evidence/migration.sql
+        working-directory: dentvision-backend
+      - name: Apply supplier dispute response records
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261121210000_supplier_dispute_response/migration.sql
+        working-directory: dentvision-backend
+      - name: Apply marketplace return item records
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261121220000_marketplace_return_items/migration.sql
+        working-directory: dentvision-backend
+      - name: Apply medical laboratory price snapshot required by order creation
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260920120000_medical_lab_price_snapshot/migration.sql
+        working-directory: dentvision-backend
       - name: Apply durable AI admin queue table required by backend worker
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260929130000_ai_admin_postgres_queue/migration.sql
         working-directory: dentvision-backend

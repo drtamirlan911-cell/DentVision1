@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
+import { PARTNER_ECONOMICS_POLICY_VERSION } from '../billing/partnerEconomics.js';
 
 export const PARTNER_VERTICALS = {
   DIAGNOSTIC_3D: 'DIAGNOSTIC_3D',
@@ -110,6 +111,7 @@ export async function recordPartnerEconomics(input: PartnerEconomicsInput & { op
   const meta = {
     kind: 'partner_economics', operationId: input.operationId, vertical: input.vertical, partnerId: input.partnerId,
     economicsVersion: breakdown.rule.version,
+    policyVersion: PARTNER_ECONOMICS_POLICY_VERSION,
     rule: { percentBps: breakdown.rule.percentBps, minFeeMinor: breakdown.rule.minFeeMinor.toString(), maxFeeMinor: breakdown.rule.maxFeeMinor?.toString() ?? null, subscriptionMinor: breakdown.rule.subscriptionMinor.toString(), effectiveFrom: breakdown.rule.effectiveFrom },
     commissionMinor: breakdown.commissionMinor.toString(), partnerRevenueMinor: breakdown.partnerRevenueMinor.toString(), contributionMarginMinor: breakdown.contributionMarginMinor.toString(), contributionMarginBps: breakdown.contributionMarginBps, status: breakdown.status,
     costs: { payment: breakdown.paymentCostMinor.toString(), ai: breakdown.aiCostMinor.toString(), storage: breakdown.storageCostMinor.toString(), support: breakdown.supportCostMinor.toString(), refundReserve: breakdown.refundReserveMinor.toString(), tax: breakdown.taxMinor.toString() },

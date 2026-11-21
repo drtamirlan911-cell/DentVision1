@@ -30,6 +30,18 @@ test.describe('Partner operational lifecycle', () => {
   let centerRadiologistToken = '';
   let centerRadiologistId = '';
   let labOwnerToken = '';
+  let labOwnerId = '';
+  let fixtureLabOrganizationId = '';
+  let medicalLabTechnicianId = '';
+  let medicalLabQualityId = '';
+  let medicalLabValidatorId = '';
+  let medicalLabDoctorId = '';
+  let medicalLabTechnicianToken = '';
+  let medicalLabQualityToken = '';
+  let medicalLabValidatorToken = '';
+  let medicalLabDoctorToken = '';
+  const medicalLabUserIds: string[] = [];
+  const medicalLabOrderIds: string[] = [];
   let dentalLabOwnerToken = '';
   let fixtureDentalLabId = '';
   let fixtureAlternativeDentalLabId = '';
@@ -187,7 +199,9 @@ test.describe('Partner operational lifecycle', () => {
     const partnerBranches = (await branchList.json()).data || [];
     expect(partnerBranches.length).toBeGreaterThanOrEqual(1);
 
-    const labOwner = await createTestUser({ email: `medical-lab-owner-${Date.now()}@test.dentvision`, firstName: 'Medical Lab', lastName: 'Owner' });
+    const labOwner = await createTestUser({ email: `medical-lab-owner-${Date.now()}@test.dentvision`, firstName: 'Medical Lab', lastName: 'Owner', role: 'STUDENT' as any });
+    labOwnerId = labOwner.id;
+    medicalLabUserIds.push(labOwner.id);
     labOwnerToken = await login(api, labOwner.email);
     const labOnboard = await api.post(`${BASE}/api/organizations/self-service`, {
       headers: auth(labOwnerToken),
@@ -199,6 +213,71 @@ test.describe('Partner operational lifecycle', () => {
     const labAccessToken = labPayload.data?.accessToken || labPayload.accessToken;
     expect(labAccessToken).toBeTruthy();
     labOwnerToken = labAccessToken;
+    const labOwnerClaims = JSON.parse(Buffer.from(labOwnerToken.split('.')[1], 'base64url').toString('utf8')) as { organizationId?: string; organizationType?: string };
+    fixtureLabOrganizationId = String(labOwnerClaims.organizationId || '');
+    expect(labOwnerClaims.organizationType).toBe('LABORATORY');
+    expect(fixtureLabOrganizationId).toBeTruthy();
+
+    const createMedicalLabRole = async (label: string, roleKey: string) => {
+      const user = await createTestUser({
+        email: 'medical-lab-' + label + '-' + Date.now() + '@test.dentvision',
+        firstName: 'Medical Lab',
+        lastName: label,
+        role: 'STUDENT' as any,
+      });
+      medicalLabUserIds.push(user.id);
+      const person = await prisma.person.upsert({
+        where: { userId_organizationId: { userId: user.id, organizationId: fixtureLabOrganizationId } },
+        update: { fullName: 'Medical Lab ' + label, personType: 'STAFF', email: user.email },
+        create: {
+          id: randomUUID(), fullName: 'Medical Lab ' + label, personType: 'STAFF',
+          organizationId: fixtureLabOrganizationId, userId: user.id, email: user.email,
+        },
+      });
+      const role = await prisma.role.findUnique({ where: { key: roleKey }, select: { id: true } });
+      expect(role?.id, 'canonical partner role ' + roleKey).toBeTruthy();
+      const scopeKey = 'organization:' + fixtureLabOrganizationId;
+      await prisma.personRole.upsert({
+        where: { personId_roleId_scopeKey: { personId: person.id, roleId: role!.id, scopeKey } },
+        update: { scopeType: 'organization', scopeId: fixtureLabOrganizationId },
+        create: {
+          id: randomUUID(), personId: person.id, roleId: role!.id,
+          scopeType: 'organization', scopeId: fixtureLabOrganizationId, scopeKey,
+        },
+      });
+      await prisma.laboratoryMember.upsert({
+        where: { labId_userId: { labId: fixtureLabId, userId: user.id } },
+        update: { role: 'technician' },
+        create: { id: randomUUID(), labId: fixtureLabId, userId: user.id, role: 'technician' },
+      });
+      const baseToken = await login(api, user.email);
+      const contextsResponse = await api.get(BASE + '/api/iam/me/contexts', { headers: auth(baseToken) });
+      expect(contextsResponse.status()).toBe(200);
+      const contexts = (await contextsResponse.json()).data?.contexts || [];
+      const context = contexts.find((item: any) => item.scopeType === 'LABORATORY' && item.organizationId === fixtureLabOrganizationId);
+      expect(context, 'medical lab context for ' + roleKey).toBeTruthy();
+      const switched = await api.post(BASE + '/api/iam/switch-context', {
+        headers: auth(baseToken),
+        data: { scopeType: 'LABORATORY', scopeId: fixtureLabId },
+      });
+      expect(switched.status()).toBe(200);
+      const token = (await switched.json()).data.accessToken as string;
+      expect(token).toBeTruthy();
+      return { id: user.id, token };
+    };
+
+    const medicalTechnician = await createMedicalLabRole('technician', 'medical_lab_technician');
+    medicalLabTechnicianId = medicalTechnician.id;
+    medicalLabTechnicianToken = medicalTechnician.token;
+    const medicalQuality = await createMedicalLabRole('quality', 'medical_lab_quality');
+    medicalLabQualityId = medicalQuality.id;
+    medicalLabQualityToken = medicalQuality.token;
+    const medicalValidator = await createMedicalLabRole('validator', 'medical_lab_validator');
+    medicalLabValidatorId = medicalValidator.id;
+    medicalLabValidatorToken = medicalValidator.token;
+    const medicalDoctor = await createMedicalLabRole('doctor', 'medical_lab_doctor');
+    medicalLabDoctorId = medicalDoctor.id;
+    medicalLabDoctorToken = medicalDoctor.token;
 
     const dentalLabOwner = await createTestUser({ email: `dental-lab-owner-${Date.now()}@test.dentvision`, firstName: 'Dental Lab', lastName: 'Owner' });
     const dentalLabBaseToken = await login(api, dentalLabOwner.email);
@@ -324,6 +403,18 @@ test.describe('Partner operational lifecycle', () => {
   });
 
   test.afterAll(async () => {
+    if (medicalLabOrderIds.length) {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM "medical_lab_orders" WHERE "id" = ANY($1::text[])`,
+        medicalLabOrderIds,
+      ).catch(() => {});
+    }
+    for (const userId of medicalLabUserIds) {
+      await prisma.laboratoryMember.deleteMany({ where: { userId } }).catch(() => {});
+      await prisma.personRole.deleteMany({ where: { person: { userId } } }).catch(() => {});
+      await prisma.person.deleteMany({ where: { userId } }).catch(() => {});
+      await prisma.user.delete({ where: { id: userId } }).catch(() => {});
+    }
     if (rb037VisitIds.length) {
       await prisma.visit.deleteMany({ where: { id: { in: rb037VisitIds } } }).catch(() => {});
     }
@@ -386,6 +477,65 @@ test.describe('Partner operational lifecycle', () => {
     expect(referralRes.status()).toBe(201);
     const referral = (await referralRes.json()).data;
     expect(referral.status).toBe('SENT');
+
+    // Diagnostic-center equipment is owned by the center, assigned only to its
+    // own active equipment, and unavailable to clinics or non-manager staff.
+    const modalityCreate = await api.post(`${BASE}/api/diagnostics/centers/${centerId}/modalities`, {
+      headers: auth(centerOwnerToken),
+      data: {
+        name: 'E2E CBCT room 1',
+        kind: 'CBCT',
+        manufacturer: 'E2E Manufacturer',
+        model: 'CBCT-1',
+        serialNumber: `CBCT-${randomUUID()}`,
+        room: 'Кабинет 1',
+        aeTitle: 'DVE2ECBCT',
+      },
+    });
+    expect(modalityCreate.status(), await modalityCreate.text()).toBe(201);
+    const modality = (await modalityCreate.json()).data;
+    expect(modality.centerId).toBe(centerId);
+    expect(modality.status).toBe('active');
+
+    const worklist = await api.get(`${BASE}/api/diagnostics/centers/${centerId}/worklist`, {
+      headers: auth(centerOwnerToken),
+    });
+    expect(worklist.status()).toBe(200);
+    const worklistItems = (await worklist.json()).data.items;
+    const worklistReferral = worklistItems.find((item: any) => item.id === referral.id);
+    expect(worklistReferral).toBeTruthy();
+    expect(worklistReferral.patientIin).toBeUndefined();
+    expect(worklistReferral.patientPhone).toBeUndefined();
+    expect(worklistReferral.patientEmail).toBeUndefined();
+
+    const assignModality = await api.patch(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}/modality`,
+      { headers: auth(centerOwnerToken), data: { modalityId: modality.id } },
+    );
+    expect(assignModality.status()).toBe(200);
+    expect((await assignModality.json()).data.modalityId).toBe(modality.id);
+
+    const refreshedWorklist = await api.get(`${BASE}/api/diagnostics/centers/${centerId}/worklist`, {
+      headers: auth(centerOwnerToken),
+    });
+    const assignedItem = (await refreshedWorklist.json()).data.items.find((item: any) => item.id === referral.id);
+    expect(assignedItem.modality?.id).toBe(modality.id);
+
+    const clinicCannotReadEquipment = await api.get(
+      `${BASE}/api/diagnostics/centers/${centerId}/modalities`,
+      { headers: auth(ownerToken) },
+    );
+    expect(clinicCannotReadEquipment.status()).toBe(403);
+    const clinicCannotCreateEquipment = await api.post(
+      `${BASE}/api/diagnostics/centers/${centerId}/modalities`,
+      { headers: auth(ownerToken), data: { name: 'Foreign device', kind: 'CBCT' } },
+    );
+    expect(clinicCannotCreateEquipment.status()).toBe(403);
+    const radiologistCannotAssignEquipment = await api.patch(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}/modality`,
+      { headers: auth(centerRadiologistToken), data: { modalityId: null } },
+    );
+    expect(radiologistCannotAssignEquipment.status()).toBe(403);
 
     for (const [status, actor] of [['ACCEPTED', centerOwnerToken], ['IN_PROGRESS', centerOwnerToken], ['COMPLETED', centerOwnerToken]] as const) {
       const res = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
@@ -629,34 +779,246 @@ test.describe('Partner operational lifecycle', () => {
     if (ownerDoctorVisit?.id) rb037VisitIds.push(ownerDoctorVisit.id);
   });
 
-  test('PARTNER-002: medical laboratory order → full lifecycle → result → delivered', async () => {
-    const lab = { id: fixtureLabId };
-    expect(lab.id).toBeTruthy();
+  test('PARTNER-002: medical laboratory chain → results → independent QC → rework → validator release → doctor interpretation', async () => {
+    expect(fixtureLabId).toBeTruthy();
+    expect(labOwnerToken).toBeTruthy();
+    expect(medicalLabTechnicianToken).toBeTruthy();
+    expect(medicalLabQualityToken).toBeTruthy();
+    expect(medicalLabValidatorToken).toBeTruthy();
+    expect(medicalLabDoctorToken).toBeTruthy();
 
     const clinic = await prisma.clinic.findFirst({ where: { name: 'E2E Clinic A' }, select: { id: true } });
     const clinicId = clinic?.id;
+    expect(clinicId).toBeTruthy();
 
-    const orderRes = await api.post(`${BASE}/api/lab-orders/medical-laboratory/orders`, {
-      headers: auth(ownerToken),
-      data: { clinicId, patientId, labId: lab.id, priority: 'routine', specimenType: 'blood' },
+    const clinicPatient = await prisma.patient.findFirst({
+      where: { id: patientId, clinicId: clinicId! },
+      select: { id: true },
     });
-    expect(orderRes.status()).toBe(201);
-    const order = (await orderRes.json()).data;
+    expect(clinicPatient?.id, 'the test patient must belong to E2E Clinic A').toBe(patientId);
+    const activeMedicalLab = await prisma.laboratory.findUnique({
+      where: { id: fixtureLabId },
+      select: { id: true, active: true },
+    });
+    expect(activeMedicalLab, 'self-service onboarding must return the canonical laboratory entity ID').toMatchObject({
+      id: fixtureLabId,
+      active: true,
+    });
+
+    const orderResponse = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders', {
+      headers: auth(ownerToken),
+      data: {
+        clinicId,
+        patientId,
+        labId: fixtureLabId,
+        priority: 'routine',
+        specimenType: 'blood',
+        tests: [{ name: 'Глюкоза' }],
+      },
+    });
+    const orderPayload = await orderResponse.json();
+    expect(orderResponse.status(), JSON.stringify(orderPayload)).toBe(201);
+    const order = orderPayload.data;
+    const orderId = order.id as string;
+    medicalLabOrderIds.push(orderId);
     expect(order.status).toBe('ordered');
 
-    const cycle = ['sample_collected', 'received', 'processing', 'result_ready', 'verified'];
-    for (const status of cycle) {
-      const res = await api.post(`${BASE}/api/lab-orders/medical-laboratory/orders/${order.id}/status`, {
-        headers: auth(labOwnerToken),
-        data: { status },
-      });
-      expect(res.status()).toBe(200);
-      expect((await res.json()).data.status).toBe(status);
-    }
+    expect(order.accessionRequired).toBe(true);
+    const moveTo = async (token: string, status: string) => api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/status', {
+      headers: auth(token),
+      data: { status },
+    });
 
-    const read = await api.get(`${BASE}/api/lab-orders/medical-laboratory/orders/${order.id}`, { headers: auth(ownerToken) });
-    expect(read.status()).toBe(200);
-    expect((await read.json()).data.order.status).toBe('verified');
+    const clinicCannotAccession = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens', {
+      headers: auth(ownerToken),
+      data: { specimenType: 'blood' },
+    });
+    expect(clinicCannotAccession.status()).toBe(403);
+    const statusOnlyCollection = await moveTo(labOwnerToken, 'sample_collected');
+    expect(statusOnlyCollection.status()).toBe(409);
+
+    const accession = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { specimenType: 'blood', containerType: 'EDTA tube', volume: 5, volumeUnit: 'mL', location: 'Accession desk' },
+    });
+    const accessionBody = await accession.json();
+    expect(accession.status(), JSON.stringify(accessionBody)).toBe(201);
+    const specimen = accessionBody.data;
+    expect(specimen.accessionNumber).toMatch(/^DVL-[A-Z0-9]{12,16}$/);
+    expect(specimen.status).toBe('collected');
+
+    const statusOnlyReceipt = await moveTo(labOwnerToken, 'received');
+    expect(statusOnlyReceipt.status()).toBe(409);
+    const unknownBarcode = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/scan', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { barcode: 'DVL-UNKNOWN0000', action: 'received' },
+    });
+    expect(unknownBarcode.status()).toBe(404);
+
+    const scannedReceipt = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/scan', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { barcode: specimen.accessionNumber, action: 'received', location: 'Intake rack A' },
+    });
+    const scannedBody = await scannedReceipt.json();
+    expect(scannedReceipt.status(), JSON.stringify(scannedBody)).toBe(200);
+    expect(scannedBody.data.orderAdvanced).toBe(true);
+    expect(scannedBody.data.order.status).toBe('received');
+
+    const duplicateScan = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/scan', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { barcode: specimen.accessionNumber, action: 'received' },
+    });
+    expect(duplicateScan.status()).toBe(409);
+
+    const oversizedAliquot = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/' + specimen.id + '/aliquots', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { volume: 6, volumeUnit: 'mL', containerType: 'Aliquot tube' },
+    });
+    expect(oversizedAliquot.status()).toBe(400);
+
+    const aliquotResponse = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/' + specimen.id + '/aliquots', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { volume: 1, volumeUnit: 'mL', containerType: 'Aliquot tube' },
+    });
+    const aliquotBody = await aliquotResponse.json();
+    expect(aliquotResponse.status(), JSON.stringify(aliquotBody)).toBe(201);
+    expect(aliquotBody.data.parentSpecimenId).toBe(specimen.id);
+    expect(aliquotBody.data.accessionNumber).not.toBe(specimen.accessionNumber);
+
+    const custodyDetail = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    const custodyPayload = (await custodyDetail.json()).data;
+    expect(custodyPayload.specimens).toHaveLength(2);
+    expect(custodyPayload.specimenEvents.map((event: any) => event.eventType)).toEqual(expect.arrayContaining(['COLLECTED', 'RECEIVED', 'ALIQUOT_CREATED']));
+
+    const processing = await moveTo(labOwnerToken, 'processing');
+    expect(processing.status()).toBe(200);
+    expect((await processing.json()).data.status).toBe('processing');
+    const processingDetail = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    const processingPayload = (await processingDetail.json()).data;
+    expect(processingPayload.specimens.every((item: any) => item.status === 'processing')).toBe(true);
+    expect(processingPayload.specimenEvents.map((event: any) => event.eventType)).toContain('PROCESSING_STARTED');
+
+    const technicianDetail = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    expect(technicianDetail.status()).toBe(200);
+    const testId = (await technicianDetail.json()).data.tests[0]?.id as string;
+    expect(testId).toBeTruthy();
+
+    const ownerCannotEnterResults = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/results', {
+      headers: auth(labOwnerToken),
+      data: { results: [{ id: testId, result: '6.3' }] },
+    });
+    expect(ownerCannotEnterResults.status()).toBe(403);
+
+    const missingResults = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/results', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { results: [] },
+    });
+    expect(missingResults.status()).toBe(400);
+
+    const firstResults = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/results', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { results: [{ id: testId, result: '6.3', unit: 'mmol/L', referenceRange: '3.9–6.1', flag: 'high' }] },
+    });
+    expect(firstResults.status()).toBe(200);
+    expect((await firstResults.json()).data.status).toBe('result_ready');
+
+    const genericReady = await moveTo(labOwnerToken, 'result_ready');
+    expect(genericReady.status()).toBe(409);
+    const genericVerify = await moveTo(labOwnerToken, 'verified');
+    expect(genericVerify.status()).toBe(409);
+
+    const prematureVerify = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/verify', {
+      headers: auth(medicalLabValidatorToken),
+    });
+    expect(prematureVerify.status()).toBe(409);
+
+    const missingQcReason = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/quality-control', {
+      headers: auth(medicalLabQualityToken),
+      data: { decision: 'failed' },
+    });
+    expect(missingQcReason.status()).toBe(400);
+
+    const failedQc = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/quality-control', {
+      headers: auth(medicalLabQualityToken),
+      data: { decision: 'failed', note: 'Контрольный диапазон требует повторной проверки.' },
+    });
+    expect(failedQc.status()).toBe(200);
+    expect((await failedQc.json()).data.metadata.qualityControl.decision).toBe('failed');
+
+    const duplicateQc = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/quality-control', {
+      headers: auth(medicalLabQualityToken),
+      data: { decision: 'passed', note: 'Attempted override without re-analysis.' },
+    });
+    expect(duplicateQc.status()).toBe(409);
+
+    const rework = await moveTo(labOwnerToken, 'processing');
+    expect(rework.status()).toBe(200);
+    const reworkedDetail = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    expect(reworkedDetail.status()).toBe(200);
+    const reworkedTest = (await reworkedDetail.json()).data.tests[0];
+    expect(reworkedTest.result).toBeNull();
+    expect(reworkedTest.metadata.resultHistory).toHaveLength(1);
+    expect(reworkedTest.metadata.resultHistory[0]).toMatchObject({
+      result: '6.3',
+      recordedByUserId: medicalLabTechnicianId,
+      archivedByUserId: expect.any(String),
+    });
+
+    const secondResults = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/results', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { results: [{ id: testId, result: '5.4', unit: 'mmol/L', referenceRange: '3.9–6.1', flag: 'normal' }] },
+    });
+    expect(secondResults.status()).toBe(200);
+
+    const passedQc = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/quality-control', {
+      headers: auth(medicalLabQualityToken),
+      data: { decision: 'passed', note: 'Повторный результат соответствует QC.' },
+    });
+    expect(passedQc.status()).toBe(200);
+
+    const qualityCannotRelease = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/verify', {
+      headers: auth(medicalLabQualityToken),
+    });
+    expect(qualityCannotRelease.status()).toBe(403);
+    const technicianCannotRelease = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/verify', {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    expect(technicianCannotRelease.status()).toBe(403);
+
+    const verified = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/verify', {
+      headers: auth(medicalLabValidatorToken),
+    });
+    expect(verified.status()).toBe(200);
+    expect((await verified.json()).data.status).toBe('verified');
+
+    const interpretation = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/interpretation', {
+      headers: auth(medicalLabDoctorToken),
+      data: { interpretation: 'Результат после повторного анализа находится в референсном диапазоне.' },
+    });
+    expect(interpretation.status()).toBe(200);
+
+    const clinicRead = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
+      headers: auth(ownerToken),
+    });
+    expect(clinicRead.status()).toBe(200);
+    expect((await clinicRead.json()).data.order).toMatchObject({
+      id: orderId,
+      status: 'verified',
+      interpretation: 'Результат после повторного анализа находится в референсном диапазоне.',
+    });
+
+    const otherPartnerRead = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
+      headers: auth(dentalLabOwnerToken),
+    });
+    expect(otherPartnerRead.status()).toBe(403);
   });
   test('PARTNER-003: dental lab owner → clinic assignment → technician → production → delivery → tenant isolation', async () => {
     expect(fixtureDentalLabId).toBeTruthy();
@@ -686,18 +1048,44 @@ test.describe('Partner operational lifecycle', () => {
     expect(availablePartnerIds).toContain(fixtureAlternativeDentalLabId);
     expect(availablePartnerIds).not.toContain(fixtureLabId);
 
+    const createService = await api.post(`${BASE}/api/lab-orders/platform/services`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { code: 'CROWN-ZR', name: 'Коронка из диоксида циркония', category: 'crown', material: 'zirconia', description: 'Полноанатомическая циркониевая коронка', defaultPrice: 52000, turnaroundDays: 7 },
+    });
+    const createdServiceBody = await createService.json();
+    expect(createService.status(), JSON.stringify(createdServiceBody)).toBe(201);
+    const dentalService = createdServiceBody.data;
+    const partnerServiceList = await api.get(`${BASE}/api/lab-orders/platform/services`, { headers: auth(dentalLabOwnerToken) });
+    expect(partnerServiceList.status()).toBe(200);
+    expect((await partnerServiceList.json()).data.some((item: any) => item.id === dentalService.id)).toBe(true);
+    const buyerServiceList = await api.get(`${BASE}/api/lab-orders/platform/available-laboratories/${fixtureDentalLabId}/services`, { headers: auth(ownerToken) });
+    expect(buyerServiceList.status()).toBe(200);
+    expect((await buyerServiceList.json()).data).toEqual(expect.arrayContaining([expect.objectContaining({ id: dentalService.id, defaultPrice: 52000 })]));
+    const clinicCannotReadPrivatePartnerCatalog = await api.get(`${BASE}/api/lab-orders/platform/services`, { headers: auth(ownerToken) });
+    expect(clinicCannotReadPrivatePartnerCatalog.status()).toBe(403);
+    const clinicCannotCreatePartnerService = await api.post(`${BASE}/api/lab-orders/platform/services`, {
+      headers: auth(ownerToken), data: { code: 'FOREIGN', name: 'Foreign service', category: 'crown', defaultPrice: 1 },
+    });
+    expect(clinicCannotCreatePartnerService.status()).toBe(403);
+
     const assignment = await api.post(`${BASE}/api/lab-orders/platform/assign`, {
       headers: auth(ownerToken),
-      data: { orderId: order.id, laboratoryId: fixtureDentalLabId },
+      data: { orderId: order.id, laboratoryId: fixtureDentalLabId, serviceId: dentalService.id },
     });
     expect(assignment.status()).toBe(200);
 
     const assignedLifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/lifecycle`, { headers: auth(dentalLabOwnerToken) });
     expect(assignedLifecycle.status()).toBe(200);
+    const assignedOrder = (await assignedLifecycle.json()).data.order;
+    expect(assignedOrder).toMatchObject({ serviceId: dentalService.id, serviceName: 'Коронка из диоксида циркония', servicePriceSnapshot: 52000, price: 52000 });
     const initialEventCount = (await assignedLifecycle.json()).data.events.length;
+    const priceChange = await api.patch(`${BASE}/api/lab-orders/platform/services/${dentalService.id}`, { headers: auth(dentalLabOwnerToken), data: { defaultPrice: 61000 } });
+    expect(priceChange.status()).toBe(200);
+    const immutableSnapshot = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/lifecycle`, { headers: auth(dentalLabOwnerToken) });
+    expect((await immutableSnapshot.json()).data.order).toMatchObject({ servicePriceSnapshot: 52000, price: 52000 });
     const repeatedAssignment = await api.post(`${BASE}/api/lab-orders/platform/assign`, {
       headers: auth(ownerToken),
-      data: { orderId: order.id, laboratoryId: fixtureDentalLabId },
+      data: { orderId: order.id, laboratoryId: fixtureDentalLabId, serviceId: dentalService.id },
     });
     expect(repeatedAssignment.status()).toBe(200);
     expect((await repeatedAssignment.json()).data.assignmentIdempotent).toBe(true);

@@ -38,3 +38,24 @@ describe('dental lab branch isolation contract', () => {
     expect(source).toContain("Пациент недоступен в текущем филиале");
   });
 });
+
+
+describe('clinic-authorized dental-lab remake request boundary', () => {
+  const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/lab/lab.routes.ts'), 'utf8');
+  it('requires a clinic lab-write permission, delivered partner-owned order, branch scope and row lock', () => {
+    const start = source.indexOf("labRouter.post('/:id/remake-request'");
+    const end = source.indexOf("labRouter.delete('/:id'", start);
+    const route = source.slice(start, end);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(route).toContain("requirePermission('lab.write')");
+    expect(route).toContain('validateLabRemakeRequestReason');
+    expect(route).toContain('FOR UPDATE');
+    expect(route).toContain('...branchScopedLabOrder(req)');
+    expect(route).toContain('existingMeta.laboratoryId');
+    expect(route).toContain("existing.status !== 'delivered'");
+    expect(route).toContain("existingMeta.remakeRequest?.status === 'requested'");
+    expect(route).toContain('LAB_ORDER_REMAKE_REQUESTED');
+    expect(route).toContain('createNotificationForMany');
+    expect(route).toContain("type: 'lab.remake.requested'");
+  });
+});

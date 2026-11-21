@@ -6,6 +6,10 @@ const source = readFileSync(
   resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts'),
   'utf8',
 );
+const serviceSource = readFileSync(
+  resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnostics.service.ts'),
+  'utf8',
+);
 
 describe('diagnostics route contract', () => {
   it('has no shadowed duplicate HTTP method + path handlers', () => {
@@ -19,6 +23,12 @@ describe('diagnostics route contract', () => {
     expect(source).toContain("import { assertClinicOrgAccess");
     expect(source).toContain("assertClinicOrgAccess(req.user!, referral.clinicId)");
     expect(source).toContain("assertClinicOrgAccess(req.user!, clinicId)");
+  });
+
+  it('does not calculate or publish commission before a paid settlement', () => {
+    expect(serviceSource).not.toContain('diagnosticPlatformFee');
+    expect(serviceSource).not.toContain('update.platformFee');
+    expect(serviceSource).not.toContain('platformFee: updatedReferral.platformFee');
   });
 
   it('keeps payment transition separate from referral status', () => {
@@ -37,10 +47,10 @@ describe('diagnostics route contract', () => {
   it('does not grant cashier roles partner pricing/catalog mutation access', () => {
     expect(source).toContain('function canManagePartnerCatalog');
     expect(source).not.toContain("if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' })");
-    const pricingSection = source.slice(source.indexOf("diagnosticsRouter.patch('/centers/:id/pricing'"), source.indexOf("diagnosticsRouter.get('/referrals'")); 
-    expect((pricingSection.match(/if \(!canManagePartnerCatalog\(req\.user\)\)/g) || [])).toHaveLength(4);
+    const pricingSection = source.slice(source.indexOf("diagnosticsRouter.patch('/centers/:id/pricing'"), source.indexOf("diagnosticsRouter.get('/centers/:id/modalities'")); 
+    expect((pricingSection.match(/if \(!\(await canManagePartnerCatalog\(req\.user\)\)\)/g) || [])).toHaveLength(4);
     const billingSection = source.slice(source.indexOf("diagnosticsRouter.post('/referrals/:id/mark-paid'"), source.indexOf("diagnosticsRouter.delete('/referrals/:id'")); 
-    expect((billingSection.match(/if \(!canManagePartnerBilling\(req\.user\)\)/g) || [])).toHaveLength(3);
+    expect((billingSection.match(/if \(!\(await canManagePartnerBilling\(req\.user\)\)\)/g) || [])).toHaveLength(3);
   });
 
   it('requires doctor-only clinical authorization on AI confirmation and clinic result signing', () => {
@@ -56,6 +66,27 @@ describe('diagnostics route contract', () => {
     expect(source).toContain("patientRecordUpdated: signerScope === 'clinic'");
     expect(source).toContain("hasScopedPartnerSignerRole(req.user!, DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS)");
     expect(source).toContain("hasScopedPartnerSignerRole(req.user!, LAB_RESULT_SIGNER_ROLE_KEYS)");
+  });
+
+
+  it('exposes scoped modality management and a center-specific worklist', () => {
+    const routes = source.slice(
+      source.indexOf("diagnosticsRouter.get('/centers/:id/modalities'"),
+      source.indexOf("diagnosticsRouter.get('/referrals'"),
+    );
+    expect(routes).toContain("sameOrgContext(req.user, 'DiagnosticCenter', centerId)");
+    expect(routes).toContain('canManagePartnerCatalog(req.user)');
+    expect(routes).toContain("diagnosticsRouter.get('/centers/:id/worklist'");
+    expect(routes).toContain("diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/modality'");
+    expect(routes).toContain("status: 'active'");
+    expect(routes).toContain('auditFromReq');
+  });
+
+  it('accepts only DICOM AE Title metadata, never PACS credentials or endpoints', () => {
+    expect(source).toContain('DIAGNOSTIC_MODALITY_KINDS');
+    expect(source).toContain('aeTitle.length > 16');
+    expect(source).not.toContain('pacsPassword');
+    expect(source).not.toContain('dicomPassword');
   });
 
   it('keeps partner pricing and cashier handlers unique', () => {

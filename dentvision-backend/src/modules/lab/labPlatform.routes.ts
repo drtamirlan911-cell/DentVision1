@@ -9,7 +9,9 @@ import { assertClinicOrgAccess } from '../../lib/orgContext.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { uid } from '../../lib/helpers.js';
 import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js';
-import { canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, labMemberOrderReadScope, validateLabQualityControl } from './labPlatform.authorization.js';
+import { createNotificationForClinic } from '../../services/notification.service.js';
+import { writeAuditLog } from '../compliance/audit.service.js';
+import { canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeDecision } from './labPlatform.authorization.js';
 
 export const labPlatformRouter = Router();
 labPlatformRouter.use(authenticate);
@@ -25,6 +27,7 @@ type LabMeta = {
   appointmentId?: string;
   tryInDate?: string;
   qualityControl?: { checks: Record<string, boolean>; passed: boolean; note: string | null; checkedByUserId: string; checkedAt: string };
+  remakeRequest?: { id: string; status: 'requested' | 'accepted' | 'rejected'; reason: string; requestedByUserId: string; requestedAt: string; laboratoryId: string; decidedByUserId?: string; decidedAt?: string; responseNote?: string | null };
 };
 
 const STATUS_FLOW: Record<string, string[]> = {
@@ -134,6 +137,10 @@ function serialize(order: any) {
     shade: meta.shade || '', notes: order.notes || '', deadline: order.deadline, price: order.price, status: order.status,
     technicianId: meta.technicianId || null, remakeOfId: meta.remakeOfId || null, appointmentId: meta.appointmentId || null,
     qualityControl: meta.qualityControl || null,
+    remakeRequest: meta.remakeRequest || null,
+    serviceId: order.serviceId || null,
+    serviceName: order.serviceNameSnapshot || null,
+    servicePriceSnapshot: order.servicePriceSnapshot ?? null,
     treatmentCaseId: (order as any).treatmentCaseId ?? null,
     createdAt: order.createdAt, updatedAt: order.updatedAt,
   };
@@ -178,6 +185,137 @@ labPlatformRouter.get('/available-laboratories', requirePermission('appointment.
   } catch (error) {
     console.error('[LabPlatform] available laboratories error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить список зуботехнических лабораторий' } satisfies ApiResponse);
+  }
+});
+
+
+const DENTAL_LAB_SERVICE_CATEGORIES = new Set(['crown', 'bridge', 'veneer', 'implant', 'denture', 'nightguard', 'wax', 'other']);
+function parseDentalLabService(input: any, partial = false): Record<string, unknown> | null {
+  const value: Record<string, unknown> = {};
+  if (!partial || 'code' in (input || {})) {
+    const code = String(input?.code || '').trim().toUpperCase();
+    if (!/^[A-Z0-9][A-Z0-9_-]{1,39}$/.test(code)) return null;
+    value.code = code;
+  }
+  if (!partial || 'name' in (input || {})) {
+    const name = String(input?.name || '').trim();
+    if (name.length < 2 || name.length > 120) return null;
+    value.name = name;
+  }
+  if (!partial || 'category' in (input || {})) {
+    const category = String(input?.category || '').trim().toLowerCase();
+    if (!DENTAL_LAB_SERVICE_CATEGORIES.has(category)) return null;
+    value.category = category;
+  }
+  if ('description' in (input || {})) {
+    const description = String(input?.description || '').trim();
+    if (description.length > 1500) return null;
+    value.description = description || null;
+  }
+  if ('material' in (input || {})) {
+    const material = String(input?.material || '').trim();
+    if (material.length > 80) return null;
+    value.material = material || null;
+  }
+  if (!partial || 'defaultPrice' in (input || {})) {
+    const price = Number(input?.defaultPrice);
+    if (!Number.isSafeInteger(price) || price <= 0 || price > 100_000_000) return null;
+    value.defaultPrice = price;
+  }
+  if ('turnaroundDays' in (input || {}) || !partial) {
+    const days = input?.turnaroundDays === undefined ? 5 : Number(input.turnaroundDays);
+    if (!Number.isInteger(days) || days < 1 || days > 365) return null;
+    value.turnaroundDays = days;
+  }
+  if ('active' in (input || {})) {
+    if (typeof input.active !== 'boolean') return null;
+    value.active = input.active;
+  }
+  return value;
+}
+
+/** Public to an authenticated clinic that may assign a verified lab partner. */
+labPlatformRouter.get('/available-laboratories/:id/services', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user?.clinicId;
+    if (!clinicId || !(await assertClinicOrgAccess(req.user!, clinicId))) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к выбранной клинике' } satisfies ApiResponse);
+    }
+    const labId = String(req.params.id);
+    const lab = await prisma.laboratory.findFirst({ where: { id: labId, active: true }, select: { id: true } });
+    if (!lab) return res.status(404).json({ ok: false, error: 'Зуботехническая лаборатория не найдена' } satisfies ApiResponse);
+    const organization = await prisma.organization.findFirst({
+      where: { type: 'LABORATORY', originalType: 'Laboratory', originalId: lab.id, archivedAt: null },
+      select: { settings: true },
+    });
+    if (!organization || !isVerifiedDentalLabSettings(organization.settings)) {
+      return res.status(404).json({ ok: false, error: 'Каталог доступен только проверенным опубликованным лабораториям' } satisfies ApiResponse);
+    }
+    const services = await prisma.dentalLabService.findMany({
+      where: { labId, active: true },
+      select: { id: true, code: true, name: true, category: true, description: true, material: true, defaultPrice: true, turnaroundDays: true },
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    });
+    return res.json({ ok: true, data: services } satisfies ApiResponse);
+  } catch {
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить каталог услуг лаборатории' } satisfies ApiResponse);
+  }
+});
+
+labPlatformRouter.get('/services', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership || !canLabMemberReadOrders(membership.role)) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к каталогу лаборатории' } satisfies ApiResponse);
+    }
+    const services = await prisma.dentalLabService.findMany({
+      where: { labId: membership.labId, ...(isLabManagerRole(membership.role) ? {} : { active: true }) },
+      orderBy: [{ active: 'desc' }, { category: 'asc' }, { name: 'asc' }],
+    });
+    return res.json({ ok: true, data: services } satisfies ApiResponse);
+  } catch {
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить каталог услуг' } satisfies ApiResponse);
+  }
+});
+
+labPlatformRouter.post('/services', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership || !isLabManagerRole(membership.role)) {
+      return res.status(403).json({ ok: false, error: 'Каталог услуг управляется владельцем или менеджером лаборатории' } satisfies ApiResponse);
+    }
+    const data = parseDentalLabService(req.body);
+    if (!data) return res.status(400).json({ ok: false, error: 'Проверьте код, название, категорию, цену и срок выполнения услуги' } satisfies ApiResponse);
+    const service = await prisma.dentalLabService.create({
+      data: { id: uid(), labId: membership.labId, ...(data as any) },
+    });
+    return res.status(201).json({ ok: true, data: service } satisfies ApiResponse);
+  } catch (error: any) {
+    if (String(error?.code || '') === 'P2002') return res.status(409).json({ ok: false, error: 'Код услуги уже используется в этой лаборатории' } satisfies ApiResponse);
+    return res.status(400).json({ ok: false, error: 'Не удалось создать услугу' } satisfies ApiResponse);
+  }
+});
+
+labPlatformRouter.patch('/services/:id', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership || !isLabManagerRole(membership.role)) {
+      return res.status(403).json({ ok: false, error: 'Изменять цены может только владелец или менеджер лаборатории' } satisfies ApiResponse);
+    }
+    const patch = parseDentalLabService(req.body, true);
+    if (!patch || Object.keys(patch).length === 0) {
+      return res.status(400).json({ ok: false, error: 'Нет допустимых полей для изменения услуги' } satisfies ApiResponse);
+    }
+    const existing = await prisma.dentalLabService.findFirst({
+      where: { id: String(req.params.id), labId: membership.labId },
+      select: { id: true },
+    });
+    if (!existing) return res.status(404).json({ ok: false, error: 'Услуга не найдена в этой лаборатории' } satisfies ApiResponse);
+    const service = await prisma.dentalLabService.update({ where: { id: existing.id }, data: patch as any });
+    return res.json({ ok: true, data: service } satisfies ApiResponse);
+  } catch (error: any) {
+    if (String(error?.code || '') === 'P2002') return res.status(409).json({ ok: false, error: 'Код услуги уже используется в этой лаборатории' } satisfies ApiResponse);
+    return res.status(400).json({ ok: false, error: 'Не удалось изменить услугу' } satisfies ApiResponse);
   }
 });
 
@@ -339,6 +477,85 @@ labPlatformRouter.patch('/orders/:id/qc', async (req: AuthRequest, res) => {
   } catch (error) { console.error('[LabPlatform] QC error:', error); return res.status(500).json({ ok: false, error: 'Не удалось сохранить результат контроля качества' } satisfies ApiResponse); }
 });
 
+labPlatformRouter.patch('/orders/:id/remake-request', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
+    if (!isLabManagerRole(membership.role)) return res.status(403).json({ ok: false, error: 'Решать запросы переделки может только владелец или менеджер лаборатории' } satisfies ApiResponse);
+    const decision = validateLabRemakeDecision(req.body?.decision, req.body?.note);
+    if (!decision) return res.status(400).json({ ok: false, error: 'Выберите решение; при отклонении укажите причину от 5 до 2000 символов' } satisfies ApiResponse);
+
+    await ensureDentalLabOrderEventsTable();
+    const outcome = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${req.params.id} FOR UPDATE`;
+      const existing = await tx.labOrder.findFirst({
+        where: { id: req.params.id, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } },
+      });
+      if (!existing) return { kind: 'not_found' as const };
+      if (existing.status !== 'delivered') return { kind: 'invalid_status' as const };
+      const meta = metaOf(existing.files);
+      const request = meta.remakeRequest;
+      if (!request || request.status !== 'requested' || request.laboratoryId !== membership.labId) {
+        return { kind: 'no_request' as const };
+      }
+      const nextStatus = decision.decision === 'accept' ? 'remake' : 'delivered';
+      const remakeRequest = {
+        ...request,
+        status: decision.decision === 'accept' ? 'accepted' as const : 'rejected' as const,
+        decidedByUserId: req.user!.id,
+        decidedAt: new Date().toISOString(),
+        responseNote: decision.note,
+      };
+      const currentFiles = existing.files && typeof existing.files === 'object' && !Array.isArray(existing.files)
+        ? existing.files as Record<string, unknown>
+        : {};
+      const order = await tx.labOrder.update({
+        where: { id: existing.id },
+        data: { status: nextStatus as any, files: { ...currentFiles, meta: { ...meta, remakeRequest } } },
+      });
+      const eventNote = decision.decision === 'accept'
+        ? `Лаборатория приняла запрос на переделку. ${decision.note || ''}`.trim()
+        : `Лаборатория отклонила запрос на переделку: ${decision.note}`;
+      await appendEventInTransaction(tx, order, existing.status, nextStatus, req.user!.id, eventNote);
+      return { kind: 'updated' as const, order, previousStatus: existing.status, nextStatus, remakeRequest };
+    });
+
+    if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Запрос переделки не найден в этой лаборатории' } satisfies ApiResponse);
+    if (outcome.kind === 'invalid_status') return res.status(409).json({ ok: false, error: 'Решение доступно только для доставленного заказа' } satisfies ApiResponse);
+    if (outcome.kind === 'no_request') return res.status(409).json({ ok: false, error: 'Нет ожидающего решения запроса на переделку' } satisfies ApiResponse);
+
+    await createNotificationForClinic(outcome.order.clinicId, {
+      type: 'lab.remake.decision',
+      title: decision.decision === 'accept' ? 'Лаборатория приняла переделку' : 'Лаборатория отклонила переделку',
+      message: decision.decision === 'accept'
+        ? 'Лаборатория приняла запрос. Заказ возвращён в производственный цикл.'
+        : `Лаборатория отклонила запрос: ${decision.note}`,
+      link: '/crm/lab',
+    });
+    await writeAuditLog({
+      action: decision.decision === 'accept' ? 'LAB_ORDER_REMAKE_ACCEPTED' : 'LAB_ORDER_REMAKE_REJECTED',
+      entity: 'lab_order', entityId: outcome.order.id,
+      details: { requestId: outcome.remakeRequest.id, decision: decision.decision, responseNoteLength: decision.note?.length || 0 },
+      userId: req.user!.id, clinicId: outcome.order.clinicId,
+    });
+    publish('labOrder.remake_response', {
+      clinicId: outcome.order.clinicId, labOrderId: outcome.order.id, laboratoryId: membership.labId,
+      requestId: outcome.remakeRequest.id, decision: decision.decision, userId: req.user!.id,
+    });
+    if (decision.decision === 'accept') {
+      publish('labOrder.status_changed', {
+        clinicId: outcome.order.clinicId, labOrderId: outcome.order.id, patientId: outcome.order.patientId || undefined,
+        doctorId: outcome.order.doctorId || undefined, status: outcome.nextStatus, previousStatus: outcome.previousStatus, userId: req.user!.id,
+      });
+    }
+    const treatmentCaseId = await caseIdOf(outcome.order.id) || undefined;
+    return res.json({ ok: true, data: serialize({ ...outcome.order, treatmentCaseId }) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[LabPlatform] remake response error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось сохранить решение по переделке' } satisfies ApiResponse);
+  }
+});
+
 labPlatformRouter.get('/team', async (req: AuthRequest, res) => {
   try {
     const membership = await resolveLab(req);
@@ -354,6 +571,7 @@ labPlatformRouter.post('/assign', requirePermission('appointment.write'), async 
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Действие доступно из клиники' } satisfies ApiResponse);
     if (!(await requireClinicAssignmentWritable(req, res, clinicId))) return;
     const orderId = String(req.body?.orderId || ''), laboratoryId = String(req.body?.laboratoryId || '');
+    const serviceId = req.body?.serviceId ? String(req.body.serviceId) : null;
     if (!orderId || !laboratoryId) return res.status(400).json({ ok: false, error: 'orderId и laboratoryId обязательны' } satisfies ApiResponse);
     const lab = await prisma.laboratory.findUnique({ where: { id: laboratoryId }, select: { id: true, name: true, active: true } });
     if (!lab || !lab.active) return res.status(404).json({ ok: false, error: 'Активная зуботехническая лаборатория не найдена', code: 'LAB_PARTNER_NOT_AVAILABLE' } satisfies ApiResponse);
@@ -375,12 +593,25 @@ labPlatformRouter.post('/assign', requirePermission('appointment.write'), async 
       if (meta.laboratoryId) return { kind: 'already_assigned' as const };
       if (existing.status !== 'pending') return { kind: 'invalid_status' as const };
 
+      const selectedService = serviceId
+        ? await tx.dentalLabService.findFirst({ where: { id: serviceId, labId: lab.id, active: true } })
+        : null;
+      if (serviceId && !selectedService) return { kind: 'invalid_service' as const };
       const currentFiles = existing.files && typeof existing.files === 'object' && !Array.isArray(existing.files)
         ? existing.files as Record<string, unknown>
         : {};
       const order = await tx.labOrder.update({
         where: { id: existing.id },
-        data: { labName: lab.name, files: { ...currentFiles, meta: { ...meta, laboratoryId: lab.id } } },
+        data: {
+          labName: lab.name,
+          ...(selectedService ? {
+            serviceId: selectedService.id,
+            serviceNameSnapshot: selectedService.name,
+            servicePriceSnapshot: selectedService.defaultPrice,
+            price: selectedService.defaultPrice,
+          } : {}),
+          files: { ...currentFiles, meta: { ...meta, laboratoryId: lab.id } },
+        },
       });
       await appendEventInTransaction(tx, order, null, order.status, req.user!.id, `Передан в лабораторию: ${lab.name}`);
       return { kind: 'assigned' as const, order };
@@ -389,6 +620,7 @@ labPlatformRouter.post('/assign', requirePermission('appointment.write'), async 
     if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден в вашей клинике' } satisfies ApiResponse);
     if (outcome.kind === 'already_assigned') return res.status(409).json({ ok: false, error: 'Заказ уже передан другой лаборатории. Переназначение без закрытия текущего цикла запрещено.', code: 'LAB_ORDER_ALREADY_ASSIGNED' } satisfies ApiResponse);
     if (outcome.kind === 'invalid_status') return res.status(409).json({ ok: false, error: 'Передать можно только новый заказ со статусом «Ожидает».', code: 'LAB_ORDER_NOT_ASSIGNABLE' } satisfies ApiResponse);
+    if (outcome.kind === 'invalid_service') return res.status(400).json({ ok: false, error: 'Выбранная услуга отсутствует, отключена или принадлежит другой лаборатории.', code: 'LAB_SERVICE_NOT_AVAILABLE' } satisfies ApiResponse);
 
     const order = outcome.order;
     if (outcome.kind === 'assigned') {

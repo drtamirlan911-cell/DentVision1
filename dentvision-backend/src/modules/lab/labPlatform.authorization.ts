@@ -48,3 +48,21 @@ export function validateLabQualityControl(checksValue: unknown, noteValue: unkno
   if (!passed && !note) return null;
   return { checks, passed, note: note || null };
 }
+
+
+export function validateLabRemakeRequestReason(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const reason = value.trim();
+  return reason.length >= 5 && reason.length <= 2000 ? reason : null;
+}
+
+export function validateLabRemakeDecision(
+  decisionValue: unknown,
+  noteValue: unknown,
+): { decision: 'accept' | 'reject'; note: string | null } | null {
+  const decision = String(decisionValue || '').trim().toLowerCase();
+  if (decision !== 'accept' && decision !== 'reject') return null;
+  const note = typeof noteValue === 'string' ? noteValue.trim() : '';
+  if (note.length > 2000 || (decision === 'reject' && note.length < 5)) return null;
+  return { decision, note: note || null };
+}

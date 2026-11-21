@@ -5,10 +5,10 @@
 ## Summary
 
 - Mounted routers: **69**
-- Unique route handlers: **703**
-- Registered HTTP routes after mount: **665**
-- Routes without detected web/mobile consumer: **97**
-- Prisma models: **150**
+- Unique route handlers: **733**
+- Registered HTTP routes after mount: **686**
+- Routes without detected web/mobile consumer: **103**
+- Prisma models: **162**
 - Background jobs: **12**
 - Permission roles: **11**
 
@@ -36,11 +36,11 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/inventory | inventoryRouter | 8 | 0 |
 | /api/stock-rules | stockRulesRouter | 4 | 0 |
 | /api/marketing | marketingRouter | 9 | 0 |
-| /api/shop | shopRouter | 38 | 1 |
+| /api/shop | shopRouter | 39 | 2 |
 | /api/suppliers | suppliersRouter | 10 | 3 |
-| /api/supplier | supplierWorkspaceRouter | 22 | 0 |
+| /api/supplier | supplierWorkspaceRouter | 26 | 0 |
 | /api/lecturer | lecturerRouter | 10 | 0 |
-| /api/school | schoolRouter | 27 | 0 |
+| /api/school | schoolRouter | 28 | 0 |
 | /api/dentcash | dentcashRouter | 4 | 1 |
 | /api/academies | academiesRouter | 5 | 0 |
 | /api/lecturers | lecturersRouter | 6 | 2 |
@@ -59,17 +59,17 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/crm | remindersRouter | 7 | 4 |
 | /api/crm/cases | treatmentCaseRouter | 7 | 0 |
 | /api/crm | chairsRouter | 3 | 0 |
-| /api/lab-orders | labRouter | 4 | 0 |
+| /api/lab-orders | labRouter | 5 | 0 |
 | /api/community | communityRouter | 12 | 0 |
 | /api/public | publicRouter | 11 | 6 |
 | /api/profile | profileRouter | 13 | 1 |
-| /api/jobs | jobsRouter | 13 | 1 |
+| /api/jobs | jobsRouter | 22 | 1 |
 | /api/ops/suppliers | opsSuppliersRouter | 4 | 0 |
 | /api/ops | opsHubRouter | 11 | 0 |
 | /api/quality | qualityRouter | 1 | 0 |
 | /api/support | supportRouter | 7 | 0 |
 | /api/bi | biRouter | 18 | 4 |
-| /api/diagnostics | diagnosticsRouter | 38 | 1 |
+| /api/diagnostics | diagnosticsRouter | 43 | 6 |
 | /api/legal | legalRouter | 33 | 8 |
 | /api/partner/legal | legalPartnerRouter | 0 | 0 |
 | /api/finance | financeRouter | 16 | 6 |

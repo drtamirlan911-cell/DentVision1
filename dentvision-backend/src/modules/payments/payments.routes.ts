@@ -178,6 +178,7 @@ async function settleEnrollmentPayment(
     id: string;
     refId: string | null;
     amount: bigint;
+    currency?: string;
     sellerType: string | null;
     sellerId: string | null;
     meta: unknown;
@@ -202,10 +203,23 @@ async function settleEnrollmentPayment(
   let enrollment = await db.schoolEnrollment.findUnique({
     where: { userId_courseId: { userId, courseId } },
   });
+  const entitlementSnapshot = {
+    acquisitionType: 'purchase',
+    accessStatus: 'active',
+    paidAmountMinor: payment.amount,
+    currency: payment.currency || 'KZT',
+    paymentId: payment.id,
+    purchaseConfirmedAt: new Date(),
+  };
   const createdNow = !enrollment;
   if (!enrollment) {
     enrollment = await db.schoolEnrollment.create({
-      data: { id: uid(), userId, courseId },
+      data: { id: uid(), userId, courseId, ...entitlementSnapshot },
+    });
+  } else if (enrollment.paymentId !== payment.id) {
+    enrollment = await db.schoolEnrollment.update({
+      where: { id: enrollment.id },
+      data: entitlementSnapshot,
     });
   }
 
@@ -248,6 +262,7 @@ async function settleAcademyEventPayment(
     id: string;
     refId: string | null;
     amount: bigint;
+    currency?: string;
     sellerType?: string | null;
     sellerId?: string | null;
     meta: unknown;
@@ -276,8 +291,17 @@ async function settleAcademyEventPayment(
   if (meta.courseId) {
     await db.schoolEnrollment.upsert({
       where: { userId_courseId: { userId: meta.userId, courseId: meta.courseId } },
-      create: { id: uid(), userId: meta.userId, courseId: meta.courseId },
-      update: {},
+      create: {
+        id: uid(), userId: meta.userId, courseId: meta.courseId,
+        acquisitionType: 'purchase', accessStatus: 'active',
+        paidAmountMinor: payment.amount, currency: payment.currency || 'KZT',
+        paymentId: payment.id, purchaseConfirmedAt: new Date(),
+      },
+      update: {
+        acquisitionType: 'purchase', accessStatus: 'active',
+        paidAmountMinor: payment.amount, currency: payment.currency || 'KZT',
+        paymentId: payment.id, purchaseConfirmedAt: new Date(),
+      },
     });
   }
 
@@ -330,6 +354,7 @@ async function settlePaidPayment(
     sellerType: string | null;
     sellerId: string | null;
     amount: bigint;
+    currency?: string;
     meta: unknown;
   },
   db: Prisma.TransactionClient | typeof prisma = prisma,

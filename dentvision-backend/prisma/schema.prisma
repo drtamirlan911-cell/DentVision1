@@ -182,6 +182,8 @@ model User {
   notifications                 Notification[]
   orders                        Order[]
   enrollments                   SchoolEnrollment[]
+  schoolAssessmentAttempts      SchoolAssessmentAttempt[]
+  schoolCertificates             SchoolCertificate[]
   appointments                  Appointment[]
   labOrdersOrdered              LabOrder[]                   @relation("LabOrderDoctor")
   academies                     Academy[]
@@ -208,6 +210,13 @@ model User {
   confirmedAiActions            AIActionLog[]                @relation("ConfirmedActions")
   jobVacancies                  JobVacancy[]
   jobApplications               JobApplication[]
+  jobApplicationEventsActed     JobApplicationEvent[] @relation("JobApplicationEventActor")
+  jobInvitationsReceived        JobInvitation[] @relation("JobInvitationCandidate")
+  jobInvitationsSent            JobInvitation[] @relation("JobInvitationSender")
+  jobInterviewsAsCandidate      JobInterview[] @relation("JobInterviewCandidate")
+  jobInterviewsCreated          JobInterview[] @relation("JobInterviewCreator")
+  jobOffersReceived             JobOffer[] @relation("JobOfferCandidate")
+  jobOffersCreated              JobOffer[] @relation("JobOfferCreator")
   diagnosticReferrals           Referral[]
   reviewedReferrals             Referral[]                   @relation("ReferralReviewer")
   uploadedReferralFiles         ReferralFile[]
@@ -897,7 +906,10 @@ model LabOrder {
   notes     String?
   files     Json?
   deadline  DateTime?
-  price     Int?
+  price                Int?
+  serviceId            String?
+  serviceNameSnapshot  String?
+  servicePriceSnapshot Int?
 
   /// Who ordered the work.
   ///
@@ -913,6 +925,7 @@ model LabOrder {
   patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
   doctor  User?    @relation("LabOrderDoctor", fields: [doctorId], references: [id], onDelete: SetNull)
   treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)
+  dentalLabService DentalLabService? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -921,6 +934,7 @@ model LabOrder {
   @@index([patientId])
   @@index([doctorId])
   @@index([treatmentCaseId])
+  @@index([serviceId])
   @@map("lab_orders")
 }
 
@@ -1273,8 +1287,11 @@ model Supplier {
   documents     SupplierDocument[]
   members       SupplierMember[]
   deliveryZones DeliveryZone[]
-  orders        Order[]
-  promotions    ShopPromotion[]
+  orders         Order[]
+  shipments      SupplierShipment[]
+  shipmentEvents SupplierShipmentEvent[]
+  disputeResponses SupplierDisputeResponse[]
+  promotions     ShopPromotion[]
 
   @@index([city])
   @@index([status])
@@ -1392,6 +1409,10 @@ model Order {
   user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   supplier Supplier?    @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   reviews  ShopReview[]
+  supplierShipments SupplierShipment[]
+  supplierShipmentEvents SupplierShipmentEvent[]
+  supplierDisputeResponses SupplierDisputeResponse[]
+  marketplaceReturnItems MarketplaceReturnItem[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -1401,6 +1422,58 @@ model Order {
   @@index([supplierId])
   @@index([status])
   @@map("orders")
+}
+
+model SupplierShipment {
+  id                  String   @id @default(uuid())
+  orderId             String
+  supplierId          String
+  carrier             String
+  trackingNumber      String
+  trackingUrl         String?
+  status              String   @default("shipped")
+  shippedAt           DateTime @default(now())
+  deliveredAt         DateTime?
+  proofOfDeliveryUrl  String?
+  recipientName       String?
+  deliveryNote        String?
+  createdByUserId     String
+  deliveredByUserId   String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  events   SupplierShipmentEvent[]
+
+  @@unique([supplierId, orderId])
+  @@unique([supplierId, trackingNumber])
+  @@index([supplierId, status, shippedAt])
+  @@index([orderId, createdAt])
+  @@map("supplier_shipments")
+}
+
+model SupplierShipmentEvent {
+  id           String   @id @default(uuid())
+  shipmentId   String
+  orderId      String
+  supplierId   String
+  eventType    String
+  fromStatus   String?
+  toStatus     String?
+  note         String?
+  actorUserId  String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  shipment SupplierShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  order    Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplier Supplier         @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, createdAt])
+  @@index([supplierId, createdAt])
+  @@index([orderId, createdAt])
+  @@map("supplier_shipment_events")
 }
 
 model Favorite {
@@ -1671,6 +1744,8 @@ model Course {
 
   lessons     Lesson[]
   enrollments SchoolEnrollment[]
+  assessmentAttempts SchoolAssessmentAttempt[]
+  certificates SchoolCertificate[]
   lecturer    Lecturer?          @relation(fields: [lecturerId], references: [id], onDelete: SetNull)
   academy     Academy?           @relation(fields: [academyId], references: [id], onDelete: SetNull)
 
@@ -1707,17 +1782,78 @@ model SchoolEnrollment {
   courseId         String
   progress         Int     @default(0)
   completed        Boolean @default(false)
-  certificateUrl   String?
-  completedLessons Json? // array of lesson IDs that user completed
+  certificateUrl      String?
+  completedLessons    Json? // server-validated array of lesson IDs
+  acquisitionType     String   @default("legacy") // purchase, free, invitation, grant, legacy
+  accessStatus        String   @default("active") // active, suspended, refunded, expired
+  paidAmountMinor     BigInt?
+  currency            String   @default("KZT")
+  paymentId           String?
+  purchaseConfirmedAt DateTime?
+  accessExpiresAt     DateTime?
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  assessmentAttempts SchoolAssessmentAttempt[]
+  certificate SchoolCertificate?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@unique([userId, courseId])
+  @@index([userId, accessStatus])
+  @@index([paymentId])
   @@map("school_enrollments")
+}
+
+model SchoolAssessmentAttempt {
+  id            String   @id @default(uuid())
+  userId        String
+  enrollmentId  String
+  courseId      String
+  lessonId      String?
+  attemptNumber Int
+  score         Int
+  correct       Int
+  total         Int
+  passed        Boolean  @default(false)
+  answers       Json?
+  submittedAt   DateTime @default(now())
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollment SchoolEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  course     Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, attemptNumber])
+  @@index([userId, submittedAt])
+  @@index([courseId, submittedAt])
+  @@map("school_assessment_attempts")
+}
+
+model SchoolCertificate {
+  id                  String   @id @default(uuid())
+  enrollmentId        String   @unique
+  userId              String
+  courseId            String
+  certificateNumber   String   @unique
+  verificationCode    String   @unique
+  issuerNameSnapshot  String
+  status              String   @default("issued")
+  documentUrl         String?
+  metadata            Json?
+  issuedAt            DateTime @default(now())
+  expiresAt           DateTime?
+  revokedAt           DateTime?
+  revocationReason    String?
+
+  enrollment SchoolEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course     Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([userId, issuedAt])
+  @@index([courseId, issuedAt])
+  @@index([status, issuedAt])
+  @@map("school_certificates")
 }
 
 // --- NOTIFICATIONS ---
@@ -2177,8 +2313,57 @@ model Dispute {
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
+  supplierResponses SupplierDisputeResponse[]
+  returnItems MarketplaceReturnItem[]
+  requesterUserId String?
+  clientRequestKey String? @unique
+  requestFingerprint String?
+
   @@index([refType, refId])
   @@map("disputes")
+}
+
+model SupplierDisputeResponse {
+  id           String   @id @default(uuid())
+  disputeId    String
+  orderId      String
+  supplierId   String
+  responseType String
+  note         String
+  actorUserId  String
+  createdAt    DateTime @default(now())
+
+  dispute  Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([disputeId, supplierId])
+  @@index([supplierId, createdAt])
+  @@index([orderId, createdAt])
+  @@map("supplier_dispute_responses")
+}
+
+model MarketplaceReturnItem {
+  id           String   @id @default(uuid())
+  disputeId    String
+  orderId      String
+  lineIndex    Int
+  productId    String
+  supplierId   String?
+  productName  String
+  quantity     Int
+  unitPrice    Int
+  reasonCode   String
+  note         String?
+  createdAt    DateTime @default(now())
+
+  dispute Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([disputeId, lineIndex])
+  @@index([orderId, lineIndex])
+  @@index([supplierId, createdAt])
+  @@map("marketplace_return_items")
 }
 
 // --- DENT CASHBACK ---
@@ -2510,6 +2695,9 @@ model JobVacancy {
   employerOrganization  Organization? @relation("EmployerJobVacancies", fields: [employerOrganizationId], references: [id], onDelete: SetNull)
 
   applications JobApplication[]
+  invitations JobInvitation[] @relation("JobInvitationVacancy")
+  offers JobOffer[]
+  candidateInvitations JobInvitation[] @relation("JobInvitationResume")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -2530,6 +2718,9 @@ model JobApplication {
 
   vacancy JobVacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
   user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events JobApplicationEvent[]
+  interviews JobInterview[]
+  offers JobOffer[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -2537,6 +2728,123 @@ model JobApplication {
   @@index([userId])
   @@index([vacancyId, userId])
   @@map("job_applications")
+}
+
+model JobApplicationEvent {
+  id              String  @id @default(uuid())
+  applicationId   String
+  actorUserId     String?
+  eventType       String
+  fromStatus      String?
+  toStatus        String?
+  candidateVisible Boolean @default(true)
+  message         String?
+  metadata        Json?
+
+  application JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  actor User? @relation("JobApplicationEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([applicationId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("job_application_events")
+}
+
+model JobInvitation {
+  id                     String   @id @default(uuid())
+  candidateUserId        String
+  senderUserId           String
+  employerOrganizationId String?
+  vacancyId              String?
+  resumeId               String?
+  employerNameSnapshot   String
+  message                String?
+  status                 String   @default("pending")
+  expiresAt              DateTime?
+  respondedAt            DateTime?
+
+  candidate User @relation("JobInvitationCandidate", fields: [candidateUserId], references: [id], onDelete: Cascade)
+  sender User @relation("JobInvitationSender", fields: [senderUserId], references: [id], onDelete: Cascade)
+  employer Organization? @relation("JobInvitationEmployer", fields: [employerOrganizationId], references: [id], onDelete: SetNull)
+  vacancy JobVacancy? @relation("JobInvitationVacancy", fields: [vacancyId], references: [id], onDelete: SetNull)
+  resume JobVacancy? @relation("JobInvitationResume", fields: [resumeId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([candidateUserId, status, createdAt])
+  @@index([employerOrganizationId, status, createdAt])
+  @@index([vacancyId])
+  @@map("job_invitations")
+}
+
+model JobInterview {
+  id                     String   @id @default(uuid())
+  applicationId          String
+  candidateUserId        String
+  createdByUserId        String
+  employerOrganizationId String?
+  employerNameSnapshot   String
+  scheduledAt            DateTime
+  durationMinutes        Int      @default(30)
+  timezone               String   @default("Asia/Almaty")
+  mode                   String   @default("online")
+  meetingUrl             String?
+  location               String?
+  agenda                 String?
+  status                 String   @default("proposed")
+  candidateResponse      String?
+  candidateRespondedAt   DateTime?
+
+  application JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  candidate User @relation("JobInterviewCandidate", fields: [candidateUserId], references: [id], onDelete: Cascade)
+  createdBy User @relation("JobInterviewCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  employer Organization? @relation("JobInterviewEmployer", fields: [employerOrganizationId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([candidateUserId, scheduledAt])
+  @@index([employerOrganizationId, scheduledAt])
+  @@index([applicationId, scheduledAt])
+  @@map("job_interviews")
+}
+
+model JobOffer {
+  id                     String   @id @default(uuid())
+  applicationId          String?
+  vacancyId              String?
+  candidateUserId        String
+  createdByUserId        String
+  employerOrganizationId String?
+  employerNameSnapshot   String
+  title                  String
+  salary                 String?
+  currency               String   @default("KZT")
+  employmentType         String
+  startAt                DateTime?
+  expiresAt              DateTime
+  status                 String   @default("sent")
+  version                Int      @default(1)
+  terms                  Json?
+  documentUrl            String?
+  respondedAt            DateTime?
+  candidateMessage       String?
+
+  application JobApplication? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  vacancy JobVacancy? @relation(fields: [vacancyId], references: [id], onDelete: SetNull)
+  candidate User @relation("JobOfferCandidate", fields: [candidateUserId], references: [id], onDelete: Cascade)
+  createdBy User @relation("JobOfferCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  employer Organization? @relation("JobOfferEmployer", fields: [employerOrganizationId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([candidateUserId, status, createdAt])
+  @@index([employerOrganizationId, status, createdAt])
+  @@index([applicationId, createdAt])
+  @@map("job_offers")
 }
 
 // --- AI EVENT BUS ---
@@ -2919,6 +3227,7 @@ model DiagnosticCenter {
   operators    Operator[]
   radiologists Radiologist[]
   bookings     DiagnosticBooking[]
+  modalities   DiagnosticModality[]
 
   @@map("diagnostic_centers")
 }
@@ -2955,6 +3264,7 @@ model Laboratory {
   referrals Referral[]          @relation("LabReferral")
   tests     LaboratoryTest[]
   bookings  DiagnosticBooking[]
+  dentalServices DentalLabService[]
 
   @@map("laboratories")
 }
@@ -2972,6 +3282,52 @@ model LaboratoryMember {
   @@unique([labId, userId])
   @@index([userId])
   @@map("laboratory_members")
+}
+
+model DentalLabService {
+  id             String   @id @default(uuid())
+  labId          String
+  code           String
+  name           String
+  category       String
+  description    String?
+  material       String?
+  defaultPrice   Int
+  turnaroundDays Int      @default(5)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  lab    Laboratory @relation(fields: [labId], references: [id], onDelete: Cascade)
+  orders LabOrder[]
+
+  @@unique([labId, code])
+  @@index([labId, active])
+  @@map("dental_lab_services")
+}
+
+model DiagnosticModality {
+  id                String   @id @default(uuid())
+  centerId          String
+  name              String
+  kind              String // CBCT | OPG | TRG | INTRAORAL | CT | MRI | OTHER
+  manufacturer      String?
+  model             String?
+  serialNumber      String?
+  room              String?
+  aeTitle           String?  // DICOM AE Title only; no host, port or credentials
+  status            String   @default("active") // active | maintenance | out_of_service
+  lastMaintenanceAt DateTime?
+  nextMaintenanceAt DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  center    DiagnosticCenter @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  referrals Referral[]
+
+  @@unique([centerId, serialNumber])
+  @@index([centerId, status])
+  @@map("diagnostic_modalities")
 }
 
 model DiagnosticStudy {
@@ -3083,6 +3439,7 @@ model Referral {
   labId            String?
   operatorId       String?
   radiologistId    String?
+  modalityId       String?
   // Schedule
   scheduledDate    DateTime?
   scheduledTime    String?
@@ -3112,6 +3469,7 @@ model Referral {
   lab         Laboratory?       @relation("LabReferral", fields: [labId], references: [id])
   operator    Operator?         @relation(fields: [operatorId], references: [id])
   radiologist Radiologist?      @relation(fields: [radiologistId], references: [id])
+  modality    DiagnosticModality? @relation(fields: [modalityId], references: [id], onDelete: SetNull)
   reviewer    User?             @relation("ReferralReviewer", fields: [reviewerId], references: [id])
   files       ReferralFile[]
   comments    ReferralComment[]
@@ -3122,6 +3480,7 @@ model Referral {
   @@index([clinicId])
   @@index([centerId])
   @@index([labId])
+  @@index([modalityId])
   @@index([doctorId])
   @@index([patientId])
   @@index([status])
@@ -3599,6 +3958,9 @@ model Organization {
   invitations OrganizationInvitation[]
   branches     Branch[]
   employerVacancies JobVacancy[] @relation("EmployerJobVacancies")
+  jobInvitations JobInvitation[] @relation("JobInvitationEmployer")
+  jobInterviews JobInterview[] @relation("JobInterviewEmployer")
+  jobOffers JobOffer[] @relation("JobOfferEmployer")
 
   @@unique([originalType, originalId])
   @@index([type])

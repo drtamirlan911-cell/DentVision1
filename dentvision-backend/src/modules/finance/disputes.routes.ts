@@ -59,7 +59,19 @@ disputesRouter.post('/', async (req: AuthRequest, res) => {
 });
 
 disputesRouter.get('/', requireSuperadmin, async (req: AuthRequest, res) => {
-  const disputes = await prisma.dispute.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
+  const disputes = await prisma.dispute.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+    include: {
+      supplierResponses: {
+        orderBy: { createdAt: 'asc' },
+        include: {
+          supplier: { select: { id: true, name: true, status: true } },
+        },
+      },
+      returnItems: { orderBy: { lineIndex: 'asc' } },
+    },
+  });
   return res.json({ ok: true, data: disputes } satisfies ApiResponse);
 });
 
@@ -87,6 +99,24 @@ disputesRouter.post('/:id/status', requireSuperadmin, async (req: AuthRequest, r
         ok: false,
         error: `Недопустимый переход статуса: ${existing.status} -> ${requestedStatus}`,
       } satisfies ApiResponse);
+    }
+
+    // Item-level marketplace returns need a line-aware refund and seller settlement.
+    // Reject them before changing dispute state: the legacy reversal is order-wide,
+    // and a 409 response must never leave the dispute marked as resolved.
+    if (requestedStatus === 'resolved') {
+      const returnItems = await prisma.marketplaceReturnItem.findMany({
+        where: { disputeId: existing.id },
+        select: { id: true },
+        take: 1,
+      });
+      if (returnItems.length > 0) {
+        return res.status(409).json({
+          ok: false,
+          error: 'Позиционный возврат требует подтверждения осмотра и частичного расчёта в Finance. Автоматический полный возврат заказа запрещён.',
+          code: 'MARKETPLACE_PARTIAL_RETURN_FINANCE_REQUIRED',
+        } satisfies ApiResponse);
+      }
     }
 
     // Compare-and-set prevents a stale request from overwriting a concurrent transition.

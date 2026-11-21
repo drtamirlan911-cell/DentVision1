@@ -69,15 +69,6 @@ export async function getCenterSubscription(centerId: string) {
   } catch { return null; }
 }
 
-const DIAGNOSTIC_COMMISSION_BPS = 700;
-const DIAGNOSTIC_COMMISSION_MIN = 500;
-const DIAGNOSTIC_COMMISSION_MAX = 3000;
-
-function diagnosticPlatformFee(amount: number) {
-  if (!Number.isFinite(amount) || amount <= 0) return 0;
-  return Math.min(DIAGNOSTIC_COMMISSION_MAX, Math.max(DIAGNOSTIC_COMMISSION_MIN, Math.round(amount * DIAGNOSTIC_COMMISSION_BPS / 10_000)));
-}
-
 // ─── Centers ───
 
 export async function listCenters(search?: string, city?: string) {
@@ -334,6 +325,87 @@ export async function listLabTests(labId?: string, category?: string) {
   return prisma.laboratoryTest.findMany({ where, orderBy: { name: 'asc' } });
 }
 
+
+/**
+ * Diagnostic-center equipment inventory. Only operational metadata is stored:
+ * no PACS credentials, network endpoints, image payloads or patient identifiers.
+ */
+export async function listDiagnosticModalities(centerId: string) {
+  return prisma.diagnosticModality.findMany({
+    where: { centerId },
+    orderBy: [{ status: 'asc' }, { name: 'asc' }],
+  });
+}
+
+export async function createDiagnosticModality(centerId: string, data: {
+  name: string; kind: string; manufacturer?: string; model?: string;
+  serialNumber?: string; room?: string; aeTitle?: string; nextMaintenanceAt?: Date | null;
+}) {
+  return prisma.diagnosticModality.create({
+    data: {
+      id: uid(), centerId, name: data.name, kind: data.kind,
+      manufacturer: data.manufacturer || null, model: data.model || null,
+      serialNumber: data.serialNumber || null, room: data.room || null,
+      aeTitle: data.aeTitle || null, nextMaintenanceAt: data.nextMaintenanceAt || null,
+    },
+  });
+}
+
+export async function updateDiagnosticModality(centerId: string, modalityId: string, data: {
+  name?: string; kind?: string; manufacturer?: string | null; model?: string | null;
+  serialNumber?: string | null; room?: string | null; aeTitle?: string | null;
+  status?: string; lastMaintenanceAt?: Date | null; nextMaintenanceAt?: Date | null;
+}) {
+  const existing = await prisma.diagnosticModality.findFirst({
+    where: { id: modalityId, centerId }, select: { id: true },
+  });
+  if (!existing) throw new Error('Оборудование не найдено в этом диагностическом центре');
+  return prisma.diagnosticModality.update({ where: { id: modalityId }, data });
+}
+
+/**
+ * Operational worklist. Patient IIN, phone, email and clinical notes remain
+ * behind the separately authorized referral-detail endpoint.
+ */
+export async function getDiagnosticCenterWorklist(centerId: string, opts: {
+  status?: string; priority?: string; search?: string; limit?: number; offset?: number;
+} = {}) {
+  const where: any = {
+    centerId,
+    status: opts.status ? opts.status : { notIn: ['COMPLETED', 'REVIEWED', 'DELIVERED', 'CLOSED', 'CANCELLED'] },
+  };
+  if (opts.priority) where.priority = opts.priority;
+  if (opts.search) {
+    where.OR = [
+      { patientName: { contains: opts.search, mode: 'insensitive' } },
+      { studyType: { contains: opts.search, mode: 'insensitive' } },
+    ];
+  }
+  const take = Math.max(1, Math.min(Number(opts.limit) || 100, 100));
+  const skip = Math.max(0, Number(opts.offset) || 0);
+  const [items, total] = await Promise.all([
+    prisma.referral.findMany({
+      where,
+      select: {
+        id: true, patientName: true, category: true, studyType: true, status: true,
+        priority: true, scheduledDate: true, scheduledTime: true, createdAt: true,
+        modalityId: true,
+        modality: { select: { id: true, name: true, kind: true, room: true, status: true } },
+        clinic: { select: { id: true, name: true } },
+        operator: { select: { id: true, user: { select: { firstName: true, lastName: true } } } },
+        radiologist: { select: { id: true, user: { select: { firstName: true, lastName: true } } } },
+        _count: { select: { files: true } },
+      },
+      // ReferralPriority enum order is NORMAL → URGENT → EMERGENCY;
+      // descending order therefore puts the clinically urgent queue first.
+      orderBy: [{ priority: 'desc' }, { scheduledDate: 'asc' }, { createdAt: 'asc' }],
+      take, skip,
+    }),
+    prisma.referral.count({ where }),
+  ]);
+  return { items, total, limit: take, offset: skip };
+}
+
 // ─── Referrals ───
 
 const referralInclude = {
@@ -425,7 +497,6 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
     }
     if (resolvedCost === undefined) throw new Error('Укажите стоимость исследования или установите цену в прайс-листе центра.');
     update.cost = resolvedCost;
-    update.platformFee = diagnosticPlatformFee(Number(resolvedCost));
   }
   if (status === 'COMPLETED') update.completedAt = new Date();
   if (status === 'COMPLETED' && cost !== undefined) { update.cost = cost; update.paid = false; }
@@ -435,7 +506,7 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
   if (status === 'ACCEPTED' && updatedReferral.doctorId) await createNotification({ userId: updatedReferral.doctorId, type: NOTIFICATION_TYPES.REFERRAL_ACCEPTED, title: 'Направление принято', message: 'Направление принято. Откройте карточку направления для деталей.', link: `/diagnostics/referrals/${id}` });
   if (status === 'COMPLETED' && updatedReferral.doctorId) await createNotification({ userId: updatedReferral.doctorId, type: NOTIFICATION_TYPES.REFERRAL_RESULT, title: 'Результат диагностики готов', message: 'Результат диагностики готов к просмотру. Откройте направление для подробностей.', link: `/diagnostics/referrals/${id}` });
   await writeAuditLog({ action: 'REFERRAL_STATUS_CHANGED', entity: 'referral', entityId: id, details: { status }, userId, clinicId: updatedReferral.clinicId });
-  publish(`referral.${status.toLowerCase()}` as any, { referralId: id, clinicId: updatedReferral.clinicId || '', centerId: updatedReferral.centerId || '', doctorId: updatedReferral.doctorId || '', status, userId, cost: updatedReferral.cost, platformFee: updatedReferral.platformFee });
+  publish(`referral.${status.toLowerCase()}` as any, { referralId: id, clinicId: updatedReferral.clinicId || '', centerId: updatedReferral.centerId || '', doctorId: updatedReferral.doctorId || '', status, userId, cost: updatedReferral.cost });
   return updatedReferral;
 }
 

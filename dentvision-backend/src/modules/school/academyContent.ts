@@ -77,6 +77,7 @@ export const LIBRARY_ITEMS = [
 
 export const DEFAULT_EXAM = {
   title: 'Итоговый экзамен модуля',
+  description: 'Итоговая проверка знаний по материалам программы. Для завершения курса необходимо набрать установленный проходной балл.',
   passScore: 70,
   questions: [
     {

@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GraduationCap, BookOpen, Wallet, BarChart3, Plus, Trash2, Users, Award, Building2, Camera, ImageIcon, Radio, BookMarked } from 'lucide-react';
 import * as api from '@/utils/api';
+import { useAuth } from '@/store/auth.store';
+import { selectWorkspaceContext } from '@/lib/workspaceContext';
 import { useToast } from '@/components/ui/ds/Toast';
 import { Button } from '@/components/ui/ds/Button';
 import { Input, Select } from '@/components/ui/ds/Input';
@@ -15,7 +17,7 @@ import { PageHeader } from '@/components/ui/ds/StatCard';
 import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload';
 import { LECTURER_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits';
 
-interface LecturerCtx { scopeId: string; level?: string; academy?: { id: string; name: string } | null }
+interface LecturerCtx { scopeId: string; organizationId?: string; name?: string; roleLabel?: string; level?: string; academy?: { id: string; name: string } | null }
 
 type OfferFormat = 'course' | 'webinar' | 'textbook' | 'office'
 
@@ -62,9 +64,11 @@ function fmtMoney(minor: string | number | undefined): string {
 export default function SchoolWorkspace() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { activeWorkspace } = useAuth();
   const [loading, setLoading] = useState(true);
   const [contexts, setContexts] = useState<LecturerCtx[]>([]);
   const [token, setToken] = useState<string | null>(null);
+  const [contextSwitching, setContextSwitching] = useState(false);
   const [tab, setTab] = useState<'courses' | 'analytics' | 'profile'>('courses');
 
   const [me, setMe] = useState<any>(null);
@@ -93,12 +97,17 @@ export default function SchoolWorkspace() {
   }, []);
 
   const enter = useCallback(async (scopeId: string) => {
+    setContextSwitching(true);
+    setToken(null);
     try {
       const res = await api.switchContext('LECTURER', scopeId);
       setToken(res.accessToken);
       await loadAll(res.accessToken);
     } catch {
-      toast.error('Не удалось войти в кабинет лектора');
+      setToken(null);
+      toast.error('Не удалось войти в выбранную организацию лектора');
+    } finally {
+      setContextSwitching(false);
     }
   }, [loadAll, toast]);
 
@@ -106,15 +115,31 @@ export default function SchoolWorkspace() {
     (async () => {
       try {
         const res = await api.getMyContexts();
-        const lec = (res.contexts || []).filter((c: any) => c.scopeType === 'LECTURER');
+        const lec = (res.contexts || []).filter((c: any) => c.scopeType === 'LECTURER') as LecturerCtx[];
         setContexts(lec);
-        if (lec.length > 0) await enter(lec[0].scopeId);
+        const preferred = selectWorkspaceContext(lec, {
+          scopeId: activeWorkspace?.scopeType === 'LECTURER' ? activeWorkspace.scopeId : null,
+          organizationId: activeWorkspace?.scopeType === 'LECTURER' ? activeWorkspace.organizationId : null,
+        });
+        if (preferred) await enter(preferred.scopeId);
       } catch { /* ignore */ } finally {
         setLoading(false);
       }
     })();
     // mount-only — enter() is scoped to the initial contexts; re-calling on deps change is not desired
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const handleWorkspaceSwitch = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string; scopeId?: string; scopeType?: string }>).detail;
+      if (detail?.scopeType !== 'LECTURER') return;
+      const prefix = 'LECTURER:';
+      const scopeId = detail.scopeId || (String(detail.id || '').startsWith(prefix) ? String(detail.id).slice(prefix.length) : '');
+      if (scopeId) void enter(scopeId);
+    };
+    window.addEventListener('dentvision:workspace-switched', handleWorkspaceSwitch);
+    return () => window.removeEventListener('dentvision:workspace-switched', handleWorkspaceSwitch);
+  }, [enter]);
 
   const becomeLecturer = async () => {
     setRegistering(true);
@@ -220,6 +245,35 @@ export default function SchoolWorkspace() {
 
   if (loading) {
     return <ListSkeleton count={6} />;
+  }
+
+  if (contexts.length > 0 && !token) {
+    return (
+      <div className="mx-auto max-w-[900px] space-y-4 overflow-x-hidden p-4 sm:p-6">
+        <PageHeader
+          title="Выберите академию или профиль лектора"
+          subtitle="У вас несколько доступных рабочих пространств. Выберите, от имени какой организации продолжить."
+          icon={<GraduationCap size={22} />}
+        />
+        <div className="grid gap-3">
+          {contexts.map((context) => (
+            <Card key={context.scopeId}>
+              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-txt-primary">
+                    {context.name || context.academy?.name || 'Профиль лектора'}
+                  </p>
+                  <p className="mt-1 text-xs text-txt-muted">{context.roleLabel || context.level || 'Лектор'}</p>
+                </div>
+                <Button className="min-h-11" disabled={contextSwitching} onClick={() => void enter(context.scopeId)}>
+                  {contextSwitching ? 'Открываем…' : 'Открыть кабинет'}
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (contexts.length === 0) {
