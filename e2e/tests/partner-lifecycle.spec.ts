@@ -580,6 +580,18 @@ test.describe('Partner operational lifecycle', () => {
       expect.objectContaining({ userId: centerRadiologistId, role: 'radiologist' }),
     ]));
 
+    const radiologistCannotReadFullStaffList = await api.get(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/staff`,
+      { headers: auth(centerRadiologistToken) },
+    );
+    expect(radiologistCannotReadFullStaffList.status()).toBe(403);
+
+    const radiologistCannotAssignStaff = await api.patch(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}/assignees`,
+      { headers: auth(centerRadiologistToken), data: { operatorUserId: operatorUser.id } },
+    );
+    expect(radiologistCannotAssignStaff.status()).toBe(403);
+
     const assignees = await api.patch(
       `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}/assignees`,
       {
