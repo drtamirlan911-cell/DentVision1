@@ -37,6 +37,12 @@ function formatMinor(value: string | number | null | undefined): string {
   return `${amount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₸`;
 }
 
+function payoutAmountToMinor(value: string): bigint | null {
+  const match = /^(\\d+)(?:\\.(\\d{1,2}))?$/.exec(value.trim());
+  if (!match) return null;
+  return BigInt(match[1]) * 100n + BigInt((match[2] || '').padEnd(2, '0'));
+}
+
 function payoutStatusLabel(status: string): string {
   return ({ requested: 'На рассмотрении', approved: 'Одобрена', paid: 'Выплачена', rejected: 'Отклонена' } as Record<string, string>)[status] || status;
 }
@@ -244,8 +250,9 @@ export default function DentalLabPlatform() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); },
   });
   const [payoutAmount, setPayoutAmount] = useState('');
+  const payoutAmountMinor = payoutAmountToMinor(payoutAmount);
   const payoutMutation = useMutation({
-    mutationFn: () => requestLabPlatformPayout(Number(payoutAmount)),
+    mutationFn: () => requestLabPlatformPayout(payoutAmount.trim()),
     onSuccess: () => {
       setPayoutAmount('');
       qc.invalidateQueries({ queryKey: ['lab-platform', 'finance'] });
@@ -338,7 +345,7 @@ export default function DentalLabPlatform() {
                     <input type="number" min="0.01" step="0.01" value={payoutAmount} onChange={(event) => setPayoutAmount(event.target.value)} placeholder="Например, 50000" className="min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" />
                   </label>
                   {payoutMutation.isError && <p className="text-xs text-error">{payoutMutation.error instanceof Error ? payoutMutation.error.message : 'Не удалось создать заявку'}</p>}
-                  <Button size="sm" className="w-full" loading={payoutMutation.isPending} disabled={payoutMutation.isPending || !payoutAmount.trim() || !Number.isFinite(Number(payoutAmount)) || Number(payoutAmount) <= 0 || Number(payoutAmount) > Number(finance.data.availableBalanceMinor) / 100} onClick={() => payoutMutation.mutate()}>Запросить выплату</Button>
+                  <Button size="sm" className="w-full" loading={payoutMutation.isPending} disabled={payoutMutation.isPending || payoutAmountMinor === null || payoutAmountMinor <= 0n || payoutAmountMinor > BigInt(finance.data.availableBalanceMinor)} onClick={() => payoutMutation.mutate()}>Запросить выплату</Button>
                 </Card>
                 <Card padding="md" className="space-y-3">
                   <h3 className="text-sm font-semibold text-txt-primary">Заявки на выплату</h3>
