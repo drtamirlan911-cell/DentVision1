@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, FlaskConical, PackageCheck, RefreshCw, Users, Wrench } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, FlaskConical, PackageCheck, RefreshCw, Truck, Users, Wrench } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Button } from '@/components/ui/ds/Button';
@@ -28,7 +28,7 @@ const STAGES = [
 
 const NEXT: Record<string, string[]> = {
   pending: ['sent'], sent: ['in_progress'], in_progress: ['try_in', 'adjustment', 'qc', 'remake', 'delayed'],
-  try_in: ['adjustment', 'qc', 'remake'], adjustment: ['qc', 'remake'], qc: [], ready: ['delivered', 'remake'],
+  try_in: ['adjustment', 'qc', 'remake'], adjustment: ['qc', 'remake'], qc: [], ready: [],
   delivered: [], remake: ['in_progress'], delayed: ['in_progress'],
 };
 
