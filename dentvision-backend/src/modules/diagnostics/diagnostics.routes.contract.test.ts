@@ -6,6 +6,10 @@ const source = readFileSync(
   resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts'),
   'utf8',
 );
+const serviceSource = readFileSync(
+  resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnostics.service.ts'),
+  'utf8',
+);
 
 describe('diagnostics route contract', () => {
   it('has no shadowed duplicate HTTP method + path handlers', () => {
@@ -19,6 +23,12 @@ describe('diagnostics route contract', () => {
     expect(source).toContain("import { assertClinicOrgAccess");
     expect(source).toContain("assertClinicOrgAccess(req.user!, referral.clinicId)");
     expect(source).toContain("assertClinicOrgAccess(req.user!, clinicId)");
+  });
+
+  it('does not calculate or publish commission before a paid settlement', () => {
+    expect(serviceSource).not.toContain('diagnosticPlatformFee');
+    expect(serviceSource).not.toContain('update.platformFee');
+    expect(serviceSource).not.toContain('platformFee: updatedReferral.platformFee');
   });
 
   it('keeps payment transition separate from referral status', () => {
