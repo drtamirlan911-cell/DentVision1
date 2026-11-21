@@ -1077,7 +1077,19 @@ diagnosticsRouter.post('/referrals/:id/files/upload', requireReferralAccess(true
       fileSize: file.size,
       uploadedBy: req.user!.id,
     });
-    return res.status(201).json({ ok: true, data } satisfies ApiResponse);
+    return res.status(201).json({
+      ok: true,
+      data: {
+        id: data.id,
+        referralId: data.referralId,
+        fileName: data.fileName,
+        fileType: data.fileType,
+        fileSize: data.fileSize,
+        createdAt: data.createdAt,
+        downloadAvailable: true,
+        unavailable: false,
+      },
+    } satisfies ApiResponse);
   } catch (error: any) {
     const unavailable = error?.code === 'DIAGNOSTIC_STORAGE_UNAVAILABLE';
     console.error('[diagnostics/referral-files:upload]', error);
@@ -1124,7 +1136,19 @@ diagnosticsRouter.post('/referrals/:id/files', requireReferralAccess(true), asyn
       fileSize: buffer.byteLength,
       uploadedBy: req.user!.id,
     });
-    return res.status(201).json({ ok: true, data } satisfies ApiResponse);
+    return res.status(201).json({
+      ok: true,
+      data: {
+        id: data.id,
+        referralId: data.referralId,
+        fileName: data.fileName,
+        fileType: data.fileType,
+        fileSize: data.fileSize,
+        createdAt: data.createdAt,
+        downloadAvailable: true,
+        unavailable: false,
+      },
+    } satisfies ApiResponse);
   } catch (error: any) {
     const unavailable = error?.code === 'DIAGNOSTIC_STORAGE_UNAVAILABLE';
     return res.status(unavailable ? 503 : 400).json({
