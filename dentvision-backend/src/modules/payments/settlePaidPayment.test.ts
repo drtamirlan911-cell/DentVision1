@@ -55,6 +55,7 @@ beforeEach(() => {
     serviceId: 'service-1',
     servicePriceSnapshot: 15_000,
     files: { meta: { laboratoryId: 'lab-1', technicianId: 'tech-1' } },
+    dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
     patient: { branchId: 'branch-1' },
   });
   activateClinicSubscriptionFromPayment.mockResolvedValue({});
@@ -73,6 +74,7 @@ const fakeTx = {
     findUnique: vi.fn(),
     update: vi.fn(async ({ data }: any) => ({ id: 'lab-order-1', ...data })),
   },
+  dentalLabInvoice: { update: vi.fn(async ({ data }: any) => ({ id: 'invoice-1', ...data })) },
   $queryRawUnsafe: vi.fn(async (sql: string) => {
     if (sql.includes('FROM "medical_lab_orders"')) return [{ clinicId: 'clinic-1', labId: 'lab-1' }];
     if (sql.includes('FROM "medical_lab_order_tests"')) return [{ price: '12000' }, { price: '3000' }];
@@ -219,7 +221,7 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
 
   it('dental lab branch: settles only the delivered service snapshot through partner economics', async () => {
     await settlePaidPayment(
-      { id: 'pay-dental-1', refType: 'dental_lab_order', refId: 'lab-order-1', domain: 'dental_lab', sellerType: 'LABORATORY', sellerId: 'lab-1', amount: 1_500_000n, meta: null },
+      { id: 'pay-dental-1', refType: 'dental_lab_order', refId: 'lab-order-1', domain: 'dental_lab', sellerType: 'LABORATORY', sellerId: 'lab-1', amount: 1_500_000n, meta: { invoiceId: 'invoice-1' } },
       fakeTx,
     );
     expect(recordPartnerEconomics).toHaveBeenCalledWith({
@@ -230,6 +232,7 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
       branchId: 'branch-1',
       paymentId: 'pay-dental-1',
     }, fakeTx);
+    expect(fakeTx.dentalLabInvoice.update).toHaveBeenCalledWith({ where: { id: 'invoice-1' }, data: { status: 'paid', paymentId: 'pay-dental-1', paidAt: expect.any(Date) } });
     expect(fakeTx.labOrder.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'lab-order-1' },
       data: { files: expect.objectContaining({
@@ -245,9 +248,11 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
     fakeTx.labOrder.findUnique.mockResolvedValueOnce({
       id: 'lab-order-1', clinicId: 'clinic-1', status: 'delivered', serviceId: 'service-1',
       servicePriceSnapshot: 15_000, files: { meta: { laboratoryId: 'lab-1' } }, patient: { branchId: 'branch-1' },
+      dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
+      dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
     });
     await expect(settlePaidPayment(
-      { id: 'pay-dental-bad', refType: 'dental_lab_order', refId: 'lab-order-1', domain: 'dental_lab', sellerType: null, sellerId: null, amount: 1_499_999n, meta: null },
+      { id: 'pay-dental-bad', refType: 'dental_lab_order', refId: 'lab-order-1', domain: 'dental_lab', sellerType: null, sellerId: null, amount: 1_499_999n, meta: { invoiceId: 'invoice-1' } },
       fakeTx,
     )).rejects.toThrow('Сумма оплаты зуботехнического заказа не совпадает');
     expect(recordPartnerEconomics).not.toHaveBeenCalled();
@@ -260,7 +265,7 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
       servicePriceSnapshot: 15_000, files: { meta: { laboratoryId: 'lab-1' } }, patient: { branchId: 'branch-1' },
     });
     await expect(settlePaidPayment(
-      { id: 'pay-dental-early', refType: 'dental_lab_order', refId: 'lab-order-1', domain: 'dental_lab', sellerType: null, sellerId: null, amount: 1_500_000n, meta: null },
+      { id: 'pay-dental-early', refType: 'dental_lab_order', refId: 'lab-order-1', domain: 'dental_lab', sellerType: null, sellerId: null, amount: 1_500_000n, meta: { invoiceId: 'invoice-1' } },
       fakeTx,
     )).rejects.toThrow('должен быть передан клинике');
     expect(recordPartnerEconomics).not.toHaveBeenCalled();
