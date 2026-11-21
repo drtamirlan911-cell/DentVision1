@@ -2,6 +2,7 @@ import type { Prisma, WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { commissionMinor } from '../../lib/money.js';
 import { writeRevenue, revenueSourceForDomain } from './revenue.service.js';
+import { PARTNER_ECONOMICS_POLICY_VERSION } from '../billing/partnerEconomics.js';
 
 /**
  * Canonical platform defaults. Scope-specific CommissionRule rows may override
@@ -121,10 +122,16 @@ export async function recordSaleTx(input: SaleInput, db: Prisma.TransactionClien
       refType: input.refType || input.domain,
       refId: input.refId || null,
       meta: {
+        policyVersion: PARTNER_ECONOMICS_POLICY_VERSION,
         bps,
         commission: commission.toString(),
         net: net.toString(),
         policy: {
+          domain: input.domain,
+          sellerType: input.sellerType,
+          sellerId: input.sellerId,
+          organizationId: input.organizationId ?? null,
+          branchId: input.branchId ?? null,
           minMinor: policy.minMinor?.toString() ?? null,
           maxMinor: policy.maxMinor?.toString() ?? null,
         },
