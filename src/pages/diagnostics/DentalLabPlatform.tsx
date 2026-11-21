@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, FlaskConical, PackageCheck, RefreshCw, Truck, Users, Wallet, Wrench } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock3, FlaskConical, History, PackageCheck, RefreshCw, Truck, Users, Wallet, Wrench } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Button } from '@/components/ui/ds/Button';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { QueryError } from '@/components/ui/ds/QueryError';
 import { Tabs } from '@/components/ui/ds/Misc';
-import { getLabPlatformDashboard, getLabPlatformFinance, getLabPlatformOrders, getLabPlatformTeam, requestLabPlatformPayout, updateLabPlatformOrderStatus, updateLabPlatformQualityControl, updateLabPlatformRemakeRequest, createLabPlatformShipment, confirmLabPlatformDelivery, type LabPlatformOrder } from '@/utils/labPlatformApi';
+import { getLabPlatformDashboard, getLabPlatformFinance, getLabPlatformOrderLifecycle, getLabPlatformOrders, getLabPlatformTeam, assignLabTechnician, requestLabPlatformPayout, updateLabPlatformOrderStatus, updateLabPlatformQualityControl, updateLabPlatformRemakeRequest, createLabPlatformShipment, confirmLabPlatformDelivery, type LabPlatformOrder } from '@/utils/labPlatformApi';
 import DentalLabServicesTab from './DentalLabServicesTab';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
@@ -90,8 +90,9 @@ function QualityControlForm({ busy, onSubmit }: { busy: boolean; onSubmit: (chec
 }
 
 function OrderCard({
-  order, onStatus, onQc, onRemakeDecision, onDispatch, onConfirmDelivery,
-  canManageQc, canManageShipping, qcBusy, remakeBusy, shipmentBusy, deliveryBusy,
+  order, onStatus, onQc, onRemakeDecision, onDispatch, onConfirmDelivery, onAssignTechnician,
+  technicians, canManageQc, canManageShipping, canAssignTechnician, canViewDetails,
+  qcBusy, remakeBusy, shipmentBusy, deliveryBusy, assignmentBusy,
 }: {
   order: LabPlatformOrder;
   onStatus: (id: string, status: string) => void;
@@ -99,12 +100,17 @@ function OrderCard({
   onRemakeDecision: (id: string, decision: 'accept' | 'reject', note: string) => void;
   onDispatch: (id: string, body: { method: 'COURIER' | 'PICKUP'; carrier?: string; trackingNumber?: string; trackingUrl?: string }) => void;
   onConfirmDelivery: (id: string, body: { proofUrl: string; recipientName: string; note?: string }) => void;
+  onAssignTechnician: (id: string, technicianId: string | null) => void;
+  technicians: Array<{ id: string; firstName: string; lastName: string; role?: string }>;
   canManageQc: boolean;
   canManageShipping: boolean;
+  canAssignTechnician: boolean;
+  canViewDetails: boolean;
   qcBusy: boolean;
   remakeBusy: boolean;
   shipmentBusy: boolean;
   deliveryBusy: boolean;
+  assignmentBusy: boolean;
 }) {
   const [responseNote, setResponseNote] = useState('');
   const [shipmentMethod, setShipmentMethod] = useState<'COURIER' | 'PICKUP'>('COURIER');
@@ -114,6 +120,12 @@ function OrderCard({
   const [proofUrl, setProofUrl] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [deliveryNote, setDeliveryNote] = useState('');
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const lifecycleQuery = useQuery({
+    queryKey: ['lab-platform', 'lifecycle', order.id],
+    queryFn: () => getLabPlatformOrderLifecycle(order.id),
+    enabled: detailsOpen && canViewDetails,
+  });
   const next = NEXT[order.status] || [];
   const primary = next.find((s) => !['remake', 'delayed'].includes(s));
   const shipment = order.shipment;
@@ -137,6 +149,15 @@ function OrderCard({
         <div className="rounded-lg bg-surface-2 p-2"><span className="text-txt-muted">Материал</span><div className="mt-1 truncate font-medium">{order.material || '—'}</div></div>
       </div>
       {order.deadline && <div className="flex items-center gap-2 text-xs text-txt-muted"><Clock3 size={13} /> Дедлайн {new Date(order.deadline).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>}
+      {canAssignTechnician && (
+        <label className="block space-y-1 text-xs text-txt-secondary">Ответственный техник
+          <select aria-label={`Ответственный техник для заказа ${order.id}`} value={order.technicianId || ''} disabled={assignmentBusy} onChange={(event) => onAssignTechnician(order.id, event.target.value || null)} className="min-h-10 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary">
+            <option value="">Не назначен</option>
+            {technicians.map((member) => <option key={member.id} value={member.id}>{member.firstName} {member.lastName} · {member.role || 'техник'}</option>)}
+          </select>
+          {!technicians.length && <span className="text-[11px] text-txt-muted">Добавьте сотрудника с ролью техника, CAD-дизайнера или керамиста.</span>}
+        </label>
+      )}
       {order.remakeRequest?.status === 'requested' && <div className="space-y-2 rounded-lg border border-warning/30 bg-warning/5 p-3"><p className="text-xs font-semibold text-txt-primary">Клиника запросила переделку</p><p className="text-xs text-txt-secondary">{order.remakeRequest.reason}</p>{canManageQc ? <><textarea className="min-h-20 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 py-2 text-xs text-txt-primary" value={responseNote} onChange={event => setResponseNote(event.target.value)} maxLength={2000} placeholder="Комментарий лаборатории; при отклонении обязателен" /><div className="flex flex-wrap gap-2"><Button size="sm" disabled={remakeBusy} onClick={() => onRemakeDecision(order.id, 'accept', responseNote)}>Принять переделку</Button><Button size="sm" variant="outline" disabled={remakeBusy || responseNote.trim().length < 5} onClick={() => onRemakeDecision(order.id, 'reject', responseNote)}>Отклонить запрос</Button></div></> : <p className="text-xs text-txt-muted">Ожидает решения владельца или менеджера лаборатории.</p>}</div>}
       {order.remakeRequest?.status === 'rejected' && <p className="rounded-lg bg-surface-2 p-2 text-xs text-txt-muted">Запрос переделки отклонён: {order.remakeRequest.responseNote || 'без комментария'}</p>}
       {order.status === 'qc' && (canManageQc ? <QualityControlForm busy={qcBusy} onSubmit={(checks, note) => onQc(order.id, checks, note)} /> : <p className="rounded-lg bg-surface-2 p-3 text-xs text-txt-muted">Ожидает подтверждения QC владельцем или менеджером лаборатории.</p>)}
@@ -200,6 +221,48 @@ function OrderCard({
           )}
         </div>
       )}
+      {canViewDetails && (
+        <div className="border-t border-bdr-subtle pt-3">
+          <Button size="sm" variant="ghost" className="w-full justify-between" onClick={() => setDetailsOpen((value) => !value)}>
+            <span className="inline-flex items-center gap-2"><History size={14} /> История и детали</span>
+            <span>{detailsOpen ? 'Скрыть' : 'Открыть'}</span>
+          </Button>
+          {detailsOpen && <div className="mt-3 space-y-3 rounded-lg bg-surface-2 p-3">
+            {lifecycleQuery.isLoading && <p className="text-xs text-txt-muted">Загрузка хронологии заказа…</p>}
+            {lifecycleQuery.isError && <QueryError what="историю заказа" onRetry={() => lifecycleQuery.refetch()} />}
+            {lifecycleQuery.data && <>
+              {lifecycleQuery.data.order.notes && <div><p className="text-[11px] font-semibold text-txt-muted">Техническое задание клиники</p><p className="mt-1 whitespace-pre-wrap text-xs text-txt-secondary">{lifecycleQuery.data.order.notes}</p></div>}
+              <div>
+                <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-txt-primary"><Activity size={14} /> История производства</p>
+                <div className="space-y-2">
+                  {lifecycleQuery.data.events.map((event) => (
+                    <div key={event.id} className="border-l-2 border-bdr-subtle pl-3">
+                      <p className="text-xs font-medium text-txt-primary">{event.fromStatus ? STAGES.find((stage) => stage.id === event.fromStatus)?.label || event.fromStatus : 'Заказ передан'} → {STAGES.find((stage) => stage.id === event.toStatus)?.label || event.toStatus}</p>
+                      {event.note && <p className="mt-1 text-xs text-txt-secondary">{event.note}</p>}
+                      <p className="mt-1 text-[10px] text-txt-muted">{new Date(event.createdAt).toLocaleString('ru-RU')} · сотрудник {event.actorUserId.slice(0, 8)}</p>
+                    </div>
+                  ))}
+                  {!lifecycleQuery.data.events.length && <p className="text-xs text-txt-muted">Событий пока нет.</p>}
+                </div>
+              </div>
+              {!!lifecycleQuery.data.shipments.length && <div>
+                <p className="mb-2 text-xs font-semibold text-txt-primary">Все отправки и выдачи</p>
+                <div className="space-y-2">
+                  {lifecycleQuery.data.shipments.map((item, index) => (
+                    <div key={item.id} className="rounded-lg border border-bdr-subtle p-2">
+                      <p className="text-xs font-medium text-txt-primary">Цикл {index + 1} · {item.method === 'PICKUP' ? 'Самовывоз' : 'Курьерская доставка'}</p>
+                      <p className="mt-1 text-[11px] text-txt-muted">{item.status === 'delivered' ? 'Вручено' : item.status === 'ready_for_pickup' ? 'Ожидает самовывоза' : 'В пути'} · {new Date(item.dispatchedAt).toLocaleString('ru-RU')}</p>
+                      {item.trackingNumber && <p className="mt-1 text-xs text-txt-secondary">Трек-номер: {item.trackingNumber}</p>}
+                      {item.recipientName && <p className="text-xs text-txt-secondary">Получатель: {item.recipientName}</p>}
+                      {item.proofUrl && <a href={item.proofUrl} target="_blank" rel="noreferrer" className="text-xs text-accent underline">Доказательство вручения</a>}
+                    </div>
+                  ))}
+                </div>
+              </div>}
+            </>}
+          </div>}
+        </div>
+      )}
       {primary && order.status !== 'qc' && <Button size="sm" variant="secondary" className="w-full" onClick={() => onStatus(order.id, primary)}>Следующий этап <ArrowRight size={14} /></Button>}
     </Card>
   );
@@ -236,9 +299,13 @@ export default function DentalLabPlatform() {
       || (tab === 'shipping' && !canManageShipping)
       || (['board', 'priority'].includes(tab) && !canReadProduction) ? 'board' : tab;
   const orders = useQuery({ queryKey: ['lab-platform', 'orders', filter], queryFn: () => getLabPlatformOrders(filter), enabled: canReadOrders, refetchInterval: 30_000 });
-  const team = useQuery({ queryKey: ['lab-platform', 'team'], queryFn: getLabPlatformTeam, enabled: effectiveTab === 'team' && canManageQc });
+  const team = useQuery({ queryKey: ['lab-platform', 'team'], queryFn: getLabPlatformTeam, enabled: canManageQc && (effectiveTab === 'team' || ['board', 'priority'].includes(effectiveTab)) });
   const finance = useQuery({ queryKey: ['lab-platform', 'finance'], queryFn: getLabPlatformFinance, enabled: effectiveTab === 'finance' && canManageFinance, refetchInterval: 30_000 });
   const statusMutation = useMutation({ mutationFn: ({ id, status }: { id: string; status: string }) => updateLabPlatformOrderStatus(id, status), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); } });
+  const technicianMutation = useMutation({
+    mutationFn: ({ id, technicianId }: { id: string; technicianId: string | null }) => assignLabTechnician(id, technicianId),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); },
+  });
   const qcMutation = useMutation({ mutationFn: ({ id, checks, note }: { id: string; checks: Record<string, boolean>; note: string }) => updateLabPlatformQualityControl(id, checks, note), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); } });
   const remakeMutation = useMutation({ mutationFn: ({ id, decision, note }: { id: string; decision: 'accept' | 'reject'; note: string }) => updateLabPlatformRemakeRequest(id, decision, note), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); } });
   const shipmentMutation = useMutation({
@@ -249,6 +316,7 @@ export default function DentalLabPlatform() {
     mutationFn: ({ id, body }: { id: string; body: { proofUrl: string; recipientName: string; note?: string } }) => confirmLabPlatformDelivery(id, body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); },
   });
+  const technicians = (team.data || []).filter((member) => ['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician'].includes(String(member.role || '').toLowerCase()));
   const [payoutAmount, setPayoutAmount] = useState('');
   const payoutAmountMinor = payoutAmountToMinor(payoutAmount);
   const payoutMutation = useMutation({
@@ -312,15 +380,15 @@ export default function DentalLabPlatform() {
           {(filter ? [{ id: filter, label: STAGES.find((s) => s.id === filter)?.label || filter }] : STAGES).map((stage) => (
             <section key={stage.id} className="min-w-0 space-y-3 rounded-2xl bg-surface-0/60 p-2">
               <div className="flex items-center justify-between px-1"><h3 className="text-xs font-semibold text-txt-secondary">{stage.label}</h3><Badge variant="outline">{grouped[stage.id]?.length || 0}</Badge></div>
-              {(grouped[stage.id] || []).slice(0, 20).map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}
+              {(grouped[stage.id] || []).slice(0, 20).map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}
               {!grouped[stage.id]?.length && <div className="rounded-xl border border-dashed border-bdr-subtle p-5 text-center text-xs text-txt-muted">Нет работ</div>}
             </section>
           ))}
         </div>
       </>}
-      {effectiveTab === 'priority' && <div className="grid gap-3 lg:grid-cols-2">{d.priority.map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}{!d.priority.length && <Card padding="lg"><p className="text-sm text-txt-muted">Критических работ сейчас нет.</p></Card>}</div>}
+      {effectiveTab === 'priority' && <div className="grid gap-3 lg:grid-cols-2">{d.priority.map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}{!d.priority.length && <Card padding="lg"><p className="text-sm text-txt-muted">Критических работ сейчас нет.</p></Card>}</div>}
       {effectiveTab === 'shipping' && <div className="grid gap-3 lg:grid-cols-2">
-        {(orders.data || []).filter((order) => order.status === 'ready' || order.status === 'delivered').map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}
+        {(orders.data || []).filter((order) => order.status === 'ready' || order.status === 'delivered').map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}
         {!(orders.data || []).some((order) => order.status === 'ready' || order.status === 'delivered') && <Card padding="lg"><p className="text-sm text-txt-muted">Нет заказов, ожидающих отправки, самовывоза или подтверждения вручения.</p></Card>}
       </div>}
       {effectiveTab === 'services' && <DentalLabServicesTab canManage={canManageQc} />}
