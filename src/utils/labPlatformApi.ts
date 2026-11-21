@@ -122,6 +122,32 @@ export const getLabPlatformFinance = () => request<LabPlatformFinance>('/finance
 export const requestLabPlatformPayout = (amount: string) =>
   request<LabPlatformPayout>('/payouts', { method: 'POST', body: JSON.stringify({ amount: amount.trim() }) });
 export const getLabPlatformOrders = (status?: string) => request<LabPlatformOrder[]>(status ? `/orders?status=${encodeURIComponent(status)}` : '/orders');
+export interface LabPlatformLifecycleEvent {
+  id: string;
+  fromStatus: string | null;
+  toStatus: string;
+  note?: string | null;
+  actorUserId: string;
+  createdAt: string;
+}
+export interface LabPlatformShipmentEvent {
+  id: string;
+  shipmentId: string;
+  eventType: string;
+  fromStatus?: string | null;
+  toStatus: string;
+  note?: string | null;
+  actorUserId: string;
+  createdAt: string;
+}
+export interface LabPlatformOrderLifecycle {
+  order: LabPlatformOrder;
+  events: LabPlatformLifecycleEvent[];
+  shipments: DentalLabShipment[];
+  shipmentEvents: LabPlatformShipmentEvent[];
+}
+export const getLabPlatformOrderLifecycle = (id: string) =>
+  request<LabPlatformOrderLifecycle>(`/orders/${encodeURIComponent(id)}/lifecycle`);
 export const updateLabPlatformOrderStatus = (id: string, status: string) => request<LabPlatformOrder>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 export const assignLabTechnician = (id: string, technicianId: string | null) => request<LabPlatformOrder>(`/orders/${id}/technician`, { method: 'PATCH', body: JSON.stringify({ technicianId }) });
 export const updateLabPlatformQualityControl = (id: string, checks: Record<string, boolean>, note?: string) => request<LabPlatformOrder>(`/orders/${id}/qc`, { method: 'PATCH', body: JSON.stringify({ checks, note }) });
