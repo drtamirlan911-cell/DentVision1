@@ -304,7 +304,7 @@ describe('diagnostics route contract', () => {
     const remove = serviceSource.slice(start, end);
     expect(remove.indexOf('await tx.referralFile.delete')).toBeGreaterThanOrEqual(0);
     expect(remove.indexOf('await tx.referralFile.delete')).toBeLessThan(remove.indexOf('await deleteObject(storageKey)'));
-    expect(remove).toContain('objectCleanupPending: Boolean(storageKey)');
+    expect(remove).toContain('objectCleanupScheduled: Boolean(storageKey)');
     expect(remove).toContain('private orphaned S3 object after metadata deletion');
     expect(source).toContain("diagnosticsRouter.delete('/referral-files/:id'");
     const deleteStart = source.indexOf("diagnosticsRouter.delete('/referral-files/:id'");
