@@ -129,4 +129,21 @@ describe('diagnostics route contract', () => {
     expect(detailRoute).toContain('events');
   });
 
+  it('minimizes patient names in the worklist for finance-only partner roles', () => {
+    const start = source.indexOf("diagnosticsRouter.get('/centers/:id/worklist'");
+    const end = source.indexOf("diagnosticsRouter.get('/centers/:centerId/worklist/:referralId'", start);
+    const worklistRoute = source.slice(start, end);
+    expect(worklistRoute).toContain('canReadDiagnosticCenterClinicalDetail(roleKeys)');
+    expect(worklistRoute).toContain("patientName: 'Пациент'");
+    expect(worklistRoute).toContain('activePartnerRoleKeys(req.user)');
+  });
+
+  it('checks the clinical-detail capability before fetching the full referral payload', () => {
+    const start = source.indexOf("diagnosticsRouter.get('/centers/:centerId/worklist/:referralId'");
+    const end = source.indexOf("diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/modality'", start);
+    const detailRoute = source.slice(start, end);
+    expect(detailRoute).toContain('canReadDiagnosticCenterClinicalDetail(roleKeys)');
+    expect(detailRoute.indexOf('canReadDiagnosticCenterClinicalDetail')).toBeLessThan(detailRoute.indexOf('svc.getReferral(referralId)'));
+  });
+
 });
