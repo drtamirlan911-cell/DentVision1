@@ -22,7 +22,7 @@ describe('supplier return response boundary', () => {
     expect(routes).toContain('where: { disputeId, orderId, supplierId }');
     expect(routes).toContain('lineSupplierId === supplierId');
     expect(routes).not.toContain('orderHasSupplierLine(');
-    expect(routes).toContain("['order', 'shop_order'].includes(refType)");
+    expect(routes).toContain("!['order', 'shop_order'].includes(dispute.refType.trim().toLowerCase())");
     expect(routes).toContain('ACKNOWLEDGE_RETURN_REQUEST');
     expect(routes).toContain('CONTEST_RETURN_REQUEST');
   });
