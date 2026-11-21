@@ -928,7 +928,7 @@ diagnosticsRouter.delete('/referral-files/:id', async (req: AuthRequest, res) =>
   try {
     const file = await prisma.referralFile.findUnique({
       where: { id: String(req.params.id) },
-      select: { id: true, referralId: true },
+      select: { id: true, referralId: true, uploadedBy: true },
     });
     if (!file) return res.status(404).json({ ok: false, error: 'Файл не найден' });
     const referral = await prisma.referral.findUnique({
@@ -940,9 +940,11 @@ diagnosticsRouter.delete('/referral-files/:id', async (req: AuthRequest, res) =>
     const doctorAllowed = referral.doctorId === req.user!.id && await referralBranchAllowed(req.user!, referral);
     const clinicAllowed = await assertClinicOrgAccess(req.user!, referral.clinicId)
       && await referralBranchAllowed(req.user!, referral);
-    const centerAllowed = Boolean(referral.centerId)
-      && sameOrgContext(req.user, 'DiagnosticCenter', String(referral.centerId))
-      && await canReadCenterClinicalFiles(req.user, referral.centerId);
+    const centerActor = Boolean(referral.centerId)
+      && sameOrgContext(req.user, 'DiagnosticCenter', String(referral.centerId));
+    const centerClinicalAccess = centerActor && await canReadCenterClinicalFiles(req.user, referral.centerId);
+    const centerAllowed = Boolean(centerClinicalAccess)
+      && (file.uploadedBy === req.user!.id || await canManageDiagnosticCenterTeam(req.user));
     const labAllowed = Boolean(referral.labId) && sameOrgContext(req.user, 'Laboratory', String(referral.labId));
     if (req.user?.role !== 'SUPERADMIN' && !doctorAllowed && !clinicAllowed && !centerAllowed && !labAllowed) {
       return res.status(403).json({ ok: false, error: 'Нет доступа к файлу' });
