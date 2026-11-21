@@ -197,7 +197,7 @@ describe('workspace contexts', () => {
   it('labels all partner roles without falling back to Участник', () => {
     const roles = [
       'diagnostic_owner', 'diagnostic_admin', 'diagnostic_manager', 'diagnostic_operator',
-      'diagnostic_reception', 'diagnostic_finance', 'diagnostic_quality',
+      'diagnostic_radiologist', 'diagnostic_reception', 'diagnostic_finance', 'diagnostic_quality',
       'medical_lab_owner', 'medical_lab_admin', 'medical_lab_manager', 'medical_lab_reception',
       'medical_lab_technician', 'medical_lab_validator', 'medical_lab_doctor', 'medical_lab_finance',
       'medical_lab_quality', 'dental_lab_owner', 'dental_lab_admin', 'dental_lab_manager',
@@ -245,7 +245,7 @@ describe('userRoleForPartnerRole', () => {
   it('maps every legacy partner role to a valid scoped application role', () => {
     const cases: Array<[string, string]> = [
       ['diagnostic_owner', 'OWNER'], ['diagnostic_admin', 'ADMIN'], ['diagnostic_manager', 'MANAGER'],
-      ['diagnostic_operator', 'ASSISTANT'], ['diagnostic_reception', 'ASSISTANT'], ['diagnostic_finance', 'ADMIN'], ['diagnostic_quality', 'ADMIN'],
+      ['diagnostic_operator', 'ASSISTANT'], ['diagnostic_radiologist', 'DOCTOR'], ['diagnostic_reception', 'ASSISTANT'], ['diagnostic_finance', 'ADMIN'], ['diagnostic_quality', 'ADMIN'],
       ['medical_lab_owner', 'OWNER'], ['medical_lab_admin', 'ADMIN'], ['medical_lab_manager', 'MANAGER'], ['medical_lab_reception', 'ASSISTANT'],
       ['medical_lab_technician', 'LAB'], ['medical_lab_validator', 'DOCTOR'], ['medical_lab_doctor', 'DOCTOR'], ['medical_lab_finance', 'ADMIN'], ['medical_lab_quality', 'ADMIN'],
       ['dental_lab_owner', 'OWNER'], ['dental_lab_admin', 'ADMIN'], ['dental_lab_manager', 'MANAGER'], ['lab_coordinator', 'ASSISTANT'],
