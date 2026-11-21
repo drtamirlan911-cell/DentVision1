@@ -191,8 +191,9 @@ test.describe('Student OS — personal learning, assessment and credentials', ()
       headers: auth(studentToken),
       data: { progress: 100, completed: true, completedLessons: [lessonId] },
     });
-    expect(honestProgress.status()).toBe(200);
-    const progressPayload = await honestProgress.json();
+    const honestProgressPayload = await honestProgress.json();
+    expect(honestProgress.status(), JSON.stringify(honestProgressPayload)).toBe(200);
+    const progressPayload = honestProgressPayload;
     const savedProgress = progressPayload.data || progressPayload;
     expect(savedProgress.progress).toBe(99);
     expect(savedProgress.completed).toBe(false);
