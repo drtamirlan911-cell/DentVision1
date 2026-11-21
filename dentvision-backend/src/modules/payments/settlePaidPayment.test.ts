@@ -249,7 +249,6 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
       id: 'lab-order-1', clinicId: 'clinic-1', status: 'delivered', serviceId: 'service-1',
       servicePriceSnapshot: 15_000, files: { meta: { laboratoryId: 'lab-1' } }, patient: { branchId: 'branch-1' },
       dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
-      dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
     });
     await expect(settlePaidPayment(
       { id: 'pay-dental-bad', refType: 'dental_lab_order', refId: 'lab-order-1', domain: 'dental_lab', sellerType: null, sellerId: null, amount: 1_499_999n, meta: { invoiceId: 'invoice-1' } },
@@ -263,6 +262,7 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
     fakeTx.labOrder.findUnique.mockResolvedValueOnce({
       id: 'lab-order-1', clinicId: 'clinic-1', status: 'ready', serviceId: 'service-1',
       servicePriceSnapshot: 15_000, files: { meta: { laboratoryId: 'lab-1' } }, patient: { branchId: 'branch-1' },
+      dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
     });
     await expect(settlePaidPayment(
       { id: 'pay-dental-early', refType: 'dental_lab_order', refId: 'lab-order-1', domain: 'dental_lab', sellerType: null, sellerId: null, amount: 1_500_000n, meta: { invoiceId: 'invoice-1' } },
