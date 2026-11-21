@@ -955,6 +955,12 @@ export async function saveAndSignResult(data: {
     if (!referralSnapshot.centerId || !referralSnapshot.radiologistId) {
       throw new Error('Для подписания результата необходимо назначить рентгенолога на исследование.');
     }
+    if (referralSnapshot.result?.signedAt) {
+      throw Object.assign(
+        new Error('Заключение уже подписано и защищено от перезаписи. Для исправления используйте процедуру оформления поправки.'),
+        { code: 'DIAGNOSTIC_RESULT_ALREADY_SIGNED' },
+      );
+    }
     if (referralSnapshot.status !== 'IN_PROGRESS') {
       throw Object.assign(
         new Error('Подписать заключение можно только после начала исследования.'),
@@ -994,16 +1000,16 @@ export async function saveAndSignResult(data: {
       include: { result: true },
     });
     if (!lockedReferral) throw new Error('Referral not found');
-    if (data.signerScope === 'diagnostic_center' && lockedReferral.status !== 'IN_PROGRESS') {
-      throw Object.assign(
-        new Error('Подписать заключение можно только после начала исследования.'),
-        { code: 'DIAGNOSTIC_RESULT_STAGE_INVALID' },
-      );
-    }
     if (lockedReferral.result?.signedAt) {
       throw Object.assign(
         new Error('Заключение уже подписано и защищено от перезаписи. Для исправления используйте процедуру оформления поправки.'),
         { code: 'DIAGNOSTIC_RESULT_ALREADY_SIGNED' },
+      );
+    }
+    if (data.signerScope === 'diagnostic_center' && lockedReferral.status !== 'IN_PROGRESS') {
+      throw Object.assign(
+        new Error('Подписать заключение можно только после начала исследования.'),
+        { code: 'DIAGNOSTIC_RESULT_STAGE_INVALID' },
       );
     }
     if (data.signerScope === 'diagnostic_center') {
