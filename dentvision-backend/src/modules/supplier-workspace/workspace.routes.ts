@@ -10,7 +10,6 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { buildSupplierDashboard, buildSupplierInsights, getSupplierOrders } from './supplierDashboard.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
-import { orderHasSupplierLine } from './supplierOrderOwnership.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Supplier Workspace (self-service cabinet). All routes operate strictly on the
