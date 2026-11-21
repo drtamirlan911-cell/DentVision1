@@ -206,6 +206,25 @@ export function WorklistTab({ orgId }: TabProps) {
     statusMutation.mutate({ referralId: selectedReferralId, nextStatus, extra })
   }
 
+  const openReferralFile = async (fileId: string) => {
+    if (!selectedReferralId) return
+    const popup = window.open('about:blank', '_blank')
+    try {
+      const signed = await api.getDiagnosticReferralFileDownloadUrl(selectedReferralId, fileId)
+      const target = String(signed?.url || '')
+      if (!/^https?:\\/\\//i.test(target)) throw new Error('Ссылка на файл не получена.')
+      if (popup) {
+        popup.opener = null
+        popup.location.href = target
+      } else {
+        window.location.assign(target)
+      }
+    } catch (error) {
+      popup?.close()
+      toast.error(error instanceof Error ? error.message : 'Не удалось открыть файл исследования')
+    }
+  }
+
   if (worklistQuery.isError) return <QueryError what="рабочую очередь диагностического центра" onRetry={() => worklistQuery.refetch()} />
 
   return (
@@ -395,10 +414,10 @@ export function WorklistTab({ orgId }: TabProps) {
                     {referral.files?.length ? referral.files.map((file: any) => (
                       <div key={file.id} className="mb-2 flex min-h-9 items-center justify-between gap-2 text-xs">
                         <span className="min-w-0 truncate text-txt-primary">{file.fileName || 'Файл исследования'} <span className="text-txt-muted">· {file.fileType || 'Файл'}</span></span>
-                        {file.fileUrl ? (
-                          <a href={file.fileUrl} target="_blank" rel="noreferrer" className="min-h-9 shrink-0 px-2 py-2 text-accent underline">Открыть</a>
+                        {file.downloadAvailable ? (
+                          <button type="button" onClick={() => void openReferralFile(file.id)} className="min-h-9 shrink-0 px-2 py-2 text-accent underline">Открыть</button>
                         ) : (
-                          <span className="shrink-0 text-txt-muted" title="Файл загружен до подключения объектного хранилища или хранилище недоступно">Недоступен</span>
+                          <span className="shrink-0 text-txt-muted" title="Файл загружен до подключения объектного хранилища или хранилище временно недоступно">Недоступен</span>
                         )}
                       </div>
                     )) : <p className="text-xs text-txt-muted">Материалы ещё не приложены клиникой.</p>}
