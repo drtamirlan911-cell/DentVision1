@@ -405,13 +405,13 @@ export async function getDiagnosticCenterWorklist(centerId: string, opts: {
         radiologist: { select: { id: true, user: { select: { firstName: true, lastName: true } } } },
         _count: { select: { files: true } },
       },
-      orderBy: [{ scheduledDate: 'asc' }, { createdAt: 'asc' }],
+      // ReferralPriority enum order is NORMAL → URGENT → EMERGENCY;
+      // descending order therefore puts the clinically urgent queue first.
+      orderBy: [{ priority: 'desc' }, { scheduledDate: 'asc' }, { createdAt: 'asc' }],
       take, skip,
     }),
     prisma.referral.count({ where }),
   ]);
-  const priorityRank: Record<string, number> = { EMERGENCY: 0, URGENT: 1, NORMAL: 2 };
-  items.sort((a: any, b: any) => (priorityRank[String(a.priority)] ?? 3) - (priorityRank[String(b.priority)] ?? 3));
   return { items, total, limit: take, offset: skip };
 }
 
