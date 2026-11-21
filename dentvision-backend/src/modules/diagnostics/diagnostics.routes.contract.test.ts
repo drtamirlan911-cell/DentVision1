@@ -297,7 +297,7 @@ describe('diagnostics route contract', () => {
     const route = source.slice(start, end);
     expect(start).toBeGreaterThanOrEqual(0);
     expect(route).toContain('requireReferralAccess(true)');
-    expect(route).toContain('canReadCenterClinicalFiles(req.user, referral.centerId)');
+    expect(route).toContain('canReadReferralClinicalFiles(req.user, referral)');
     expect(route).toContain('svc.getReferralFileDownloadUrl(referralId, fileId, req.user!.id)');
     expect(route).toContain("code === 'DIAGNOSTIC_STORAGE_UNAVAILABLE' ? 503");
 
