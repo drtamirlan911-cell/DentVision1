@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { CLINIC_ROLE_BY_KEY } from '../../lib/clinicRoleAccessRegistry.js';
 
 const source = readFileSync(
   resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts'),
@@ -273,6 +274,21 @@ describe('diagnostics route contract', () => {
     expect(serviceSource).toContain('WHERE "id" = ${data.referralId} FOR UPDATE');
     expect(source).toContain('DIAGNOSTIC_RESULT_ALREADY_SIGNED');
     expect(source).toContain('DIAGNOSTIC_RESULT_STAGE_INVALID');
+  });
+
+  it('uses the canonical clinic medical.read permission rather than general clinic membership for attachments', () => {
+    expect(CLINIC_ROLE_BY_KEY.DOCTOR.permissions).toContain('medical.read');
+    expect(CLINIC_ROLE_BY_KEY.ASSISTANT.permissions).toContain('medical.read');
+    expect(CLINIC_ROLE_BY_KEY.OWNER.permissions).toContain('medical.read');
+    expect(CLINIC_ROLE_BY_KEY.ADMIN.permissions).toContain('medical.read');
+    expect(CLINIC_ROLE_BY_KEY.MANAGER.permissions).toContain('medical.read');
+    expect(CLINIC_ROLE_BY_KEY.CASHIER.permissions).not.toContain('medical.read');
+    expect(CLINIC_ROLE_BY_KEY.ACCOUNTANT.permissions).not.toContain('medical.read');
+    expect(CLINIC_ROLE_BY_KEY.RECEPTIONIST.permissions).not.toContain('medical.read');
+    expect(source).toContain('async function canReadClinicDiagnosticFiles');
+    expect(source).toContain("role?.permissions.includes('medical.read')");
+    expect(source).toContain('canReadReferralClinicalFiles(req.user, referral)');
+    expect(source).toContain('async function canDeleteClinicDiagnosticFiles');
   });
 
   it('issues fresh short-lived diagnostic attachment URLs only after scoped clinical access', () => {
