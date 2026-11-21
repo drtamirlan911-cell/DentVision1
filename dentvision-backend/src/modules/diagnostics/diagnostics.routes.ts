@@ -185,7 +185,14 @@ async function canReadClinicDiagnosticFiles(
       select: { role: { select: { key: true } } },
     });
     return memberships.some((membership) => {
-      const role = CLINIC_ROLE_BY_KEY[String(membership.role.key || '').toUpperCase()];
+      const roleKey = String(membership.role.key || '').toUpperCase();
+      const canonicalRoleKey = ({
+        ORG_OWNER: 'OWNER',
+        ORG_ADMIN: 'ADMIN',
+        DIRECTOR: 'OWNER',
+        NURSE: 'ASSISTANT',
+      } as Record<string, string>)[roleKey] || roleKey;
+      const role = CLINIC_ROLE_BY_KEY[canonicalRoleKey];
       return Boolean(role?.permissions.includes('medical.read'));
     });
   }
