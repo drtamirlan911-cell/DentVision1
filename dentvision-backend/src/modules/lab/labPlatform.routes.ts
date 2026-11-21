@@ -138,6 +138,7 @@ function serialize(order: any) {
     technicianId: meta.technicianId || null, remakeOfId: meta.remakeOfId || null, appointmentId: meta.appointmentId || null,
     qualityControl: meta.qualityControl || null,
     remakeRequest: meta.remakeRequest || null,
+    payment: meta.payment || null,
     serviceId: order.serviceId || null,
     serviceName: order.serviceNameSnapshot || null,
     servicePriceSnapshot: order.servicePriceSnapshot ?? null,
