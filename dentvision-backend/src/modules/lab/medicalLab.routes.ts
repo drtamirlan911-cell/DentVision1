@@ -481,6 +481,21 @@ medicalLabLifecycleRouter.post('/orders/:id/status', async (req: AuthRequest, re
       return res.status(400).json({ ok: false, error: `Недопустимый переход ${order.status} → ${next}` });
     }
     const isLabWorkspace = String(req.user?.organizationType || '').toUpperCase() === 'LABORATORY';
+    if (order.accessionRequired && next === 'sample_collected') {
+      return res.status(409).json({ ok: false, error: 'Сначала зарегистрируйте физический образец и получите barcode', code: 'MEDICAL_LAB_ACCESSION_REQUIRED' });
+    }
+    if (order.accessionRequired && next === 'received') {
+      return res.status(409).json({ ok: false, error: 'Приёмка выполняется сканированием barcode образца', code: 'MEDICAL_LAB_SPECIMEN_SCAN_REQUIRED' });
+    }
+    if (isLabWorkspace && order.accessionRequired && next === 'processing') {
+      const custody = await prisma.$queryRawUnsafe<Array<{ pending: bigint; accepted: bigint }>>(
+        'SELECT COUNT(*) FILTER (WHERE "status"=\'collected\') AS pending, COUNT(*) FILTER (WHERE "status" IN (\'received\',\'processing\',\'consumed\')) AS accepted FROM "medical_lab_specimens" WHERE "orderId"=$1 AND "labId"=$2',
+        order.id, order.labId,
+      );
+      if (Number(custody[0]?.pending || 0) > 0 || Number(custody[0]?.accepted || 0) === 0) {
+        return res.status(409).json({ ok: false, error: 'Все пробирки должны пройти barcode-приёмку; требуется минимум один принятый образец', code: 'MEDICAL_LAB_CUSTODY_INCOMPLETE' });
+      }
+    }
     // Final result and verification are dedicated, evidence-backed endpoints.
     // A generic status PATCH must never bypass result completeness, QC or sign-off.
     if (next === 'result_ready' || next === 'verified') {
