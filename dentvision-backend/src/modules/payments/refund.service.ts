@@ -160,19 +160,9 @@ export async function refundPayment(
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'wallet-funds:' + walletId}))`;
     }
 
-    // Apply wallet deltas inside this transaction before writing the refund
-    // record. A debit is conditional and bounded by the balance less pending
-    // payout holds, so a post-payout refund fails closed instead of going
-    // negative. Any later ledger error rolls the wallet deltas back.
-    for (const entry of refundEntries) {
-      if (entry.direction === 'credit') {
-        await tx.wallet.update({
-          where: { id: entry.walletId },
-          data: { balance: { increment: entry.amount } },
-        });
-        continue;
-      }
-
+    // Preflight every debit before changing any wallet. The wallet locks
+    // keep the balance and payout holds stable across this check and the writes.
+    for (const entry of refundEntries.filter((item) => item.direction === 'debit')) {
       const wallet = await tx.wallet.findUnique({
         where: { id: entry.walletId },
         select: { balance: true },
@@ -191,7 +181,19 @@ export async function refundPayment(
           'Возврат остановлен: средства партнёра зарезервированы или уже выплачены. Требуется финансовая сверка.',
         );
       }
+    }
 
+    // Apply wallet deltas inside this transaction before writing the refund
+    // record. The conditional debit is a final DB-level invariant in case a
+    // writer outside the shared lock protocol changes the wallet concurrently.
+    for (const entry of refundEntries) {
+      if (entry.direction === 'credit') {
+        await tx.wallet.update({
+          where: { id: entry.walletId },
+          data: { balance: { increment: entry.amount } },
+        });
+        continue;
+      }
       const debit = await tx.wallet.updateMany({
         where: { id: entry.walletId, balance: { gte: entry.amount } },
         data: { balance: { decrement: entry.amount } },
