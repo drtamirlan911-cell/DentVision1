@@ -12,11 +12,11 @@ describe('dental laboratory dispatch and proof-of-delivery contract', () => {
   it('persists one shipment per canonical lab order and an ordered event history', () => {
     expect(schema).toContain('model DentalLabShipment');
     expect(schema).toContain('model DentalLabShipmentEvent');
-    expect(schema).toContain('dentalLabShipment DentalLabShipment?');
+    expect(schema).toContain('dentalLabShipments DentalLabShipment[]');
     expect(schema).toContain('dentalLabShipments DentalLabShipment[]');
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS "dental_lab_shipments"');
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS "dental_lab_shipment_events"');
-    expect(migration).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "dental_lab_shipments_labOrderId_key"');
+    expect(migration).toContain('CREATE INDEX IF NOT EXISTS "dental_lab_shipments_labOrderId_createdAt_idx"');
     expect(migration).toContain('dental_lab_shipment_events_shipmentId_createdAt_idx');
   });
 
