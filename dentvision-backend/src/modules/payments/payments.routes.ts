@@ -66,6 +66,15 @@ async function medicalLabOrderAmountMinor(
   return { clinicId: order.clinicId, labId: order.labId, amountMinor, branchId: order.branchId };
 }
 
+class DentalLabPaymentStateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DentalLabPaymentStateError';
+    this.code = 'DENTAL_LAB_PAYMENT_STATE_CHANGED';
+  }
+  code: string;
+}
+
 async function dentalLabOrderPaymentDetails(
   orderId: string,
   db: Prisma.TransactionClient | typeof prisma = prisma,
@@ -120,6 +129,11 @@ async function settleDentalLabOrderPayment(
   db: Prisma.TransactionClient,
 ): Promise<boolean> {
   if (!payment.refId) return false;
+  // Serialize per-case settlement against remake requests and competing payment confirmations.
+  await db.$queryRawUnsafe<Array<{ id: string }>>(
+    'SELECT "id" FROM "lab_orders" WHERE "id" = $1 FOR UPDATE',
+    payment.refId,
+  );
   const order = await dentalLabOrderPaymentDetails(payment.refId, db);
   if (!order || order.status !== 'delivered') {
     throw new Error('Зуботехнический заказ должен быть передан клинике и иметь утверждённую цену услуги');
@@ -137,6 +151,12 @@ async function settleDentalLabOrderPayment(
   const previousPayment = meta.payment && typeof meta.payment === 'object'
     ? meta.payment as Record<string, unknown>
     : null;
+  const remakeRequest = meta.remakeRequest && typeof meta.remakeRequest === 'object'
+    ? meta.remakeRequest as Record<string, unknown>
+    : null;
+  if (remakeRequest?.status === 'requested') {
+    throw new DentalLabPaymentStateError('Нельзя подтверждать оплату, пока по заказу ожидает решения запрос переделки');
+  }
   if (previousPayment?.paymentId && previousPayment.paymentId !== payment.id) {
     throw new Error('Зуботехнический заказ уже оплачен другим платежом');
   }
@@ -1122,6 +1142,9 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     // hitting a permanent 409 (audit F-3).
     if (idempotencyKey && keyReserved && !keyCompleted) {
       await deleteIdempotencyKey(idempotencyKey);
+    }
+    if (error instanceof DentalLabPaymentStateError) {
+      return res.status(409).json({ ok: false, error: error.message, code: error.code } satisfies ApiResponse);
     }
     if (error instanceof ClinicPaymentsError) {
       return res.status(error.status).json({
