@@ -651,6 +651,12 @@ test.describe('Partner operational lifecycle', () => {
       radiologist: { user: { id: centerRadiologistId } },
     });
 
+    const foreignClinicCannotRequestDiagnosticFile = await api.get(
+      `${BASE}/api/diagnostics/referrals/${referral.id}/files/${randomUUID()}/download-url`,
+      { headers: auth(crossClinicDoctorToken) },
+    );
+    expect(foreignClinicCannotRequestDiagnosticFile.status()).toBe(403);
+
     const unassignedRadiologist = await createTestUser({
       email: `diagnostic-unassigned-radiologist-${randomUUID()}@test.dentvision`,
       firstName: 'E2E',
