@@ -10,6 +10,14 @@ const serviceSource = readFileSync(
   resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnostics.service.ts'),
   'utf8',
 );
+const roleMigration = readFileSync(
+  resolve(process.cwd(), 'dentvision-backend/prisma/migrations/20261122010000_diagnostic_center_clinical_roles/migration.sql'),
+  'utf8',
+);
+const iamContexts = readFileSync(
+  resolve(process.cwd(), 'dentvision-backend/src/modules/iam/contexts.ts'),
+  'utf8',
+);
 const workflowSource = readFileSync(
   resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnosticCenterWorkflow.ts'),
   'utf8',
@@ -221,6 +229,18 @@ describe('diagnostics route contract', () => {
     expect(assignRoute).toContain('auditFromReq(req,');
     expect(assignRoute).toContain("action: 'diagnostics.worklist.assignees.assign'");
     expect(assignRoute).toContain('FOR UPDATE');
+  });
+
+
+  it('maps invited diagnostic specialists to canonical scoped IAM roles and correct person types', () => {
+    expect(serviceSource).toContain("operator: 'diagnostic_operator'");
+    expect(serviceSource).toContain("radiologist: 'diagnostic_radiologist'");
+    expect(serviceSource).toContain("normalizedRole === 'operator' ? 'OPERATOR'");
+    expect(serviceSource).toContain("normalizedRole === 'radiologist' ? 'RADIOLOGIST'");
+    expect(roleMigration).toContain("'diagnostic_operator'");
+    expect(roleMigration).toContain("'diagnostic_radiologist'");
+    expect(iamContexts).toContain("diagnostic_radiologist: 'DOCTOR'");
+    expect(iamContexts).toContain("diagnostic_operator: 'ASSISTANT'");
   });
 
 });
