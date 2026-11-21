@@ -743,6 +743,16 @@ export async function uploadDiagnosticFile(data: { referralId: string; fileName:
 export async function deleteDiagnosticFile(id: string): Promise<any> { return apiRequest(`/api/diagnostics/referral-files/${id}`, { method: 'DELETE' }); }
 export async function aiGenerateDiagnosticResult(referralId: string): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${referralId}/ai-result`, { method: 'POST', body: '{}' }); }
 export async function signDiagnosticResult(referralId: string, reportText: string, conclusion?: string): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${referralId}/results/sign`, { method: 'POST', body: JSON.stringify({ reportText, conclusion }) }); }
+export async function amendDiagnosticResult(referralId: string, data: {
+  reportText: string;
+  conclusion: string;
+  changeReason: string;
+}): Promise<any> {
+  return apiRequest(`/api/diagnostics/referrals/${encodeURIComponent(referralId)}/results/amend`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
 export async function submitDiagnosticsRegistration(data: { type: 'center' | 'laboratory'; name: string; city?: string; address?: string; phone?: string; email?: string; comment?: string }): Promise<any> { return apiRequest('/api/diagnostics/register', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getDiagnosticsRegistrations(status?: string): Promise<any> { return apiRequest(`/api/diagnostics/registrations${status ? `?status=${status}` : ''}`); }
 export async function approveDiagnosticsRegistration(id: string): Promise<any> { return apiRequest(`/api/diagnostics/registrations/${id}/approve`, { method: 'POST', body: '{}' }); }
