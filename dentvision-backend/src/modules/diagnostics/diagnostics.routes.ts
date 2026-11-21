@@ -477,7 +477,7 @@ diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/assignees', asy
         select: { id: true, status: true, operatorId: true, radiologistId: true },
       });
       if (!referral) return { kind: 'not_found' as const };
-      if (!['ACCEPTED', 'SCHEDULED', 'PATIENT_ARRIVED', 'IN_PROGRESS'].includes(String(referral.status))) {
+      if (!['SENT', 'ACCEPTED', 'SCHEDULED', 'PATIENT_ARRIVED', 'IN_PROGRESS'].includes(String(referral.status))) {
         return { kind: 'invalid_status' as const };
       }
 
@@ -501,9 +501,11 @@ diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/assignees', asy
             select: { id: true },
           });
           if (!member || !scopedRole) return { kind: 'invalid_operator' as const };
-          let operator = await tx.operator.findFirst({ where: { centerId, userId: operatorUserId } });
-          if (!operator) operator = await tx.operator.create({ data: { centerId, userId: operatorUserId, specialty: 'Diagnostic imaging' } });
-          else if (!operator.active) operator = await tx.operator.update({ where: { id: operator.id }, data: { active: true } });
+          const operator = await tx.operator.upsert({
+            where: { centerId_userId: { centerId, userId: operatorUserId } },
+            update: { active: true },
+            create: { centerId, userId: operatorUserId, specialty: 'Diagnostic imaging' },
+          });
           operatorId = operator.id;
         }
       }
@@ -525,9 +527,11 @@ diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/assignees', asy
             select: { id: true },
           });
           if (!member || !scopedRole) return { kind: 'invalid_radiologist' as const };
-          let radiologist = await tx.radiologist.findFirst({ where: { centerId, userId: radiologistUserId } });
-          if (!radiologist) radiologist = await tx.radiologist.create({ data: { centerId, userId: radiologistUserId, specialty: 'Diagnostic imaging' } });
-          else if (!radiologist.active) radiologist = await tx.radiologist.update({ where: { id: radiologist.id }, data: { active: true } });
+          const radiologist = await tx.radiologist.upsert({
+            where: { centerId_userId: { centerId, userId: radiologistUserId } },
+            update: { active: true },
+            create: { centerId, userId: radiologistUserId, specialty: 'Diagnostic imaging' },
+          });
           radiologistId = radiologist.id;
         }
       }
