@@ -7,6 +7,8 @@ import {
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/components/ui/ds/Toast'
+import { PaymentQrPanel } from '@/components/payments/PaymentQrPanel'
+import { extractPaymentQrUrl } from '@/utils/paymentQr'
 import { useDataQuery } from '../../queries/useDataQuery'
 import { useAuth } from '@/store/auth.store'
 import { queryKeys } from '../../queries/keys'
@@ -92,6 +94,7 @@ export default function Lab() {
   const canUpdateStatus = can('lab.write')
   const canDeleteOrder = can('appointment.write', 'appointments.write')
   const canAssignPartnerLab = can('appointment.write', 'appointments.write') && can('lab.write')
+  const canPayLabPartner = can('billing.manage')
   const [searchParams, setSearchParams] = useSearchParams()
   const ecosystemContext = useEcosystemUrlContext()
   const { labOrders, upsertLabOrder, patients, doctors } = useDataQuery(clinic?.id)
@@ -105,6 +108,9 @@ export default function Lab() {
   const [remakeOrder, setRemakeOrder] = useState<LabOrder | null>(null)
   const [remakeReason, setRemakeReason] = useState('')
   const [requestingRemake, setRequestingRemake] = useState(false)
+  const [labPayment, setLabPayment] = useState<any>(null)
+  const [labPaymentOrderId, setLabPaymentOrderId] = useState<string | null>(null)
+  const [creatingLabPayment, setCreatingLabPayment] = useState(false)
   const availableDentalLabsQuery = useQuery({
     queryKey: ['clinic-lab-available-partners', clinic?.id],
     queryFn: getAvailableDentalLabs,
@@ -171,6 +177,47 @@ export default function Lab() {
       showToast(error instanceof Error ? error.message : 'Не удалось отправить запрос на переделку', 'error')
     } finally { setRequestingRemake(false) }
   }
+  const beginLabPartnerPayment = async (order: LabOrder & { servicePriceSnapshot?: number | null; serviceName?: string | null }) => {
+    if (!canPayLabPartner || creatingLabPayment) return
+    const amount = Number(order.servicePriceSnapshot ?? 0)
+    if (!Number.isSafeInteger(amount) || amount <= 0 || order.status !== 'delivered') {
+      showToast('Оплата доступна после доставки по утверждённой цене услуги лаборатории.', 'warning')
+      return
+    }
+    setCreatingLabPayment(true)
+    try {
+      const payment = await api.createPayment({
+        amount,
+        domain: 'dental_lab',
+        refType: 'dental_lab_order',
+        refId: order.id,
+        meta: { title: order.serviceName || 'Зуботехнический заказ' },
+      })
+      const qr = extractPaymentQrUrl(payment) || payment?.qr || payment?.qrUrl || null
+      setLabPayment({ ...payment, qr, title: order.serviceName || 'Зуботехнический заказ', price: amount })
+      setLabPaymentOrderId(order.id)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Не удалось создать оплату зуботехнического заказа', 'error')
+    } finally { setCreatingLabPayment(false) }
+  }
+
+  const confirmLabPartnerPayment = async () => {
+    if (!labPayment?.id) return
+    setCreatingLabPayment(true)
+    try {
+      const result = await api.confirmPayment(labPayment.id)
+      if (result?.status === 'paid' || result?.settled || result?.alreadyPaid) {
+        setLabPayment(null)
+        setLabPaymentOrderId(null)
+        await queryClient.invalidateQueries({ queryKey: [...queryKeys.labOrders, clinic?.id] })
+        showToast('Оплата лаборатории подтверждена и отражена в Finance Core', 'success')
+      } else {
+        showToast('Платёж ещё не подтверждён провайдером', 'info')
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Не удалось подтвердить оплату', 'error')
+    } finally { setCreatingLabPayment(false) }
+  }
   const handlePatientSelect = (patientId: string) => { const patient = patients.find(p => p.id === patientId); setForm({ ...form, patientId, patientName: patient?.name || form.patientName }) }
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -196,7 +243,7 @@ export default function Lab() {
     const partnerAssigned = Boolean((order as any).laboratoryId)
     const remakeRequest = (order as any).remakeRequest as { status?: string; reason?: string; responseNote?: string | null } | null
     const isOverdue = order.dueDate && new Date(order.dueDate) < new Date() && order.status !== 'delivered'; const labTypeLabel = LAB_TYPES.find(t => t.value === order.labType)?.label || order.labType; const materialLabel = MATERIALS.find(m => m.value === order.material)?.label || order.material; const nextStep = PIPELINE_NEXT[order.status]
-    return <motion.div key={order.id} variants={fadeUp}><Card padding="none" className="overflow-hidden"><div className="p-4"><div className="flex items-start justify-between mb-3"><div>{order.patientId ? <Link to={contextLink(`/crm/patients?patient=${order.patientId}`)} className="inline-flex min-h-10 items-center text-sm font-bold text-txt-primary hover:text-dv-gold transition-colors">{order.patientName}</Link> : <p className="text-sm font-bold text-txt-primary">{order.patientName}</p>}<p className="text-xs text-txt-muted mt-0.5">Создан {fd(order.createdAt || today())}</p></div><Badge variant={STATUS_VARIANT[order.status] as any || 'default'} size="sm">{STATUS_CFG[order.status]?.label || order.status}</Badge></div><div className="space-y-1.5 text-xs text-txt-secondary mb-3"><div className="flex justify-between"><span className="text-txt-muted">Тип:</span><span className="font-semibold text-txt-primary">{labTypeLabel}</span></div><div className="flex justify-between"><span className="text-txt-muted">Материал:</span><span className="font-semibold text-txt-primary">{materialLabel}</span></div>{order.toothNumber && <div className="flex justify-between"><span className="text-txt-muted">Зуб:</span><span className="font-semibold text-txt-primary">{order.toothNumber}</span></div>}{order.shade && <div className="flex justify-between"><span className="text-txt-muted">Цвет:</span><span className="font-semibold text-dv-gold">{order.shade}</span></div>}{order.dueDate && <div className="flex justify-between"><span className="text-txt-muted">Срок:</span><span className={cn('font-semibold', isOverdue ? 'text-error' : 'text-txt-secondary')}>{isOverdue ? '!!! ' : ''}{fd(order.dueDate)}</span></div>}</div>{order.notes && <div className="p-2.5 text-xs text-txt-muted rounded-lg bg-white/[0.02] border border-bdr-subtle mb-3">{order.notes}</div>}{partnerAssigned && <div className="mb-3 space-y-2 rounded-lg border border-bdr-subtle bg-white/[0.02] p-2.5 text-xs text-txt-secondary"><p>Передан зуботехническому партнёру. Производственный статус и QC ведёт лаборатория. Клиника сохраняет просмотр и может запросить переделку после доставки.</p>{(order as any).serviceName ? <div className="border-t border-bdr-subtle pt-2 font-medium text-txt-primary">{(order as any).serviceName} · {Number(order.servicePriceSnapshot ?? order.price ?? 0).toLocaleString('ru-RU')} ₸</div> : null}{remakeRequest?.status === 'requested' && <p className="rounded-md bg-warning/10 p-2 text-warning">Запрос переделки ожидает решения лаборатории: {remakeRequest.reason}</p>}{remakeRequest?.status === 'rejected' && <p className="rounded-md bg-surface-2 p-2">Предыдущий запрос отклонён: {remakeRequest.responseNote || 'без комментария'}</p>}{order.status === 'delivered' && canUpdateStatus && remakeRequest?.status !== 'requested' && <Button variant="outline" size="sm" className="min-h-10 w-full" onClick={() => { setRemakeOrder(order); setRemakeReason('') }}>Запросить переделку</Button>}</div>}<div className="flex gap-1.5 flex-wrap">{!partnerAssigned && canUpdateStatus && nextStep && <Button variant="primary" size="sm" className="min-h-10" onClick={() => changeStatus(order, nextStep.status)}>{nextStep.label}</Button>}{!partnerAssigned && canUpdateStatus && !['remake', 'cancelled', 'delivered'].includes(order.status) && <Button variant="outline" size="sm" className="min-h-10" onClick={() => changeStatus(order, 'remake')}>Remake</Button>}{!partnerAssigned && canAssignPartnerLab && order.status === 'pending' && <Button variant="primary" size="sm" className="min-h-10" onClick={() => openTransfer(order)}>Передать в зуботехническую лабораторию</Button>}{!partnerAssigned && canCreateOrder && <Button variant="ghost" size="sm" className="min-h-10" icon={<Edit size={14} />} onClick={() => openEdit(order)}>Изменить</Button>}<Button variant="outline" size="sm" className="min-h-10" icon={<Printer size={14} />} onClick={() => printWorkOrder(order)}>Печать</Button>{!partnerAssigned && canUpdateStatus && ['pending', 'sent', 'in_progress'].includes(order.status) && <Button variant="danger" size="sm" className="min-h-10" icon={<AlertTriangle size={14} />} onClick={() => changeStatus(order, 'delayed')}>Просрочено</Button>}{!partnerAssigned && canDeleteOrder && <Button variant="ghost" size="sm" className="min-h-10 text-error/70 hover:text-error" icon={<Trash2 size={14} />} onClick={() => setDeleteOrderId(order.id)}>Удалить</Button>}</div></div></Card></motion.div>
+    return <motion.div key={order.id} variants={fadeUp}><Card padding="none" className="overflow-hidden"><div className="p-4"><div className="flex items-start justify-between mb-3"><div>{order.patientId ? <Link to={contextLink(`/crm/patients?patient=${order.patientId}`)} className="inline-flex min-h-10 items-center text-sm font-bold text-txt-primary hover:text-dv-gold transition-colors">{order.patientName}</Link> : <p className="text-sm font-bold text-txt-primary">{order.patientName}</p>}<p className="text-xs text-txt-muted mt-0.5">Создан {fd(order.createdAt || today())}</p></div><Badge variant={STATUS_VARIANT[order.status] as any || 'default'} size="sm">{STATUS_CFG[order.status]?.label || order.status}</Badge></div><div className="space-y-1.5 text-xs text-txt-secondary mb-3"><div className="flex justify-between"><span className="text-txt-muted">Тип:</span><span className="font-semibold text-txt-primary">{labTypeLabel}</span></div><div className="flex justify-between"><span className="text-txt-muted">Материал:</span><span className="font-semibold text-txt-primary">{materialLabel}</span></div>{order.toothNumber && <div className="flex justify-between"><span className="text-txt-muted">Зуб:</span><span className="font-semibold text-txt-primary">{order.toothNumber}</span></div>}{order.shade && <div className="flex justify-between"><span className="text-txt-muted">Цвет:</span><span className="font-semibold text-dv-gold">{order.shade}</span></div>}{order.dueDate && <div className="flex justify-between"><span className="text-txt-muted">Срок:</span><span className={cn('font-semibold', isOverdue ? 'text-error' : 'text-txt-secondary')}>{isOverdue ? '!!! ' : ''}{fd(order.dueDate)}</span></div>}</div>{order.notes && <div className="p-2.5 text-xs text-txt-muted rounded-lg bg-white/[0.02] border border-bdr-subtle mb-3">{order.notes}</div>}{partnerAssigned && <div className="mb-3 space-y-2 rounded-lg border border-bdr-subtle bg-white/[0.02] p-2.5 text-xs text-txt-secondary"><p>Передан зуботехническому партнёру. Производственный статус и QC ведёт лаборатория. Клиника сохраняет просмотр и может запросить переделку после доставки.</p>{(order as any).serviceName ? <div className="border-t border-bdr-subtle pt-2 font-medium text-txt-primary">{(order as any).serviceName} · {Number(order.servicePriceSnapshot ?? order.price ?? 0).toLocaleString('ru-RU')} ₸</div> : null}{(order as any).payment?.status === 'paid' && <p className="rounded-md bg-success/10 p-2 text-success">Оплата подтверждена · Finance Core</p>}{order.status === 'delivered' && canPayLabPartner && Number(order.servicePriceSnapshot ?? 0) > 0 && (order as any).payment?.status !== 'paid' && <Button variant="primary" size="sm" className="min-h-10 w-full" loading={creatingLabPayment && labPaymentOrderId === order.id} onClick={() => beginLabPartnerPayment(order as any)}>Оплатить лаборатории · {Number(order.servicePriceSnapshot).toLocaleString('ru-RU')} ₸</Button>}{labPaymentOrderId === order.id && labPayment && <PaymentQrPanel payment={labPayment} title={labPayment.title || 'Оплата зуботехнической работы'} amount={labPayment.price} busy={creatingLabPayment} onConfirm={confirmLabPartnerPayment} onCancel={() => { setLabPayment(null); setLabPaymentOrderId(null) }} hint="Платёж будет отнесён к этому заказу и проведён через партнёрский финансовый ledger." className="mt-2" />}{remakeRequest?.status === 'requested' && <p className="rounded-md bg-warning/10 p-2 text-warning">Запрос переделки ожидает решения лаборатории: {remakeRequest.reason}</p>}{remakeRequest?.status === 'rejected' && <p className="rounded-md bg-surface-2 p-2">Предыдущий запрос отклонён: {remakeRequest.responseNote || 'без комментария'}</p>}{order.status === 'delivered' && canUpdateStatus && remakeRequest?.status !== 'requested' && <Button variant="outline" size="sm" className="min-h-10 w-full" onClick={() => { setRemakeOrder(order); setRemakeReason('') }}>Запросить переделку</Button>}</div>}<div className="flex gap-1.5 flex-wrap">{!partnerAssigned && canUpdateStatus && nextStep && <Button variant="primary" size="sm" className="min-h-10" onClick={() => changeStatus(order, nextStep.status)}>{nextStep.label}</Button>}{!partnerAssigned && canUpdateStatus && !['remake', 'cancelled', 'delivered'].includes(order.status) && <Button variant="outline" size="sm" className="min-h-10" onClick={() => changeStatus(order, 'remake')}>Remake</Button>}{!partnerAssigned && canAssignPartnerLab && order.status === 'pending' && <Button variant="primary" size="sm" className="min-h-10" onClick={() => openTransfer(order)}>Передать в зуботехническую лабораторию</Button>}{!partnerAssigned && canCreateOrder && <Button variant="ghost" size="sm" className="min-h-10" icon={<Edit size={14} />} onClick={() => openEdit(order)}>Изменить</Button>}<Button variant="outline" size="sm" className="min-h-10" icon={<Printer size={14} />} onClick={() => printWorkOrder(order)}>Печать</Button>{!partnerAssigned && canUpdateStatus && ['pending', 'sent', 'in_progress'].includes(order.status) && <Button variant="danger" size="sm" className="min-h-10" icon={<AlertTriangle size={14} />} onClick={() => changeStatus(order, 'delayed')}>Просрочено</Button>}{!partnerAssigned && canDeleteOrder && <Button variant="ghost" size="sm" className="min-h-10 text-error/70 hover:text-error" icon={<Trash2 size={14} />} onClick={() => setDeleteOrderId(order.id)}>Удалить</Button>}</div></div></Card></motion.div>
   }
 
   return <div className="dv-page py-4 md:py-6 max-w-full overflow-x-hidden"><PageHeader title="Лаборатория" subtitle="Управление лабораторными заказами" icon={<FlaskConical size={20} />} actions={canCreateOrder ? <Button icon={<Plus size={16} />} onClick={openNew} className="min-h-11">Новый заказ</Button> : undefined} />
