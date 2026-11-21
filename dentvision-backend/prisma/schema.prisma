@@ -3455,6 +3455,7 @@ model Operator {
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   referrals Referral[]
 
+  @@unique([centerId, userId])
   @@index([centerId])
   @@map("operators")
 }
@@ -3472,6 +3473,7 @@ model Radiologist {
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   referrals Referral[]
 
+  @@unique([centerId, userId])
   @@index([centerId])
   @@map("radiologists")
 }
