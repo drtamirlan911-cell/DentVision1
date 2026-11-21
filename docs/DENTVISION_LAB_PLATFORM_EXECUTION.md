@@ -214,3 +214,20 @@ A read-only comparison of `main` at `4bbd61a339d5f3c4d40d1d5990f633a7b9a87864` c
 7. Full desktop/mobile acceptance and exact-head CI/E2E evidence for the final integrated workflow.
 
 No production/staging database, migration, payment provider, secret or live partner data was accessed or changed during this reconciliation. D10 remains OPEN/PARTIAL until all remaining lifecycle and release gates pass.
+
+## 2026-11-21 continuation checkpoint — dispatch evidence, repeat remakes and production command surface (candidate PR #352)
+
+The following source-level capabilities are now present on the candidate branch:
+
+- Courier dispatch requires carrier and tracking number; clinic pickup uses a separate ready_for_pickup state.
+- The generic status endpoint cannot mark a partner-owned case delivered. Delivery requires a validated HTTPS proof reference and recipient name; the transaction records shipment and order events, actor/time audit, durable clinic notification and an ecosystem event.
+- Shipment records are one-to-many per canonical LabOrder. A completed shipment does not block a later remake cycle from creating a new dispatch. Earlier shipment evidence is retained; the lifecycle response returns all attempts and their individual event streams.
+- Logistics users can process only ready/delivered handoffs. Their order projection removes patient, doctor, technical, clinical-note, QC, payment and price fields; lifecycle/technical detail remains reserved for managers and assigned production roles.
+- Owners/managers can assign a technician from the production board. Assignment is validated against membership in that exact lab and written to the durable order event history.
+- The work-item detail view loads the canonical lifecycle and presents the clinic technical brief, production events and shipment history. The event lists are merged chronologically; courier/logistics users cannot open this view.
+- Partner Lifecycle E2E coverage includes courier and pickup, HTTPS validation, tenant/role denial, idempotent retry, clinic remake request, laboratory acceptance, repeated production/QC, a second pickup shipment and retained first/second shipment history.
+
+**Release evidence limitation:** the most recent available Quality Gate run for the earlier candidate SHA b85101d8f7306a6f70c46b5e9feea888b475f9cd failed TypeScript at the stale Badge variant danger in DentalLabPlatform.tsx; the candidate code was changed to the supported error variant. That run predates the latest production-timeline changes and is not exact-head evidence. Vercel Preview is currently blocked by a build-rate-limit response. No exact-head TypeScript, lint, Release Gate or full Partner Lifecycle E2E success is claimed.
+
+**Remaining D10 / dental-lab work:** CAD/CAM and workstation dispatch, governed STL/PLY/OBJ file/version management, materials and lot traceability, per-case labour/material costs, formal invoice/tax document lifecycle, branch subscription enforcement, remake warranty/cost responsibility, refund/chargeback reconciliation, clinic acceptance/feedback after rework, durable notification delivery proof and full desktop/mobile/operator acceptance. Dental Laboratory remains **PARTIAL / D10 OPEN**. No production migration, payment-provider or bank payout integration, or live partner operation has been performed.
+
