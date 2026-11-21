@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client';
 
 export class PaymentRefundError extends Error {
   constructor(
-    public code: 'NOT_FOUND' | 'FORBIDDEN' | 'INVALID_AMOUNT' | 'IDEMPOTENCY_REQUIRED' | 'NOT_REFUNDABLE' | 'ALREADY_REFUNDED',
+    public code: 'NOT_FOUND' | 'FORBIDDEN' | 'INVALID_AMOUNT' | 'IDEMPOTENCY_REQUIRED' | 'NOT_REFUNDABLE' | 'ALREADY_REFUNDED' | 'INSUFFICIENT_FUNDS',
     message: string,
   ) {
     super(message);
@@ -152,6 +152,58 @@ export async function refundPayment(
       throw new PaymentRefundError('INVALID_AMOUNT', 'Возврат не сохраняет баланс двойной записи');
     }
 
+    // Refunds and payouts share a wallet-level lock. This prevents a refund
+    // from consuming funds already reserved for an approved payout, and keeps
+    // two refunds for different payments from spending the same partner balance.
+    const walletIds = [...new Set(refundEntries.map((entry) => entry.walletId))].sort();
+    for (const walletId of walletIds) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'wallet-funds:' + walletId}))`;
+    }
+
+    // Apply wallet deltas inside this transaction before writing the refund
+    // record. A debit is conditional and bounded by the balance less pending
+    // payout holds, so a post-payout refund fails closed instead of going
+    // negative. Any later ledger error rolls the wallet deltas back.
+    for (const entry of refundEntries) {
+      if (entry.direction === 'credit') {
+        await tx.wallet.update({
+          where: { id: entry.walletId },
+          data: { balance: { increment: entry.amount } },
+        });
+        continue;
+      }
+
+      const wallet = await tx.wallet.findUnique({
+        where: { id: entry.walletId },
+        select: { balance: true },
+      });
+      if (!wallet) throw new PaymentRefundError('NOT_REFUNDABLE', 'Кошелёк исходной операции не найден');
+
+      const pendingPayouts = await tx.payout.findMany({
+        where: { walletId: entry.walletId, status: { in: ['requested', 'approved'] } },
+        select: { amount: true },
+      });
+      const held = pendingPayouts.reduce((sum, payout) => sum + payout.amount, 0n);
+      const available = wallet.balance - held;
+      if (available < entry.amount) {
+        throw new PaymentRefundError(
+          'INSUFFICIENT_FUNDS',
+          'Возврат остановлен: средства партнёра зарезервированы или уже выплачены. Требуется финансовая сверка.',
+        );
+      }
+
+      const debit = await tx.wallet.updateMany({
+        where: { id: entry.walletId, balance: { gte: entry.amount } },
+        data: { balance: { decrement: entry.amount } },
+      });
+      if (debit.count !== 1) {
+        throw new PaymentRefundError(
+          'INSUFFICIENT_FUNDS',
+          'Баланс кошелька изменился во время возврата. Повторите сверку финансовой операции.',
+        );
+      }
+    }
+
     const refund = await tx.transaction.create({
       data: {
         type: 'refund',
@@ -171,11 +223,6 @@ export async function refundPayment(
         ledgerEntries: { create: refundEntries },
       },
     });
-
-    for (const entry of refundEntries) {
-      const delta = entry.direction === 'credit' ? entry.amount : -entry.amount;
-      await tx.wallet.update({ where: { id: entry.walletId }, data: { balance: { increment: delta } } });
-    }
 
     const totalRefunded = refunded + requested;
     const nextStatus = totalRefunded === payment.amount ? 'refunded' : 'paid';
