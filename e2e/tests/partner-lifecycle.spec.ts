@@ -670,6 +670,13 @@ test.describe('Partner operational lifecycle', () => {
       },
     });
 
+    const assignedRadiologistCannotSignBeforeAcquisition = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/sign`, {
+      headers: auth(centerRadiologistToken),
+      data: { reportText: 'Signing before acquisition must be blocked', conclusion: 'Invalid stage' },
+    });
+    expect(assignedRadiologistCannotSignBeforeAcquisition.status()).toBe(409);
+    expect((await assignedRadiologistCannotSignBeforeAcquisition.json()).code).toBe('DIAGNOSTIC_RESULT_STAGE_INVALID');
+
     const clinicCannotControlCenterWorkflow = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
       headers: auth(ownerToken),
       data: { status: 'ACCEPTED' },
@@ -759,12 +766,62 @@ test.describe('Partner operational lifecycle', () => {
     expect(signed.patientRecordUpdated).toBe(false);
     expect(await prisma.visit.count({ where: { patientId } })).toBe(visitCountBefore);
 
+    const repeatedInitialSign = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/sign`, {
+      headers: auth(centerRadiologistToken),
+      data: { reportText: 'This must not overwrite a signed version', conclusion: 'Overwrite attempt' },
+    });
+    expect(repeatedInitialSign.status()).toBe(409);
+    expect((await repeatedInitialSign.json()).code).toBe('DIAGNOSTIC_RESULT_ALREADY_SIGNED');
+
     const delivered = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
       headers: auth(centerOwnerToken),
       data: { status: 'DELIVERED' },
     });
     expect(delivered.status()).toBe(200);
     expect((await delivered.json()).data.status).toBe('DELIVERED');
+
+    const unassignedRadiologistCannotAmend = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/amend`, {
+      headers: auth(unassignedRadiologistToken),
+      data: {
+        reportText: 'Unauthorized user attempts to amend the diagnostic report.',
+        conclusion: 'Unauthorized correction attempt',
+        changeReason: 'This user is not the assigned radiologist.',
+      },
+    });
+    expect(unassignedRadiologistCannotAmend.status()).toBe(403);
+
+    const amendedResult = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/amend`, {
+      headers: auth(centerRadiologistToken),
+      data: {
+        reportText: 'E2E amended diagnostic report with the clarified anatomical finding.',
+        conclusion: 'No acute findings; anatomical clarification appended.',
+        changeReason: 'The initial report required clarification of the anatomical region and side after image re-review.',
+      },
+    });
+    expect(amendedResult.status(), await amendedResult.text()).toBe(200);
+    expect((await amendedResult.json()).data).toMatchObject({
+      version: 2,
+      requiresRedelivery: true,
+      referralStatus: 'COMPLETED',
+    });
+    const versionRows = await prisma.diagnosticResultVersion.findMany({
+      where: { diagnosticResultId: signed.result.id },
+      orderBy: { version: 'asc' },
+    });
+    expect(versionRows).toHaveLength(2);
+    expect(versionRows[0]).toMatchObject({ version: 1, reportText: 'E2E diagnostic report' });
+    expect(versionRows[1]).toMatchObject({
+      version: 2,
+      reportText: 'E2E amended diagnostic report with the clarified anatomical finding.',
+      changeReason: 'The initial report required clarification of the anatomical region and side after image re-review.',
+    });
+
+    const redelivered = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'DELIVERED' },
+    });
+    expect(redelivered.status()).toBe(200);
+    expect((await redelivered.json()).data.status).toBe('DELIVERED');
 
     const clinicRead = await api.get(`${BASE}/api/diagnostics/referrals/${referral.id}`, {
       headers: auth(ownerToken),
@@ -773,6 +830,9 @@ test.describe('Partner operational lifecycle', () => {
     const clinicReferral = (await clinicRead.json()).data;
     expect(clinicReferral.id).toBe(referral.id);
     expect(clinicReferral.result || clinicReferral.results || clinicReferral.reportText).toBeTruthy();
+    expect(clinicReferral.result.reportText).toBe('E2E amended diagnostic report with the clarified anatomical finding.');
+    expect(clinicReferral.result.versions).toHaveLength(2);
+    expect(clinicReferral.result.versions.map((version: any) => version.version)).toEqual([1, 2]);
   });
 
   test('RB-037: clinic diagnostic confirmation and signing are doctor-only', async () => {
