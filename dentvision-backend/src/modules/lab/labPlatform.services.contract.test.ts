@@ -51,5 +51,7 @@ describe('dental-lab remake response boundary', () => {
     expect(route).toContain('appendEventInTransaction');
     expect(route).toContain('LAB_ORDER_REMAKE_ACCEPTED');
     expect(route).toContain('LAB_ORDER_REMAKE_REJECTED');
+    expect(route).toContain('createNotificationForClinic');
+    expect(route).toContain("type: 'lab.remake.decision'");
   });
 });
