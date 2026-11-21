@@ -5,8 +5,8 @@
 ## Summary
 
 - Mounted routers: **69**
-- Unique route handlers: **729**
-- Registered HTTP routes after mount: **683**
+- Unique route handlers: **730**
+- Registered HTTP routes after mount: **684**
 - Routes without detected web/mobile consumer: **102**
 - Prisma models: **160**
 - Background jobs: **12**
@@ -38,7 +38,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/marketing | marketingRouter | 9 | 0 |
 | /api/shop | shopRouter | 38 | 1 |
 | /api/suppliers | suppliersRouter | 10 | 3 |
-| /api/supplier | supplierWorkspaceRouter | 25 | 0 |
+| /api/supplier | supplierWorkspaceRouter | 26 | 0 |
 | /api/lecturer | lecturerRouter | 10 | 0 |
 | /api/school | schoolRouter | 28 | 0 |
 | /api/dentcash | dentcashRouter | 4 | 1 |
