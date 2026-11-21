@@ -30,6 +30,6 @@ describe('diagnostic modality and worklist contract', () => {
 
   it('keeps the default worklist operational and excludes closed outcomes', () => {
     expect(service).toContain("notIn: ['COMPLETED', 'REVIEWED', 'DELIVERED', 'CLOSED', 'CANCELLED']");
-    expect(service).toContain('EMERGENCY: 0, URGENT: 1, NORMAL: 2');
+    expect(service).toContain("orderBy: [{ priority: 'desc' }, { scheduledDate: 'asc' }, { createdAt: 'asc' }]");
   });
 });
