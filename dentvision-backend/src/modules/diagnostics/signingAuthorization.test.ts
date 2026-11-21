@@ -28,12 +28,16 @@ describe('partner diagnostic result signer authorization', () => {
           some: {
             scopeType: 'organization',
             scopeId: 'diagnostic-org-a',
-            role: { key: { in: ['radiologist'] } },
+            role: { key: { in: ['radiologist', 'diagnostic_radiologist'] } },
           },
         },
       },
       select: { id: true },
     });
+  });
+
+  it('includes the canonical invited diagnostic-radiologist role in the signer allow-list', () => {
+    expect(DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS).toEqual(['radiologist', 'diagnostic_radiologist']);
   });
 
   it('does not grant signing authority to an owner without an explicit signer role', async () => {
