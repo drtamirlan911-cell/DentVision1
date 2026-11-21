@@ -926,7 +926,7 @@ model LabOrder {
   doctor  User?    @relation("LabOrderDoctor", fields: [doctorId], references: [id], onDelete: SetNull)
   treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)
   dentalLabService DentalLabService? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  dentalLabShipment DentalLabShipment?
+  dentalLabShipments DentalLabShipment[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -3310,7 +3310,7 @@ model DentalLabService {
 
 model DentalLabShipment {
   id                 String   @id @default(uuid())
-  labOrderId         String   @unique
+  labOrderId         String
   laboratoryId       String
   method             String // COURIER | PICKUP
   carrier            String?
@@ -3331,6 +3331,7 @@ model DentalLabShipment {
   laboratory Laboratory @relation(fields: [laboratoryId], references: [id], onDelete: Cascade)
   events     DentalLabShipmentEvent[]
 
+  @@index([labOrderId, createdAt])
   @@index([laboratoryId, status, dispatchedAt])
   @@map("dental_lab_shipments")
 }
