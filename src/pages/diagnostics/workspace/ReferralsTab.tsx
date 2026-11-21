@@ -63,15 +63,13 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
 
   const signMutation = useMutation({
     mutationFn: async (referralId: string) => {
-      await api.signDiagnosticResult(referralId, reportText, conclusion || undefined);
+      // Persist source files before signing. A failed attachment upload must
+      // not leave a signed report that appears to have been issued with files
+      // that were never stored.
       for (const file of resultFiles) {
-        const reader = new FileReader();
-        const base64 = await new Promise<string>((resolve) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(file);
-        });
-        await api.uploadDiagnosticFile({ referralId, fileName: file.name, fileData: base64, fileType: file.type, fileSize: file.size });
+        await api.uploadDiagnosticFile({ referralId, file });
       }
+      await api.signDiagnosticResult(referralId, reportText, conclusion || undefined);
     },
     onSuccess: (_, referralId) => {
       setResultModal(null); setReportText(''); setConclusion(''); setResultFiles([]);
