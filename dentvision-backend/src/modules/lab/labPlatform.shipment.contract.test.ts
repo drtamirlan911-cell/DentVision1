@@ -99,6 +99,21 @@ describe('dental lab partner finance workspace contract', () => {
     expect(workspace).toContain("enabled: effectiveTab === 'finance' && canManageFinance");
   });
 
+  it('limits delivery users to ready handoffs and removes patient and clinical fields from their queue projection', () => {
+    const start = financeRoutes.indexOf('async function ordersForLab(');
+    const end = financeRoutes.indexOf("labPlatformRouter.get('/available-laboratories'", start);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    const queue = financeRoutes.slice(start, end);
+    expect(queue).toContain("const logisticsStatuses = ['ready', 'delivered']");
+    expect(queue).toContain("patientId: null");
+    expect(queue).toContain("patientName: ''");
+    expect(queue).toContain("notes: ''");
+    expect(queue).toContain("servicePriceSnapshot: null");
+    const catalogue = financeRoutes.slice(financeRoutes.indexOf("labPlatformRouter.get('/services'"), financeRoutes.indexOf("labPlatformRouter.post('/services'"));
+    expect(catalogue).toContain('isLabLogisticsRole(membership.role)');
+  });
+
   it('uses the shared payout reservation and ledger transition rather than adding commission on delivery', () => {
     expect(financeRoutes).toContain("requestPayout({ ownerType: 'PARTNER', ownerId: membership.labId, amountMinor })");
     expect(financeRoutes).toContain('availableBalanceMinor(wallet.id)');
