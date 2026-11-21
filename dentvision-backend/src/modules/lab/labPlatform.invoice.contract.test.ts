@@ -45,6 +45,7 @@ describe('Dental Lab partner invoice lifecycle', () => {
     expect(clinicRoutes).toContain('invoice: order.dentalLabInvoice ?');
     expect(partnerRoutes).toContain('dentalLabInvoice: true');
     expect(partnerRoutes).toContain('invoice: order.dentalLabInvoice ?');
+    expect(partnerRoutes).toContain('invoice: null');
     expect(labUi).toContain('issueLabPlatformInvoice(id)');
     expect(labUi).toContain('Выставить счёт клинике');
     expect(clinicUi).toContain('Счёт {labInvoice.invoiceNumber}');
