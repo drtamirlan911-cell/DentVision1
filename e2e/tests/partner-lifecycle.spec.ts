@@ -537,14 +537,73 @@ test.describe('Partner operational lifecycle', () => {
     );
     expect(radiologistCannotAssignEquipment.status()).toBe(403);
 
-    for (const [status, actor] of [['ACCEPTED', centerOwnerToken], ['IN_PROGRESS', centerOwnerToken], ['COMPLETED', centerOwnerToken]] as const) {
-      const res = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
-        headers: auth(actor),
-        data: { status, cost: 10000 },
-      });
-      expect(res.status()).toBe(200);
-      expect((await res.json()).data.status).toBe(status);
-    }
+    await prisma.diagnosticStudy.create({
+      data: {
+        id: randomUUID(),
+        centerId,
+        name: 'Конусно-лучевая КТ (КЛКТ)',
+        category: 'CBCT',
+        price: 10000,
+        durationMin: 30,
+      },
+    });
+
+    const radiologistCannotAccept = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerRadiologistToken),
+      data: { status: 'ACCEPTED', cost: 10000 },
+    });
+    expect(radiologistCannotAccept.status()).toBe(403);
+    expect((await radiologistCannotAccept.json()).code).toBe('DIAGNOSTIC_ACCEPT_FORBIDDEN');
+
+    const centerCannotSkipToAcquisition = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'IN_PROGRESS' },
+    });
+    expect(centerCannotSkipToAcquisition.status()).toBe(409);
+    expect((await centerCannotSkipToAcquisition.json()).code).toBe('DIAGNOSTIC_STATUS_TRANSITION_INVALID');
+
+    const accepted = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'ACCEPTED', cost: 10000 },
+    });
+    expect(accepted.status()).toBe(200);
+    expect((await accepted.json()).data).toMatchObject({ status: 'ACCEPTED', cost: 10000 });
+
+    const missingSchedule = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'SCHEDULED' },
+    });
+    expect(missingSchedule.status()).toBe(400);
+    expect((await missingSchedule.json()).code).toBe('DIAGNOSTIC_SCHEDULE_REQUIRED');
+
+    const scheduledDate = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const scheduled = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'SCHEDULED', scheduledDate, scheduledTime: '10:30' },
+    });
+    expect(scheduled.status()).toBe(200);
+    expect((await scheduled.json()).data).toMatchObject({ status: 'SCHEDULED', scheduledTime: '10:30' });
+
+    const arrived = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'PATIENT_ARRIVED' },
+    });
+    expect(arrived.status()).toBe(200);
+    expect((await arrived.json()).data.status).toBe('PATIENT_ARRIVED');
+
+    const acquisition = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'IN_PROGRESS' },
+    });
+    expect(acquisition.status()).toBe(200);
+    expect((await acquisition.json()).data.status).toBe('IN_PROGRESS');
+
+    const unsignedCompletion = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'COMPLETED' },
+    });
+    expect(unsignedCompletion.status()).toBe(409);
+    expect((await unsignedCompletion.json()).code).toBe('DIAGNOSTIC_RESULT_SIGN_REQUIRED');
 
     const visitCountBefore = await prisma.visit.count({ where: { patientId } });
     const result = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/sign`, {
@@ -556,6 +615,13 @@ test.describe('Partner operational lifecycle', () => {
     const signed = resultBody.data;
     expect(signed.patientRecordUpdated).toBe(false);
     expect(await prisma.visit.count({ where: { patientId } })).toBe(visitCountBefore);
+
+    const delivered = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'DELIVERED' },
+    });
+    expect(delivered.status()).toBe(200);
+    expect((await delivered.json()).data.status).toBe('DELIVERED');
 
     const clinicRead = await api.get(`${BASE}/api/diagnostics/referrals/${referral.id}`, {
       headers: auth(ownerToken),
