@@ -33,6 +33,11 @@ function isManager(roleKeys: readonly string[]): boolean {
   });
 }
 
+/** Clinical referral details contain identifiers and must not be exposed to cashier-only or finance-only memberships. */
+export function canReadDiagnosticCenterClinicalDetail(roleKeys: readonly string[]): boolean {
+  return isManager(roleKeys) || roleMatches(roleKeys, ACQUISITION_ROLE_KEYS);
+}
+
 /**
  * The generic referral status endpoint must not let a center skip the RIS
  * work queue or mark a study complete without a signed result. Completion is
