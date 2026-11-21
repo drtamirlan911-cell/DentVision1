@@ -278,6 +278,11 @@ labRouter.post('/:id/remake-request', requirePermission('lab.write'), async (req
       const existingMeta = (existing.files as { meta?: LabOrderMeta } | null)?.meta || {};
       if (!existingMeta.laboratoryId) return { kind: 'not_partner' as const };
       if (existing.status !== 'delivered') return { kind: 'invalid_status' as const };
+      const pendingPayment = await tx.payment.findFirst({
+        where: { refType: 'dental_lab_order', refId: existing.id, status: 'pending' },
+        select: { id: true },
+      });
+      if (pendingPayment) return { kind: 'payment_pending' as const };
       if (existingMeta.remakeRequest?.status === 'requested') return { kind: 'already_requested' as const };
       const request = {
         id: uid(),
@@ -304,6 +309,7 @@ labRouter.post('/:id/remake-request', requirePermission('lab.write'), async (req
     if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден в текущем филиале' } satisfies ApiResponse);
     if (outcome.kind === 'not_partner') return res.status(409).json({ ok: false, error: 'Запрос переделки доступен только для заказа, переданного зуботехническому партнёру' } satisfies ApiResponse);
     if (outcome.kind === 'invalid_status') return res.status(409).json({ ok: false, error: 'Запрос переделки доступен после подтверждённой доставки' } satisfies ApiResponse);
+    if (outcome.kind === 'payment_pending') return res.status(409).json({ ok: false, error: 'Сначала завершите ожидающий платёж по заказу или дождитесь его отмены провайдером', code: 'DENTAL_LAB_PAYMENT_PENDING' } satisfies ApiResponse);
     if (outcome.kind === 'already_requested') return res.status(409).json({ ok: false, error: 'Запрос переделки уже ожидает ответа лаборатории' } satisfies ApiResponse);
 
     await writeAuditLog({ action: 'LAB_ORDER_REMAKE_REQUESTED', entity: 'lab_order', entityId: orderId, details: { laboratoryId: outcome.request.laboratoryId, requestId: outcome.request.id, reasonLength: reason.length }, userId: req.user!.id, clinicId });
