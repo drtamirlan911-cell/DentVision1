@@ -645,21 +645,21 @@ async function assertPaymentOwner(
   if (clinicScopedPayment) {
     const clinicId = clinicPaymentScope(payment);
     if (!clinicId) return false;
-    return canManageClinicBillingMutation(req.user!, clinicId);
-  }
-
-  if (payment.refType === 'dental_lab_order') {
-    if (!payment.refId) return false;
-    try {
-      const order = await dentalLabOrderPaymentDetails(payment.refId);
-      return Boolean(
-        order
-        && await canManageClinicBillingMutation(req.user!, order.clinicId)
-        && canAccessDentalLabOrderBranch(req.user, order.branchId),
-      );
-    } catch {
-      return false;
+    if (payment.refType === 'dental_lab_order') {
+      if (!payment.refId) return false;
+      try {
+        const order = await dentalLabOrderPaymentDetails(payment.refId);
+        return Boolean(
+          order
+          && order.clinicId === clinicId
+          && await canManageClinicBillingMutation(req.user!, clinicId)
+          && canAccessDentalLabOrderBranch(req.user, order.branchId),
+        );
+      } catch {
+        return false;
+      }
     }
+    return canManageClinicBillingMutation(req.user!, clinicId);
   }
 
   // Orders are canonical ownership records. Historical payment metadata was
