@@ -833,6 +833,12 @@ test.describe('Partner operational lifecycle', () => {
     expect(clinicReferral.result.reportText).toBe('E2E amended diagnostic report with the clarified anatomical finding.');
     expect(clinicReferral.result.versions).toHaveLength(2);
     expect(clinicReferral.result.versions.map((version: any) => version.version)).toEqual([1, 2]);
+    expect(clinicReferral.result.versions[0].signer).toMatchObject({
+      id: centerRadiologistId,
+      firstName: 'E2E',
+      lastName: 'Radiologist',
+    });
+    expect(clinicReferral.result.versions[1].signer.id).toBe(centerRadiologistId);
   });
 
   test('RB-037: clinic diagnostic confirmation and signing are doctor-only', async () => {
