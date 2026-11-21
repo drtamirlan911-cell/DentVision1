@@ -9,6 +9,7 @@ import { assertClinicOrgAccess } from '../../lib/orgContext.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { uid } from '../../lib/helpers.js';
 import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js';
+import { createNotificationForClinic } from '../../services/notification.service.js';
 import { canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeDecision } from './labPlatform.authorization.js';
 
 export const labPlatformRouter = Router();
@@ -522,6 +523,14 @@ labPlatformRouter.patch('/orders/:id/remake-request', async (req: AuthRequest, r
     if (outcome.kind === 'invalid_status') return res.status(409).json({ ok: false, error: 'Решение доступно только для доставленного заказа' } satisfies ApiResponse);
     if (outcome.kind === 'no_request') return res.status(409).json({ ok: false, error: 'Нет ожидающего решения запроса на переделку' } satisfies ApiResponse);
 
+    await createNotificationForClinic(outcome.order.clinicId, {
+      type: 'lab.remake.decision',
+      title: decision.decision === 'accept' ? 'Лаборатория приняла переделку' : 'Лаборатория отклонила переделку',
+      message: decision.decision === 'accept'
+        ? 'Лаборатория приняла запрос. Заказ возвращён в производственный цикл.'
+        : `Лаборатория отклонила запрос: ${decision.note}`,
+      link: '/crm/lab',
+    });
     await writeAuditLog({
       action: decision.decision === 'accept' ? 'LAB_ORDER_REMAKE_ACCEPTED' : 'LAB_ORDER_REMAKE_REJECTED',
       entity: 'lab_order', entityId: outcome.order.id,
