@@ -2,6 +2,7 @@ import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
+import type { Prisma } from '@prisma/client';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
@@ -36,7 +37,7 @@ interface LabOrderMeta {
   doctorId?: string;
   treatmentCaseId?: string;
   remakeRequest?: { id: string; status: 'requested' | 'accepted' | 'rejected'; reason: string; requestedByUserId: string; requestedAt: string; laboratoryId: string; decidedByUserId?: string; decidedAt?: string; responseNote?: string | null };
-  payment?: unknown;
+  payment?: Prisma.InputJsonValue;
 }
 
 export const VALID_STATUSES = [
