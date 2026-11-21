@@ -153,6 +153,7 @@ beforeEach(() => {
     servicePriceSnapshot: 15000,
     files: { meta: { laboratoryId: 'lab-1' } },
     patient: { branchId: 'branch-1' },
+    dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
   });
   m.labOrderUpdate.mockResolvedValue({ id: 'lab-order-1' });
   m.courseFindUnique.mockResolvedValue({ id: 'course-1', price: 39900, lecturerId: 'lecturer-1', academyId: 'academy-1' });
@@ -310,6 +311,7 @@ describe('payment creation server-side pricing and metadata protection', () => {
       amountMinor: '1500000',
       refType: 'dental_lab_order',
       refId: 'lab-order-1',
+      invoiceId: 'invoice-1',
       domain: 'attacker-domain',
       sellerType: 'PLATFORM',
       sellerId: 'attacker-seller',
@@ -317,7 +319,7 @@ describe('payment creation server-side pricing and metadata protection', () => {
     });
     expect(response.status).toBe(201);
     expect(body.ok).toBe(true);
-    expect(m.reserveIdempotencyKey).toHaveBeenCalledWith('dental-lab-order:lab-order-1');
+    expect(m.reserveIdempotencyKey).toHaveBeenCalledWith('dental-lab-invoice:invoice-1');
     expect(m.providerCreate).toHaveBeenCalledWith({ amountMinor: 1_500_000n, refId: 'lab-order-1' });
     const saved = m.paymentCreate.mock.calls[0][0].data;
     expect(saved.refType).toBe('dental_lab_order');
@@ -329,6 +331,7 @@ describe('payment creation server-side pricing and metadata protection', () => {
       clinicId: 'clinic-owned',
       laboratoryId: 'lab-1',
       labOrderId: 'lab-order-1',
+      invoiceId: 'invoice-1',
       branchId: 'branch-1',
       merchantScope: 'platform',
     });
@@ -339,6 +342,7 @@ describe('payment creation server-side pricing and metadata protection', () => {
       amountMinor: '1499999',
       refType: 'dental_lab_order',
       refId: 'lab-order-1',
+      invoiceId: 'invoice-1',
       meta: {},
     });
     expect(response.status).toBe(409);
