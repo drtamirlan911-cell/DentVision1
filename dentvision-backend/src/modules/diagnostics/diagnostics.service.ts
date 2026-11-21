@@ -765,21 +765,29 @@ export async function saveAndSignResult(data: {
   doctorId: string;
   signerScope?: 'clinic' | 'diagnostic_center' | 'laboratory';
 }) {
-  const referral = await prisma.referral.findUnique({ where: { id: data.referralId }, include: { result: true } });
-  if (!referral) throw new Error('Referral not found');
+  const referralSnapshot = await prisma.referral.findUnique({ where: { id: data.referralId }, include: { result: true } });
+  if (!referralSnapshot) throw new Error('Referral not found');
   if (!data.doctorId) throw new Error('Пользователь обязателен для подписания результата');
+  if (!data.reportText.trim()) throw new Error('Текст заключения обязателен');
+
   const partnerSigner = data.signerScope === 'diagnostic_center' || data.signerScope === 'laboratory';
   if (data.signerScope === 'diagnostic_center') {
-    if (!referral.centerId || !referral.radiologistId) {
+    if (!referralSnapshot.centerId || !referralSnapshot.radiologistId) {
       throw new Error('Для подписания результата необходимо назначить рентгенолога на исследование.');
     }
+    if (referralSnapshot.status !== 'IN_PROGRESS') {
+      throw Object.assign(
+        new Error('Подписать заключение можно только после начала исследования.'),
+        { code: 'DIAGNOSTIC_RESULT_STAGE_INVALID' },
+      );
+    }
     const organization = await prisma.organization.findFirst({
-      where: { originalType: 'DiagnosticCenter', originalId: referral.centerId, archivedAt: null },
+      where: { originalType: 'DiagnosticCenter', originalId: referralSnapshot.centerId, archivedAt: null },
       select: { id: true },
     });
     const [assignedRadiologist, hasSignerRole] = await Promise.all([
       prisma.radiologist.findFirst({
-        where: { id: referral.radiologistId, centerId: referral.centerId, userId: data.doctorId, active: true },
+        where: { id: referralSnapshot.radiologistId, centerId: referralSnapshot.centerId, userId: data.doctorId, active: true },
         select: { id: true },
       }),
       organization
@@ -793,17 +801,82 @@ export async function saveAndSignResult(data: {
   if (!partnerSigner) {
     await assertClinicDoctorSignoff({
       userId: data.doctorId,
-      clinicId: referral.clinicId,
-      branchId: referral.branchId,
-      assignedDoctorId: referral.doctorId,
+      clinicId: referralSnapshot.clinicId,
+      branchId: referralSnapshot.branchId,
+      assignedDoctorId: referralSnapshot.doctorId,
     });
   }
-  const result = await prisma.diagnosticResult.upsert({
-    where: { referralId: data.referralId },
-    update: { reportText: data.reportText, conclusion: data.conclusion || undefined, signedBy: data.doctorId, signedAt: new Date() },
-    create: { id: uid(), referralId: data.referralId, reportText: data.reportText, conclusion: data.conclusion || undefined, signedBy: data.doctorId, signedAt: new Date() },
+
+  const signedState = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "referrals" WHERE "id" = ${data.referralId} FOR UPDATE`;
+    const lockedReferral = await tx.referral.findUnique({
+      where: { id: data.referralId },
+      include: { result: true },
+    });
+    if (!lockedReferral) throw new Error('Referral not found');
+    if (data.signerScope === 'diagnostic_center' && lockedReferral.status !== 'IN_PROGRESS') {
+      throw Object.assign(
+        new Error('Подписать заключение можно только после начала исследования.'),
+        { code: 'DIAGNOSTIC_RESULT_STAGE_INVALID' },
+      );
+    }
+    if (lockedReferral.result?.signedAt) {
+      throw Object.assign(
+        new Error('Заключение уже подписано и защищено от перезаписи. Для исправления используйте процедуру оформления поправки.'),
+        { code: 'DIAGNOSTIC_RESULT_ALREADY_SIGNED' },
+      );
+    }
+    if (data.signerScope === 'diagnostic_center' && lockedReferral.radiologistId !== referralSnapshot.radiologistId) {
+      throw Object.assign(new Error('Назначение рентгенолога изменилось. Обновите направление.'), { code: 'DIAGNOSTIC_SIGNER_CHANGED' });
+    }
+
+    const now = new Date();
+    const result = lockedReferral.result
+      ? await tx.diagnosticResult.update({
+          where: { id: lockedReferral.result.id },
+          data: {
+            reportText: data.reportText,
+            conclusion: data.conclusion || null,
+            signedBy: data.doctorId,
+            signedAt: now,
+          },
+        })
+      : await tx.diagnosticResult.create({
+          data: {
+            id: uid(),
+            referralId: data.referralId,
+            reportText: data.reportText,
+            conclusion: data.conclusion || null,
+            signedBy: data.doctorId,
+            signedAt: now,
+          },
+        });
+    const latestVersion = await tx.diagnosticResultVersion.findFirst({
+      where: { diagnosticResultId: result.id },
+      orderBy: { version: 'desc' },
+      select: { version: true },
+    });
+    const version = (latestVersion?.version || 0) + 1;
+    await tx.diagnosticResultVersion.create({
+      data: {
+        id: uid(),
+        diagnosticResultId: result.id,
+        version,
+        reportText: data.reportText,
+        conclusion: data.conclusion || null,
+        signedBy: data.doctorId,
+        signedAt: now,
+        changeReason: null,
+      },
+    });
+    await tx.referral.update({
+      where: { id: data.referralId },
+      data: { status: 'COMPLETED', completedAt: now },
+    });
+    return { referral: lockedReferral, result, version };
   });
-  await prisma.referral.update({ where: { id: data.referralId }, data: { status: 'COMPLETED', completedAt: new Date() } });
+  const referral = signedState.referral;
+  const result = signedState.result;
   // Only a clinic-side doctor may write a Visit into the clinical chart.
   // Partner results remain diagnostic evidence until the clinic explicitly
   // reviews/acknowledges them; a partner user must never masquerade as a doctor.
