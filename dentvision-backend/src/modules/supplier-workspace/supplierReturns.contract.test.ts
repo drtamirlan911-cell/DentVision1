@@ -30,6 +30,8 @@ describe('supplier return response boundary', () => {
     expect(response).not.toContain('dispute.updateMany');
     expect(response).toContain('writeAuditLog');
     expect(response).toContain('idempotent: true');
+    expect(response).toContain('FOR UPDATE');
+    expect(response).toContain('}, tx);');
   });
   it('returns only disputes attached to supplier-owned orders/products and scopes responses to this supplier', () => {
     expect(dashboard).toContain('const disputeScope');

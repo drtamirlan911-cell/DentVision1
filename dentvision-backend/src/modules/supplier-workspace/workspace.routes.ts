@@ -257,13 +257,14 @@ supplierWorkspaceRouter.post('/orders/:id/delivery-confirmation', requireSupplie
 });
 
 
-async function supplierOwnsOrderLine(supplierId: string, orderId: string): Promise<boolean> {
+
+async function supplierOwnsOrderLine(supplierId: string, orderId: string, client: any = prisma): Promise<boolean> {
   const [order, products] = await Promise.all([
-    prisma.order.findUnique({ where: { id: orderId }, select: { id: true, supplierId: true, items: true } }),
-    prisma.product.findMany({ where: { supplierId }, select: { id: true } }),
+    client.order.findUnique({ where: { id: orderId }, select: { id: true, supplierId: true, items: true } }),
+    client.product.findMany({ where: { supplierId }, select: { id: true } }),
   ]);
   if (!order || (order.supplierId && order.supplierId !== supplierId)) return false;
-  const productIds = new Set(products.map((product) => product.id));
+  const productIds = new Set(products.map((product: { id: string }) => product.id));
   const items = Array.isArray(order.items) ? order.items as Array<Record<string, unknown>> : [];
   return items.some((item) => {
     const productId = String(item.productId || item.product_id || '');
@@ -272,6 +273,7 @@ async function supplierOwnsOrderLine(supplierId: string, orderId: string): Promi
 }
 
 // Supplier answers are evidence for platform adjudication, not a financial instruction.
+// Lock the canonical dispute while checking state, ownership and recording the response.
 supplierWorkspaceRouter.post('/returns/:id/respond', requireSupplierWrite, async (req: AuthRequest, res) => {
   const supplierId = req.user!.supplierId!;
   const disputeId = String(req.params.id);
@@ -283,39 +285,52 @@ supplierWorkspaceRouter.post('/returns/:id/respond', requireSupplierWrite, async
   if (note.length < 10 || note.length > 2000) {
     return res.status(400).json({ ok: false, error: 'Комментарий должен содержать от 10 до 2000 символов' } satisfies ApiResponse);
   }
+
   try {
-    const dispute = await prisma.dispute.findUnique({ where: { id: disputeId } });
-    if (!dispute) return res.status(404).json({ ok: false, error: 'Претензия не найдена' } satisfies ApiResponse);
-    const refType = dispute.refType.trim().toLowerCase();
-    if (!['order', 'shop_order'].includes(refType)) {
-      return res.status(409).json({ ok: false, error: 'Ответ поставщика пока поддерживается только для претензий по заказу' } satisfies ApiResponse);
-    }
-    if (!['open', 'review', 'pending'].includes(dispute.status.trim().toLowerCase())) {
-      return res.status(409).json({ ok: false, error: 'Претензия уже закрыта и не принимает ответы' } satisfies ApiResponse);
-    }
-    if (!await supplierOwnsOrderLine(supplierId, dispute.refId)) {
-      return res.status(404).json({ ok: false, error: 'Претензия не относится к заказам текущего поставщика' } satisfies ApiResponse);
-    }
-    const existing = await prisma.supplierDisputeResponse.findUnique({ where: { disputeId_supplierId: { disputeId, supplierId } } });
-    if (existing) {
-      const same = existing.responseType === responseType && existing.note === note;
-      if (!same) return res.status(409).json({ ok: false, error: 'Ответ уже зарегистрирован; повторная отправка с другой позицией требует рассмотрения платформой' } satisfies ApiResponse);
-      return res.status(200).json({ ok: true, data: existing, idempotent: true } satisfies ApiResponse);
-    }
-    const created = await prisma.supplierDisputeResponse.create({
-      data: { id: uid(), disputeId, orderId: dispute.refId, supplierId, responseType, note, actorUserId: req.user!.id },
+    const outcome = await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string; refType: string; refId: string; status: string }>>`
+        SELECT "id", "refType", "refId", "status"
+        FROM "disputes"
+        WHERE "id" = ${disputeId}
+        FOR UPDATE
+      `;
+      const dispute = locked[0];
+      // Non-owned and unsupported references return the same result to avoid claim enumeration.
+      if (!dispute || !['order', 'shop_order'].includes(dispute.refType.trim().toLowerCase())) {
+        return { status: 404, body: { ok: false, error: 'Претензия не найдена в заказах текущего поставщика' } };
+      }
+      if (!await supplierOwnsOrderLine(supplierId, dispute.refId, tx)) {
+        return { status: 404, body: { ok: false, error: 'Претензия не найдена в заказах текущего поставщика' } };
+      }
+      if (!['open', 'review', 'pending'].includes(dispute.status.trim().toLowerCase())) {
+        return { status: 409, body: { ok: false, error: 'Претензия уже закрыта и не принимает ответы' } };
+      }
+
+      const existing = await tx.supplierDisputeResponse.findUnique({
+        where: { disputeId_supplierId: { disputeId, supplierId } },
+      });
+      if (existing) {
+        const same = existing.responseType === responseType && existing.note === note;
+        if (!same) {
+          return { status: 409, body: { ok: false, error: 'Ответ уже зарегистрирован; новая позиция требует рассмотрения платформой' } };
+        }
+        return { status: 200, body: { ok: true, data: { response: existing, idempotent: true } } };
+      }
+
+      const created = await tx.supplierDisputeResponse.create({
+        data: { id: uid(), disputeId, orderId: dispute.refId, supplierId, responseType, note, actorUserId: req.user!.id },
+      });
+      await writeAuditLog({
+        action: 'SUPPLIER_DISPUTE_RESPONDED',
+        entity: 'supplier_dispute_response',
+        entityId: created.id,
+        details: { disputeId, orderId: dispute.refId, supplierId, responseType },
+        userId: req.user!.id,
+      }, tx);
+      return { status: 201, body: { ok: true, data: { response: created, idempotent: false } } };
     });
-    await writeAuditLog({
-      action: 'SUPPLIER_DISPUTE_RESPONDED', entity: 'supplier_dispute_response', entityId: created.id,
-      details: { disputeId, orderId: dispute.refId, supplierId, responseType }, userId: req.user!.id,
-    });
-    return res.status(201).json({ ok: true, data: created, idempotent: false } satisfies ApiResponse);
+    return res.status(outcome.status).json(outcome.body as ApiResponse);
   } catch (error: any) {
-    if (String(error?.code || '') === 'P2002') {
-      const existing = await prisma.supplierDisputeResponse.findUnique({ where: { disputeId_supplierId: { disputeId, supplierId } } }).catch(() => null);
-      if (existing && existing.responseType === responseType && existing.note === note) return res.status(200).json({ ok: true, data: existing, idempotent: true } satisfies ApiResponse);
-      return res.status(409).json({ ok: false, error: 'Ответ по этой претензии уже зарегистрирован' } satisfies ApiResponse);
-    }
     console.error('Supplier dispute response error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось зарегистрировать ответ по претензии' } satisfies ApiResponse);
   }

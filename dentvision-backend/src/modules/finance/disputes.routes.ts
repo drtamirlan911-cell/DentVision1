@@ -59,7 +59,18 @@ disputesRouter.post('/', async (req: AuthRequest, res) => {
 });
 
 disputesRouter.get('/', requireSuperadmin, async (req: AuthRequest, res) => {
-  const disputes = await prisma.dispute.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
+  const disputes = await prisma.dispute.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+    include: {
+      supplierResponses: {
+        orderBy: { createdAt: 'asc' },
+        include: {
+          supplier: { select: { id: true, name: true, status: true } },
+        },
+      },
+    },
+  });
   return res.json({ ok: true, data: disputes } satisfies ApiResponse);
 });
 
