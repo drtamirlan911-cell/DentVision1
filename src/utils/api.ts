@@ -753,6 +753,16 @@ export async function uploadDiagnosticFile(data: { referralId: string; file: Fil
     body: form,
   });
 }
+export async function getDiagnosticReferralFileDownloadUrl(referralId: string, fileId: string): Promise<{
+  url: string;
+  expiresInSeconds: number;
+  fileName: string;
+  fileType: string;
+}> {
+  return apiRequest(
+    `/api/diagnostics/referrals/${encodeURIComponent(referralId)}/files/${encodeURIComponent(fileId)}/download-url`,
+  );
+}
 export async function deleteDiagnosticFile(id: string): Promise<any> { return apiRequest(`/api/diagnostics/referral-files/${id}`, { method: 'DELETE' }); }
 export async function aiGenerateDiagnosticResult(referralId: string): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${referralId}/ai-result`, { method: 'POST', body: '{}' }); }
 export async function signDiagnosticResult(referralId: string, reportText: string, conclusion?: string): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${referralId}/results/sign`, { method: 'POST', body: JSON.stringify({ reportText, conclusion }) }); }
