@@ -80,6 +80,14 @@ async function canManagePartnerCatalog(user: AuthRequest['user']): Promise<boole
   // Cashiers can collect payments but must never change the catalogue/equipment.
   return hasPartnerManagementSuffix(await activePartnerRoleKeys(user), false);
 }
+
+async function canManageDiagnosticCenterTeam(user: AuthRequest['user']): Promise<boolean> {
+  if (!user) return false;
+  if (user.role === 'SUPERADMIN') return true;
+  return (await activePartnerRoleKeys(user)).some((key) =>
+    ['owner', 'admin', 'manager', 'director', 'diagnostic_owner', 'diagnostic_admin', 'diagnostic_manager', 'center_admin'].includes(key),
+  );
+}
 async function referralBranchAllowed(user: AuthRequest['user'], referral: { clinicId: string; branchId?: string | null }): Promise<boolean> { if (user.role === 'SUPERADMIN') return true; return canAccessReferralBranch(user, { clinicId: referral.clinicId, branchId: referral.branchId ?? null }); }
 async function referralListBranchIds(user: AuthRequest['user'], clinicId?: string): Promise<string[] | undefined> {
   if (!clinicId || user.role === 'SUPERADMIN') return undefined;
@@ -409,6 +417,143 @@ diagnosticsRouter.get('/centers/:centerId/worklist/:referralId', async (req: Aut
     return res.json({ ok: true, data: { referral: detail, events } } satisfies ApiResponse);
   } catch {
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить карточку исследования' } satisfies ApiResponse);
+  }
+});
+
+diagnosticsRouter.get('/centers/:id/worklist/staff', async (req: AuthRequest, res) => {
+  try {
+    const centerId = String(req.params.id);
+    if (!sameOrgContext(req.user, 'DiagnosticCenter', centerId)) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к команде диагностического центра' });
+    }
+    if (!(await canManageDiagnosticCenterTeam(req.user))) {
+      return res.status(403).json({ ok: false, error: 'Состав команды доступен только владельцу и менеджерам центра' });
+    }
+    const members = await prisma.diagnosticCenterMember.findMany({
+      where: { centerId, role: { in: ['operator', 'radiologist', 'manager', 'admin'] } },
+      include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
+      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+    });
+    return res.json({
+      ok: true,
+      data: members.map((member) => ({
+        id: member.id,
+        userId: member.userId,
+        role: member.role,
+        firstName: member.user.firstName,
+        lastName: member.user.lastName,
+        email: member.user.email,
+      })),
+    } satisfies ApiResponse);
+  } catch {
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить команду диагностического центра' } satisfies ApiResponse);
+  }
+});
+
+diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/assignees', async (req: AuthRequest, res) => {
+  try {
+    const centerId = String(req.params.centerId);
+    const referralId = String(req.params.referralId);
+    if (!sameOrgContext(req.user, 'DiagnosticCenter', centerId)) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к рабочей очереди центра' });
+    }
+    if (!(await canManageDiagnosticCenterTeam(req.user))) {
+      return res.status(403).json({ ok: false, error: 'Назначать сотрудников на исследование может только владелец или менеджер центра' });
+    }
+    const hasOperator = Object.prototype.hasOwnProperty.call(req.body || {}, 'operatorUserId');
+    const hasRadiologist = Object.prototype.hasOwnProperty.call(req.body || {}, 'radiologistUserId');
+    if (!hasOperator && !hasRadiologist) {
+      return res.status(400).json({ ok: false, error: 'Укажите оператора или рентгенолога для назначения' });
+    }
+    const operatorUserId = hasOperator && req.body.operatorUserId ? String(req.body.operatorUserId) : null;
+    const radiologistUserId = hasRadiologist && req.body.radiologistUserId ? String(req.body.radiologistUserId) : null;
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) return res.status(403).json({ ok: false, error: 'Не найден активный контекст организации центра' });
+
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "referrals" WHERE "id"=${referralId} AND "centerId"=${centerId} FOR UPDATE`;
+      const referral = await tx.referral.findFirst({
+        where: { id: referralId, centerId },
+        select: { id: true, status: true, operatorId: true, radiologistId: true },
+      });
+      if (!referral) return { kind: 'not_found' as const };
+      if (!['ACCEPTED', 'SCHEDULED', 'PATIENT_ARRIVED', 'IN_PROGRESS'].includes(String(referral.status))) {
+        return { kind: 'invalid_status' as const };
+      }
+
+      let operatorId = referral.operatorId;
+      let radiologistId = referral.radiologistId;
+      if (hasOperator) {
+        if (!operatorUserId) {
+          operatorId = null;
+        } else {
+          const member = await tx.diagnosticCenterMember.findFirst({
+            where: { centerId, userId: operatorUserId, role: 'operator' },
+            select: { userId: true },
+          });
+          const scopedRole = await tx.personRole.findFirst({
+            where: {
+              scopeType: 'organization',
+              scopeId: organizationId,
+              person: { userId: operatorUserId, organizationId },
+              role: { key: { in: ['operator', 'diagnostic_operator'] } },
+            },
+            select: { id: true },
+          });
+          if (!member || !scopedRole) return { kind: 'invalid_operator' as const };
+          let operator = await tx.operator.findFirst({ where: { centerId, userId: operatorUserId } });
+          if (!operator) operator = await tx.operator.create({ data: { centerId, userId: operatorUserId, specialty: 'Diagnostic imaging' } });
+          else if (!operator.active) operator = await tx.operator.update({ where: { id: operator.id }, data: { active: true } });
+          operatorId = operator.id;
+        }
+      }
+      if (hasRadiologist) {
+        if (!radiologistUserId) {
+          radiologistId = null;
+        } else {
+          const member = await tx.diagnosticCenterMember.findFirst({
+            where: { centerId, userId: radiologistUserId, role: 'radiologist' },
+            select: { userId: true },
+          });
+          const scopedRole = await tx.personRole.findFirst({
+            where: {
+              scopeType: 'organization',
+              scopeId: organizationId,
+              person: { userId: radiologistUserId, organizationId },
+              role: { key: 'radiologist' },
+            },
+            select: { id: true },
+          });
+          if (!member || !scopedRole) return { kind: 'invalid_radiologist' as const };
+          let radiologist = await tx.radiologist.findFirst({ where: { centerId, userId: radiologistUserId } });
+          if (!radiologist) radiologist = await tx.radiologist.create({ data: { centerId, userId: radiologistUserId, specialty: 'Diagnostic imaging' } });
+          else if (!radiologist.active) radiologist = await tx.radiologist.update({ where: { id: radiologist.id }, data: { active: true } });
+          radiologistId = radiologist.id;
+        }
+      }
+
+      const updated = await tx.referral.update({
+        where: { id: referralId },
+        data: { operatorId, radiologistId },
+        select: { id: true, operatorId: true, radiologistId: true },
+      });
+      await auditFromReq(req, {
+        action: 'diagnostics.worklist.assignees.assign',
+        entity: 'referral',
+        entityId: referralId,
+        details: { operatorAssigned: hasOperator, radiologistAssigned: hasRadiologist },
+      }, tx);
+      return { kind: 'updated' as const, data: updated };
+    });
+
+    if (result.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Исследование не найдено в очереди этого центра' });
+    if (result.kind === 'invalid_status') return res.status(409).json({ ok: false, error: 'Назначить сотрудников можно после принятия направления и до его выдачи' });
+    if (result.kind === 'invalid_operator') return res.status(400).json({ ok: false, error: 'Оператор должен быть активным сотрудником этого центра с ролью operator' });
+    if (result.kind === 'invalid_radiologist') return res.status(400).json({ ok: false, error: 'Рентгенолог должен быть активным сотрудником этого центра с ролью radiologist' });
+    return res.json({ ok: true, data: result.data } satisfies ApiResponse);
+  } catch (error: any) {
+    console.error('[diagnostics/worklist/assignees]', error);
+    return res.status(400).json({ ok: false, error: error?.message || 'Не удалось назначить сотрудников' } satisfies ApiResponse);
   }
 });
 
