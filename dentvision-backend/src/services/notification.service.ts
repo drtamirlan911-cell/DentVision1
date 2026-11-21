@@ -23,6 +23,7 @@ export const NOTIFICATION_TYPES = {
   // Diagnostics
   REFERRAL_SENT: 'diagnostics.referral.sent',
   REFERRAL_ACCEPTED: 'diagnostics.referral.accepted',
+  REFERRAL_CANCELLED: 'diagnostics.referral.cancelled',
   REFERRAL_RESULT: 'diagnostics.referral.result',
   REFERRAL_PAYMENT: 'diagnostics.referral.payment',
 
