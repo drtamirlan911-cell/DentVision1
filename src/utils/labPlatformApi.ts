@@ -18,6 +18,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body?.data as T;
 }
 
+export interface DentalLabShipment {
+  id: string;
+  labOrderId: string;
+  laboratoryId: string;
+  method: 'COURIER' | 'PICKUP';
+  carrier?: string | null;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+  status: 'dispatched' | 'ready_for_pickup' | 'delivered';
+  dispatchedAt: string;
+  deliveredAt?: string | null;
+  proofUrl?: string | null;
+  recipientName?: string | null;
+  deliveryNote?: string | null;
+}
+
 export interface LabPlatformOrder {
   id: string;
   clinicId: string;
@@ -43,6 +59,7 @@ export interface LabPlatformOrder {
   updatedAt: string;
   qualityControl?: { checks: Record<string, boolean>; passed: boolean; note: string | null; checkedByUserId: string; checkedAt: string } | null;
   remakeRequest?: { id: string; status: 'requested' | 'accepted' | 'rejected'; reason: string; requestedByUserId: string; requestedAt: string; laboratoryId: string; decidedByUserId?: string; decidedAt?: string; responseNote?: string | null } | null;
+  shipment?: DentalLabShipment | null;
 }
 
 export interface LabPlatformDashboard {
@@ -68,6 +85,10 @@ export const updateLabPlatformOrderStatus = (id: string, status: string) => requ
 export const assignLabTechnician = (id: string, technicianId: string | null) => request<LabPlatformOrder>(`/orders/${id}/technician`, { method: 'PATCH', body: JSON.stringify({ technicianId }) });
 export const updateLabPlatformQualityControl = (id: string, checks: Record<string, boolean>, note?: string) => request<LabPlatformOrder>(`/orders/${id}/qc`, { method: 'PATCH', body: JSON.stringify({ checks, note }) });
 export const updateLabPlatformRemakeRequest = (id: string, decision: 'accept' | 'reject', note?: string) => request<LabPlatformOrder>(`/orders/${id}/remake-request`, { method: 'PATCH', body: JSON.stringify({ decision, note }) });
+export const createLabPlatformShipment = (id: string, body: { method: 'COURIER' | 'PICKUP'; carrier?: string; trackingNumber?: string; trackingUrl?: string; note?: string }) =>
+  request<{ shipment: DentalLabShipment; order: LabPlatformOrder; idempotent?: boolean }>(`/orders/${id}/shipment`, { method: 'POST', body: JSON.stringify(body) });
+export const confirmLabPlatformDelivery = (id: string, body: { proofUrl: string; recipientName: string; note?: string }) =>
+  request<{ order: LabPlatformOrder; shipment: DentalLabShipment; idempotent?: boolean }>(`/orders/${id}/shipment/delivery-confirmation`, { method: 'POST', body: JSON.stringify(body) });
 export const getLabPlatformTeam = () => request<Array<{ id: string; role?: string; firstName: string; lastName: string; email: string; avatar?: string | null }>>('/team');
 export const assignClinicLabOrder = (orderId: string, laboratoryId: string, serviceId?: string) => request<LabPlatformOrder>('/assign', { method: 'POST', body: JSON.stringify({ orderId, laboratoryId, ...(serviceId ? { serviceId } : {}) }) });
 
