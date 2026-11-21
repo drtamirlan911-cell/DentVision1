@@ -23,6 +23,7 @@ const { tx, prismaMock } = vi.hoisted(() => {
     transaction: { create: vi.fn() },
     lecturer: { findUnique: vi.fn() },
     supplierMember: { findMany: vi.fn() },
+    laboratoryMember: { findMany: vi.fn() },
     notification: { create: vi.fn() },
     $executeRaw: vi.fn(),
   });
@@ -271,7 +272,7 @@ describe('paying out keeps the ledger balanced', () => {
 });
 
 describe('notifies the requester on every transition', () => {
-  function payoutAt(status: string, ownerType: 'LECTURER' | 'SUPPLIER', ownerId = 'owner-1', balance = 100_000n) {
+  function payoutAt(status: string, ownerType: 'LECTURER' | 'SUPPLIER' | 'PARTNER', ownerId = 'owner-1', balance = 100_000n) {
     tx.payout.findUnique.mockResolvedValue({
       id: 'p1',
       walletId: 'w1',
@@ -314,6 +315,28 @@ describe('notifies the requester on every transition', () => {
     });
     expect(tx.notification.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ userId: 'u2', title: 'Заявка на выплату отклонена' }),
+    });
+  });
+
+  it('notifies laboratory management and finance members for a PARTNER wallet', async () => {
+    payoutAt('requested', 'PARTNER', 'lab-1');
+    tx.laboratoryMember.findMany.mockResolvedValue([{ userId: 'lab-owner' }, { userId: 'lab-finance' }]);
+
+    await transitionPayout('p1', 'approved');
+
+    expect(tx.laboratoryMember.findMany).toHaveBeenCalledWith({
+      where: {
+        labId: 'lab-1',
+        role: { in: ['owner', 'admin', 'manager', 'director', 'lab_manager', 'lab_finance', 'finance', 'accountant'] },
+      },
+      select: { userId: true },
+    });
+    expect(tx.notification.create).toHaveBeenCalledTimes(2);
+    expect(tx.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ userId: 'lab-owner', title: 'Заявка на выплату одобрена' }),
+    });
+    expect(tx.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ userId: 'lab-finance', title: 'Заявка на выплату одобрена' }),
     });
   });
 
