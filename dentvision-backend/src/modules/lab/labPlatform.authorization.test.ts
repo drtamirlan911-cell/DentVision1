@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, isLabTechnicianRole, labMemberOrderReadScope, validateLabQualityControl } from './labPlatform.authorization.js';
+import { canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, isLabTechnicianRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeRequestReason, validateLabRemakeDecision } from './labPlatform.authorization.js';
 
 describe('Dental Lab role boundaries', () => {
   it('recognizes only owner-level lab roles as managers', () => {
@@ -60,5 +60,25 @@ describe('Dental Lab QC validation', () => {
   it('requires a remark when any check fails', () => {
     expect(validateLabQualityControl({ ...passed, shade: false }, '')).toBeNull();
     expect(validateLabQualityControl({ ...passed, shade: false }, 'Цвет не соответствует')).toMatchObject({ passed: false, note: 'Цвет не соответствует' });
+  });
+});
+
+
+describe('Dental Lab clinic remake feedback validation', () => {
+  it('requires a meaningful bounded clinic reason', () => {
+    expect(validateLabRemakeRequestReason('  ')).toBeNull();
+    expect(validateLabRemakeRequestReason('late')).toBeNull();
+    expect(validateLabRemakeRequestReason('Край не прилегает')).toBe('Край не прилегает');
+    expect(validateLabRemakeRequestReason('x'.repeat(2001))).toBeNull();
+  });
+
+  it('accepts a manager decision and requires a reason for rejection', () => {
+    expect(validateLabRemakeDecision('accept', '')).toEqual({ decision: 'accept', note: null });
+    expect(validateLabRemakeDecision('reject', 'Не соответствует согласованному оттенку')).toEqual({
+      decision: 'reject',
+      note: 'Не соответствует согласованному оттенку',
+    });
+    expect(validateLabRemakeDecision('reject', '')).toBeNull();
+    expect(validateLabRemakeDecision('other', 'note')).toBeNull();
   });
 });
