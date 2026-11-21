@@ -18,6 +18,8 @@ describe('dental laboratory dispatch and proof-of-delivery contract', () => {
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS "dental_lab_shipment_events"');
     expect(migration).toContain('CREATE INDEX IF NOT EXISTS "dental_lab_shipments_labOrderId_createdAt_idx"');
     expect(migration).toContain('dental_lab_shipment_events_shipmentId_createdAt_idx');
+    expect(routes).not.toContain('include: { dentalLabShipment: true }');
+    expect(routes).toContain("dentalLabShipments: { orderBy: { createdAt: 'desc' }, take: 1 }");
   });
 
   it('does not allow the generic status endpoint to bypass dispatch and recipient confirmation', () => {
@@ -39,6 +41,8 @@ describe('dental laboratory dispatch and proof-of-delivery contract', () => {
     expect(dispatchStart).toBeGreaterThanOrEqual(0);
     const dispatch = routes.slice(dispatchStart, deliveryStart);
     const delivery = routes.slice(deliveryStart, technicianStart);
+    expect(dispatch).toContain('tx.dentalLabShipment.findFirst');
+    expect(delivery).toContain('tx.dentalLabShipment.findFirst');
     for (const route of [dispatch, delivery]) {
       expect(route).toContain('canLabManageShipment(membership.role)');
       expect(route).toContain("path: ['meta', 'laboratoryId'], equals: membership.labId");
