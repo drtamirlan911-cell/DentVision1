@@ -1,6 +1,7 @@
 const LAB_MANAGER_ROLES = new Set(['owner', 'admin', 'manager', 'director', 'lab_manager']);
 const LAB_TECHNICIAN_ROLES = new Set(['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician']);
 const LAB_LOGISTICS_ROLES = new Set(['courier', 'logistics', 'delivery_operator', 'dispatcher']);
+const LAB_FINANCE_ROLES = new Set(['lab_finance', 'finance', 'accountant']);
 const TECHNICIAN_PROGRESS_STATUSES = new Set(['in_progress', 'try_in', 'adjustment', 'qc', 'delayed']);
 export const LAB_QC_CHECK_KEYS = ['fit', 'margins', 'shade', 'occlusion', 'surface', 'documentation'] as const;
 
@@ -16,6 +17,12 @@ export function isLabTechnicianRole(role: unknown): boolean {
 export function canLabManageShipment(role: unknown): boolean {
   const normalized = String(role || '').trim().toLowerCase();
   return LAB_MANAGER_ROLES.has(normalized) || LAB_LOGISTICS_ROLES.has(normalized);
+}
+
+/** Finance is isolated from production; only managers and assigned finance roles can view/request payouts. */
+export function canLabManageFinance(role: unknown): boolean {
+  const normalized = String(role || '').trim().toLowerCase();
+  return LAB_MANAGER_ROLES.has(normalized) || LAB_FINANCE_ROLES.has(normalized);
 }
 
 /** Managers read the organization queue; production roles read assigned work only. */
