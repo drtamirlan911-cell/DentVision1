@@ -11,7 +11,7 @@ import { uid } from '../../lib/helpers.js';
 import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js';
 import { createNotificationForClinic } from '../../services/notification.service.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
-import { canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeDecision } from './labPlatform.authorization.js';
+import { canLabManageShipment, canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeDecision } from './labPlatform.authorization.js';
 
 export const labPlatformRouter = Router();
 labPlatformRouter.use(authenticate);
@@ -38,7 +38,7 @@ const STATUS_FLOW: Record<string, string[]> = {
   adjustment: ['try_in', 'qc', 'remake'],
   // QC outcome must be recorded only through the manager-only /qc endpoint.
   qc: [],
-  ready: ['delivered', 'remake'],
+  ready: [],
   delivered: [],
   remake: ['in_progress', 'delayed', 'cancelled'],
   delayed: ['in_progress', 'cancelled'],
@@ -141,6 +141,7 @@ function serialize(order: any) {
     serviceId: order.serviceId || null,
     serviceName: order.serviceNameSnapshot || null,
     servicePriceSnapshot: order.servicePriceSnapshot ?? null,
+    shipment: order.dentalLabShipment ?? null,
     treatmentCaseId: (order as any).treatmentCaseId ?? null,
     createdAt: order.createdAt, updatedAt: order.updatedAt,
   };
@@ -156,7 +157,7 @@ async function ordersForLab(labId: string, role: string, userId: string, status?
   if (!readScope) return null;
   const rows = await prisma.labOrder.findMany({
     where: { ...(status ? { status: status as any } : {}), ...readScope },
-    include: { patient: { select: { firstName: true, lastName: true } }, clinic: { select: { id: true, name: true } } },
+    include: { patient: { select: { firstName: true, lastName: true } }, clinic: { select: { id: true, name: true } }, dentalLabShipment: true },
     orderBy: [{ deadline: 'asc' }, { createdAt: 'desc' }], take: 500,
   });
   return Promise.all(rows.map(async (order) => serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) })));
@@ -351,10 +352,15 @@ labPlatformRouter.get('/orders/:id/lifecycle', async (req: AuthRequest, res) => 
     if (!membership || !canLabMemberReadOrders(membership.role)) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
     const readScope = labMemberOrderReadScope({ role: membership.role, userId: req.user!.id, labId: membership.labId });
     if (!readScope) return res.status(403).json({ ok: false, error: 'Нет доступа к истории производственных работ' } satisfies ApiResponse);
-    const existing = await prisma.labOrder.findFirst({ where: { id: req.params.id, ...readScope } });
+    const existing = await prisma.labOrder.findFirst({ where: { id: req.params.id, ...readScope }, include: { dentalLabShipment: true } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
-    const events = await prisma.$queryRawUnsafe(`SELECT * FROM "dental_lab_order_events" WHERE "labOrderId"=$1 ORDER BY "createdAt" ASC`, existing.id);
-    return res.json({ ok: true, data: { order: serialize({ ...existing, treatmentCaseId: await caseIdOf(existing.id) }), events } } satisfies ApiResponse);
+    const [events, shipmentEvents] = await Promise.all([
+      prisma.$queryRawUnsafe(`SELECT * FROM "dental_lab_order_events" WHERE "labOrderId"=$1 ORDER BY "createdAt" ASC`, existing.id),
+      existing.dentalLabShipment
+        ? prisma.dentalLabShipmentEvent.findMany({ where: { shipmentId: existing.dentalLabShipment.id }, orderBy: { createdAt: 'asc' } })
+        : Promise.resolve([]),
+    ]);
+    return res.json({ ok: true, data: { order: serialize({ ...existing, treatmentCaseId: await caseIdOf(existing.id) }), events, shipmentEvents } } satisfies ApiResponse);
   } catch (error) { console.error('[LabPlatform] lifecycle error:', error); return res.status(500).json({ ok: false, error: 'Не удалось загрузить историю заказа' } satisfies ApiResponse); }
 });
 
@@ -363,6 +369,7 @@ labPlatformRouter.patch('/orders/:id/status', async (req: AuthRequest, res) => {
     const membership = await resolveLab(req);
     if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
     const next = String(req.body?.status || '');
+    if (next === 'delivered') return res.status(409).json({ ok: false, error: 'Сначала зарегистрируйте отгрузку и подтвердите вручение получателю.', code: 'LAB_SHIPMENT_REQUIRED' } satisfies ApiResponse);
     await ensureDentalLabOrderEventsTable();
     const outcome = await prisma.$transaction(async (tx) => {
       const orderId = String(req.params.id);
@@ -386,6 +393,185 @@ labPlatformRouter.patch('/orders/:id/status', async (req: AuthRequest, res) => {
     publish('labOrder.status_changed', { clinicId: order.clinicId, labOrderId: order.id, patientId: order.patientId || undefined, doctorId: order.doctorId || undefined, treatmentCaseId, status: order.status, previousStatus: outcome.previousStatus, userId: req.user?.id });
     return res.json({ ok: true, data: serialize({ ...order, treatmentCaseId }) } satisfies ApiResponse);
   } catch (error) { console.error('[LabPlatform] status error:', error); return res.status(500).json({ ok: false, error: 'Не удалось изменить статус заказа' } satisfies ApiResponse); }
+});
+
+function isSecureLabEvidenceUrl(value: unknown): boolean {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (raw.length < 8 || raw.length > 2048) return false;
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+labPlatformRouter.post('/orders/:id/shipment', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership || !canLabManageShipment(membership.role)) {
+      return res.status(403).json({ ok: false, error: 'Регистрировать отгрузку могут владелец, менеджер или сотрудник логистики лаборатории' } satisfies ApiResponse);
+    }
+    const method = String(req.body?.method || 'COURIER').trim().toUpperCase();
+    const carrier = String(req.body?.carrier || '').trim();
+    const trackingNumber = String(req.body?.trackingNumber || '').trim();
+    const trackingUrl = req.body?.trackingUrl ? String(req.body.trackingUrl).trim() : null;
+    const note = String(req.body?.note || '').trim().slice(0, 500) || null;
+    if (!['COURIER', 'PICKUP'].includes(method)) {
+      return res.status(400).json({ ok: false, error: 'Способ выдачи должен быть COURIER или PICKUP' } satisfies ApiResponse);
+    }
+    if (method === 'COURIER' && (carrier.length < 2 || carrier.length > 100 || trackingNumber.length < 4 || trackingNumber.length > 120)) {
+      return res.status(400).json({ ok: false, error: 'Для курьерской отправки укажите перевозчика и трек-номер' } satisfies ApiResponse);
+    }
+    if (method === 'PICKUP' && (carrier || trackingNumber || trackingUrl)) {
+      return res.status(400).json({ ok: false, error: 'Для самовывоза данные перевозчика и трек-номер не требуются' } satisfies ApiResponse);
+    }
+    if (trackingUrl && !isSecureLabEvidenceUrl(trackingUrl)) {
+      return res.status(400).json({ ok: false, error: 'Ссылка отслеживания должна быть корректным HTTPS-адресом' } satisfies ApiResponse);
+    }
+
+    await ensureDentalLabOrderEventsTable();
+    const outcome = await prisma.$transaction(async (tx) => {
+      const orderId = String(req.params.id);
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} FOR UPDATE`;
+      const existing = await tx.labOrder.findFirst({
+        where: { id: orderId, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } },
+        include: { dentalLabShipment: true },
+      });
+      if (!existing) return { kind: 'not_found' as const };
+      if (existing.status !== 'ready') return { kind: 'invalid_status' as const };
+      if (existing.dentalLabShipment) {
+        const current = existing.dentalLabShipment;
+        const same = current.method === method && current.carrier === (method === 'COURIER' ? carrier : null)
+          && current.trackingNumber === (method === 'COURIER' ? trackingNumber : null)
+          && current.trackingUrl === trackingUrl;
+        return same ? { kind: 'idempotent' as const, order: existing, shipment: current } : { kind: 'already_exists' as const };
+      }
+      const shipment = await tx.dentalLabShipment.create({
+        data: {
+          id: uid(), labOrderId: existing.id, laboratoryId: membership.labId, method,
+          carrier: method === 'COURIER' ? carrier : null,
+          trackingNumber: method === 'COURIER' ? trackingNumber : null,
+          trackingUrl, status: method === 'COURIER' ? 'dispatched' : 'ready_for_pickup',
+          createdByUserId: req.user!.id,
+        },
+      });
+      await tx.dentalLabShipmentEvent.create({
+        data: {
+          id: uid(), shipmentId: shipment.id,
+          eventType: method === 'COURIER' ? 'DISPATCHED' : 'READY_FOR_PICKUP',
+          toStatus: shipment.status, note: note || (method === 'COURIER' ? 'Заказ передан перевозчику.' : 'Заказ подготовлен к самовывозу.'),
+          actorUserId: req.user!.id,
+          metadata: { method, carrier: shipment.carrier, trackingNumber: shipment.trackingNumber },
+        },
+      });
+      await appendEventInTransaction(
+        tx, existing, existing.status, existing.status, req.user!.id,
+        note || (method === 'COURIER' ? 'Отгрузка зарегистрирована.' : 'Заказ подготовлен к самовывозу.'),
+      );
+      return { kind: 'created' as const, order: existing, shipment };
+    });
+
+    if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
+    if (outcome.kind === 'invalid_status') return res.status(409).json({ ok: false, error: 'Отгрузка доступна только после успешного контроля качества и статуса «Готово»' , code: 'LAB_ORDER_NOT_READY' } satisfies ApiResponse);
+    if (outcome.kind === 'already_exists') return res.status(409).json({ ok: false, error: 'Для этого заказа отгрузка уже зарегистрирована', code: 'LAB_SHIPMENT_ALREADY_EXISTS' } satisfies ApiResponse);
+    const shipment = outcome.shipment;
+    if (outcome.kind === 'created') {
+      await writeAuditLog({ action: 'DENTAL_LAB_SHIPMENT_CREATED', entity: 'dental_lab_shipment', entityId: shipment.id, details: { labOrderId: outcome.order.id, laboratoryId: membership.labId, method }, userId: req.user!.id, clinicId: outcome.order.clinicId });
+      await createNotificationForClinic(outcome.order.clinicId, {
+        type: 'lab.shipment.dispatched',
+        title: method === 'COURIER' ? 'Заказ лаборатории отправлен' : 'Заказ готов к самовывозу',
+        message: method === 'COURIER' ? 'Лаборатория зарегистрировала отправку и данные отслеживания.' : 'Лаборатория подготовила заказ к самовывозу.',
+        link: '/crm/lab',
+      });
+      publish('labOrder.shipment_created', { clinicId: outcome.order.clinicId, labOrderId: outcome.order.id, laboratoryId: membership.labId, shipmentId: shipment.id, method, userId: req.user!.id });
+    }
+    return res.status(outcome.kind === 'created' ? 201 : 200).json({
+      ok: true, data: { shipment, order: serialize({ ...outcome.order, dentalLabShipment: shipment }), idempotent: outcome.kind === 'idempotent' },
+    } satisfies ApiResponse);
+  } catch (error: any) {
+    if (String(error?.code || '') === 'P2002') return res.status(409).json({ ok: false, error: 'Отгрузка для этого заказа уже зарегистрирована', code: 'LAB_SHIPMENT_ALREADY_EXISTS' } satisfies ApiResponse);
+    console.error('[LabPlatform] shipment create error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось зарегистрировать отгрузку' } satisfies ApiResponse);
+  }
+});
+
+labPlatformRouter.post('/orders/:id/shipment/delivery-confirmation', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership || !canLabManageShipment(membership.role)) {
+      return res.status(403).json({ ok: false, error: 'Подтверждать вручение может владелец, менеджер или сотрудник логистики лаборатории' } satisfies ApiResponse);
+    }
+    const proofUrl = String(req.body?.proofUrl || '').trim();
+    const recipientName = String(req.body?.recipientName || '').trim().slice(0, 120);
+    const note = String(req.body?.note || '').trim().slice(0, 500) || null;
+    if (!isSecureLabEvidenceUrl(proofUrl)) {
+      return res.status(400).json({ ok: false, error: 'Для подтверждения вручения нужна корректная HTTPS-ссылка на доказательство доставки' } satisfies ApiResponse);
+    }
+    if (recipientName.length < 2) {
+      return res.status(400).json({ ok: false, error: 'Укажите имя получателя' } satisfies ApiResponse);
+    }
+
+    await ensureDentalLabOrderEventsTable();
+    const outcome = await prisma.$transaction(async (tx) => {
+      const orderId = String(req.params.id);
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} FOR UPDATE`;
+      const existing = await tx.labOrder.findFirst({
+        where: { id: orderId, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } },
+        include: { dentalLabShipment: true },
+      });
+      if (!existing) return { kind: 'not_found' as const };
+      const shipment = existing.dentalLabShipment;
+      if (!shipment) return { kind: 'shipment_required' as const };
+      if (shipment.status === 'delivered' && existing.status === 'delivered') {
+        const same = shipment.proofUrl === proofUrl && shipment.recipientName === recipientName;
+        return same ? { kind: 'idempotent' as const, order: existing, shipment } : { kind: 'already_delivered' as const };
+      }
+      if (existing.status !== 'ready' || !['dispatched', 'ready_for_pickup'].includes(shipment.status)) {
+        return { kind: 'invalid_status' as const };
+      }
+      const deliveredAt = new Date();
+      const updatedShipment = await tx.dentalLabShipment.update({
+        where: { id: shipment.id },
+        data: { status: 'delivered', deliveredAt, proofUrl, recipientName, deliveryNote: note, deliveredByUserId: req.user!.id },
+      });
+      await tx.dentalLabShipmentEvent.create({
+        data: {
+          id: uid(), shipmentId: shipment.id, eventType: 'DELIVERED',
+          fromStatus: shipment.status, toStatus: 'delivered',
+          note: note || 'Получение заказа подтверждено.',
+          actorUserId: req.user!.id,
+          metadata: { proofUrl, recipientName, method: shipment.method },
+        },
+      });
+      const order = await tx.labOrder.update({ where: { id: existing.id }, data: { status: 'delivered' as any } });
+      await appendEventInTransaction(tx, order, existing.status, 'delivered', req.user!.id, note || 'Вручение заказа подтверждено.');
+      return { kind: 'delivered' as const, order, shipment: updatedShipment };
+    });
+
+    if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
+    if (outcome.kind === 'shipment_required') return res.status(409).json({ ok: false, error: 'Сначала зарегистрируйте курьерскую отправку или подготовьте заказ к самовывозу', code: 'LAB_SHIPMENT_REQUIRED' } satisfies ApiResponse);
+    if (outcome.kind === 'invalid_status') return res.status(409).json({ ok: false, error: 'Заказ должен быть готов и ожидать вручения', code: 'LAB_SHIPMENT_NOT_DELIVERABLE' } satisfies ApiResponse);
+    if (outcome.kind === 'already_delivered') return res.status(409).json({ ok: false, error: 'Вручение уже подтверждено с другими данными', code: 'LAB_DELIVERY_ALREADY_CONFIRMED' } satisfies ApiResponse);
+
+    if (outcome.kind === 'delivered') {
+      await writeAuditLog({ action: 'DENTAL_LAB_DELIVERY_CONFIRMED', entity: 'dental_lab_shipment', entityId: outcome.shipment.id, details: { labOrderId: outcome.order.id, laboratoryId: membership.labId, method: outcome.shipment.method, recipientName }, userId: req.user!.id, clinicId: outcome.order.clinicId });
+      await createNotificationForClinic(outcome.order.clinicId, {
+        type: 'lab.shipment.delivered',
+        title: 'Заказ лаборатории доставлен',
+        message: `Лаборатория подтвердила вручение заказа. Получатель: ${recipientName}.`,
+        link: '/crm/lab',
+      });
+      const treatmentCaseId = await caseIdOf(outcome.order.id) || undefined;
+      publish('labOrder.status_changed', { clinicId: outcome.order.clinicId, labOrderId: outcome.order.id, patientId: outcome.order.patientId || undefined, doctorId: outcome.order.doctorId || undefined, treatmentCaseId, status: 'delivered', previousStatus: 'ready', userId: req.user!.id });
+      publish('labOrder.delivery_confirmed', { clinicId: outcome.order.clinicId, labOrderId: outcome.order.id, laboratoryId: membership.labId, shipmentId: outcome.shipment.id, method: outcome.shipment.method, userId: req.user!.id });
+      return res.json({ ok: true, data: { order: serialize({ ...outcome.order, dentalLabShipment: outcome.shipment, treatmentCaseId }), shipment: outcome.shipment } } satisfies ApiResponse);
+    }
+    return res.json({ ok: true, data: { order: serialize({ ...outcome.order, dentalLabShipment: outcome.shipment }), shipment: outcome.shipment, idempotent: true } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[LabPlatform] delivery confirmation error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось подтвердить вручение заказа' } satisfies ApiResponse);
+  }
 });
 
 labPlatformRouter.patch('/orders/:id/technician', async (req: AuthRequest, res) => {
