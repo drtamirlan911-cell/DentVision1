@@ -314,7 +314,7 @@ labRouter.post('/:id/remake-request', requirePermission('lab.write'), async (req
       link: '/diagnostics/dental-lab',
     });
 
-    publish('labOrder.remake_requested' as any, { clinicId, labOrderId: orderId, laboratoryId: outcome.request.laboratoryId, requestId: outcome.request.id, userId: req.user!.id });
+    publish('labOrder.remake_requested', { clinicId, labOrderId: orderId, laboratoryId: outcome.request.laboratoryId, requestId: outcome.request.id, userId: req.user!.id });
     return res.status(201).json({ ok: true, data: serializeLabOrder(outcome.order) } satisfies ApiResponse);
   } catch (error) {
     console.error('[Lab] remake request error:', error);
