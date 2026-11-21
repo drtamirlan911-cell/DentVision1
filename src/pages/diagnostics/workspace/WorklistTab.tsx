@@ -60,6 +60,9 @@ export function WorklistTab({ orgId }: TabProps) {
   const [scheduledTime, setScheduledTime] = useState('')
   const [reportText, setReportText] = useState('')
   const [conclusion, setConclusion] = useState('')
+  const [amendReportText, setAmendReportText] = useState('')
+  const [amendConclusion, setAmendConclusion] = useState('')
+  const [amendReason, setAmendReason] = useState('')
 
   const role = String(activeWorkspace?.roleKey || activeWorkspace?.role || user?.role || '').toLowerCase()
   const canManage = user?.role === 'superadmin' || roleCanManage(role)
@@ -160,6 +163,24 @@ export function WorklistTab({ orgId }: TabProps) {
     },
     onError: (error: Error) => toast.error(error.message || 'Не удалось подписать заключение'),
   })
+  const amendMutation = useMutation({
+    mutationFn: () => api.amendDiagnosticResult(String(selectedReferralId), {
+      reportText: amendReportText.trim(),
+      conclusion: amendConclusion.trim(),
+      changeReason: amendReason.trim(),
+    }),
+    onSuccess: (response) => {
+      const result = response?.data || response
+      toast.success(result?.requiresRedelivery
+        ? 'Новая версия подписана. Её необходимо повторно передать клинике.'
+        : 'Новая версия заключения подписана')
+      setAmendReportText('')
+      setAmendConclusion('')
+      setAmendReason('')
+      refresh()
+    },
+    onError: (error: Error) => toast.error(error.message || 'Не удалось исправить заключение'),
+  })
 
   const selectedRow = rows.find((row: any) => row.id === selectedReferralId)
   const selectedPrice = selectedRow ? resolvePrice(selectedRow, studies) : undefined
@@ -167,6 +188,7 @@ export function WorklistTab({ orgId }: TabProps) {
   const isAssignedRadiologist = Boolean(referral?.radiologist?.user?.id && referral.radiologist.user.id === user?.id)
   const canSign = hasRadiologistRole && isAssignedRadiologist
   const canRelease = canManage || canSign
+  const canAmend = canSign && resultSigned && ['COMPLETED', 'DELIVERED'].includes(String(referral?.status))
 
   const openDetails = (id: string) => {
     setSelectedReferralId((current) => current === id ? null : id)
@@ -174,6 +196,9 @@ export function WorklistTab({ orgId }: TabProps) {
     setScheduledTime('')
     setReportText('')
     setConclusion('')
+    setAmendReportText('')
+    setAmendConclusion('')
+    setAmendReason('')
   }
 
   const transition = (nextStatus: string, extra?: Record<string, unknown>) => {
@@ -377,6 +402,21 @@ export function WorklistTab({ orgId }: TabProps) {
                       <p className="mt-2 whitespace-pre-wrap text-xs text-txt-secondary">{referral.result.reportText}</p>
                       {referral.result.conclusion && <p className="mt-2 text-xs font-semibold text-txt-primary">{referral.result.conclusion}</p>}
                       <p className="mt-2 text-[11px] text-txt-muted">{referral.result.signedAt ? 'Подписано ' + new Date(referral.result.signedAt).toLocaleString('ru-RU') : 'Черновик · не подписано'}</p>
+                      {!!referral.result.versions?.length && (
+                        <div className="mt-3 border-t border-bdr-subtle pt-3">
+                          <p className="text-[11px] font-semibold text-txt-primary">История подписанных версий</p>
+                          <div className="mt-2 space-y-3">
+                            {referral.result.versions.map((version: any) => (
+                              <div key={version.id} className="rounded-lg bg-surface-2 p-2">
+                                <p className="text-xs font-medium text-txt-primary">Версия {version.version} · {version.signedAt ? new Date(version.signedAt).toLocaleString('ru-RU') : 'дата не указана'}</p>
+                                {version.changeReason && <p className="mt-1 text-xs text-txt-secondary">Причина: {version.changeReason}</p>}
+                                <p className="mt-1 whitespace-pre-wrap text-[11px] text-txt-muted">{version.reportText}</p>
+                                {version.conclusion && <p className="mt-1 text-xs font-semibold text-txt-secondary">{version.conclusion}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>}
                   </div>
                 </div>
@@ -419,6 +459,24 @@ export function WorklistTab({ orgId }: TabProps) {
               {canAcquire && referral.status === 'PATIENT_ARRIVED' && (
                 <Button className="w-full" size="sm" variant="primary" loading={statusMutation.isPending}
                   disabled={statusMutation.isPending} onClick={() => transition('IN_PROGRESS')}>Начать исследование</Button>
+              )}
+
+              {canAmend && (
+                <div className="space-y-3 rounded-xl border border-bdr-subtle bg-surface-2 p-3">
+                  <div>
+                    <p className="flex items-center gap-2 text-xs font-semibold text-txt-primary"><History size={14} /> Исправление подписанного заключения</p>
+                    <p className="mt-1 text-xs text-txt-muted">Предыдущая подписанная версия сохранится. После исправления статус вернётся к «Завершено», и новую версию потребуется повторно передать клинике.</p>
+                  </div>
+                  <textarea value={amendReportText} onChange={(event) => setAmendReportText(event.target.value)} rows={5} maxLength={20000}
+                    placeholder="Полный исправленный текст описания исследования" className="w-full rounded-lg border border-bdr-subtle bg-surface-1 p-3 text-xs text-txt-primary" />
+                  <textarea value={amendConclusion} onChange={(event) => setAmendConclusion(event.target.value)} rows={2} maxLength={5000}
+                    placeholder="Исправленное заключение" className="w-full rounded-lg border border-bdr-subtle bg-surface-1 p-3 text-xs text-txt-primary" />
+                  <textarea value={amendReason} onChange={(event) => setAmendReason(event.target.value)} rows={2} maxLength={1000}
+                    placeholder="Причина поправки: уточнение находки, исправление стороны/области, техническая ошибка…" className="w-full rounded-lg border border-bdr-subtle bg-surface-1 p-3 text-xs text-txt-primary" />
+                  <Button className="w-full" size="sm" variant="primary" loading={amendMutation.isPending}
+                    disabled={amendMutation.isPending || amendReportText.trim().length < 20 || amendConclusion.trim().length < 5 || amendReason.trim().length < 10}
+                    onClick={() => amendMutation.mutate()}>Подписать новую версию и вернуть на повторную передачу</Button>
+                </div>
               )}
 
               {canSign && referral.status === 'IN_PROGRESS' && !resultSigned && (
