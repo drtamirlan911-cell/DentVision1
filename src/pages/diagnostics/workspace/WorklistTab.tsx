@@ -409,6 +409,7 @@ export function WorklistTab({ orgId }: TabProps) {
                             {referral.result.versions.map((version: any) => (
                               <div key={version.id} className="rounded-lg bg-surface-2 p-2">
                                 <p className="text-xs font-medium text-txt-primary">Версия {version.version} · {version.signedAt ? new Date(version.signedAt).toLocaleString('ru-RU') : 'дата не указана'}</p>
+                                <p className="mt-1 text-[11px] text-txt-muted">Подписал: {version.signer ? `${version.signer.firstName} ${version.signer.lastName}`.trim() : 'сотрудник центра'}</p>
                                 {version.changeReason && <p className="mt-1 text-xs text-txt-secondary">Причина: {version.changeReason}</p>}
                                 <p className="mt-1 whitespace-pre-wrap text-[11px] text-txt-muted">{version.reportText}</p>
                                 {version.conclusion && <p className="mt-1 text-xs font-semibold text-txt-secondary">{version.conclusion}</p>}
