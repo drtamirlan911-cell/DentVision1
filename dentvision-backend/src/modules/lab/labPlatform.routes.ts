@@ -521,7 +521,6 @@ labPlatformRouter.post('/orders/:id/shipment/delivery-confirmation', async (req:
       await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} FOR UPDATE`;
       const existing = await tx.labOrder.findFirst({
         where: { id: orderId, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } },
-        include: { dentalLabShipment: true },
       });
       if (!existing) return { kind: 'not_found' as const };
       const shipment = await tx.dentalLabShipment.findFirst({
