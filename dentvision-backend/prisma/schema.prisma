@@ -3114,6 +3114,7 @@ model DiagnosticCenter {
   operators    Operator[]
   radiologists Radiologist[]
   bookings     DiagnosticBooking[]
+  modalities   DiagnosticModality[]
 
   @@map("diagnostic_centers")
 }
@@ -3167,6 +3168,30 @@ model LaboratoryMember {
   @@unique([labId, userId])
   @@index([userId])
   @@map("laboratory_members")
+}
+
+model DiagnosticModality {
+  id                String   @id @default(uuid())
+  centerId          String
+  name              String
+  kind              String // CBCT | OPG | TRG | INTRAORAL | CT | MRI | OTHER
+  manufacturer      String?
+  model             String?
+  serialNumber      String?
+  room              String?
+  aeTitle           String?  // DICOM AE Title only; no host, port or credentials
+  status            String   @default("active") // active | maintenance | out_of_service
+  lastMaintenanceAt DateTime?
+  nextMaintenanceAt DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  center    DiagnosticCenter @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  referrals Referral[]
+
+  @@unique([centerId, serialNumber])
+  @@index([centerId, status])
+  @@map("diagnostic_modalities")
 }
 
 model DiagnosticStudy {
@@ -3278,6 +3303,7 @@ model Referral {
   labId            String?
   operatorId       String?
   radiologistId    String?
+  modalityId       String?
   // Schedule
   scheduledDate    DateTime?
   scheduledTime    String?
@@ -3307,6 +3333,7 @@ model Referral {
   lab         Laboratory?       @relation("LabReferral", fields: [labId], references: [id])
   operator    Operator?         @relation(fields: [operatorId], references: [id])
   radiologist Radiologist?      @relation(fields: [radiologistId], references: [id])
+  modality    DiagnosticModality? @relation(fields: [modalityId], references: [id], onDelete: SetNull)
   reviewer    User?             @relation("ReferralReviewer", fields: [reviewerId], references: [id])
   files       ReferralFile[]
   comments    ReferralComment[]
@@ -3317,6 +3344,7 @@ model Referral {
   @@index([clinicId])
   @@index([centerId])
   @@index([labId])
+  @@index([modalityId])
   @@index([doctorId])
   @@index([patientId])
   @@index([status])

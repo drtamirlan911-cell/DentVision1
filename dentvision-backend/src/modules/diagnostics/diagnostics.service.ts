@@ -334,6 +334,87 @@ export async function listLabTests(labId?: string, category?: string) {
   return prisma.laboratoryTest.findMany({ where, orderBy: { name: 'asc' } });
 }
 
+
+/**
+ * Diagnostic-center equipment inventory. Only operational metadata is stored:
+ * no PACS credentials, network endpoints, image payloads or patient identifiers.
+ */
+export async function listDiagnosticModalities(centerId: string) {
+  return prisma.diagnosticModality.findMany({
+    where: { centerId },
+    orderBy: [{ status: 'asc' }, { name: 'asc' }],
+  });
+}
+
+export async function createDiagnosticModality(centerId: string, data: {
+  name: string; kind: string; manufacturer?: string; model?: string;
+  serialNumber?: string; room?: string; aeTitle?: string; nextMaintenanceAt?: Date | null;
+}) {
+  return prisma.diagnosticModality.create({
+    data: {
+      id: uid(), centerId, name: data.name, kind: data.kind,
+      manufacturer: data.manufacturer || null, model: data.model || null,
+      serialNumber: data.serialNumber || null, room: data.room || null,
+      aeTitle: data.aeTitle || null, nextMaintenanceAt: data.nextMaintenanceAt || null,
+    },
+  });
+}
+
+export async function updateDiagnosticModality(centerId: string, modalityId: string, data: {
+  name?: string; kind?: string; manufacturer?: string | null; model?: string | null;
+  serialNumber?: string | null; room?: string | null; aeTitle?: string | null;
+  status?: string; lastMaintenanceAt?: Date | null; nextMaintenanceAt?: Date | null;
+}) {
+  const existing = await prisma.diagnosticModality.findFirst({
+    where: { id: modalityId, centerId }, select: { id: true },
+  });
+  if (!existing) throw new Error('Оборудование не найдено в этом диагностическом центре');
+  return prisma.diagnosticModality.update({ where: { id: modalityId }, data });
+}
+
+/**
+ * Operational worklist. Patient IIN, phone, email and clinical notes remain
+ * behind the separately authorized referral-detail endpoint.
+ */
+export async function getDiagnosticCenterWorklist(centerId: string, opts: {
+  status?: string; priority?: string; search?: string; limit?: number; offset?: number;
+} = {}) {
+  const where: any = {
+    centerId,
+    status: opts.status ? opts.status : { notIn: ['COMPLETED', 'REVIEWED', 'DELIVERED', 'CLOSED', 'CANCELLED'] },
+  };
+  if (opts.priority) where.priority = opts.priority;
+  if (opts.search) {
+    where.OR = [
+      { patientName: { contains: opts.search, mode: 'insensitive' } },
+      { studyType: { contains: opts.search, mode: 'insensitive' } },
+    ];
+  }
+  const take = Math.max(1, Math.min(Number(opts.limit) || 100, 100));
+  const skip = Math.max(0, Number(opts.offset) || 0);
+  const [items, total] = await Promise.all([
+    prisma.referral.findMany({
+      where,
+      select: {
+        id: true, patientName: true, category: true, studyType: true, status: true,
+        priority: true, scheduledDate: true, scheduledTime: true, createdAt: true,
+        modalityId: true,
+        modality: { select: { id: true, name: true, kind: true, room: true, status: true } },
+        clinic: { select: { id: true, name: true } },
+        operator: { select: { id: true, user: { select: { firstName: true, lastName: true } } } },
+        radiologist: { select: { id: true, user: { select: { firstName: true, lastName: true } } } },
+        _count: { select: { files: true } },
+      },
+      orderBy: [{ scheduledDate: 'asc' }, { createdAt: 'asc' }],
+      take, skip,
+    }),
+    prisma.referral.count({ where }),
+  ]);
+  const priorityRank: Record<string, number> = { EMERGENCY: 0, URGENT: 1, NORMAL: 2 };
+  items.sort((a: any, b: any) => (priorityRank[String(a.priority)] ?? 3) - (priorityRank[String(b.priority)] ?? 3));
+  return { items, total, limit: take, offset: skip };
+}
+
 // ─── Referrals ───
 
 const referralInclude = {

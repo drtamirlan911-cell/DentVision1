@@ -758,6 +758,31 @@ export const createDiagnosticsLabTest = (labId: string, data: { name: string; ca
 export const collectDiagnosticsLabCashierPayment = (labId: string, payload: { referralId: string; cost: number }) => apiRequest(`/api/diagnostics/laboratories/${labId}/cashier/collect`, { method: 'POST', body: JSON.stringify(payload) });
 export async function getDiagnosticsLabDashboard(labId: string): Promise<any> { return getDiagnosticsDashboard({ labId }); }
 export const getDiagnosticsLabPayments = (labId: string) => getDiagnosticReferrals({ labId });
+
+export async function getDiagnosticCenterWorklist(centerId: string, params: { status?: string; priority?: string; search?: string; limit?: number; offset?: number } = {}): Promise<any> {
+  const q = new URLSearchParams();
+  if (params.status) q.set('status', params.status);
+  if (params.priority) q.set('priority', params.priority);
+  if (params.search) q.set('search', params.search);
+  if (params.limit) q.set('limit', String(params.limit));
+  if (params.offset) q.set('offset', String(params.offset));
+  return apiRequest('/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/worklist?' + q.toString());
+}
+export async function getDiagnosticModalities(centerId: string): Promise<any> {
+  return apiRequest('/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/modalities');
+}
+export async function createDiagnosticModality(centerId: string, data: {
+  name: string; kind: string; manufacturer?: string; model?: string; serialNumber?: string;
+  room?: string; aeTitle?: string; nextMaintenanceAt?: string;
+}): Promise<any> {
+  return apiRequest('/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/modalities', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function updateDiagnosticModality(centerId: string, modalityId: string, data: Record<string, unknown>): Promise<any> {
+  return apiRequest('/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/modalities/' + encodeURIComponent(modalityId), { method: 'PATCH', body: JSON.stringify(data) });
+}
+export async function assignDiagnosticModality(centerId: string, referralId: string, modalityId: string | null): Promise<any> {
+  return apiRequest('/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/worklist/' + encodeURIComponent(referralId) + '/modality', { method: 'PATCH', body: JSON.stringify({ modalityId }) });
+}
 export const getDiagnosticsCommissionRules = () => apiRequest('/api/diagnostics/commission-rules');
 export const createDiagnosticsCommissionRule = (data: { centerId?: string; labId?: string; percentBps: number; description?: string }) => apiRequest('/api/diagnostics/commission-rules', { method: 'POST', body: JSON.stringify(data) });
 export const getDiagnosticsStats = () => apiRequest('/api/diagnostics/stats');

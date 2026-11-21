@@ -58,6 +58,27 @@ describe('diagnostics route contract', () => {
     expect(source).toContain("hasScopedPartnerSignerRole(req.user!, LAB_RESULT_SIGNER_ROLE_KEYS)");
   });
 
+
+  it('exposes scoped modality management and a center-specific worklist', () => {
+    const routes = source.slice(
+      source.indexOf("diagnosticsRouter.get('/centers/:id/modalities'"),
+      source.indexOf("diagnosticsRouter.get('/referrals'"),
+    );
+    expect(routes).toContain("sameOrgContext(req.user, 'DiagnosticCenter', centerId)");
+    expect(routes).toContain('canManagePartnerCatalog(req.user)');
+    expect(routes).toContain("diagnosticsRouter.get('/centers/:id/worklist'");
+    expect(routes).toContain("diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/modality'");
+    expect(routes).toContain("status: 'active'");
+    expect(routes).toContain('auditFromReq');
+  });
+
+  it('accepts only DICOM AE Title metadata, never PACS credentials or endpoints', () => {
+    expect(source).toContain('DIAGNOSTIC_MODALITY_KINDS');
+    expect(source).toContain('aeTitle.length > 16');
+    expect(source).not.toContain('pacsPassword');
+    expect(source).not.toContain('dicomPassword');
+  });
+
   it('keeps partner pricing and cashier handlers unique', () => {
     expect((source.match(/diagnosticsRouter\.patch\('\/centers\/:id\/pricing'/g) || [])).toHaveLength(1);
     expect((source.match(/diagnosticsRouter\.post\('\/centers\/:id\/pricing'/g) || [])).toHaveLength(1);

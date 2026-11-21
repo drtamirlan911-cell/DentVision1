@@ -1,3 +1,12 @@
+## Diagnostic Center OS vertical slice — 2026-11-21 (candidate PR #352)
+
+- Added a scoped equipment register for CBCT, OPG, TRG, intraoral, CT, MRI and other modalities, including manufacturer/model/serial number, room, DICOM AE Title metadata and maintenance date/status.
+- Added a diagnostic-center worklist with server-side center scope, status filtering, emergency/urgent priority ordering, a minimized patient-data projection, and assignment of active equipment to a referral. Mutations require the active diagnostic-center context and an authorized organization manager role; changes are audit-recorded.
+- The cabinet now has dedicated **Worklist** and **Equipment** tabs. The active IAM workspace is preferred over membership ordering; ambiguous or unrelated contexts require explicit workspace selection rather than silently opening the first diagnostic organization.
+- Added the migration to the CI E2E database bootstrap and route/data-contract coverage.
+- **Boundary:** this is an equipment register and queue-routing slice, not RIS/PACS. It does not transfer DICOM objects, implement DICOMweb/QIDO-RS/WADO-RS/STOW-RS, connect a PACS archive, provide a diagnostic image viewer, complete radiology report validation/sign-off, or implement calibration/QC schedules. Those remain open release work. The migration has not been deployed to staging/production.
+- Exact-head CI, Quality Gate and E2E are required before merge. Diagnostic Center remains **PARTIAL**.
+
 ## Implementation checkpoint — Student OS, Career OS and Medical Laboratory controls — 2026-11-20
 
 - **Scope:** candidate-branch source work only; `docs/DENTVISION_MASTER_SPEC.md` v5.0 and `docs/PRODUCT/CABINET_UX_AND_WORKFLOW_STANDARD.md` remain normative.
