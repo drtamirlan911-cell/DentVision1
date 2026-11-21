@@ -239,7 +239,7 @@ function OrderCard({
                     <div key={event.id} className="border-l-2 border-bdr-subtle pl-3">
                       <p className="text-xs font-medium text-txt-primary">{event.fromStatus ? STAGES.find((stage) => stage.id === event.fromStatus)?.label || event.fromStatus : 'Заказ передан'} → {STAGES.find((stage) => stage.id === event.toStatus)?.label || event.toStatus}</p>
                       {event.note && <p className="mt-1 text-xs text-txt-secondary">{event.note}</p>}
-                      <p className="mt-1 text-[10px] text-txt-muted">{new Date(event.createdAt).toLocaleString('ru-RU')} · сотрудник {event.actorUserId.slice(0, 8)}</p>
+                      <p className="mt-1 text-[10px] text-txt-muted">{new Date(event.createdAt).toLocaleString('ru-RU')} · действие сотрудника</p>
                     </div>
                   ))}
                   {!lifecycleQuery.data.events.length && <p className="text-xs text-txt-muted">Событий пока нет.</p>}
