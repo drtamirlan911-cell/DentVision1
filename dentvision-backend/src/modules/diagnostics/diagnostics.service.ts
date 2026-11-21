@@ -230,7 +230,7 @@ export async function createRegistrationRequest(data: {
   });
 }
 
-export const DIAGNOSTICS_ROLE_TO_ROLE_KEY: Record<string, string> = { owner: 'owner', admin: 'admin', manager: 'manager' };
+export const DIAGNOSTICS_ROLE_TO_ROLE_KEY: Record<string, string> = { owner: 'owner', admin: 'admin', manager: 'manager', operator: 'diagnostic_operator', radiologist: 'diagnostic_radiologist' };
 
 export async function grantDiagnosticsAccess(type: 'DiagnosticCenter' | 'Laboratory', entityId: string, userId: string, role: string) {
   try {
