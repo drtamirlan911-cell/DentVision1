@@ -69,15 +69,6 @@ export async function getCenterSubscription(centerId: string) {
   } catch { return null; }
 }
 
-const DIAGNOSTIC_COMMISSION_BPS = 700;
-const DIAGNOSTIC_COMMISSION_MIN = 500;
-const DIAGNOSTIC_COMMISSION_MAX = 3000;
-
-function diagnosticPlatformFee(amount: number) {
-  if (!Number.isFinite(amount) || amount <= 0) return 0;
-  return Math.min(DIAGNOSTIC_COMMISSION_MAX, Math.max(DIAGNOSTIC_COMMISSION_MIN, Math.round(amount * DIAGNOSTIC_COMMISSION_BPS / 10_000)));
-}
-
 // ─── Centers ───
 
 export async function listCenters(search?: string, city?: string) {
@@ -506,7 +497,6 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
     }
     if (resolvedCost === undefined) throw new Error('Укажите стоимость исследования или установите цену в прайс-листе центра.');
     update.cost = resolvedCost;
-    update.platformFee = diagnosticPlatformFee(Number(resolvedCost));
   }
   if (status === 'COMPLETED') update.completedAt = new Date();
   if (status === 'COMPLETED' && cost !== undefined) { update.cost = cost; update.paid = false; }
@@ -516,7 +506,7 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
   if (status === 'ACCEPTED' && updatedReferral.doctorId) await createNotification({ userId: updatedReferral.doctorId, type: NOTIFICATION_TYPES.REFERRAL_ACCEPTED, title: 'Направление принято', message: 'Направление принято. Откройте карточку направления для деталей.', link: `/diagnostics/referrals/${id}` });
   if (status === 'COMPLETED' && updatedReferral.doctorId) await createNotification({ userId: updatedReferral.doctorId, type: NOTIFICATION_TYPES.REFERRAL_RESULT, title: 'Результат диагностики готов', message: 'Результат диагностики готов к просмотру. Откройте направление для подробностей.', link: `/diagnostics/referrals/${id}` });
   await writeAuditLog({ action: 'REFERRAL_STATUS_CHANGED', entity: 'referral', entityId: id, details: { status }, userId, clinicId: updatedReferral.clinicId });
-  publish(`referral.${status.toLowerCase()}` as any, { referralId: id, clinicId: updatedReferral.clinicId || '', centerId: updatedReferral.centerId || '', doctorId: updatedReferral.doctorId || '', status, userId, cost: updatedReferral.cost, platformFee: updatedReferral.platformFee });
+  publish(`referral.${status.toLowerCase()}` as any, { referralId: id, clinicId: updatedReferral.clinicId || '', centerId: updatedReferral.centerId || '', doctorId: updatedReferral.doctorId || '', status, userId, cost: updatedReferral.cost });
   return updatedReferral;
 }
 
