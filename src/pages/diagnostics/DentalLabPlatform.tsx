@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/ds/Button';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { QueryError } from '@/components/ui/ds/QueryError';
 import { Tabs } from '@/components/ui/ds/Misc';
-import { getLabPlatformDashboard, getLabPlatformOrders, getLabPlatformTeam, updateLabPlatformOrderStatus, updateLabPlatformQualityControl, type LabPlatformOrder } from '@/utils/labPlatformApi';
+import { getLabPlatformDashboard, getLabPlatformOrders, getLabPlatformTeam, updateLabPlatformOrderStatus, updateLabPlatformQualityControl, updateLabPlatformRemakeRequest, type LabPlatformOrder } from '@/utils/labPlatformApi';
 import DentalLabServicesTab from './DentalLabServicesTab';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
@@ -74,7 +74,8 @@ function QualityControlForm({ busy, onSubmit }: { busy: boolean; onSubmit: (chec
   );
 }
 
-function OrderCard({ order, onStatus, onQc, canManageQc, qcBusy }: { order: LabPlatformOrder; onStatus: (id: string, status: string) => void; onQc: (id: string, checks: Record<string, boolean>, note: string) => void; canManageQc: boolean; qcBusy: boolean }) {
+function OrderCard({ order, onStatus, onQc, onRemakeDecision, canManageQc, qcBusy, remakeBusy }: { order: LabPlatformOrder; onStatus: (id: string, status: string) => void; onQc: (id: string, checks: Record<string, boolean>, note: string) => void; onRemakeDecision: (id: string, decision: 'accept' | 'reject', note: string) => void; canManageQc: boolean; qcBusy: boolean; remakeBusy: boolean }) {
+  const [responseNote, setResponseNote] = useState('');
   const next = NEXT[order.status] || [];
   const primary = next.find((s) => !['remake', 'delayed'].includes(s));
   return (
@@ -92,6 +93,8 @@ function OrderCard({ order, onStatus, onQc, canManageQc, qcBusy }: { order: LabP
         <div className="rounded-lg bg-surface-2 p-2"><span className="text-txt-muted">Материал</span><div className="mt-1 truncate font-medium">{order.material || '—'}</div></div>
       </div>
       {order.deadline && <div className="flex items-center gap-2 text-xs text-txt-muted"><Clock3 size={13} /> Дедлайн {new Date(order.deadline).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>}
+      {order.remakeRequest?.status === 'requested' && <div className="space-y-2 rounded-lg border border-warning/30 bg-warning/5 p-3"><p className="text-xs font-semibold text-txt-primary">Клиника запросила переделку</p><p className="text-xs text-txt-secondary">{order.remakeRequest.reason}</p>{canManageQc ? <><textarea className="min-h-20 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 py-2 text-xs text-txt-primary" value={responseNote} onChange={event => setResponseNote(event.target.value)} maxLength={2000} placeholder="Комментарий лаборатории; при отклонении обязателен" /><div className="flex flex-wrap gap-2"><Button size="sm" disabled={remakeBusy} onClick={() => onRemakeDecision(order.id, 'accept', responseNote)}>Принять переделку</Button><Button size="sm" variant="outline" disabled={remakeBusy || responseNote.trim().length < 5} onClick={() => onRemakeDecision(order.id, 'reject', responseNote)}>Отклонить запрос</Button></div></> : <p className="text-xs text-txt-muted">Ожидает решения владельца или менеджера лаборатории.</p>}</div>}
+      {order.remakeRequest?.status === 'rejected' && <p className="rounded-lg bg-surface-2 p-2 text-xs text-txt-muted">Запрос переделки отклонён: {order.remakeRequest.responseNote || 'без комментария'}</p>}
       {order.status === 'qc' && (canManageQc ? <QualityControlForm busy={qcBusy} onSubmit={(checks, note) => onQc(order.id, checks, note)} /> : <p className="rounded-lg bg-surface-2 p-3 text-xs text-txt-muted">Ожидает подтверждения QC владельцем или менеджером лаборатории.</p>)}
       {primary && order.status !== 'qc' && <Button size="sm" variant="secondary" className="w-full" onClick={() => onStatus(order.id, primary)}>{primary === 'delivered' ? 'Передать клинике' : 'Следующий этап'} <ArrowRight size={14} /></Button>}
     </Card>
@@ -120,6 +123,7 @@ export default function DentalLabPlatform() {
   const team = useQuery({ queryKey: ['lab-platform', 'team'], queryFn: getLabPlatformTeam, enabled: tab === 'team' });
   const statusMutation = useMutation({ mutationFn: ({ id, status }: { id: string; status: string }) => updateLabPlatformOrderStatus(id, status), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); } });
   const qcMutation = useMutation({ mutationFn: ({ id, checks, note }: { id: string; checks: Record<string, boolean>; note: string }) => updateLabPlatformQualityControl(id, checks, note), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); } });
+  const remakeMutation = useMutation({ mutationFn: ({ id, decision, note }: { id: string; decision: 'accept' | 'reject'; note: string }) => updateLabPlatformRemakeRequest(id, decision, note), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); } });
   const canManageQc = ['owner', 'admin', 'manager', 'director', 'lab_manager'].includes(String(dashboard.data?.membershipRole || '').toLowerCase());
 
   const grouped = useMemo(() => {
@@ -169,7 +173,7 @@ export default function DentalLabPlatform() {
           {(filter ? [{ id: filter, label: STAGES.find((s) => s.id === filter)?.label || filter }] : STAGES).map((stage) => (
             <section key={stage.id} className="min-w-0 space-y-3 rounded-2xl bg-surface-0/60 p-2">
               <div className="flex items-center justify-between px-1"><h3 className="text-xs font-semibold text-txt-secondary">{stage.label}</h3><Badge variant="outline">{grouped[stage.id]?.length || 0}</Badge></div>
-              {(grouped[stage.id] || []).slice(0, 20).map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} qcBusy={qcMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} />)}
+              {(grouped[stage.id] || []).slice(0, 20).map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} />)}
               {!grouped[stage.id]?.length && <div className="rounded-xl border border-dashed border-bdr-subtle p-5 text-center text-xs text-txt-muted">Нет работ</div>}
             </section>
           ))}
