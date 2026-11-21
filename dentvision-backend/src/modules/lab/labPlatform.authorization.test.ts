@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canLabManageShipment, canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, isLabTechnicianRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeRequestReason, validateLabRemakeDecision } from './labPlatform.authorization.js';
+import { canLabManageFinance, canLabManageShipment, canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, isLabTechnicianRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeRequestReason, validateLabRemakeDecision } from './labPlatform.authorization.js';
 
 describe('Dental Lab role boundaries', () => {
   it('recognizes only owner-level lab roles as managers', () => {
@@ -82,6 +82,20 @@ describe('Dental Lab QC validation', () => {
   });
 });
 
+
+describe('Dental Lab finance permissions', () => {
+  it('allows management and specifically assigned finance members', () => {
+    for (const role of ['owner', 'admin', 'manager', 'director', 'lab_manager', 'lab_finance', 'finance', 'accountant']) {
+      expect(canLabManageFinance(role), role).toBe(true);
+    }
+  });
+
+  it('denies production, logistics, clinic and unknown roles', () => {
+    for (const role of ['technician', 'dental_technician', 'cad_designer', 'courier', 'logistics', 'viewer', 'clinic_owner', null]) {
+      expect(canLabManageFinance(role), String(role)).toBe(false);
+    }
+  });
+});
 
 describe('Dental Lab clinic remake feedback validation', () => {
   it('requires a meaningful bounded clinic reason', () => {
