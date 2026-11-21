@@ -103,9 +103,10 @@ describe('dental lab partner finance workspace contract', () => {
     expect(financeRoutes).toContain("requestPayout({ ownerType: 'PARTNER', ownerId: membership.labId, amountMinor })");
     expect(financeRoutes).toContain('availableBalanceMinor(wallet.id)');
     const deliveryStart = financeRoutes.indexOf("labPlatformRouter.post('/orders/:id/shipment/delivery-confirmation'");
-    const financeStart = financeRoutes.indexOf("labPlatformRouter.get('/finance'");
+    const technicianStart = financeRoutes.indexOf("labPlatformRouter.patch('/orders/:id/technician'", deliveryStart);
     expect(deliveryStart).toBeGreaterThanOrEqual(0);
-    const delivery = financeRoutes.slice(deliveryStart, financeStart);
+    expect(technicianStart).toBeGreaterThan(deliveryStart);
+    const delivery = financeRoutes.slice(deliveryStart, technicianStart);
     expect(delivery).not.toContain("getPartnerEconomicsTransparency");
     expect(delivery).not.toContain('requestPayout(');
   });
