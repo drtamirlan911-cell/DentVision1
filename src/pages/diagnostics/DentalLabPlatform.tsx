@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, FlaskConical, PackageCheck, RefreshCw, Truck, Users, Wrench } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, FlaskConical, PackageCheck, RefreshCw, Truck, Users, Wallet, Wrench } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Button } from '@/components/ui/ds/Button';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { QueryError } from '@/components/ui/ds/QueryError';
 import { Tabs } from '@/components/ui/ds/Misc';
-import { getLabPlatformDashboard, getLabPlatformOrders, getLabPlatformTeam, updateLabPlatformOrderStatus, updateLabPlatformQualityControl, updateLabPlatformRemakeRequest, createLabPlatformShipment, confirmLabPlatformDelivery, type LabPlatformOrder } from '@/utils/labPlatformApi';
+import { getLabPlatformDashboard, getLabPlatformFinance, getLabPlatformOrders, getLabPlatformTeam, requestLabPlatformPayout, updateLabPlatformOrderStatus, updateLabPlatformQualityControl, updateLabPlatformRemakeRequest, createLabPlatformShipment, confirmLabPlatformDelivery, type LabPlatformOrder } from '@/utils/labPlatformApi';
 import DentalLabServicesTab from './DentalLabServicesTab';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
@@ -31,6 +31,15 @@ const NEXT: Record<string, string[]> = {
   try_in: ['adjustment', 'qc', 'remake'], adjustment: ['qc', 'remake'], qc: [], ready: [],
   delivered: [], remake: ['in_progress'], delayed: ['in_progress'],
 };
+
+function formatMinor(value: string | number | null | undefined): string {
+  const amount = Number(value || 0) / 100;
+  return `${amount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₸`;
+}
+
+function payoutStatusLabel(status: string): string {
+  return ({ requested: 'На рассмотрении', approved: 'Одобрена', paid: 'Выплачена', rejected: 'Отклонена' } as Record<string, string>)[status] || status;
+}
 
 function Status({ status }: { status: string }) {
   const tone = status === 'ready' || status === 'delivered' ? 'success' : status === 'delayed' || status === 'remake' ? 'danger' : 'outline';
@@ -193,12 +202,12 @@ function OrderCard({
 export default function DentalLabPlatform() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
-  const validTab = requestedTab === 'priority' || requestedTab === 'team' || requestedTab === 'services' || requestedTab === 'shipping' ? requestedTab : 'board';
+  const validTab = requestedTab === 'priority' || requestedTab === 'team' || requestedTab === 'services' || requestedTab === 'shipping' || requestedTab === 'finance' ? requestedTab : 'board';
   const [tab, setTab] = useState(validTab);
   const [filter, setFilter] = useState<string | undefined>();
 
   const changeTab = (nextTab: string) => {
-    const selected = nextTab === 'priority' || nextTab === 'team' || nextTab === 'services' || nextTab === 'shipping' ? nextTab : 'board';
+    const selected = nextTab === 'priority' || nextTab === 'team' || nextTab === 'services' || nextTab === 'shipping' || nextTab === 'finance' ? nextTab : 'board';
     setTab(selected);
     const nextParams = new URLSearchParams(searchParams);
     if (selected === 'board') nextParams.delete('tab');
@@ -208,8 +217,20 @@ export default function DentalLabPlatform() {
   const qc = useQueryClient();
   const context = useEcosystemUrlContext();
   const dashboard = useQuery({ queryKey: ['lab-platform', 'dashboard'], queryFn: getLabPlatformDashboard, refetchInterval: 30_000 });
-  const orders = useQuery({ queryKey: ['lab-platform', 'orders', filter], queryFn: () => getLabPlatformOrders(filter), refetchInterval: 30_000 });
-  const team = useQuery({ queryKey: ['lab-platform', 'team'], queryFn: getLabPlatformTeam, enabled: tab === 'team' });
+  const memberRole = String(dashboard.data?.membershipRole || '').toLowerCase();
+  const canManageQc = ['owner', 'admin', 'manager', 'director', 'lab_manager'].includes(memberRole);
+  const canManageShipping = canManageQc || ['courier', 'logistics', 'delivery_operator', 'dispatcher'].includes(memberRole);
+  const canManageFinance = canManageQc || ['lab_finance', 'finance', 'accountant'].includes(memberRole);
+  const canReadProduction = canManageQc || ['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician'].includes(memberRole);
+  const canReadOrders = canReadProduction || ['courier', 'logistics', 'delivery_operator', 'dispatcher'].includes(memberRole);
+  const effectiveTab = !canReadProduction && canManageFinance && !canManageShipping ? 'finance'
+    : !canReadProduction && canManageShipping ? 'shipping'
+    : (tab === 'finance' && !canManageFinance)
+      || (['team', 'services'].includes(tab) && !canManageQc)
+      || (tab === 'shipping' && !canManageShipping) ? 'board' : tab;
+  const orders = useQuery({ queryKey: ['lab-platform', 'orders', filter], queryFn: () => getLabPlatformOrders(filter), enabled: canReadOrders, refetchInterval: 30_000 });
+  const team = useQuery({ queryKey: ['lab-platform', 'team'], queryFn: getLabPlatformTeam, enabled: effectiveTab === 'team' && canManageQc });
+  const finance = useQuery({ queryKey: ['lab-platform', 'finance'], queryFn: getLabPlatformFinance, enabled: effectiveTab === 'finance' && canManageFinance, refetchInterval: 30_000 });
   const statusMutation = useMutation({ mutationFn: ({ id, status }: { id: string; status: string }) => updateLabPlatformOrderStatus(id, status), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); } });
   const qcMutation = useMutation({ mutationFn: ({ id, checks, note }: { id: string; checks: Record<string, boolean>; note: string }) => updateLabPlatformQualityControl(id, checks, note), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); } });
   const remakeMutation = useMutation({ mutationFn: ({ id, decision, note }: { id: string; decision: 'accept' | 'reject'; note: string }) => updateLabPlatformRemakeRequest(id, decision, note), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); } });
@@ -221,9 +242,14 @@ export default function DentalLabPlatform() {
     mutationFn: ({ id, body }: { id: string; body: { proofUrl: string; recipientName: string; note?: string } }) => confirmLabPlatformDelivery(id, body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); },
   });
-  const canManageQc = ['owner', 'admin', 'manager', 'director', 'lab_manager'].includes(String(dashboard.data?.membershipRole || '').toLowerCase());
-  const memberRole = String(dashboard.data?.membershipRole || '').toLowerCase();
-  const canManageShipping = canManageQc || ['courier', 'logistics', 'delivery_operator', 'dispatcher'].includes(memberRole);
+  const [payoutAmount, setPayoutAmount] = useState('');
+  const payoutMutation = useMutation({
+    mutationFn: () => requestLabPlatformPayout(Number(payoutAmount)),
+    onSuccess: () => {
+      setPayoutAmount('');
+      qc.invalidateQueries({ queryKey: ['lab-platform', 'finance'] });
+    },
+  });
 
   const grouped = useMemo(() => {
     const map: Record<string, LabPlatformOrder[]> = {};
@@ -238,11 +264,16 @@ export default function DentalLabPlatform() {
   if (!d) return <div className="p-6"><QueryError what="данные кабинета лаборатории" onRetry={() => dashboard.refetch()} /></div>;
 
   const tabs = [
-    { id: 'board', label: 'Производство', icon: <Wrench size={14} /> },
-    { id: 'priority', label: 'Приоритет', icon: <AlertTriangle size={14} /> },
-    { id: 'team', label: 'Команда', icon: <Users size={14} /> },
-    { id: 'shipping', label: 'Выдача и доставка', icon: <Truck size={14} /> },
-    { id: 'services', label: 'Услуги и цены', icon: <PackageCheck size={14} /> },
+    ...(canReadProduction ? [
+      { id: 'board', label: 'Производство', icon: <Wrench size={14} /> },
+      { id: 'priority', label: 'Приоритет', icon: <AlertTriangle size={14} /> },
+    ] : []),
+    ...(canManageQc ? [
+      { id: 'team', label: 'Команда', icon: <Users size={14} /> },
+      { id: 'services', label: 'Услуги и цены', icon: <PackageCheck size={14} /> },
+    ] : []),
+    ...(canManageShipping ? [{ id: 'shipping', label: 'Выдача и доставка', icon: <Truck size={14} /> }] : []),
+    ...(canManageFinance ? [{ id: 'finance', label: 'Финансы', icon: <Wallet size={14} /> }] : []),
   ];
 
   return (
@@ -263,8 +294,8 @@ export default function DentalLabPlatform() {
           <div className="flex items-center gap-2 text-xs text-txt-muted"><CheckCircle2 size={15} /> {d.totals.all} заказов</div>
         </div>
       </Card>
-      <Tabs tabs={tabs} active={tab} onChange={changeTab} />
-      {tab === 'board' && <>
+      <Tabs tabs={tabs} active={effectiveTab} onChange={changeTab} />
+      {effectiveTab === 'board' && <>
         <div className="flex gap-2 overflow-x-auto pb-1">
           <Button size="sm" variant={!filter ? 'secondary' : 'ghost'} onClick={() => setFilter(undefined)}>Все</Button>
           {STAGES.map((stage) => <Button key={stage.id} size="sm" variant={filter === stage.id ? 'secondary' : 'ghost'} onClick={() => setFilter(stage.id)}>{stage.label} {d.byStatus[stage.id] || 0}</Button>)}
@@ -279,13 +310,60 @@ export default function DentalLabPlatform() {
           ))}
         </div>
       </>}
-      {tab === 'priority' && <div className="grid gap-3 lg:grid-cols-2">{d.priority.map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}{!d.priority.length && <Card padding="lg"><p className="text-sm text-txt-muted">Критических работ сейчас нет.</p></Card>}</div>}
-      {tab === 'shipping' && <div className="grid gap-3 lg:grid-cols-2">
+      {effectiveTab === 'priority' && <div className="grid gap-3 lg:grid-cols-2">{d.priority.map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}{!d.priority.length && <Card padding="lg"><p className="text-sm text-txt-muted">Критических работ сейчас нет.</p></Card>}</div>}
+      {effectiveTab === 'shipping' && <div className="grid gap-3 lg:grid-cols-2">
         {(orders.data || []).filter((order) => order.status === 'ready' || order.status === 'delivered').map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}
         {!(orders.data || []).some((order) => order.status === 'ready' || order.status === 'delivered') && <Card padding="lg"><p className="text-sm text-txt-muted">Нет заказов, ожидающих отправки, самовывоза или подтверждения вручения.</p></Card>}
       </div>}
-      {tab === 'services' && <DentalLabServicesTab canManage={canManageQc} />}
-      {tab === 'team' && <Card padding="md"><div className="divide-y divide-bdr-subtle">{(team.data || []).map((member) => <div key={member.id} className="flex items-center justify-between py-3"><div><p className="text-sm font-medium">{member.firstName} {member.lastName}</p><p className="text-xs text-txt-muted">{member.email}</p></div><Badge variant="outline">{member.role || 'Сотрудник'}</Badge></div>)}{!team.data?.length && <p className="py-6 text-center text-sm text-txt-muted">Команда пока не загружена.</p>}</div></Card>}
+      {effectiveTab === 'services' && <DentalLabServicesTab canManage={canManageQc} />}
+      {effectiveTab === 'team' && <Card padding="md"><div className="divide-y divide-bdr-subtle">{(team.data || []).map((member) => <div key={member.id} className="flex items-center justify-between py-3"><div><p className="text-sm font-medium">{member.firstName} {member.lastName}</p><p className="text-xs text-txt-muted">{member.email}</p></div><Badge variant="outline">{member.role || 'Сотрудник'}</Badge></div>)}{!team.data?.length && <p className="py-6 text-center text-sm text-txt-muted">Команда пока не загружена.</p>}</div></Card>}
+      {effectiveTab === 'finance' && (!canManageFinance
+        ? <Card padding="lg"><p className="text-sm text-txt-muted">Финансовый раздел доступен владельцу, менеджеру или назначенному сотруднику финслужбы.</p></Card>
+        : finance.isLoading
+          ? <Card padding="lg"><div className="h-28 animate-pulse rounded-xl bg-surface-2" /></Card>
+          : finance.isError
+            ? <QueryError what="финансы лаборатории" onRetry={() => finance.refetch()} />
+            : finance.data && <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <Card padding="md"><p className="text-xs text-txt-muted">Баланс партнёра</p><p className="mt-2 text-xl font-semibold text-txt-primary">{formatMinor(finance.data.wallet.balance)}</p></Card>
+                <Card padding="md"><p className="text-xs text-txt-muted">Доступно к выплате</p><p className="mt-2 text-xl font-semibold text-txt-primary">{formatMinor(finance.data.availableBalanceMinor)}</p></Card>
+                <Card padding="md"><p className="text-xs text-txt-muted">Оплаченный оборот</p><p className="mt-2 text-xl font-semibold text-txt-primary">{formatMinor(finance.data.economics.totals.grossMinor)}</p></Card>
+                <Card padding="md"><p className="text-xs text-txt-muted">Комиссия DentVision</p><p className="mt-2 text-xl font-semibold text-txt-primary">{formatMinor(finance.data.economics.totals.commissionMinor)}</p></Card>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+                <Card padding="md" className="space-y-3">
+                  <div><h3 className="text-sm font-semibold text-txt-primary">Запрос выплаты</h3><p className="mt-1 text-xs text-txt-muted">Сумма резервируется на время рассмотрения. Проводка выполняется только после статуса «Выплачена».</p></div>
+                  <label className="block space-y-1 text-xs text-txt-secondary">Сумма, ₸
+                    <input type="number" min="0.01" step="0.01" value={payoutAmount} onChange={(event) => setPayoutAmount(event.target.value)} placeholder="Например, 50000" className="min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" />
+                  </label>
+                  {payoutMutation.isError && <p className="text-xs text-error">{payoutMutation.error instanceof Error ? payoutMutation.error.message : 'Не удалось создать заявку'}</p>}
+                  <Button size="sm" className="w-full" loading={payoutMutation.isPending} disabled={payoutMutation.isPending || !payoutAmount.trim() || !Number.isFinite(Number(payoutAmount)) || Number(payoutAmount) <= 0 || Number(payoutAmount) > Number(finance.data.availableBalanceMinor) / 100} onClick={() => payoutMutation.mutate()}>Запросить выплату</Button>
+                </Card>
+                <Card padding="md" className="space-y-3">
+                  <h3 className="text-sm font-semibold text-txt-primary">Заявки на выплату</h3>
+                  <div className="divide-y divide-bdr-subtle">
+                    {finance.data.payouts.map((payout) => <div key={payout.id} className="flex items-center justify-between gap-3 py-3">
+                      <div><p className="text-sm font-medium text-txt-primary">{formatMinor(payout.amount)}</p><p className="text-xs text-txt-muted">{new Date(payout.createdAt).toLocaleString('ru-RU')}</p></div>
+                      <Badge variant={payout.status === 'paid' ? 'success' : payout.status === 'rejected' ? 'danger' : 'outline'}>{payoutStatusLabel(payout.status)}</Badge>
+                    </div>)}
+                    {!finance.data.payouts.length && <p className="py-5 text-center text-xs text-txt-muted">Заявок на выплату пока нет.</p>}
+                  </div>
+                </Card>
+              </div>
+              <Card padding="md" className="space-y-3">
+                <div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold text-txt-primary">Расчёты по заказам</h3><Badge variant="outline">{finance.data.economics.totals.operations} оплат</Badge></div>
+                {finance.data.economics.rows.length ? <div className="divide-y divide-bdr-subtle">
+                  {finance.data.economics.rows.slice(0, 12).map((row) => <div key={row.transactionId} className="grid grid-cols-2 gap-2 py-3 text-xs sm:grid-cols-4">
+                    <div><p className="text-txt-muted">Заказ</p><p className="mt-1 truncate font-medium text-txt-primary">{row.operationId.slice(0, 12)}</p></div>
+                    <div><p className="text-txt-muted">Оплачено</p><p className="mt-1 font-medium text-txt-primary">{formatMinor(row.grossMinor)}</p></div>
+                    <div><p className="text-txt-muted">Комиссия</p><p className="mt-1 font-medium text-txt-primary">{formatMinor(row.commissionMinor)}</p></div>
+                    <div><p className="text-txt-muted">Доля лаборатории</p><p className="mt-1 font-medium text-txt-primary">{formatMinor(row.partnerPayoutMinor)}</p></div>
+                  </div>)}
+                </div> : <p className="py-5 text-center text-xs text-txt-muted">Оплаченных заказов пока нет. Начисления появятся после успешного расчёта.</p>}
+                {finance.data.economics.discrepancies > 0 && <p className="text-xs text-error">Обнаружены расхождения в финансовых записях: {finance.data.economics.discrepancies}.</p>}
+              </Card>
+            </div>)}
+
     </div>
   );
 }
