@@ -7,7 +7,8 @@ const { tx, prismaMock } = vi.hoisted(() => {
     $executeRaw: vi.fn(),
     payment: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), update: vi.fn() },
     transaction: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
-    wallet: { update: vi.fn() },
+    wallet: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+    payout: { findMany: vi.fn() },
   };
   return {
     tx,
@@ -26,6 +27,10 @@ beforeEach(() => {
   tx.payment.update.mockImplementation(async ({ data }: any) => ({ id: 'p1', amount: 10_000n, status: data.status }));
   tx.payment.findUniqueOrThrow.mockResolvedValue({ id: 'p1', amount: 10_000n, status: 'paid' });
   tx.transaction.create.mockImplementation(async ({ data }: any) => ({ id: 'r1', amount: data.amount, ...data }));
+  tx.wallet.findUnique.mockResolvedValue({ balance: 100_000n });
+  tx.wallet.update.mockResolvedValue({});
+  tx.wallet.updateMany.mockResolvedValue({ count: 1 });
+  tx.payout.findMany.mockResolvedValue([]);
 });
 
 function paidPayment() {
@@ -130,7 +135,8 @@ describe('refundPayment', () => {
       { walletId: 'partner', direction: 'debit', amount: 9_200n },
       { walletId: 'platform', direction: 'debit', amount: 800n },
     ]);
-    expect(tx.wallet.update).toHaveBeenCalledTimes(3);
+    expect(tx.wallet.updateMany).toHaveBeenCalledTimes(2);
+    expect(tx.wallet.update).toHaveBeenCalledTimes(1);
     expect(tx.payment.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'refunded' } }));
   });
 
@@ -144,6 +150,34 @@ describe('refundPayment', () => {
       { walletId: 'partner', direction: 'debit', amount: 4_600n },
       { walletId: 'platform', direction: 'debit', amount: 400n },
     ]);
+  });
+
+  it('refuses to reverse a partner debit after the available funds have been paid out', async () => {
+    paidDentalLabPayment();
+    tx.wallet.findUnique.mockImplementation(async ({ where }: any) => ({
+      balance: where.id === 'partner' ? 0n : 100_000n,
+    }));
+
+    await expect(refundPayment('p-dental-1', 10_000n, 'dental-after-payout', 'case refund'))
+      .rejects.toMatchObject({ code: 'INSUFFICIENT_FUNDS' });
+    expect(tx.transaction.create).not.toHaveBeenCalled();
+    expect(tx.wallet.updateMany).not.toHaveBeenCalled();
+    expect(tx.wallet.update).not.toHaveBeenCalled();
+  });
+
+  it('does not consume funds already held by a requested or approved payout', async () => {
+    paidDentalLabPayment();
+    tx.wallet.findUnique.mockImplementation(async ({ where }: any) => ({
+      balance: where.id === 'partner' ? 9_200n : 100_000n,
+    }));
+    tx.payout.findMany.mockImplementation(async ({ where }: any) =>
+      where.walletId === 'partner' ? [{ amount: 9_000n }] : [],
+    );
+
+    await expect(refundPayment('p-dental-1', 10_000n, 'dental-payout-held', 'case refund'))
+      .rejects.toMatchObject({ code: 'INSUFFICIENT_FUNDS' });
+    expect(tx.transaction.create).not.toHaveBeenCalled();
+    expect(tx.wallet.updateMany).not.toHaveBeenCalled();
   });
 
   it('reverses the original ledger with opposite directions', async () => {
