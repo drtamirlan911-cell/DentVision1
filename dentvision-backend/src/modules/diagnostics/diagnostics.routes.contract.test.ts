@@ -307,6 +307,12 @@ describe('diagnostics route contract', () => {
     expect(remove).toContain('objectCleanupPending: Boolean(storageKey)');
     expect(remove).toContain('private orphaned S3 object after metadata deletion');
     expect(source).toContain("diagnosticsRouter.delete('/referral-files/:id'");
+    const deleteStart = source.indexOf("diagnosticsRouter.delete('/referral-files/:id'");
+    const deleteEnd = source.indexOf("diagnosticsRouter.post('/referrals/:id/comments'", deleteStart);
+    const deleteRoute = source.slice(deleteStart, deleteEnd);
+    expect(deleteRoute).toContain('file.uploadedBy === req.user!.id');
+    expect(deleteRoute).toContain('canManageDiagnosticCenterTeam(req.user)');
+    expect(deleteRoute).toContain('canReadCenterClinicalFiles(req.user, referral.centerId)');
   });
 
   it('stores signed report versions, backfills legacy signatures and exposes controlled amendments', () => {
