@@ -930,7 +930,7 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Cover dashboard/orders, team visibility, technician assignment and production progression to delivered.
 - [x] Assert delivered creates no DENTAL_LAB partner-economics transaction/ledger before verified settlement.
 - [x] Verify durable event history, final clinic visibility and cross-laboratory isolation.
-- [ ] Add QC checklist and authorized sign-off.
+- [x] Add QC checklist and authorized sign-off (manager-only `/api/lab-platform/orders/:id/qc`; six required checks: fit, margins, shade, occlusion, surface, documentation; failed QC requires a note; transactional status/event write; authorization and validation tests in `labPlatform.authorization.test.ts`).
 - [ ] Add explicit remake authorization / feedback loop.
 - [ ] Add dispatch, shipping, pickup tracking and proof of delivery.
 - [ ] Add independent services catalogue and pricing management.
@@ -1076,3 +1076,10 @@ Recognition is an outcome of independently verifiable product quality and adopti
 - Added a finance unit assertion that the sale ledger stores the policy version and authoritative seller/domain scope. The test has been committed; exact-head CI is the verification gate.
 - Academy source attribution is not yet modeled as a server-authoritative enrollment field: current `SchoolEnrollment.acquisitionType` describes purchase/free/invitation/grant, not lecturer-vs-DentVision acquisition. Do not infer the 10/25/30% split from a client-provided field. Add verified campaign/referral attribution and persist it before applying split economics.
 - Supplier tiers likewise require an approved, auditable tier/contract record; current `CommissionRule` can override rates but does not itself prove STANDARD / HIGH_VOLUME / STRATEGIC qualification. Enforce the 4–5% strategic range only after that approval source is modeled.
+
+
+### D10 evidence reconciliation — Dental Laboratory QC — 2026-11-21
+
+- Re-read the active implementation rather than treating the D10 checklist as an unimplemented roadmap. Dental-lab QC already exists: assigned technicians can move production to `qc` but cannot sign off, set `ready`, deliver or authorize remake; only manager-level roles can submit the six-item checklist. A pass moves the case to `ready`; a failure requires a written note and moves it to `remake`. The transition, QC snapshot and durable event are written in one database transaction, then clinic handoff events are published.
+- Evidence: `dentvision-backend/src/modules/lab/labPlatform.authorization.ts`, `labPlatform.routes.ts`, and `labPlatform.authorization.test.ts`. The existing test covers manager/technician role boundaries, assigned-only technician progression, six required boolean checks, rejection of extra/missing checks and failure-note requirement.
+- D10 checklist updated to mark only this specific QC slice complete. This does **not** close D10: explicit clinic-authorized remake initiation/feedback, shipping/dispatch and proof of delivery, invoice/payment/settlement/payout, and full owner/manager/technician mobile acceptance remain OPEN.
