@@ -192,7 +192,7 @@ describe('diagnostics route contract', () => {
     expect(route).toContain('tx.diagnosticCenterMember.findFirst');
     expect(route).toContain('tx.personRole.findFirst');
     expect(route).toContain("role: { key: { in: ['operator', 'diagnostic_operator'] } }");
-    expect(route).toContain("role: { key: 'radiologist' }");
+    expect(route).toContain("role: { key: { in: ['radiologist', 'diagnostic_radiologist'] } }");
     expect(route).toContain('centerId, userId: operatorUserId');
     expect(route).toContain('centerId, userId: radiologistUserId');
     expect(route).toContain('tx.operator.upsert');
