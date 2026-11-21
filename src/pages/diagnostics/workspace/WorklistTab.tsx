@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Activity, CalendarClock, CheckCircle2, ClipboardList, FileText, History, RefreshCw, Search, ShieldCheck } from 'lucide-react'
+import { CalendarClock, ClipboardList, FileText, History, RefreshCw, Search, ShieldCheck } from 'lucide-react'
 import { Card } from '@/components/ui/ds/Card'
 import { Badge } from '@/components/ui/ds/Badge'
 import { Button } from '@/components/ui/ds/Button'
@@ -145,7 +145,6 @@ export function WorklistTab({ orgId }: TabProps) {
     onError: (error: Error) => toast.error(error.message || 'Не удалось подписать заключение'),
   })
 
-  const currentStatus = String(referral?.status || '')
   const selectedRow = rows.find((row: any) => row.id === selectedReferralId)
   const selectedPrice = selectedRow ? resolvePrice(selectedRow, studies) : undefined
   const resultSigned = Boolean(referral?.result?.signedAt)
@@ -401,7 +400,7 @@ export function WorklistTab({ orgId }: TabProps) {
       )}
 
       <div className="flex justify-end">
-        <Button variant="ghost" size="sm" onClick={() => { worklistQuery.refetch(); modalitiesQuery.refetch(); studiesQuery.refetch(); detailQuery.refetch() }}><RefreshCw size={14} /> Обновить очередь</Button>
+        <Button variant="ghost" size="sm" onClick={() => { worklistQuery.refetch(); modalitiesQuery.refetch(); studiesQuery.refetch(); if (selectedReferralId) detailQuery.refetch() }}><RefreshCw size={14} /> Обновить очередь</Button>
       </div>
     </div>
   )
