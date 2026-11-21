@@ -171,7 +171,7 @@ export async function requestPayout(input: RequestPayoutInput) {
     const wallet = await getOrCreateWallet(input.ownerType, input.ownerId, input.currency || 'KZT', tx);
     // Serialize requests for the same wallet so concurrent requests cannot
     // both observe the same available balance.
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'payout-wallet:' + wallet.id}))`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'wallet-funds:' + wallet.id}))`;
     const available = await availableBalanceMinor(wallet.id, tx);
     if (available < input.amountMinor) {
       throw new PayoutError(
@@ -244,17 +244,23 @@ export async function transitionPayout(
     }
 
     if (next === 'paid') {
-      // Re-check at the moment of payment rather than trusting the check made
-      // when it was requested: the balance can have moved since.
-      if (payout.wallet.balance < payout.amount) {
+      // Refunds and payouts share the same wallet-funds advisory lock. The
+      // conditional debit remains the final invariant even if another writer
+      // does not participate in that lock protocol.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'wallet-funds:' + payout.walletId}))`;
+      const debited = await tx.wallet.updateMany({
+        where: { id: payout.walletId, balance: { gte: payout.amount } },
+        data: { balance: { decrement: payout.amount } },
+      });
+      if (debited.count !== 1) {
         throw new PayoutError('INSUFFICIENT_FUNDS', 'На кошельке недостаточно средств для выплаты');
       }
 
       const gateway = await getOrCreateWallet('GATEWAY', 'system', payout.wallet.currency, tx);
 
       // The mirror of a sale: a sale debits GATEWAY and credits the seller, so
-      // a payout debits the seller and credits GATEWAY. Balanced, so
-      // `ledgerNetBalance()` stays at zero.
+      // a payout debits the seller and credits GATEWAY. The wallet debit and
+      // the double-entry ledger write are one DB transaction.
       await tx.transaction.create({
         data: {
           type: 'payout',
@@ -271,11 +277,6 @@ export async function transitionPayout(
             ],
           },
         },
-      });
-
-      await tx.wallet.update({
-        where: { id: payout.walletId },
-        data: { balance: { decrement: payout.amount } },
       });
       await tx.wallet.update({
         where: { id: gateway.id },
