@@ -842,6 +842,12 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
     }
 
+    const metaObj = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {};
+    let trustedMeta: Record<string, unknown> = clientSafePaymentMeta(metaObj);
+    let trustedSellerType: string | null | undefined = sellerType;
+    let trustedSellerId: string | null | undefined = sellerId;
+    let trustedDomain: string | null | undefined = domain;
+
     // P1-1 fix: never trust the client-submitted amount. For order/shop refTypes
     // we recompute the expected total server-side and reconcile with what the
     // caller sent; a mismatch means tampering and is rejected as 409. CRM-cashier
@@ -915,11 +921,6 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       if (medicalOrder.amountMinor !== minor) return res.status(409).json({ ok: false, error: `Сумма не совпадает с медицинским заказом: ожидалось ${medicalOrder.amountMinor}, получено ${minor}` } satisfies ApiResponse);
     }
 
-    const metaObj = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {};
-    let trustedMeta: Record<string, unknown> = clientSafePaymentMeta(metaObj);
-    let trustedSellerType: string | null | undefined = sellerType;
-    let trustedSellerId: string | null | undefined = sellerId;
-    let trustedDomain: string | null | undefined = domain;
 
     // Payment amount, entitlement and seller details for billable platform
     // references are derived from canonical DB/config data before creating a QR.
