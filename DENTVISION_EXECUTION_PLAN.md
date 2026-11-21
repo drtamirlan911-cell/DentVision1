@@ -1019,16 +1019,14 @@ Recognition is an outcome of independently verifiable product quality and adopti
 - Next action: sync the generated System Map from the canonical generator, commit the corrected output and rerun exact-HEAD CI. Then inspect the E2E result and all remaining gates before merge.
 
 
-### Partner ecosystem monetization decision — 2026-11-21
+### Partner monetization correction — 2026-11-21
 
-- Product-owner direction: the core operating cabinets for non-clinic partners are free. This includes diagnostic centers, medical-analysis laboratories, dental laboratories, suppliers/manufacturers, academies/lecturers, employers and professional groups.
-- The only standard recurring DentVision subscription is the dental-clinic CRM/practice-management plan. Do not charge partners per organization, branch, seat, listing, onboarding, referral, order or mandatory transaction commission.
-- Public discovery, patient access, referrals, result exchange and cross-partner workflow handoffs must not be artificially blocked behind a clinic CRM subscription.
-- Canonical policy amendment committed to `docs/business/DENTVISION_PARTNER_ECONOMICS.md` in the active PR branch. The amendment explicitly supersedes legacy partner subscription/commission tables; those tables are historical proposals, not implementable pricing.
-- Required implementation audit before release: billing plans and entitlements, subscription creation, checkout, invoice generation, settlement/commission code, branch billing, webhooks, Finance Hub metrics, contracts and negative tests for every non-clinic organization type.
-- Required acceptance: diagnostic center, medical lab, dental lab, supplier, academy and employer can onboard staff and complete their core workflows without a paid plan or platform take-rate; clinic CRM subscription remains independently billable.
-- Current commit for the economics policy: `91d792bfcc17411849a92e73eedd8c7def6df868`. Exact-head CI is pending/not yet evidenced for this commit. Do not merge or claim release readiness until the next exact-head checks pass.
-
+- Product-owner correction: partner cabinets are **not universally free**. DentVision's partner economy is defined by vertical-specific branch subscriptions, transaction commissions and revenue splits in `docs/business/DENTVISION_PARTNER_ECONOMICS.md`.
+- The earlier blanket-free amendment in that document contradicted its canonical commission tables and is removed. The commission and branch rates in Sections 5–9 are active policy inputs, subject to settlement-first recognition, transparent fee disclosure, volume tiers, minimums/caps and approved contract exceptions.
+- Defined models: diagnostic centers 7% per DentVision-originated order plus branch subscription; medical-analysis laboratories 6% per analysis/order plus branch subscription; dental laboratories case commissions with volume tiers plus branch subscription; Marketplace sellers 8% standard take-rate with high-volume/strategic reductions; Academy/lecturer splits of 10/90, 25/75 or 30/70 according to acquisition source.
+- Do not invent a tariff for employers or other verticals that lack an explicit rate. Clinic CRM subscriptions remain separate; do not charge a percentage of the clinic's total treatment revenue.
+- Implementation must enforce pricing server-side and record immutable settlement snapshots. Verify billing, checkout, invoices, payouts, refunds, chargebacks and Finance Hub before treating a vertical as complete.
+- The policy document has been corrected on the active PR branch. Exact-head CI is still required; no merge or release readiness is implied.
 
 ### Finance correctness fix — partial marketplace return dispute — 2026-11-21
 
