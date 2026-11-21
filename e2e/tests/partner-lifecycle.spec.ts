@@ -1318,6 +1318,25 @@ test.describe('Partner operational lifecycle', () => {
     });
     expect(deliveryEconomics, 'delivered dental-lab orders must not create economics before settlement').toHaveLength(0);
 
+    const labFinance = await api.get(`${BASE}/api/lab-orders/platform/finance`, { headers: auth(dentalLabOwnerToken) });
+    expect(labFinance.status()).toBe(200);
+    const labFinanceData = (await labFinance.json()).data;
+    expect(labFinanceData.wallet).toMatchObject({ ownerType: 'PARTNER', ownerId: fixtureDentalLabId, balance: '0' });
+    expect(labFinanceData.availableBalanceMinor).toBe('0');
+    expect(labFinanceData.economics.totals.operations).toBe(0);
+
+    const technicianCannotReadLabFinance = await api.get(`${BASE}/api/lab-orders/platform/finance`, { headers: auth(dentalTechnicianToken) });
+    expect(technicianCannotReadLabFinance.status()).toBe(403);
+    const clinicCannotReadLabFinance = await api.get(`${BASE}/api/lab-orders/platform/finance`, { headers: auth(ownerToken) });
+    expect(clinicCannotReadLabFinance.status()).toBe(403);
+
+    const insufficientPartnerPayout = await api.post(`${BASE}/api/lab-orders/platform/payouts`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { amount: '1.00' },
+    });
+    expect(insufficientPartnerPayout.status()).toBe(409);
+    expect((await insufficientPartnerPayout.json()).code).toBe('INSUFFICIENT_FUNDS');
+
     const lifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/lifecycle`, {
       headers: auth(dentalLabOwnerToken),
     });
