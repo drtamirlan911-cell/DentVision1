@@ -12,6 +12,7 @@ import { canAccessReferralBranch } from '../../lib/diagnosticReferralBranchPolic
 import { auditFromReq } from '../compliance/audit.service.js';
 import { DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS, LAB_RESULT_SIGNER_ROLE_KEYS, hasScopedPartnerSignerRole } from './signingAuthorization.js';
 import { assertClinicDoctorSignoff, ClinicalSignoffAuthorizationError } from './clinicalSignoffAuthorization.js';
+import { authorizeDiagnosticCenterStatusTransition } from './diagnosticCenterWorkflow.js';
 
 export async function claimReferralPaid(referralId: string, data: { paid: boolean; paidAt?: Date; cost?: number }): Promise<boolean> { const result = await (prisma as any).referral.updateMany({ where: { id: referralId, paid: false }, data }); return result.count === 1; }
 
@@ -374,6 +375,30 @@ diagnosticsRouter.get('/centers/:id/worklist', async (req: AuthRequest, res) => 
   }
 });
 
+diagnosticsRouter.get('/centers/:centerId/worklist/:referralId', async (req: AuthRequest, res) => {
+  try {
+    const centerId = String(req.params.centerId);
+    const referralId = String(req.params.referralId);
+    if (!sameOrgContext(req.user, 'DiagnosticCenter', centerId)) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к карточке исследования центра' });
+    }
+    const referral = await prisma.referral.findFirst({ where: { id: referralId, centerId } });
+    if (!referral) return res.status(404).json({ ok: false, error: 'Исследование не найдено в очереди этого центра' });
+    const [detail, events] = await Promise.all([
+      svc.getReferral(referralId),
+      prisma.auditLog.findMany({
+        where: { entity: 'referral', entityId: referralId },
+        select: { id: true, action: true, userName: true, details: true, createdAt: true },
+        orderBy: { createdAt: 'asc' },
+        take: 100,
+      }),
+    ]);
+    return res.json({ ok: true, data: { referral: detail, events } } satisfies ApiResponse);
+  } catch {
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить карточку исследования' } satisfies ApiResponse);
+  }
+});
+
 diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/modality', async (req: AuthRequest, res) => {
   try {
     const centerId = String(req.params.centerId);
@@ -427,7 +452,69 @@ diagnosticsRouter.get('/referrals', async (req: AuthRequest, res) => {
 diagnosticsRouter.post('/referrals', async (req: AuthRequest, res) => { try { const body = req.body as any; const clinicId = String(body.clinicId || '').trim(); if (!clinicId) return res.status(400).json({ ok: false, error: 'clinicId обязателен' }); if (!(await assertClinicOrgAccess(req.user!, clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' }); if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, clinicId))) return; if (!(await patientBelongsToClinic(body.patientId, clinicId))) return res.status(403).json({ ok: false, error: 'Пациент не относится к выбранной клинике' }); const targetBranchId = body.branchId ? String(body.branchId) : await patientBranch(body.patientId, clinicId); if (!targetBranchId) return res.status(403).json({ ok: false, error: 'Для направления не определён филиал' }); if (!(await referralBranchAllowed(req.user!, { clinicId, branchId: targetBranchId }))) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу направления' }); let doctorId = req.user!.id; if (body.doctorId && body.doctorId !== req.user!.id) { const candidateDoctorId = String(body.doctorId); const doctorAccess = await resolveClinicAccess(candidateDoctorId, clinicId); if (!doctorAccess || !['DOCTOR', 'OWNER', 'DIRECTOR'].includes(doctorAccess.role)) return res.status(403).json({ ok: false, error: 'Указанный врач не имеет клинической роли в выбранной клинике' }); doctorId = candidateDoctorId; } if (body.centerId) { const center = await svc.getCenter(String(body.centerId)); if (!center) return res.status(404).json({ ok: false, error: 'Диагностический центр не найден' }); } if (body.labId) { const lab = await svc.getLaboratory(String(body.labId)); if (!lab) return res.status(404).json({ ok: false, error: 'Лаборатория не найдена' }); } const data = { ...body, clinicId, branchId: targetBranchId, doctorId }; delete data.id; delete data.status; delete data.cost; delete data.platformFee; delete data.paid; delete data.paidAt; delete data.settlementId; const referral = await svc.createReferral(data, req.user!.id); return res.status(201).json({ ok: true, data: referral } satisfies ApiResponse); } catch (e: any) { if (e instanceof IinValidationError) return res.status(400).json({ ok: false, error: e.message }); return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.get('/referrals/:id', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const data = await svc.getReferral(req.params.id); if (!data) return res.status(404).json({ ok: false, error: 'Referral not found' }); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.patch('/referrals/:id', requireReferralAccess(), async (req: AuthRequest, res) => { try { const allowed = ['patientName','patientIin','patientBirth','patientGender','patientPhone','patientEmail','pregnancy','allergies','specialNotes','category','studyType','anatomicalSites','complaints','preliminaryDx','studyGoal','commentForDoctor','commentForLab','priority','centerId','labId','scheduledDate','scheduledTime']; const data: Record<string, unknown> = {}; for (const key of allowed) if (key in req.body) data[key] = req.body[key]; if (data.centerId) { const center = await svc.getCenter(String(data.centerId)); if (!center) return res.status(404).json({ ok: false, error: 'Диагностический центр не найден' }); } if (data.labId) { const lab = await svc.getLaboratory(String(data.labId)); if (!lab) return res.status(404).json({ ok: false, error: 'Лаборатория не найдена' }); } return res.json({ ok: true, data: await svc.updateReferral(req.params.id, data, req.user!.id) } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
-diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const status = String(req.body?.status || '').toUpperCase(); const allowed = ['DRAFT','SENT','ACCEPTED','SCHEDULED','PATIENT_ARRIVED','IN_PROGRESS','COMPLETED','REVIEWED','DELIVERED','CLOSED','CANCELLED']; if (!allowed.includes(status)) return res.status(400).json({ ok: false, error: 'Недопустимый статус направления' }); const data = await svc.changeReferralStatus(req.params.id, status as any, req.user!.id, req.body?.reason, req.body?.cost); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), async (req: AuthRequest, res) => {
+  try {
+    const status = String(req.body?.status || '').trim().toUpperCase();
+    const allowed = ['DRAFT', 'SENT', 'ACCEPTED', 'SCHEDULED', 'PATIENT_ARRIVED', 'IN_PROGRESS', 'COMPLETED', 'REVIEWED', 'DELIVERED', 'CLOSED', 'CANCELLED'];
+    if (!allowed.includes(status)) return res.status(400).json({ ok: false, error: 'Недопустимый статус направления' });
+
+    const referral = await prisma.referral.findUnique({
+      where: { id: String(req.params.id) },
+      select: { id: true, centerId: true, status: true, result: { select: { signedAt: true } } },
+    });
+    if (!referral) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
+
+    const isCenterActor = Boolean(referral.centerId)
+      && req.user?.role !== 'SUPERADMIN'
+      && sameOrgContext(req.user, 'DiagnosticCenter', String(referral.centerId));
+    let options: { expectedStatus?: any; scheduledDate?: Date; scheduledTime?: string } | undefined;
+    if (isCenterActor) {
+      const roleKeys = await activePartnerRoleKeys(req.user);
+      const decision = authorizeDiagnosticCenterStatusTransition({
+        currentStatus: String(referral.status),
+        nextStatus: status,
+        roleKeys,
+        resultSignedAt: referral.result?.signedAt,
+      });
+      if (!decision.allowed) {
+        return res.status(decision.status).json({ ok: false, error: decision.reason, code: decision.code } satisfies ApiResponse);
+      }
+      options = { expectedStatus: referral.status };
+      if (status === 'SCHEDULED') {
+        const dateValue = String(req.body?.scheduledDate || '').trim();
+        const timeValue = String(req.body?.scheduledTime || '').trim();
+        const validDate = /^\d{4}-\d{2}-\d{2}$/.test(dateValue) && !Number.isNaN(new Date(dateValue + 'T00:00:00.000Z').getTime());
+        const validTime = /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(timeValue);
+        if (!validDate || !validTime) {
+          return res.status(400).json({ ok: false, error: 'Для записи укажите корректную дату и время исследования.', code: 'DIAGNOSTIC_SCHEDULE_REQUIRED' } satisfies ApiResponse);
+        }
+        options.scheduledDate = new Date(dateValue + 'T00:00:00.000Z');
+        options.scheduledTime = timeValue;
+      }
+    }
+
+    const cost = req.body?.cost === undefined ? undefined : Number(req.body.cost);
+    if (cost !== undefined && (!Number.isFinite(cost) || cost <= 0)) {
+      return res.status(400).json({ ok: false, error: 'Стоимость исследования должна быть положительным числом.' } satisfies ApiResponse);
+    }
+    const data = await svc.changeReferralStatus(
+      req.params.id,
+      status as any,
+      req.user!.id,
+      req.body?.reason,
+      cost,
+      options,
+    );
+    return res.json({ ok: true, data } satisfies ApiResponse);
+  } catch (error: any) {
+    const conflict = String(error?.code || '') === 'REFERRAL_STATUS_CONFLICT';
+    return res.status(conflict ? 409 : 400).json({
+      ok: false,
+      error: conflict ? 'Статус направления уже изменился. Обновите очередь и повторите действие.' : error.message,
+      ...(conflict ? { code: 'REFERRAL_STATUS_CONFLICT' } : {}),
+    } satisfies ApiResponse);
+  }
+});
 
 // Cashier collection is a money-state transition, not a referral status.
 // Keep it separate from /status so COMPLETED and PAID cannot be conflated.
