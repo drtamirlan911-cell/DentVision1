@@ -700,6 +700,12 @@ test.describe('Partner operational lifecycle', () => {
     expect(acquisition.status()).toBe(200);
     expect((await acquisition.json()).data.status).toBe('IN_PROGRESS');
 
+    const operatorCannotSign = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/sign`, {
+      headers: auth(operatorScopedToken),
+      data: { reportText: 'Operator must not sign this report', conclusion: 'Unauthorized' },
+    });
+    expect(operatorCannotSign.status()).toBe(403);
+
     const unsignedCompletion = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
       headers: auth(centerOwnerToken),
       data: { status: 'COMPLETED' },
