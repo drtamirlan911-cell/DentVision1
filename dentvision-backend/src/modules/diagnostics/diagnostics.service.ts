@@ -1,6 +1,7 @@
 import prisma from '../../lib/prisma.js';
 import { resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { assertClinicDoctorSignoff } from './clinicalSignoffAuthorization.js';
+import { DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS, hasScopedPartnerSignerRole } from './signingAuthorization.js';
 import { uid } from '../../lib/helpers.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { simpleChat } from '../ai/llm/client.js';
@@ -768,6 +769,27 @@ export async function saveAndSignResult(data: {
   if (!referral) throw new Error('Referral not found');
   if (!data.doctorId) throw new Error('Пользователь обязателен для подписания результата');
   const partnerSigner = data.signerScope === 'diagnostic_center' || data.signerScope === 'laboratory';
+  if (data.signerScope === 'diagnostic_center') {
+    if (!referral.centerId || !referral.radiologistId) {
+      throw new Error('Для подписания результата необходимо назначить рентгенолога на исследование.');
+    }
+    const organization = await prisma.organization.findFirst({
+      where: { originalType: 'DiagnosticCenter', originalId: referral.centerId, archivedAt: null },
+      select: { id: true },
+    });
+    const [assignedRadiologist, hasSignerRole] = await Promise.all([
+      prisma.radiologist.findFirst({
+        where: { id: referral.radiologistId, centerId: referral.centerId, userId: data.doctorId, active: true },
+        select: { id: true },
+      }),
+      organization
+        ? hasScopedPartnerSignerRole({ id: data.doctorId, organizationId: organization.id }, DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS)
+        : Promise.resolve(false),
+    ]);
+    if (!assignedRadiologist || !hasSignerRole) {
+      throw new Error('Подписать заключение может только назначенный рентгенолог этого центра.');
+    }
+  }
   if (!partnerSigner) {
     await assertClinicDoctorSignoff({
       userId: data.doctorId,
