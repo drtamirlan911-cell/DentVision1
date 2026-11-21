@@ -10,6 +10,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { buildSupplierDashboard, buildSupplierInsights, getSupplierOrders } from './supplierDashboard.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
+import { orderHasSupplierLine } from './supplierOrderOwnership.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Supplier Workspace (self-service cabinet). All routes operate strictly on the
@@ -260,16 +261,12 @@ supplierWorkspaceRouter.post('/orders/:id/delivery-confirmation', requireSupplie
 
 async function supplierOwnsOrderLine(supplierId: string, orderId: string, client: any = prisma): Promise<boolean> {
   const [order, products] = await Promise.all([
-    client.order.findUnique({ where: { id: orderId }, select: { id: true, supplierId: true, items: true } }),
+    client.order.findUnique({ where: { id: orderId }, select: { id: true, items: true } }),
     client.product.findMany({ where: { supplierId }, select: { id: true } }),
   ]);
-  if (!order || (order.supplierId && order.supplierId !== supplierId)) return false;
+  if (!order) return false;
   const productIds = new Set(products.map((product: { id: string }) => product.id));
-  const items = Array.isArray(order.items) ? order.items as Array<Record<string, unknown>> : [];
-  return items.some((item) => {
-    const productId = String(item.productId || item.product_id || '');
-    return productId.length > 0 && productIds.has(productId);
-  });
+  return orderHasSupplierLine(order.items, supplierId, productIds);
 }
 
 // Supplier answers are evidence for platform adjudication, not a financial instruction.

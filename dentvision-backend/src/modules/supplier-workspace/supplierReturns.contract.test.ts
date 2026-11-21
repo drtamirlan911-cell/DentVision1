@@ -18,6 +18,7 @@ describe('supplier return response boundary', () => {
   it('requires the active supplier write role and verifies ownership of an order line', () => {
     expect(routes).toContain("supplierWorkspaceRouter.post('/returns/:id/respond', requireSupplierWrite");
     expect(routes).toContain('supplierOwnsOrderLine(supplierId, dispute.refId, tx)');
+    expect(routes).toContain('orderHasSupplierLine(order.items, supplierId, productIds)');
     expect(routes).toContain("['order', 'shop_order'].includes(refType)");
     expect(routes).toContain('ACKNOWLEDGE_RETURN_REQUEST');
     expect(routes).toContain('CONTEST_RETURN_REQUEST');
