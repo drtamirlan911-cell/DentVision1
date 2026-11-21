@@ -121,43 +121,26 @@ test.describe('Partner operational lifecycle', () => {
       role: 'STUDENT' as any,
     });
     centerRadiologistId = radiologist.id;
-    await prisma.diagnosticCenterMember.create({
-      data: { centerId: fixtureCenterId, userId: centerRadiologistId, role: 'radiologist' },
+    const radiologistInvite = await api.post(`${BASE}/api/iam/invitations`, {
+      headers: auth(centerOwnerToken),
+      data: { organizationId: centerOrgId, role: 'radiologist', email: radiologist.email },
     });
-    const radiologistPerson = await prisma.person.create({
-      data: {
-        id: randomUUID(),
-        fullName: 'E2E Radiologist',
-        personType: 'RADIOLOGIST',
-        organizationId: centerOrgId,
-        userId: centerRadiologistId,
-      },
-    });
+    expect(radiologistInvite.status(), await radiologistInvite.text()).toBe(201);
+    const radiologistInviteCode = (await radiologistInvite.json()).data.code;
+    expect(radiologistInviteCode).toMatch(/^[0-9A-F]{8}$/);
 
-    await prisma.branchMember.create({
-      data: {
-        personId: radiologistPerson.id,
-        branchId: centerTokenPayload.branchId!,
-      },
-    });
-    const radiologistRole = await prisma.role.findUnique({ where: { key: 'radiologist' }, select: { id: true } });
-    expect(radiologistRole?.id).toBeTruthy();
-    await prisma.personRole.create({
-      data: {
-        id: randomUUID(),
-        personId: radiologistPerson.id,
-        roleId: radiologistRole!.id,
-        scopeType: 'organization',
-        scopeId: centerOrgId,
-        scopeKey: `organization:${centerOrgId}`,
-      },
-    });
     const radiologistBaseToken = await login(api, radiologist.email);
+    const radiologistJoin = await api.post(`${BASE}/api/iam/join-by-invite`, {
+      headers: auth(radiologistBaseToken),
+      data: { code: radiologistInviteCode },
+    });
+    expect(radiologistJoin.status(), await radiologistJoin.text()).toBe(201);
     const radiologistContextsRes = await api.get(`${BASE}/api/iam/me/contexts`, { headers: auth(radiologistBaseToken) });
     expect(radiologistContextsRes.status()).toBe(200);
     const radiologistContexts = (await radiologistContextsRes.json()).data?.contexts || [];
     const radiologistContext = radiologistContexts.find((item: any) => item.scopeType === 'DIAGNOSTIC_CENTER' && item.organizationId === centerOrgId);
     expect(radiologistContext).toBeTruthy();
+    expect(radiologistContext.roleKey).toBe('diagnostic_radiologist');
     const switchedRadiologist = await api.post(`${BASE}/api/iam/switch-context`, {
       headers: auth(radiologistBaseToken),
       data: { scopeType: radiologistContext.scopeType, scopeId: radiologistContext.scopeId, branchId: radiologistContext.branchId },
@@ -545,30 +528,34 @@ test.describe('Partner operational lifecycle', () => {
       lastName: 'Operator',
       role: 'STUDENT' as any,
     });
-    const operatorPerson = await prisma.person.create({
-      data: {
-        id: randomUUID(),
-        fullName: 'E2E Operator',
-        personType: 'OPERATOR',
-        organizationId: centerOrganization!.id,
-        userId: operatorUser.id,
-      },
+    const operatorInvite = await api.post(`${BASE}/api/iam/invitations`, {
+      headers: auth(centerOwnerToken),
+      data: { organizationId: centerOrganization!.id, role: 'operator', email: operatorUser.email },
     });
-    await prisma.diagnosticCenterMember.create({
-      data: { centerId, userId: operatorUser.id, role: 'operator' },
+    expect(operatorInvite.status(), await operatorInvite.text()).toBe(201);
+    const operatorInviteCode = (await operatorInvite.json()).data.code;
+    expect(operatorInviteCode).toMatch(/^[0-9A-F]{8}$/);
+    const operatorBaseToken = await login(api, operatorUser.email);
+    const operatorJoin = await api.post(`${BASE}/api/iam/join-by-invite`, {
+      headers: auth(operatorBaseToken),
+      data: { code: operatorInviteCode },
     });
-    const operatorRole = await prisma.role.findUnique({ where: { key: 'operator' }, select: { id: true } });
-    expect(operatorRole?.id).toBeTruthy();
-    await prisma.personRole.create({
-      data: {
-        id: randomUUID(),
-        personId: operatorPerson.id,
-        roleId: operatorRole!.id,
-        scopeType: 'organization',
-        scopeId: centerOrganization!.id,
-        scopeKey: `organization:${centerOrganization!.id}`,
-      },
+    expect(operatorJoin.status(), await operatorJoin.text()).toBe(201);
+    const operatorContextsRes = await api.get(`${BASE}/api/iam/me/contexts`, { headers: auth(operatorBaseToken) });
+    expect(operatorContextsRes.status()).toBe(200);
+    const operatorContexts = (await operatorContextsRes.json()).data?.contexts || [];
+    const operatorContext = operatorContexts.find((item: any) => item.scopeType === 'DIAGNOSTIC_CENTER' && item.organizationId === centerOrganization!.id);
+    expect(operatorContext?.roleKey).toBe('diagnostic_operator');
+    const switchedOperator = await api.post(`${BASE}/api/iam/switch-context`, {
+      headers: auth(operatorBaseToken),
+      data: { scopeType: operatorContext.scopeType, scopeId: operatorContext.scopeId, branchId: operatorContext.branchId },
     });
+    expect(switchedOperator.status(), await switchedOperator.text()).toBe(200);
+    const operatorScopedToken = (await switchedOperator.json()).data.accessToken;
+    expect(operatorScopedToken).toBeTruthy();
+    const operatorTokenClaims = JSON.parse(Buffer.from(operatorScopedToken.split('.')[1], 'base64url').toString('utf8')) as { role?: string; organizationType?: string };
+    expect(operatorTokenClaims.role).toBe('ASSISTANT');
+    expect(operatorTokenClaims.organizationType).toBe('DIAGNOSTIC_CENTER');
 
     const staffList = await api.get(`${BASE}/api/diagnostics/centers/${centerId}/worklist/staff`, {
       headers: auth(centerOwnerToken),
