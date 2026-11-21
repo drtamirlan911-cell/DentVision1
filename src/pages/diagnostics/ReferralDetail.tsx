@@ -123,7 +123,25 @@ export default function ReferralDetail() {
         {referral.preliminaryDx && <Card padding="md"><h3 className="text-sm font-semibold text-txt-primary mb-3">Предварительный диагноз</h3><p className="text-sm text-txt-secondary">{referral.preliminaryDx}</p></Card>}
       </div>
 
-      {referral.files && referral.files.length > 0 && <Card padding="md"><h3 className="text-sm font-semibold text-txt-primary mb-3">Файлы ({referral.files.length})</h3><div className="space-y-2">{referral.files.map((f: any) => <div key={f.id} className="flex items-center gap-3 p-2 rounded-lg bg-surface-1"><FileText size={16} className="text-dv-gold shrink-0" /><span className="text-sm text-txt-primary flex-1 truncate">{f.fileName}</span><span className="text-xs text-txt-muted">{new Date(f.createdAt).toLocaleDateString('ru-RU')}</span></div>)}</div></Card>}
+      {referral.files && referral.files.length > 0 && (
+        <Card padding="md">
+          <h3 className="text-sm font-semibold text-txt-primary mb-3">Файлы исследования ({referral.files.length})</h3>
+          <div className="space-y-2">
+            {referral.files.map((file: any) => (
+              <div key={file.id} className="flex min-w-0 items-center gap-3 rounded-lg bg-surface-1 p-2">
+                <FileText size={16} className="shrink-0 text-dv-gold" />
+                <span className="min-w-0 flex-1 truncate text-sm text-txt-primary">{file.fileName}</span>
+                <span className="shrink-0 text-xs text-txt-muted">{new Date(file.createdAt).toLocaleDateString('ru-RU')}</span>
+                {file.fileUrl ? (
+                  <a href={file.fileUrl} target="_blank" rel="noreferrer" className="min-h-11 shrink-0 rounded-lg px-3 py-2 text-xs font-medium text-accent underline">Открыть</a>
+                ) : (
+                  <span className="shrink-0 text-xs text-txt-muted" title="Файл загружен до подключения объектного хранилища или хранилище недоступно">Недоступен</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card padding="md">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4"><h3 className="text-sm font-semibold text-txt-primary">Результат исследования</h3><div className="flex flex-wrap gap-2">
