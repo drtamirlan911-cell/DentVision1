@@ -1216,12 +1216,97 @@ test.describe('Partner operational lifecycle', () => {
       { timeout: 10_000, interval: 250 },
     ).toBeGreaterThan(0);
 
-    const delivered = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
+    const deliveryBypass = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
       headers: auth(dentalLabOwnerToken),
-      data: { status: 'delivered', note: 'PARTNER-003 delivered after QC' },
+      data: { status: 'delivered', note: 'PARTNER-003 must not bypass shipment' },
+    });
+    expect(deliveryBypass.status()).toBe(409);
+    expect((await deliveryBypass.json()).code).toBe('LAB_SHIPMENT_REQUIRED');
+
+    const invalidShipment = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { method: 'COURIER', carrier: 'Test Carrier', trackingNumber: 'TRACK-003', trackingUrl: 'http://tracking.example/003' },
+    });
+    expect(invalidShipment.status()).toBe(400);
+
+    const clinicCannotDispatch = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment`, {
+      headers: auth(ownerToken),
+      data: { method: 'PICKUP' },
+    });
+    expect(clinicCannotDispatch.status()).toBe(403);
+
+    const crossTenantDispatch = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment`, {
+      headers: auth(labOwnerToken),
+      data: { method: 'PICKUP' },
+    });
+    expect(crossTenantDispatch.status()).toBe(404);
+
+    const shipment = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment`, {
+      headers: auth(dentalLabOwnerToken),
+      data: {
+        method: 'COURIER',
+        carrier: 'E2E Courier',
+        trackingNumber: 'DV-PARTNER-003',
+        trackingUrl: 'https://tracking.example/dv-partner-003',
+        note: 'PARTNER-003 handed to courier',
+      },
+    });
+    expect(shipment.status()).toBe(201);
+    const shipmentBody = (await shipment.json()).data;
+    expect(shipmentBody.shipment).toMatchObject({
+      method: 'COURIER',
+      carrier: 'E2E Courier',
+      trackingNumber: 'DV-PARTNER-003',
+      status: 'dispatched',
+    });
+    expect(shipmentBody.order.status).toBe('ready');
+
+    const repeatedShipment = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment`, {
+      headers: auth(dentalLabOwnerToken),
+      data: {
+        method: 'COURIER',
+        carrier: 'E2E Courier',
+        trackingNumber: 'DV-PARTNER-003',
+        trackingUrl: 'https://tracking.example/dv-partner-003',
+        note: 'PARTNER-003 handed to courier',
+      },
+    });
+    expect(repeatedShipment.status()).toBe(200);
+    expect((await repeatedShipment.json()).data.idempotent).toBe(true);
+
+    const invalidProof = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment/delivery-confirmation`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { proofUrl: 'http://proof.example/receipt', recipientName: 'Clinic Reception' },
+    });
+    expect(invalidProof.status()).toBe(400);
+
+    const delivered = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment/delivery-confirmation`, {
+      headers: auth(dentalLabOwnerToken),
+      data: {
+        proofUrl: 'https://proof.example/receipts/partner-003',
+        recipientName: 'Clinic Reception',
+        note: 'PARTNER-003 delivery accepted by clinic',
+      },
     });
     expect(delivered.status()).toBe(200);
-    expect((await delivered.json()).data.status).toBe('delivered');
+    const deliveryBody = (await delivered.json()).data;
+    expect(deliveryBody.order.status).toBe('delivered');
+    expect(deliveryBody.shipment).toMatchObject({
+      status: 'delivered',
+      recipientName: 'Clinic Reception',
+      proofUrl: 'https://proof.example/receipts/partner-003',
+    });
+
+    const repeatedDelivery = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment/delivery-confirmation`, {
+      headers: auth(dentalLabOwnerToken),
+      data: {
+        proofUrl: 'https://proof.example/receipts/partner-003',
+        recipientName: 'Clinic Reception',
+        note: 'PARTNER-003 delivery accepted by clinic',
+      },
+    });
+    expect(repeatedDelivery.status()).toBe(200);
+    expect((await repeatedDelivery.json()).data.idempotent).toBe(true);
 
     // Delivery confirms operational completion, not a commercial settlement.
     // Allow the in-process event queue to drain, then assert there is no partner
@@ -1241,6 +1326,9 @@ test.describe('Partner operational lifecycle', () => {
     expect(lifecycleData.events.length).toBeGreaterThanOrEqual(8);
     expect(lifecycleData.events[0].fromStatus).toBeNull();
     expect(lifecycleData.events[0].note).toContain('Передан в лабораторию');
+    expect(lifecycleData.order.shipment).toMatchObject({ status: 'delivered', method: 'COURIER' });
+    expect(lifecycleData.shipmentEvents).toHaveLength(2);
+    expect(lifecycleData.shipmentEvents.map((event: any) => event.eventType)).toEqual(['DISPATCHED', 'DELIVERED']);
 
     const clinicRead = await api.get(`${BASE}/api/lab-orders`, { headers: auth(ownerToken) });
     expect(clinicRead.status()).toBe(200);
