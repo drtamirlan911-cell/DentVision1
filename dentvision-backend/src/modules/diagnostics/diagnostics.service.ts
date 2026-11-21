@@ -1126,51 +1126,76 @@ export async function amendDiagnosticCenterResult(data: {
  * existing signed-result workflow and is never performed by the AI itself.
  */
 export async function confirmAiResult(referralId: string, userId: string) {
-  const referral = await prisma.referral.findUnique({
+  const referralSnapshot = await prisma.referral.findUnique({
     where: { id: referralId },
     include: { result: true },
   });
-  if (!referral) throw new Error('Referral not found');
-  if (!referral.result) throw new Error('AI result not found');
-  if (!referral.result.aiGenerated) throw new Error('Результат не является AI-результатом');
-  if (referral.result.signedAt) throw new Error('Результат уже подтверждён');
+  if (!referralSnapshot) throw new Error('Referral not found');
+  if (!referralSnapshot.result) throw new Error('AI result not found');
+  if (!referralSnapshot.result.aiGenerated) throw new Error('Результат не является AI-результатом');
+  if (referralSnapshot.result.signedAt) throw new Error('Результат уже подтверждён');
 
   await assertClinicDoctorSignoff({
     userId,
-    clinicId: referral.clinicId,
-    branchId: referral.branchId,
-    assignedDoctorId: referral.doctorId,
+    clinicId: referralSnapshot.clinicId,
+    branchId: referralSnapshot.branchId,
+    assignedDoctorId: referralSnapshot.doctorId,
   });
 
-  const now = new Date();
-  const result = await prisma.diagnosticResult.update({
-    where: { referralId },
-    data: { signedBy: userId, signedAt: now },
-  });
-
-  const updatedReferral = await prisma.referral.update({
-    where: { id: referralId },
-    data: { status: 'COMPLETED', completedAt: now },
-  });
-
-  await writeAuditLog({
-    action: 'AI_RESULT_CONFIRMED',
-    entity: 'referral',
-    entityId: referralId,
-    details: { resultId: result.id, confirmedBy: userId, aiGenerated: true },
-    userId,
-    clinicId: referral.clinicId,
+  const confirmation = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "referrals" WHERE "id" = ${referralId} FOR UPDATE`;
+    const referral = await tx.referral.findUnique({ where: { id: referralId }, include: { result: true } });
+    if (!referral?.result) throw new Error('AI result not found');
+    if (!referral.result.aiGenerated) throw new Error('Результат не является AI-результатом');
+    if (referral.result.signedAt) {
+      throw Object.assign(new Error('Результат уже подтверждён'), { code: 'DIAGNOSTIC_RESULT_ALREADY_SIGNED' });
+    }
+    const now = new Date();
+    const result = await tx.diagnosticResult.update({
+      where: { id: referral.result.id },
+      data: { signedBy: userId, signedAt: now },
+    });
+    const latest = await tx.diagnosticResultVersion.findFirst({
+      where: { diagnosticResultId: result.id },
+      orderBy: { version: 'desc' },
+      select: { version: true },
+    });
+    const version = (latest?.version || 0) + 1;
+    await tx.diagnosticResultVersion.create({
+      data: {
+        id: uid(),
+        diagnosticResultId: result.id,
+        version,
+        reportText: result.reportText,
+        conclusion: result.conclusion,
+        signedBy: userId,
+        signedAt: now,
+        changeReason: null,
+      },
+    });
+    const updatedReferral = await tx.referral.update({
+      where: { id: referralId },
+      data: { status: 'COMPLETED', completedAt: now },
+    });
+    await writeAuditLog({
+      action: 'AI_RESULT_CONFIRMED',
+      entity: 'referral',
+      entityId: referralId,
+      details: { resultId: result.id, confirmedBy: userId, aiGenerated: true, version },
+      userId,
+      clinicId: referral.clinicId,
+    }, tx);
+    return { result, referral: updatedReferral, confirmedBy: userId, version };
   });
 
   publish('diagnostics.result_confirmed', {
     referralId,
-    resultId: result.id,
-    clinicId: referral.clinicId || '',
-    doctorId: referral.doctorId || '',
+    resultId: confirmation.result.id,
+    clinicId: referralSnapshot.clinicId || '',
+    doctorId: referralSnapshot.doctorId || '',
     userId,
   });
-
-  return { result, referral: updatedReferral, confirmedBy: userId };
+  return confirmation;
 }
 
 // ─── Seed test data ───
