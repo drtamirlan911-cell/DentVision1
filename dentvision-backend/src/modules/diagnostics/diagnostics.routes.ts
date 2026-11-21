@@ -522,7 +522,7 @@ diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/assignees', asy
               scopeType: 'organization',
               scopeId: organizationId,
               person: { userId: radiologistUserId, organizationId },
-              role: { key: 'radiologist' },
+              role: { key: { in: ['radiologist', 'diagnostic_radiologist'] } },
             },
             select: { id: true },
           });
