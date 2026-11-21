@@ -53,7 +53,7 @@ export function TeamTab({ config, orgId }: TabProps) {
     enabled: Boolean(orgId && isDiagnosticCenter),
     retry: false,
   })
-  const staff = staffData?.data || staffData || []
+  const staff = staffData || []
 
   const createMutation = useMutation({
     mutationFn: () =>
