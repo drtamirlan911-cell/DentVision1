@@ -556,6 +556,8 @@ test.describe('Partner operational lifecycle', () => {
         fileName: 'diagnostic-e2e.png',
         fileType: 'image/png',
       });
+      expect(uploadedFile.fileUrl).toBeUndefined();
+      expect(uploadedFile.downloadAvailable).toBe(true);
       const referralWithAttachment = await api.get(`${BASE}/api/diagnostics/referrals/${referral.id}`, {
         headers: auth(centerOwnerToken),
       });
