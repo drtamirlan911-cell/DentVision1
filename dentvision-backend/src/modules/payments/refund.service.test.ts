@@ -193,7 +193,9 @@ describe('refundPayment', () => {
       { walletId: 'platform', direction: 'debit', amount: 1_000n },
     ]);
     expect(tx.payment.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'refunded' } }));
-    expect(tx.wallet.update).toHaveBeenCalledTimes(3);
+    expect(tx.wallet.updateMany).toHaveBeenCalledTimes(2);
+    expect(tx.wallet.update).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledWith(expect.stringContaining('wallet-funds:'));
     expect(tx.transaction.create.mock.calls[0][0].data.meta.originalTransactionIds).toEqual(['sale-1']);
   });
 
@@ -216,6 +218,7 @@ describe('refundPayment', () => {
     expect(result.alreadyProcessed).toBe(true);
     expect(tx.transaction.create).not.toHaveBeenCalled();
     expect(tx.wallet.update).not.toHaveBeenCalled();
+    expect(tx.wallet.updateMany).not.toHaveBeenCalled();
   });
 
   it('rejects an amount beyond the remaining refundable balance', async () => {
