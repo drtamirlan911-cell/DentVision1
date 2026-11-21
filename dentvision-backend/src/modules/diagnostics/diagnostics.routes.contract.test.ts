@@ -205,4 +205,21 @@ describe('diagnostics route contract', () => {
     expect(teamUi).toContain('Сотрудники центра');
   });
 
+  it('keeps team listing and staff assignment manager-only and center/role scoped', () => {
+    const listStart = source.indexOf("diagnosticsRouter.get('/centers/:id/worklist/staff'");
+    const assignStart = source.indexOf("diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/assignees'");
+    const modalityStart = source.indexOf("diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/modality'", assignStart);
+    const listRoute = source.slice(listStart, assignStart);
+    const assignRoute = source.slice(assignStart, modalityStart);
+    expect(listRoute).toContain("sameOrgContext(req.user, 'DiagnosticCenter', centerId)");
+    expect(listRoute).toContain('canManageDiagnosticCenterTeam(req.user)');
+    expect(assignRoute).toContain("sameOrgContext(req.user, 'DiagnosticCenter', centerId)");
+    expect(assignRoute).toContain('canManageDiagnosticCenterTeam(req.user)');
+    expect(assignRoute).toContain("role: 'operator'");
+    expect(assignRoute).toContain("role: 'radiologist'");
+    expect(assignRoute).toContain('tx.personRole.findFirst');
+    expect(assignRoute).toContain('tx.audit');
+    expect(assignRoute).toContain('FOR UPDATE');
+  });
+
 });
