@@ -288,6 +288,8 @@ describe('diagnostics route contract', () => {
     expect(PARTNER_ROLE_BY_KEY.DIAGNOSTIC_OWNER.permissions).toContain('files.read');
     expect(PARTNER_ROLE_BY_KEY.DIAGNOSTIC_OWNER.permissions).toContain('medical.read');
     expect(PARTNER_ROLE_BY_KEY.RADIOLOGIST.permissions).toContain('medical.read');
+    expect(source).toContain("DIAGNOSTIC_RADIOLOGIST: 'RADIOLOGIST'");
+    expect(source).toContain('canonicalRoleAliases[roleKey] || roleKey');
     expect(PARTNER_ROLE_BY_KEY.DIAGNOSTIC_OPERATOR.permissions).toContain('files.read');
     expect(PARTNER_ROLE_BY_KEY.DIAGNOSTIC_OPERATOR.permissions).not.toContain('medical.read');
     expect(PARTNER_ROLE_BY_KEY.DIAGNOSTIC_RECEPTION.permissions).toContain('files.read');
