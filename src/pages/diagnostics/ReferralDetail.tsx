@@ -41,6 +41,25 @@ export default function ReferralDetail() {
   const referral = data?.data;
   const result = referral?.result;
 
+  const openReferralFile = async (fileId: string) => {
+    if (!id) return;
+    const popup = window.open('about:blank', '_blank');
+    try {
+      const signed = await api.getDiagnosticReferralFileDownloadUrl(id, fileId);
+      const target = String(signed?.url || '');
+      if (!/^https?:\\/\\//i.test(target)) throw new Error('Ссылка на файл не получена.');
+      if (popup) {
+        popup.opener = null;
+        popup.location.href = target;
+      } else {
+        window.location.assign(target);
+      }
+    } catch (error) {
+      popup?.close();
+      toast.error(error instanceof Error ? error.message : 'Не удалось открыть файл исследования');
+    }
+  };
+
   useEffect(() => {
     if (result?.reportText) { setReportText(result.reportText); setConclusion(result.conclusion || ''); }
   }, [result]);
@@ -132,10 +151,10 @@ export default function ReferralDetail() {
                 <FileText size={16} className="shrink-0 text-dv-gold" />
                 <span className="min-w-0 flex-1 truncate text-sm text-txt-primary">{file.fileName}</span>
                 <span className="shrink-0 text-xs text-txt-muted">{new Date(file.createdAt).toLocaleDateString('ru-RU')}</span>
-                {file.fileUrl ? (
-                  <a href={file.fileUrl} target="_blank" rel="noreferrer" className="min-h-11 shrink-0 rounded-lg px-3 py-2 text-xs font-medium text-accent underline">Открыть</a>
+                {file.downloadAvailable ? (
+                  <button type="button" onClick={() => void openReferralFile(file.id)} className="min-h-11 shrink-0 rounded-lg px-3 py-2 text-xs font-medium text-accent underline">Открыть</button>
                 ) : (
-                  <span className="shrink-0 text-xs text-txt-muted" title="Файл загружен до подключения объектного хранилища или хранилище недоступно">Недоступен</span>
+                  <span className="shrink-0 text-xs text-txt-muted" title="Файл загружен до подключения объектного хранилища или хранилище временно недоступно">Недоступен</span>
                 )}
               </div>
             ))}
