@@ -44,21 +44,40 @@ async function ensureClinicSubscriptionWritableIfClinicActor(req: AuthRequest, r
 }
 
 function sameOrgContext(user: AuthRequest['user'], type: 'DiagnosticCenter' | 'Laboratory', id: string): boolean { if (!user || !id) return false; if (user.role === 'SUPERADMIN') return true; const expected = type === 'DiagnosticCenter' ? 'DIAGNOSTIC_CENTER' : 'LABORATORY'; const entityId = (user as any).organizationOriginalId || user.organizationId; return entityId === id && (user as any).organizationType === expected; }
-function canManagePartnerBilling(user: AuthRequest['user']): boolean {
-  if (!user) return false;
-  const role = String(user.role || '').toUpperCase();
-  if (['SUPERADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'DIRECTOR', 'CASHIER'].includes(role)) return true;
-  // Partner-specific roles follow the same financial-control suffixes while
-  // keeping registrars/operators out of money-state mutations.
-  return /_(OWNER|ADMIN|MANAGER|DIRECTOR|CASHIER|FINANCE)$/.test(role);
+/**
+ * Partner role checks must use the canonical organization-scoped PersonRole.
+ * Auth middleware maps partner-only roles to the least-privileged STUDENT
+ * compatibility enum, so req.user.role is not the permission source.
+ */
+async function activePartnerRoleKeys(user: AuthRequest['user']): Promise<string[]> {
+  const organizationId = user?.organizationId;
+  if (!user || !organizationId) return [];
+  const memberships = await prisma.personRole.findMany({
+    where: {
+      scopeType: 'organization',
+      scopeId: organizationId,
+      person: { userId: user.id, organizationId },
+    },
+    select: { role: { select: { key: true } } },
+  });
+  return memberships.map((membership) => String(membership.role.key || '').trim().toLowerCase()).filter(Boolean);
 }
-function canManagePartnerCatalog(user: AuthRequest['user']): boolean {
+function hasPartnerManagementSuffix(keys: string[], allowCashier: boolean): boolean {
+  const suffix = allowCashier
+    ? /(?:^|_)(OWNER|ADMIN|MANAGER|DIRECTOR|CASHIER|FINANCE)$/
+    : /(?:^|_)(OWNER|ADMIN|MANAGER|DIRECTOR|FINANCE)$/;
+  return keys.some((key) => suffix.test(key.toUpperCase()));
+}
+async function canManagePartnerBilling(user: AuthRequest['user']): Promise<boolean> {
   if (!user) return false;
-  const role = String(user.role || '').toUpperCase();
-  if (['SUPERADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'DIRECTOR'].includes(role)) return true;
-  // Catalog/pricing is a privileged configuration mutation, not a cashier
-  // collection action. Partner-specific cashier roles must not reach it.
-  return /_(OWNER|ADMIN|MANAGER|DIRECTOR|FINANCE)$/.test(role);
+  if (user.role === 'SUPERADMIN') return true;
+  return hasPartnerManagementSuffix(await activePartnerRoleKeys(user), true);
+}
+async function canManagePartnerCatalog(user: AuthRequest['user']): Promise<boolean> {
+  if (!user) return false;
+  if (user.role === 'SUPERADMIN') return true;
+  // Cashiers can collect payments but must never change the catalogue/equipment.
+  return hasPartnerManagementSuffix(await activePartnerRoleKeys(user), false);
 }
 async function referralBranchAllowed(user: AuthRequest['user'], referral: { clinicId: string; branchId?: string | null }): Promise<boolean> { if (user.role === 'SUPERADMIN') return true; return canAccessReferralBranch(user, { clinicId: referral.clinicId, branchId: referral.branchId ?? null }); }
 async function referralListBranchIds(user: AuthRequest['user'], clinicId?: string): Promise<string[] | undefined> {
@@ -202,7 +221,7 @@ diagnosticsRouter.get('/lab-tests', async (req: AuthRequest, res) => {
 diagnosticsRouter.patch('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'DiagnosticCenter', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к центру' });
-    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
+    if (!(await canManagePartnerCatalog(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
     const studies = Array.isArray(req.body?.studies) ? req.body.studies : [];
     const ids = studies.map((x: any) => String(x?.id || '')).filter(Boolean);
     if (!ids.length) return res.json({ ok: true, data: [] } satisfies ApiResponse);
@@ -217,7 +236,7 @@ diagnosticsRouter.patch('/centers/:id/pricing', async (req: AuthRequest, res) =>
 diagnosticsRouter.post('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'DiagnosticCenter', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к центру' });
-    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
+    if (!(await canManagePartnerCatalog(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
     const name = String(req.body?.name || '').trim();
     const category = String(req.body?.category || '').toUpperCase();
     if (!name || !category) return res.status(400).json({ ok: false, error: 'Название и категория обязательны' });
@@ -228,7 +247,7 @@ diagnosticsRouter.post('/centers/:id/pricing', async (req: AuthRequest, res) => 
 diagnosticsRouter.patch('/laboratories/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'Laboratory', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к лаборатории' });
-    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
+    if (!(await canManagePartnerCatalog(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
     const tests = Array.isArray(req.body?.tests) ? req.body.tests : [];
     const ids = tests.map((x: any) => String(x?.id || '')).filter(Boolean);
     if (!ids.length) return res.json({ ok: true, data: [] } satisfies ApiResponse);
@@ -243,7 +262,7 @@ diagnosticsRouter.patch('/laboratories/:id/pricing', async (req: AuthRequest, re
 diagnosticsRouter.post('/laboratories/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'Laboratory', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к лаборатории' });
-    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
+    if (!(await canManagePartnerCatalog(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
     const name = String(req.body?.name || '').trim();
     const category = String(req.body?.category || '').toUpperCase();
     if (!name || !category) return res.status(400).json({ ok: false, error: 'Название и категория обязательны' });
@@ -276,7 +295,7 @@ diagnosticsRouter.post('/centers/:id/modalities', async (req: AuthRequest, res) 
   try {
     const centerId = String(req.params.id);
     if (!sameOrgContext(req.user, 'DiagnosticCenter', centerId)) return res.status(403).json({ ok: false, error: 'Нет доступа к оборудованию центра' });
-    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления оборудованием' });
+    if (!(await canManagePartnerCatalog(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления оборудованием' });
     const name = String(req.body?.name || '').trim();
     const kind = String(req.body?.kind || '').trim().toUpperCase();
     const aeTitle = String(req.body?.aeTitle || '').trim().toUpperCase();
@@ -305,7 +324,7 @@ diagnosticsRouter.patch('/centers/:id/modalities/:modalityId', async (req: AuthR
     const centerId = String(req.params.id);
     const modalityId = String(req.params.modalityId);
     if (!sameOrgContext(req.user, 'DiagnosticCenter', centerId)) return res.status(403).json({ ok: false, error: 'Нет доступа к оборудованию центра' });
-    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления оборудованием' });
+    if (!(await canManagePartnerCatalog(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления оборудованием' });
     const patch: Record<string, unknown> = {};
     if ('name' in req.body) patch.name = String(req.body.name || '').trim();
     if ('kind' in req.body) patch.kind = String(req.body.kind || '').trim().toUpperCase();
@@ -360,7 +379,7 @@ diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/modality', asyn
     const centerId = String(req.params.centerId);
     const referralId = String(req.params.referralId);
     if (!sameOrgContext(req.user, 'DiagnosticCenter', centerId)) return res.status(403).json({ ok: false, error: 'Нет доступа к рабочей очереди центра' });
-    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для назначения оборудования' });
+    if (!(await canManagePartnerCatalog(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для назначения оборудования' });
     const referral = await prisma.referral.findFirst({ where: { id: referralId, centerId }, select: { id: true } });
     if (!referral) return res.status(404).json({ ok: false, error: 'Исследование не найдено в очереди этого центра' });
     const modalityId = req.body?.modalityId ? String(req.body.modalityId) : null;
@@ -414,7 +433,7 @@ diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), asy
 // Keep it separate from /status so COMPLETED and PAID cannot be conflated.
 diagnosticsRouter.post('/referrals/:id/mark-paid', requireReferralAccess(true), async (req: AuthRequest, res: any) => {
   try {
-    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
+    if (!(await canManagePartnerBilling(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
     const cost = req.body?.cost === undefined ? undefined : Number(req.body.cost);
     if (cost !== undefined && (!Number.isFinite(cost) || cost < 0)) return res.status(400).json({ ok: false, error: 'Некорректная стоимость' });
     const won = await claimReferralPaid(req.params.id, { paid: true, paidAt: new Date(), ...(cost !== undefined ? { cost } : {}),  });
@@ -426,7 +445,7 @@ diagnosticsRouter.post('/referrals/:id/mark-paid', requireReferralAccess(true), 
 diagnosticsRouter.post('/centers/:id/cashier/collect', async (req: AuthRequest, res: any) => {
   try {
     if (!sameOrgContext(req.user, 'DiagnosticCenter', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к центру' });
-    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
+    if (!(await canManagePartnerBilling(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
     const referralId = String(req.body?.referralId || '');
     const cost = Number(req.body?.cost);
     const platformFee = undefined;
@@ -441,7 +460,7 @@ diagnosticsRouter.post('/centers/:id/cashier/collect', async (req: AuthRequest, 
 diagnosticsRouter.post('/laboratories/:id/cashier/collect', async (req: AuthRequest, res: any) => {
   try {
     if (!sameOrgContext(req.user, 'Laboratory', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к лаборатории' });
-    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
+    if (!(await canManagePartnerBilling(req.user))) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
     const referralId = String(req.body?.referralId || '');
     const cost = Number(req.body?.cost);
     if (!referralId || !Number.isFinite(cost) || cost <= 0) return res.status(400).json({ ok: false, error: 'Некорректные данные оплаты' });
