@@ -75,6 +75,7 @@ function serializeLabOrder(order: {
   status: string; type: string | null; notes: string | null; files: unknown;
   deadline: Date | null; price: number | null; serviceId?: string | null; serviceNameSnapshot?: string | null; servicePriceSnapshot?: number | null; createdAt: Date; updatedAt: Date;
   doctorId?: string | null;
+  dentalLabInvoice?: { id: string; invoiceNumber: string; amountMinor: bigint; refundedMinor: bigint; currency: string; status: string; issuedAt: Date; paidAt: Date | null; paymentId: string | null } | null;
 }) {
   const meta = (order.files as { meta?: LabOrderMeta } | null)?.meta || {};
   return {
@@ -86,6 +87,17 @@ function serializeLabOrder(order: {
     tryInDate: meta.tryInDate || null,
     remakeRequest: meta.remakeRequest || null,
     payment: meta.payment || null,
+    invoice: order.dentalLabInvoice ? {
+      id: order.dentalLabInvoice.id,
+      invoiceNumber: order.dentalLabInvoice.invoiceNumber,
+      amountMinor: order.dentalLabInvoice.amountMinor.toString(),
+      refundedMinor: order.dentalLabInvoice.refundedMinor.toString(),
+      currency: order.dentalLabInvoice.currency,
+      status: order.dentalLabInvoice.status,
+      issuedAt: order.dentalLabInvoice.issuedAt,
+      paidAt: order.dentalLabInvoice.paidAt,
+      paymentId: order.dentalLabInvoice.paymentId,
+    } : null,
     treatmentCaseId: meta.treatmentCaseId || null, doctorId: order.doctorId ?? meta.doctorId ?? null,
     serviceId: order.serviceId ?? null, serviceName: order.serviceNameSnapshot ?? null, servicePriceSnapshot: order.servicePriceSnapshot ?? null,
     dueDate: order.deadline, notes: order.notes, status: order.status, price: order.price,
@@ -114,7 +126,7 @@ labRouter.get('/', requirePermission('lab.read'), async (req: AuthRequest, res) 
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '200'), 10) || 200, 1), 1000);
-    const orders = await prisma.labOrder.findMany({ where: { clinicId, ...branchScopedLabOrder(req) }, orderBy: { createdAt: 'desc' }, take: limit });
+    const orders = await prisma.labOrder.findMany({ where: { clinicId, ...branchScopedLabOrder(req) }, include: { dentalLabInvoice: true }, orderBy: { createdAt: 'desc' }, take: limit });
     return res.json({ ok: true, data: orders.map(serializeLabOrder) } satisfies ApiResponse);
   } catch (error: any) {
     console.error('[Lab] list error:', error);
