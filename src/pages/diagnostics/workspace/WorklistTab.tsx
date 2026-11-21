@@ -393,9 +393,14 @@ export function WorklistTab({ orgId }: TabProps) {
                   <p className="flex items-center gap-2 text-xs font-semibold text-txt-primary"><FileText size={14} /> Материалы и заключение</p>
                   <div className="rounded-lg border border-bdr-subtle p-3">
                     {referral.files?.length ? referral.files.map((file: any) => (
-                      <a key={file.id} href={file.fileUrl} target="_blank" rel="noreferrer" className="mb-2 flex min-h-9 items-center justify-between gap-2 text-xs text-accent underline">
-                        <span className="truncate">{file.fileName || 'Файл исследования'}</span><span>{file.fileType || 'Файл'}</span>
-                      </a>
+                      <div key={file.id} className="mb-2 flex min-h-9 items-center justify-between gap-2 text-xs">
+                        <span className="min-w-0 truncate text-txt-primary">{file.fileName || 'Файл исследования'} <span className="text-txt-muted">· {file.fileType || 'Файл'}</span></span>
+                        {file.fileUrl ? (
+                          <a href={file.fileUrl} target="_blank" rel="noreferrer" className="min-h-9 shrink-0 px-2 py-2 text-accent underline">Открыть</a>
+                        ) : (
+                          <span className="shrink-0 text-txt-muted" title="Файл загружен до подключения объектного хранилища или хранилище недоступно">Недоступен</span>
+                        )}
+                      </div>
                     )) : <p className="text-xs text-txt-muted">Материалы ещё не приложены клиникой.</p>}
                     {referral.result?.reportText && <div className="mt-3 border-t border-bdr-subtle pt-3">
                       <div className="flex items-center gap-2"><ShieldCheck size={14} /><p className="text-xs font-semibold text-txt-primary">Заключение</p></div>
