@@ -43,6 +43,7 @@ const statements = [
     "id" TEXT NOT NULL,
     "orderId" TEXT NOT NULL,
     "testId" TEXT,
+    "priceMinor" BIGINT,
     "name" TEXT NOT NULL,
     "analyteCode" TEXT,
     "result" TEXT,
@@ -57,6 +58,7 @@ const statements = [
     "updatedAt" TIMESTAMP(3),
     CONSTRAINT "medical_lab_order_tests_pkey" PRIMARY KEY ("id")
   )`,
+  `ALTER TABLE "medical_lab_order_tests" ADD COLUMN IF NOT EXISTS "priceMinor" BIGINT`,
   `CREATE INDEX IF NOT EXISTS "medical_lab_order_tests_orderId_idx" ON "medical_lab_order_tests"("orderId")`,
   `CREATE INDEX IF NOT EXISTS "medical_lab_order_tests_testId_idx" ON "medical_lab_order_tests"("testId")`,
   `DO $$ BEGIN ALTER TABLE "medical_lab_order_tests" ADD CONSTRAINT "medical_lab_order_tests_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "medical_lab_orders"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
