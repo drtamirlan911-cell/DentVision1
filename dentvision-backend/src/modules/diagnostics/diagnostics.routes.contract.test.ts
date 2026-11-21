@@ -243,4 +243,22 @@ describe('diagnostics route contract', () => {
     expect(iamContexts).toContain("diagnostic_operator: 'ASSISTANT'");
   });
 
+
+  it('requires the assigned radiologist for signing and result release', () => {
+    const statusStart = source.indexOf("diagnosticsRouter.post('/referrals/:id/status'");
+    const signStart = source.indexOf("diagnosticsRouter.post('/referrals/:id/results/sign'");
+    const statusRoute = source.slice(statusStart, signStart);
+    const signRoute = source.slice(signStart);
+    expect(statusRoute).toContain('isAssignedRadiologist');
+    expect(statusRoute).toContain('referral.radiologistId');
+    expect(statusRoute).toContain('userId: req.user!.id, active: true');
+    expect(signRoute).toContain('referral.radiologistId');
+    expect(signRoute).toContain('hasScopedPartnerSignerRole(req.user!, DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS)');
+    expect(signRoute).toContain('userId: req.user!.id, active: true');
+    expect(serviceSource).toContain("data.signerScope === 'diagnostic_center'");
+    expect(serviceSource).toContain('assignedRadiologist');
+    expect(serviceSource).toContain('hasSignerRole');
+    expect(worklistUi).toContain('referral.radiologist.user.id === user?.id');
+  });
+
 });
