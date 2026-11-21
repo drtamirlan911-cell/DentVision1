@@ -492,7 +492,7 @@ test.describe('Partner operational lifecycle', () => {
         aeTitle: 'DVE2ECBCT',
       },
     });
-    expect(modalityCreate.status()).toBe(201);
+    expect(modalityCreate.status(), await modalityCreate.text()).toBe(201);
     const modality = (await modalityCreate.json()).data;
     expect(modality.centerId).toBe(centerId);
     expect(modality.status).toBe('active');
