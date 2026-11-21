@@ -167,9 +167,18 @@ async function hasPartnerScopedPermission(
   if (!user) return false;
   if (user.role === 'SUPERADMIN') return true;
   const roleKeys = await activePartnerRoleKeys(user);
-  return roleKeys.some((key) =>
-    Boolean(PARTNER_ROLE_BY_KEY[String(key).toUpperCase()]?.permissions.includes(permission)),
-  );
+  const canonicalRoleAliases: Record<string, string> = {
+    DIAGNOSTIC_RADIOLOGIST: 'RADIOLOGIST',
+    CENTER_RECEPTION: 'DIAGNOSTIC_RECEPTION',
+    RECEPTION: 'DIAGNOSTIC_RECEPTION',
+    RECEPTIONIST: 'DIAGNOSTIC_RECEPTION',
+    MODALITY_TECHNICIAN: 'RADIOLOGY_TECHNICIAN',
+  };
+  return roleKeys.some((key) => {
+    const roleKey = String(key).toUpperCase();
+    const canonicalRoleKey = canonicalRoleAliases[roleKey] || roleKey;
+    return Boolean(PARTNER_ROLE_BY_KEY[canonicalRoleKey]?.permissions.includes(permission));
+  });
 }
 
 async function canReadCenterClinicalFiles(user: AuthRequest['user'], centerId?: string | null): Promise<boolean> {
