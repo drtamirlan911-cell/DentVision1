@@ -455,6 +455,10 @@ test.describe('Partner operational lifecycle', () => {
         studyType: 'Конусно-лучевая КТ (КЛКТ)',
         centerId,
         complaints: 'E2E diagnostic workflow',
+        preliminaryDx: 'Confidential preliminary diagnosis',
+        allergies: 'E2E allergy: latex',
+        specialNotes: 'Confidential clinical note for radiologist only',
+        pregnancy: true,
       },
     });
     expect(referralRes.status()).toBe(201);
@@ -557,8 +561,17 @@ test.describe('Partner operational lifecycle', () => {
       });
       expect(referralWithAttachment.status()).toBe(200);
       const storedAttachment = (await referralWithAttachment.json()).data.files.find((file: any) => file.id === uploadedFile.id);
-      expect(storedAttachment?.fileUrl).toMatch(/^https:\/\//);
-      expect(storedAttachment?.fileUrl).not.toContain('s3://');
+      expect(storedAttachment?.fileUrl).toBeNull();
+      expect(storedAttachment?.downloadAvailable).toBe(true);
+      const attachmentDownload = await api.get(
+        `${BASE}/api/diagnostics/referrals/${referral.id}/files/${uploadedFile.id}/download-url`,
+        { headers: auth(centerOwnerToken) },
+      );
+      expect(attachmentDownload.status(), await attachmentDownload.text()).toBe(200);
+      const attachmentDownloadBody = (await attachmentDownload.json()).data;
+      expect(attachmentDownloadBody.url).toMatch(/^https:\/\//);
+      expect(attachmentDownloadBody.url).not.toContain('s3://');
+      expect(attachmentDownloadBody.expiresInSeconds).toBe(300);
       const deleteAttachment = await api.delete(`${BASE}/api/diagnostics/referral-files/${uploadedFile.id}`, {
         headers: auth(centerOwnerToken),
       });
@@ -650,6 +663,31 @@ test.describe('Partner operational lifecycle', () => {
       operator: { user: { id: operatorUser.id } },
       radiologist: { user: { id: centerRadiologistId } },
     });
+
+    const operatorOperationalDetail = await api.get(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}`,
+      { headers: auth(operatorScopedToken) },
+    );
+    expect(operatorOperationalDetail.status(), await operatorOperationalDetail.text()).toBe(200);
+    const operatorReferral = (await operatorOperationalDetail.json()).data.referral;
+    expect(operatorReferral.patientName).toBe('Partner Lifecycle');
+    expect(operatorReferral.allergies).toBeUndefined();
+    expect(operatorReferral.specialNotes).toBeUndefined();
+    expect(operatorReferral.pregnancy).toBeUndefined();
+    expect(operatorReferral.preliminaryDx).toBeUndefined();
+    expect(operatorReferral.result).toBeUndefined();
+    expect((await operatorOperationalDetail.json()).data.capabilities).toMatchObject({
+      canReadClinical: false,
+      canReadFiles: true,
+    });
+
+    const operatorCanReadFileScope = await api.get(
+      `${BASE}/api/diagnostics/referrals/${referral.id}/files/${randomUUID()}/download-url`,
+      { headers: auth(operatorScopedToken) },
+    );
+    // Authorization succeeds through the scoped files.read role; only then
+    // does the API report that this particular test file ID does not exist.
+    expect(operatorCanReadFileScope.status()).toBe(404);
 
     const foreignClinicCannotRequestDiagnosticFile = await api.get(
       `${BASE}/api/diagnostics/referrals/${referral.id}/files/${randomUUID()}/download-url`,
