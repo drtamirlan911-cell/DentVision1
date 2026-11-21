@@ -10,7 +10,7 @@ import { QueryError } from '@/components/ui/ds/QueryError';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 import { useAuth } from '@/store/auth.store';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
-import { createMedicalLabOrder, getMedicalLabOrder, listMedicalLabOrders, performMedicalLabQualityControl, saveMedicalLabInterpretation, saveMedicalLabResults, updateMedicalLabStatus, verifyMedicalLabOrder, type MedicalLabOrder, type MedicalLabStatus } from '@/utils/medicalLabApi';
+import { createMedicalLabAliquot, createMedicalLabOrder, createMedicalLabSpecimen, getMedicalLabOrder, listMedicalLabOrders, performMedicalLabQualityControl, saveMedicalLabInterpretation, saveMedicalLabResults, scanMedicalLabSpecimen, updateMedicalLabStatus, verifyMedicalLabOrder, type MedicalLabOrder, type MedicalLabStatus } from '@/utils/medicalLabApi';
 
 const STAGES: Array<{ id: MedicalLabStatus; label: string }> = [
   { id: 'ordered', label: 'Направлено' }, { id: 'sample_collected', label: 'Материал взят' }, { id: 'received', label: 'Принято' }, { id: 'processing', label: 'Исследование' }, { id: 'result_ready', label: 'Результат' }, { id: 'verified', label: 'Проверено' },
@@ -29,6 +29,10 @@ export default function MedicalLabWorkspace() {
   const [specimenType, setSpecimenType] = useState('');
   const [interpretation, setInterpretation] = useState('');
   const [qualityNote, setQualityNote] = useState('');
+  const [containerType, setContainerType] = useState('Вакуумная пробирка');
+  const [specimenLocation, setSpecimenLocation] = useState('Приёмка');
+  const [barcodeScan, setBarcodeScan] = useState('');
+  const [scanNote, setScanNote] = useState('');
   const [resultDrafts, setResultDrafts] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
   const listQuery = useQuery({ queryKey: ['medical-lab-orders', context.patientId, context.caseId], queryFn: () => listMedicalLabOrders({ patientId: context.patientId || undefined, caseId: context.caseId || undefined }) });
@@ -45,6 +49,25 @@ export default function MedicalLabWorkspace() {
     mutationFn: ({ id, decision, note }: { id: string; decision: 'passed' | 'failed'; note?: string }) => performMedicalLabQualityControl(id, decision, note),
     onSuccess: () => { setQualityNote(''); refresh(); },
   });
+  const specimenMutation = useMutation({
+    mutationFn: ({ id, specimenType, containerType, location }: { id: string; specimenType?: string; containerType?: string; location?: string }) =>
+      createMedicalLabSpecimen(id, { specimenType, containerType, location }),
+    onSuccess: (specimen) => {
+      setContainerType('Вакуумная пробирка');
+      refresh();
+      if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(specimen.accessionNumber).catch(() => undefined);
+    },
+  });
+  const scanMutation = useMutation({
+    mutationFn: ({ id, barcode, note }: { id: string; barcode: string; note?: string }) =>
+      scanMedicalLabSpecimen(id, { barcode, action: 'received', location: specimenLocation, note }),
+    onSuccess: () => { setBarcodeScan(''); setScanNote(''); refresh(); },
+  });
+  const aliquotMutation = useMutation({
+    mutationFn: ({ id, specimenId }: { id: string; specimenId: string }) =>
+      createMedicalLabAliquot(id, specimenId, { containerType: 'Пробирка аликвоты', location: specimenLocation }),
+    onSuccess: refresh,
+  });
   const createMutation = useMutation({ mutationFn: () => createMedicalLabOrder({ patientId: context.patientId || undefined, treatmentCaseId: context.caseId || undefined, specimenType: specimenType || undefined, tests: [{ name: testName.trim() }] }), onSuccess: (order) => { setSelectedId(order.id); setTestName(''); setSpecimenType(''); setCreating(false); refresh(); } });
   const orders = listQuery.data ?? EMPTY_ORDERS;
   const selected = detailQuery.data;
@@ -60,7 +83,11 @@ export default function MedicalLabWorkspace() {
     setInterpretation(selected.order.interpretation || '');
   }, [selected]);
   const counts = useMemo(() => orders.reduce<Record<string, number>>((acc, item) => { acc[item.status] = (acc[item.status] || 0) + 1; return acc; }, {}), [orders]);
-  const currentNext = selected?.order.status ? NEXT[selected.order.status] : undefined;
+  const currentNext = selected?.order.status
+    ? (selected.order.accessionRequired && (selected.order.status === 'ordered' || selected.order.status === 'sample_collected')
+      ? undefined
+      : NEXT[selected.order.status])
+    : undefined;
   const currentNextCapability = selected?.order.status === 'ordered' ? 'specimen.collect'
     : selected?.order.status === 'sample_collected' ? 'specimen.receive'
       : selected?.order.status === 'received' ? 'order.process' : null;
@@ -99,6 +126,75 @@ export default function MedicalLabWorkspace() {
               {selected.order.status === 'result_ready' && qualityControl?.decision === 'failed' && hasCapability('order.process') && <Button className="mt-2 w-full" variant="outline" disabled={statusMutation.isPending} onClick={() => statusMutation.mutate({ id: selected.order.id, status: 'processing' })}>Вернуть на повторное исследование</Button>}
               {selected.order.status === 'result_ready' && qualityControl?.decision === 'passed' && hasCapability('result.verify') && <Button className="mt-2 w-full" variant="outline" disabled={verifyMutation.isPending} onClick={() => verifyMutation.mutate(selected.order.id)}><CheckCircle2 className="mr-2 h-4 w-4" />Независимо выпустить результат</Button>}
               </Card>
+
+            {selected.order.accessionRequired && activeLabScope && (
+              <Card className="border-bdr-subtle bg-surface-1 p-5 space-y-4">
+                <div>
+                  <div className="text-sm font-semibold text-txt-primary">Accession и прослеживаемость образцов</div>
+                  <p className="mt-1 text-xs text-txt-muted">Каждая физическая пробирка получает собственный barcode. Приёмка фиксирует сотрудника, время и место.</p>
+                </div>
+                {hasCapability('specimen.collect') && (selected.order.status === 'ordered' || selected.order.status === 'sample_collected') && (
+                  <div className="rounded-xl border border-bdr-subtle bg-surface-2 p-3 space-y-2">
+                    <div className="text-xs font-medium text-txt-secondary">Регистрация новой пробирки</div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <input aria-label="Тип контейнера" value={containerType} onChange={(event) => setContainerType(event.target.value)} className="min-h-11 rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" placeholder="Тип контейнера" />
+                      <input aria-label="Место регистрации образца" value={specimenLocation} onChange={(event) => setSpecimenLocation(event.target.value)} className="min-h-11 rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" placeholder="Место / стойка" />
+                    </div>
+                    <Button className="w-full" disabled={specimenMutation.isPending} onClick={() => specimenMutation.mutate({ id: selected.order.id, specimenType: selected.order.specimenType || undefined, containerType, location: specimenLocation })}>
+                      {specimenMutation.isPending ? 'Регистрируем…' : 'Создать barcode пробирки'}
+                    </Button>
+                  </div>
+                )}
+                {hasCapability('specimen.receive') && selected.order.status === 'sample_collected' && (
+                  <div className="rounded-xl border border-bdr-subtle p-3 space-y-2">
+                    <div className="text-xs font-medium text-txt-secondary">Сканирование при приёмке</div>
+                    <input aria-label="Barcode образца" value={barcodeScan} onChange={(event) => setBarcodeScan(event.target.value)} className="min-h-12 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm font-mono text-txt-primary" placeholder="Сканируйте или введите DVL-…" />
+                    <input aria-label="Комментарий при приёмке" value={scanNote} onChange={(event) => setScanNote(event.target.value)} className="min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" placeholder="Комментарий (необязательно)" />
+                    <Button className="w-full" disabled={!barcodeScan.trim() || scanMutation.isPending} onClick={() => scanMutation.mutate({ id: selected.order.id, barcode: barcodeScan, note: scanNote || undefined })}>
+                      {scanMutation.isPending ? 'Проверяем barcode…' : 'Подтвердить приёмку сканированием'}
+                    </Button>
+                  </div>
+                )}
+                {(selected.specimens || []).length === 0 ? (
+                  <p className="text-xs text-txt-muted">Физические образцы ещё не зарегистрированы.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {(selected.specimens || []).map((specimen) => (
+                      <div key={specimen.id} className="rounded-xl border border-bdr-subtle p-3 space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <code className="font-mono text-sm font-semibold text-txt-primary">{specimen.accessionNumber}</code>
+                          <Badge variant={specimen.status === 'received' || specimen.status === 'processing' || specimen.status === 'consumed' ? 'success' : specimen.status === 'rejected' ? 'error' : 'warning'}>{specimen.status}</Badge>
+                        </div>
+                        <div className="text-xs text-txt-muted">
+                          {specimen.specimenType} · {specimen.containerType || 'Контейнер не указан'}{specimen.volume ? ' · ' + specimen.volume + ' ' + (specimen.volumeUnit || '') : ''}
+                        </div>
+                        {specimen.parentSpecimenId && <p className="text-xs text-txt-secondary">Аликвота родительского образца {specimen.parentSpecimenId.slice(0, 8)}</p>}
+                        {hasCapability('specimen.collect') && (specimen.status === 'received' || specimen.status === 'processing') && (
+                          <Button size="sm" variant="outline" disabled={aliquotMutation.isPending} onClick={() => aliquotMutation.mutate({ id: selected.order.id, specimenId: specimen.id })}>
+                            Создать аликвоту
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {(selected.specimenEvents || []).length > 0 && (
+                  <div className="border-t border-bdr-subtle pt-3">
+                    <div className="mb-2 text-xs font-semibold text-txt-secondary">Цепочка движения образца</div>
+                    <ol className="space-y-2">
+                      {(selected.specimenEvents || []).map((event) => (
+                        <li key={event.id} className="text-xs text-txt-secondary">
+                          <span className="font-medium text-txt-primary">{event.eventType}</span>
+                          {event.note ? ' · ' + event.note : ''}
+                          {event.location ? ' · ' + event.location : ''}
+                          <span className="ml-1 text-txt-muted">{new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Almaty' }).format(new Date(event.createdAt))}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+              </Card>
+            )}
             <Card className="border-bdr-subtle bg-surface-1 p-5"><div className="mb-4 flex items-center justify-between gap-3"><div className="text-sm font-semibold text-txt-primary">Результаты</div>{selected.order.status === 'processing' && hasCapability('result.write') && <Badge>Ввод результата</Badge>}</div><div className="space-y-3">{selected.tests.map((test) => <div key={test.id} className="rounded-xl border border-bdr-subtle p-3"><div className="text-sm font-medium text-txt-primary">{test.name}</div><div className="mt-2 flex gap-2">{selected.order.status === 'processing' && hasCapability('result.write') ? <input value={resultDrafts[test.id] ?? ''} onChange={(e) => setResultDrafts((prev) => ({ ...prev, [test.id]: e.target.value }))} placeholder="Значение результата" className="min-w-0 flex-1 rounded-lg border border-bdr-subtle bg-surface-1 px-3 py-2 text-sm text-txt-primary" /> : <div className="min-w-0 flex-1 rounded-lg bg-surface-2 px-3 py-2 text-sm text-txt-primary">{test.result || test.resultText || 'Результат ещё не внесён'}</div>}<span className="flex items-center text-xs text-txt-muted">{test.unit || ''}</span></div>{test.referenceRange && <div className="mt-2 text-xs text-txt-muted">Референс: {test.referenceRange}</div>}</div>)}</div>{selected.order.status === 'processing' && hasCapability('result.write') && <Button className="mt-4 w-full" disabled={resultMutation.isPending || selected.tests.length === 0 || selected.tests.some((test) => !(resultDrafts[test.id] || '').trim())} onClick={() => resultMutation.mutate({ id: selected.order.id, results: selected.tests.map((test) => ({
                 id: test.id,
                 result: (resultDrafts[test.id] || '').trim(),
