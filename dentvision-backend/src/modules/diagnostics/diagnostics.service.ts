@@ -580,6 +580,13 @@ export async function changeReferralStatus(
     link: `/diagnostics/referrals/${id}`,
   });
 
+  if (status === 'CANCELLED' && updatedReferral.centerId) await createNotificationForCenter(updatedReferral.centerId, {
+    type: NOTIFICATION_TYPES.REFERRAL_CANCELLED,
+    title: 'Клиника отменила направление',
+    message: 'Направление отменено клиникой до начала диагностического исследования.',
+    link: '/center-workspace?tab=worklist',
+  });
+
   await writeAuditLog({
     action: 'REFERRAL_STATUS_CHANGED',
     entity: 'referral',
