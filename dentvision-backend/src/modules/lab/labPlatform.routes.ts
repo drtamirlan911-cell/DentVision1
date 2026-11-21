@@ -4,6 +4,10 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
+import { parseTengeToMinor, serializeBigInt } from '../../lib/money.js';
+import { getOrCreateWallet } from '../finance/finance.service.js';
+import { availableBalanceMinor, requestPayout, PayoutError } from '../finance/payout.service.js';
+import { getPartnerEconomicsTransparency } from '../finance/partner-economics.service.js';
 import { publish } from '../../lib/events.js';
 import { assertClinicOrgAccess } from '../../lib/orgContext.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
@@ -11,7 +15,7 @@ import { uid } from '../../lib/helpers.js';
 import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js';
 import { createNotificationForClinic } from '../../services/notification.service.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
-import { canLabManageShipment, canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeDecision } from './labPlatform.authorization.js';
+import { canLabManageFinance, canLabManageShipment, canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeDecision } from './labPlatform.authorization.js';
 
 export const labPlatformRouter = Router();
 labPlatformRouter.use(authenticate);
@@ -324,7 +328,10 @@ labPlatformRouter.patch('/services/:id', async (req: AuthRequest, res) => {
 labPlatformRouter.get('/dashboard', async (req: AuthRequest, res) => {
   try {
     const membership = await resolveLab(req);
-    if (!membership || !canLabMemberReadOrders(membership.role)) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
+    if (!membership || (!canLabMemberReadOrders(membership.role) && !canLabManageFinance(membership.role))) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
+    if (!canLabMemberReadOrders(membership.role)) {
+      return res.json({ ok: true, data: { lab: membership.lab, membershipRole: membership.role, totals: { all: 0, active: 0, dueSoon: 0, overdue: 0 }, byStatus: {}, priority: [] } } satisfies ApiResponse);
+    }
     const orders = await ordersForLab(membership.labId, membership.role, req.user!.id);
     if (!orders) return res.status(403).json({ ok: false, error: 'Нет доступа к производственной очереди' } satisfies ApiResponse);
     const now = Date.now();
@@ -334,6 +341,81 @@ labPlatformRouter.get('/dashboard', async (req: AuthRequest, res) => {
     const byStatus = orders.reduce<Record<string, number>>((acc, o) => { acc[o.status] = (acc[o.status] || 0) + 1; return acc; }, {});
     return res.json({ ok: true, data: { lab: membership.lab, membershipRole: membership.role, totals: { all: orders.length, active: active.length, dueSoon: dueSoon.length, overdue: overdue.length }, byStatus, priority: [...overdue, ...dueSoon.filter((o) => !overdue.includes(o))].slice(0, 8) } } satisfies ApiResponse);
   } catch (error) { console.error('[LabPlatform] dashboard error:', error); return res.status(500).json({ ok: false, error: 'Не удалось загрузить кабинет лаборатории' } satisfies ApiResponse); }
+});
+
+labPlatformRouter.get('/finance', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership || !canLabManageFinance(membership.role)) {
+      return res.status(403).json({ ok: false, error: 'Финансовый раздел доступен владельцу, менеджеру и назначенной финансовой роли лаборатории' } satisfies ApiResponse);
+    }
+    const wallet = await getOrCreateWallet('PARTNER', membership.labId);
+    const [available, payouts, economics] = await Promise.all([
+      availableBalanceMinor(wallet.id),
+      prisma.payout.findMany({
+        where: { walletId: wallet.id },
+        select: { id: true, amount: true, status: true, createdAt: true, updatedAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      }),
+      getPartnerEconomicsTransparency({ vertical: 'DENTAL_LAB', partnerId: membership.labId }),
+    ]);
+    return res.json({
+      ok: true,
+      data: serializeBigInt({
+        wallet,
+        availableBalanceMinor: available,
+        payouts,
+        economics: {
+          period: economics.period,
+          totals: economics.totals,
+          rows: economics.rows.slice(0, 50),
+          discrepancies: economics.discrepancies,
+        },
+      }),
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[LabPlatform] finance read error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить финансы лаборатории' } satisfies ApiResponse);
+  }
+});
+
+labPlatformRouter.post('/payouts', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership || !canLabManageFinance(membership.role)) {
+      return res.status(403).json({ ok: false, error: 'Запрос выплаты доступен владельцу, менеджеру и назначенной финансовой роли лаборатории' } satisfies ApiResponse);
+    }
+    const rawAmount = req.body?.amount;
+    if (typeof rawAmount !== 'string' && typeof rawAmount !== 'number') {
+      return res.status(400).json({ ok: false, error: 'Укажите сумму выплаты в тенге' } satisfies ApiResponse);
+    }
+    let amountMinor: bigint;
+    try {
+      amountMinor = parseTengeToMinor(rawAmount);
+    } catch {
+      return res.status(400).json({ ok: false, error: 'Некорректная сумма выплаты' } satisfies ApiResponse);
+    }
+    try {
+      const payout = await requestPayout({ ownerType: 'PARTNER', ownerId: membership.labId, amountMinor });
+      await writeAuditLog({
+        action: 'DENTAL_LAB_PAYOUT_REQUESTED',
+        entity: 'payout',
+        entityId: payout.id,
+        details: { laboratoryId: membership.labId, amountMinor: payout.amount.toString() },
+        userId: req.user!.id,
+      });
+      return res.status(201).json({ ok: true, data: serializeBigInt(payout) } satisfies ApiResponse);
+    } catch (error) {
+      if (error instanceof PayoutError) {
+        return res.status(error.code === 'INSUFFICIENT_FUNDS' ? 409 : 400).json({ ok: false, error: error.message, code: error.code } satisfies ApiResponse);
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error('[LabPlatform] payout request error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось создать запрос на выплату' } satisfies ApiResponse);
+  }
 });
 
 labPlatformRouter.get('/orders', async (req: AuthRequest, res) => {
