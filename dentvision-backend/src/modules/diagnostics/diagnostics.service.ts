@@ -479,34 +479,109 @@ export async function updateReferral(id: string, data: any, userId: string) {
   return referral;
 }
 
-export async function changeReferralStatus(id: string, status: ReferralStatus, userId: string, reason?: string, cost?: number) {
+export async function changeReferralStatus(
+  id: string,
+  status: ReferralStatus,
+  userId: string,
+  reason?: string,
+  cost?: number,
+  options?: { expectedStatus?: ReferralStatus; scheduledDate?: Date; scheduledTime?: string },
+) {
   const referral = await prisma.referral.findUnique({ where: { id } });
   if (!referral) throw new Error('Referral not found');
-  if (status === 'ACCEPTED' && referral.centerId) {
-    const sub = await ensureCenterSubscription(referral.centerId);
-    if (!sub.active) throw new Error('Подписка диагностического центра истекла. Для приёма направлений требуется активная подписка (20 000 ₸/мес).');
+  if (options?.expectedStatus && referral.status !== options.expectedStatus) {
+    throw Object.assign(new Error('Referral status changed concurrently'), { code: 'REFERRAL_STATUS_CONFLICT' });
   }
   const update: any = { status };
-  if (status === 'ACCEPTED' || status === 'IN_PROGRESS') {
+  if (status === 'ACCEPTED' && referral.centerId) {
+    const sub = await ensureCenterSubscription(referral.centerId);
+    if (!sub.active) throw new Error('Подписка диагностического центра истекла. Для приёма направлений требуется активная подписка.');
+  }
+  if (status === 'ACCEPTED') {
     let resolvedCost = cost;
     if (resolvedCost === undefined && referral.centerId && referral.studyType) {
       try {
-        const study = await prisma.diagnosticStudy.findFirst({ where: { centerId: referral.centerId, active: true, name: { contains: referral.studyType, mode: 'insensitive' } }, select: { price: true } });
+        const study = await prisma.diagnosticStudy.findFirst({
+          where: { centerId: referral.centerId, active: true, name: { contains: referral.studyType, mode: 'insensitive' } },
+          select: { price: true },
+        });
         if (study?.price) resolvedCost = Number(study.price);
-      } catch { /* use whatever center provided */ }
+      } catch { /* use the explicit center quote or surface the missing price */ }
     }
-    if (resolvedCost === undefined) throw new Error('Укажите стоимость исследования или установите цену в прайс-листе центра.');
+    if (resolvedCost === undefined || !Number.isFinite(resolvedCost) || resolvedCost <= 0) {
+      throw new Error('Укажите положительную стоимость исследования или установите цену в прайс-листе центра.');
+    }
     update.cost = resolvedCost;
   }
+  // IN_PROGRESS reuses the immutable accepted price; it must not require the
+  // UI to submit or silently replace the amount a second time.
+  if (status === 'IN_PROGRESS' && cost !== undefined) update.cost = cost;
+  if (options?.scheduledDate) update.scheduledDate = options.scheduledDate;
+  if (options?.scheduledTime) update.scheduledTime = options.scheduledTime;
   if (status === 'COMPLETED') update.completedAt = new Date();
   if (status === 'COMPLETED' && cost !== undefined) { update.cost = cost; update.paid = false; }
   if (status === 'CANCELLED') { update.cancelledAt = new Date(); update.cancelReason = reason; }
-  const updatedReferral = await prisma.referral.update({ where: { id }, data: update });
-  if (status === 'SENT' && updatedReferral.centerId) await createNotificationForCenter(updatedReferral.centerId, { type: NOTIFICATION_TYPES.REFERRAL_SENT, title: 'Новое направление', message: 'Новое направление поступило. Откройте рабочую очередь для подробностей.', link: `/center-workspace?tab=referrals` });
-  if (status === 'ACCEPTED' && updatedReferral.doctorId) await createNotification({ userId: updatedReferral.doctorId, type: NOTIFICATION_TYPES.REFERRAL_ACCEPTED, title: 'Направление принято', message: 'Направление принято. Откройте карточку направления для деталей.', link: `/diagnostics/referrals/${id}` });
-  if (status === 'COMPLETED' && updatedReferral.doctorId) await createNotification({ userId: updatedReferral.doctorId, type: NOTIFICATION_TYPES.REFERRAL_RESULT, title: 'Результат диагностики готов', message: 'Результат диагностики готов к просмотру. Откройте направление для подробностей.', link: `/diagnostics/referrals/${id}` });
-  await writeAuditLog({ action: 'REFERRAL_STATUS_CHANGED', entity: 'referral', entityId: id, details: { status }, userId, clinicId: updatedReferral.clinicId });
-  publish(`referral.${status.toLowerCase()}` as any, { referralId: id, clinicId: updatedReferral.clinicId || '', centerId: updatedReferral.centerId || '', doctorId: updatedReferral.doctorId || '', status, userId, cost: updatedReferral.cost });
+
+  const claimed = await prisma.referral.updateMany({
+    where: { id, status: options?.expectedStatus ?? referral.status },
+    data: update,
+  });
+  if (claimed.count !== 1) {
+    throw Object.assign(new Error('Referral status changed concurrently'), { code: 'REFERRAL_STATUS_CONFLICT' });
+  }
+  const updatedReferral = await prisma.referral.findUnique({ where: { id } });
+  if (!updatedReferral) throw new Error('Referral not found after status update');
+
+  if (status === 'SENT' && updatedReferral.centerId) await createNotificationForCenter(updatedReferral.centerId, {
+    type: NOTIFICATION_TYPES.REFERRAL_SENT,
+    title: 'Новое направление',
+    message: 'Новое направление поступило. Откройте рабочую очередь для подробностей.',
+    link: '/center-workspace?tab=referrals',
+  });
+  if (status === 'ACCEPTED' && updatedReferral.doctorId) await createNotification({
+    userId: updatedReferral.doctorId,
+    type: NOTIFICATION_TYPES.REFERRAL_ACCEPTED,
+    title: 'Направление принято',
+    message: 'Направление принято. Откройте карточку направления для деталей.',
+    link: `/diagnostics/referrals/${id}`,
+  });
+  if (status === 'COMPLETED' && updatedReferral.doctorId) await createNotification({
+    userId: updatedReferral.doctorId,
+    type: NOTIFICATION_TYPES.REFERRAL_RESULT,
+    title: 'Результат диагностики готов',
+    message: 'Подписанное заключение готово к просмотру.',
+    link: `/diagnostics/referrals/${id}`,
+  });
+  if (status === 'DELIVERED' && updatedReferral.doctorId) await createNotification({
+    userId: updatedReferral.doctorId,
+    type: NOTIFICATION_TYPES.REFERRAL_RESULT,
+    title: 'Заключение передано клинике',
+    message: 'Диагностический центр подтвердил передачу подписанного заключения.',
+    link: `/diagnostics/referrals/${id}`,
+  });
+  await writeAuditLog({
+    action: 'REFERRAL_STATUS_CHANGED',
+    entity: 'referral',
+    entityId: id,
+    details: {
+      fromStatus: referral.status,
+      toStatus: status,
+      ...(options?.scheduledDate ? { scheduledDate: options.scheduledDate.toISOString() } : {}),
+      ...(options?.scheduledTime ? { scheduledTime: options.scheduledTime } : {}),
+    },
+    userId,
+    clinicId: updatedReferral.clinicId,
+  });
+  publish(`referral.${status.toLowerCase()}` as any, {
+    referralId: id,
+    clinicId: updatedReferral.clinicId || '',
+    centerId: updatedReferral.centerId || '',
+    doctorId: updatedReferral.doctorId || '',
+    status,
+    previousStatus: referral.status,
+    userId,
+    cost: updatedReferral.cost,
+  });
   return updatedReferral;
 }
 
