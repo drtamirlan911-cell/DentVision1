@@ -55,5 +55,7 @@ describe('clinic-authorized dental-lab remake request boundary', () => {
     expect(route).toContain("existing.status !== 'delivered'");
     expect(route).toContain("existingMeta.remakeRequest?.status === 'requested'");
     expect(route).toContain('LAB_ORDER_REMAKE_REQUESTED');
+    expect(route).toContain('createNotificationForMany');
+    expect(route).toContain("type: 'lab.remake.requested'");
   });
 });
