@@ -228,6 +228,30 @@ export async function refundPayment(
 
     const totalRefunded = refunded + requested;
     const nextStatus = totalRefunded === payment.amount ? 'refunded' : 'paid';
+    if (payment.refType === 'dental_lab_order') {
+      const paymentMeta = payment.meta && typeof payment.meta === 'object' && !Array.isArray(payment.meta)
+        ? payment.meta as Record<string, unknown>
+        : {};
+      const invoiceId = typeof paymentMeta.invoiceId === 'string' ? paymentMeta.invoiceId : '';
+      if (invoiceId) {
+        const invoice = await tx.dentalLabInvoice.findUnique({ where: { id: invoiceId } });
+        if (!invoice || invoice.paymentId !== payment.id || invoice.amountMinor !== payment.amount) {
+          throw new PaymentRefundError('NOT_REFUNDABLE', 'Счёт зуботехнической лаборатории не связан с исходным платежом');
+        }
+        const refundedMinor = invoice.refundedMinor + requested;
+        if (refundedMinor > invoice.amountMinor) {
+          throw new PaymentRefundError('INVALID_AMOUNT', 'Возврат превышает остаток счёта зуботехнической лаборатории');
+        }
+        await tx.dentalLabInvoice.update({
+          where: { id: invoice.id },
+          data: {
+            refundedMinor,
+            status: refundedMinor === invoice.amountMinor ? 'refunded' : 'partially_refunded',
+          },
+        });
+      }
+    }
+
     const updated = await tx.payment.update({
       where: { id: payment.id },
       data: { status: nextStatus },
