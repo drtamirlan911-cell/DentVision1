@@ -111,7 +111,7 @@ export function WorklistTab({ orgId }: TabProps) {
                   <p className="truncate text-sm font-semibold text-txt-primary">{row.patientName || 'Пациент'}</p>
                   <p className="mt-1 text-xs text-txt-muted">{row.clinic?.name || 'Клиника'} · {row.studyType}</p>
                 </div>
-                <Badge variant={row.priority === 'EMERGENCY' ? 'danger' : row.priority === 'URGENT' ? 'warning' : 'outline'}>
+                <Badge variant={row.priority === 'EMERGENCY' ? 'error : row.priority === 'URGENT' ? 'warning' : 'outline'}>
                   {PRIORITY_LABEL[row.priority] || row.priority}
                 </Badge>
               </div>
