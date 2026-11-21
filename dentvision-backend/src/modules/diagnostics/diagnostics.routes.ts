@@ -665,7 +665,24 @@ diagnosticsRouter.get('/referrals', async (req: AuthRequest, res) => {
   }
 });
 diagnosticsRouter.post('/referrals', async (req: AuthRequest, res) => { try { const body = req.body as any; const clinicId = String(body.clinicId || '').trim(); if (!clinicId) return res.status(400).json({ ok: false, error: 'clinicId обязателен' }); if (!(await assertClinicOrgAccess(req.user!, clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' }); if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, clinicId))) return; if (!(await patientBelongsToClinic(body.patientId, clinicId))) return res.status(403).json({ ok: false, error: 'Пациент не относится к выбранной клинике' }); const targetBranchId = body.branchId ? String(body.branchId) : await patientBranch(body.patientId, clinicId); if (!targetBranchId) return res.status(403).json({ ok: false, error: 'Для направления не определён филиал' }); if (!(await referralBranchAllowed(req.user!, { clinicId, branchId: targetBranchId }))) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу направления' }); let doctorId = req.user!.id; if (body.doctorId && body.doctorId !== req.user!.id) { const candidateDoctorId = String(body.doctorId); const doctorAccess = await resolveClinicAccess(candidateDoctorId, clinicId); if (!doctorAccess || !['DOCTOR', 'OWNER', 'DIRECTOR'].includes(doctorAccess.role)) return res.status(403).json({ ok: false, error: 'Указанный врач не имеет клинической роли в выбранной клинике' }); doctorId = candidateDoctorId; } if (body.centerId) { const center = await svc.getCenter(String(body.centerId)); if (!center) return res.status(404).json({ ok: false, error: 'Диагностический центр не найден' }); } if (body.labId) { const lab = await svc.getLaboratory(String(body.labId)); if (!lab) return res.status(404).json({ ok: false, error: 'Лаборатория не найдена' }); } const data = { ...body, clinicId, branchId: targetBranchId, doctorId }; delete data.id; delete data.status; delete data.cost; delete data.platformFee; delete data.paid; delete data.paidAt; delete data.settlementId; const referral = await svc.createReferral(data, req.user!.id); return res.status(201).json({ ok: true, data: referral } satisfies ApiResponse); } catch (e: any) { if (e instanceof IinValidationError) return res.status(400).json({ ok: false, error: e.message }); return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
-diagnosticsRouter.get('/referrals/:id', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const data = await svc.getReferral(req.params.id); if (!data) return res.status(404).json({ ok: false, error: 'Referral not found' }); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.get('/referrals/:id', requireReferralAccess(true), async (req: AuthRequest, res) => {
+  try {
+    const scope = await prisma.referral.findUnique({
+      where: { id: String(req.params.id) },
+      select: { centerId: true },
+    });
+    if (!scope) return res.status(404).json({ ok: false, error: 'Referral not found' });
+    if (!(await canReadCenterClinicalFiles(req.user, scope.centerId))) {
+      return res.status(403).json({ ok: false, error: 'Медицинская карточка и снимки доступны только клиническим сотрудникам центра.' });
+    }
+    const data = await svc.getReferral(req.params.id);
+    if (!data) return res.status(404).json({ ok: false, error: 'Referral not found' });
+    return res.json({ ok: true, data } satisfies ApiResponse);
+  } catch (error: any) {
+    console.error('[diagnostics/referrals:detail]', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить направление' } satisfies ApiResponse);
+  }
+});
 diagnosticsRouter.patch('/referrals/:id', requireReferralAccess(), async (req: AuthRequest, res) => { try { const allowed = ['patientName','patientIin','patientBirth','patientGender','patientPhone','patientEmail','pregnancy','allergies','specialNotes','category','studyType','anatomicalSites','complaints','preliminaryDx','studyGoal','commentForDoctor','commentForLab','priority','centerId','labId','scheduledDate','scheduledTime']; const data: Record<string, unknown> = {}; for (const key of allowed) if (key in req.body) data[key] = req.body[key]; if (data.centerId) { const center = await svc.getCenter(String(data.centerId)); if (!center) return res.status(404).json({ ok: false, error: 'Диагностический центр не найден' }); } if (data.labId) { const lab = await svc.getLaboratory(String(data.labId)); if (!lab) return res.status(404).json({ ok: false, error: 'Лаборатория не найдена' }); } return res.json({ ok: true, data: await svc.updateReferral(req.params.id, data, req.user!.id) } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), async (req: AuthRequest, res) => {
   try {
@@ -797,8 +814,122 @@ diagnosticsRouter.post('/laboratories/:id/cashier/collect', async (req: AuthRequ
   } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); }
 });
 diagnosticsRouter.delete('/referrals/:id', requireReferralAccess(), async (req: AuthRequest, res) => { try { await svc.deleteReferral(req.params.id, req.user!.id); return res.json({ ok: true }); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
-diagnosticsRouter.post('/referrals/:id/files', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const { fileName, fileData, fileType, fileSize } = req.body || {}; if (!fileName || !fileData || !fileType) return res.status(400).json({ ok: false, error: 'fileName, fileData и fileType обязательны' }); const data = await svc.uploadReferralFile({ referralId: req.params.id, fileName: String(fileName), fileData: String(fileData), fileType: String(fileType), fileSize: fileSize ? Number(fileSize) : undefined, uploadedBy: req.user!.id }); return res.status(201).json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
-diagnosticsRouter.delete('/referral-files/:id', async (req: AuthRequest, res) => { try { const file = await prisma.referralFile.findUnique({ where: { id: req.params.id }, select: { referralId: true } }); if (!file) return res.status(404).json({ ok: false, error: 'File not found' }); const access = await (async () => { const referral = await prisma.referral.findUnique({ where: { id: file.referralId }, select: { clinicId: true, branchId: true, doctorId: true, centerId: true, labId: true } }); if (!referral) return false; return referral.doctorId === req.user!.id ? await referralBranchAllowed(req.user!, referral) : (await assertClinicOrgAccess(req.user!, referral.clinicId) && await referralBranchAllowed(req.user!, referral)) || (referral.centerId ? sameOrgContext(req.user, 'DiagnosticCenter', referral.centerId) : false) || (referral.labId ? sameOrgContext(req.user, 'Laboratory', referral.labId) : false); })(); if (!access) return res.status(403).json({ ok: false, error: 'Нет доступа к файлу' }); const clinicReferral = await prisma.referral.findUnique({ where: { id: file.referralId }, select: { clinicId: true } }); if (clinicReferral && !(await ensureClinicSubscriptionWritableIfClinicActor(req, res, clinicReferral.clinicId))) return; await svc.deleteReferralFile(req.params.id, req.user!.id); return res.json({ ok: true }); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.post('/referrals/:id/files/upload', requireReferralAccess(true), limitConcurrentDiagnosticUploads, parseDiagnosticAttachment, async (req: AuthRequest, res) => {
+  try {
+    const referralId = String(req.params.id);
+    const referral = await prisma.referral.findUnique({
+      where: { id: referralId },
+      select: { centerId: true },
+    });
+    if (!referral) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
+    if (!(await canReadCenterClinicalFiles(req.user, referral.centerId))) {
+      return res.status(403).json({ ok: false, error: 'Прикреплять медицинские файлы могут только клинические сотрудники центра.' });
+    }
+    const file = (req as AuthRequest & { file?: Express.Multer.File }).file;
+    if (!file) return res.status(400).json({ ok: false, error: 'Выберите файл для загрузки.' });
+    if (!isAcceptedFilePayload(file)) {
+      return res.status(400).json({ ok: false, error: 'Содержимое файла не соответствует расширению или MIME-типу.' });
+    }
+    const data = await svc.uploadReferralFile({
+      referralId,
+      fileName: file.originalname,
+      buffer: file.buffer,
+      fileType: file.mimetype,
+      fileSize: file.size,
+      uploadedBy: req.user!.id,
+    });
+    return res.status(201).json({ ok: true, data } satisfies ApiResponse);
+  } catch (error: any) {
+    const unavailable = error?.code === 'DIAGNOSTIC_STORAGE_UNAVAILABLE';
+    console.error('[diagnostics/referral-files:upload]', error);
+    return res.status(unavailable ? 503 : 400).json({
+      ok: false,
+      error: unavailable ? error.message : (error?.message || 'Не удалось сохранить файл исследования'),
+      ...(error?.code ? { code: error.code } : {}),
+    } satisfies ApiResponse);
+  }
+});
+
+// Backward-compatible JSON endpoint for older clients. It now validates the
+// payload and writes to S3; it never stores multi-megabyte data URLs in Postgres.
+diagnosticsRouter.post('/referrals/:id/files', requireReferralAccess(true), async (req: AuthRequest, res) => {
+  try {
+    const referralId = String(req.params.id);
+    const referral = await prisma.referral.findUnique({
+      where: { id: referralId },
+      select: { centerId: true },
+    });
+    if (!referral) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
+    if (!(await canReadCenterClinicalFiles(req.user, referral.centerId))) {
+      return res.status(403).json({ ok: false, error: 'Прикреплять медицинские файлы могут только клинические сотрудники центра.' });
+    }
+    const fileName = String(req.body?.fileName || '').trim();
+    const fileType = String(req.body?.fileType || '').trim().toLowerCase();
+    const fileData = String(req.body?.fileData || '');
+    const match = fileData.match(/^data:([^;,]+);base64,([A-Za-z0-9+/=\r\n]+)$/);
+    if (!fileName || !fileType || !match) {
+      return res.status(400).json({ ok: false, error: 'Ожидается файл в формате data URL с Base64 содержимым.' });
+    }
+    const buffer = Buffer.from(match[2].replace(/\s/g, ''), 'base64');
+    if (!buffer.length || buffer.length > MAX_DIAGNOSTIC_ATTACHMENT_BYTES) {
+      return res.status(buffer.length ? 413 : 400).json({ ok: false, error: 'Некорректный размер файла.', code: 'FILE_SIZE_INVALID' });
+    }
+    if (!isAcceptedFilePayload({ originalname: fileName, mimetype: fileType, buffer })) {
+      return res.status(400).json({ ok: false, error: 'Содержимое файла не соответствует расширению или MIME-типу.' });
+    }
+    const data = await svc.uploadReferralFile({
+      referralId,
+      fileName,
+      buffer,
+      fileType,
+      fileSize: buffer.byteLength,
+      uploadedBy: req.user!.id,
+    });
+    return res.status(201).json({ ok: true, data } satisfies ApiResponse);
+  } catch (error: any) {
+    const unavailable = error?.code === 'DIAGNOSTIC_STORAGE_UNAVAILABLE';
+    return res.status(unavailable ? 503 : 400).json({
+      ok: false,
+      error: unavailable ? error.message : (error?.message || 'Не удалось сохранить файл исследования'),
+      ...(error?.code ? { code: error.code } : {}),
+    } satisfies ApiResponse);
+  }
+});
+diagnosticsRouter.delete('/referral-files/:id', async (req: AuthRequest, res) => {
+  try {
+    const file = await prisma.referralFile.findUnique({
+      where: { id: String(req.params.id) },
+      select: { id: true, referralId: true },
+    });
+    if (!file) return res.status(404).json({ ok: false, error: 'Файл не найден' });
+    const referral = await prisma.referral.findUnique({
+      where: { id: file.referralId },
+      select: { clinicId: true, branchId: true, doctorId: true, centerId: true, labId: true },
+    });
+    if (!referral) return res.status(404).json({ ok: false, error: 'Направление файла не найдено' });
+
+    const doctorAllowed = referral.doctorId === req.user!.id && await referralBranchAllowed(req.user!, referral);
+    const clinicAllowed = await assertClinicOrgAccess(req.user!, referral.clinicId)
+      && await referralBranchAllowed(req.user!, referral);
+    const centerAllowed = Boolean(referral.centerId)
+      && sameOrgContext(req.user, 'DiagnosticCenter', String(referral.centerId))
+      && await canReadCenterClinicalFiles(req.user, referral.centerId);
+    const labAllowed = Boolean(referral.labId) && sameOrgContext(req.user, 'Laboratory', String(referral.labId));
+    if (req.user?.role !== 'SUPERADMIN' && !doctorAllowed && !clinicAllowed && !centerAllowed && !labAllowed) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к файлу' });
+    }
+    if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, referral.clinicId))) return;
+    await svc.deleteReferralFile(file.id, req.user!.id);
+    return res.json({ ok: true });
+  } catch (error: any) {
+    const unavailable = error?.code === 'DIAGNOSTIC_STORAGE_UNAVAILABLE';
+    return res.status(unavailable ? 503 : 400).json({
+      ok: false,
+      error: unavailable ? error.message : (error?.message || 'Не удалось удалить файл'),
+      ...(error?.code ? { code: error.code } : {}),
+    } satisfies ApiResponse);
+  }
+});
 diagnosticsRouter.post('/referrals/:id/comments', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const text = String(req.body?.text || '').trim(); if (!text) return res.status(400).json({ ok: false, error: 'Комментарий не может быть пустым' }); return res.status(201).json({ ok: true, data: await svc.addComment(req.params.id, req.user!.id, text) } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.get('/dashboard', async (req: AuthRequest, res) => { try { const q = req.query as Record<string, string | undefined>; const scope = await authorizeReferralListScope(req.user, { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }); if (scope.ok === false) return res.status(scope.status || 403).json({ ok: false, error: scope.error || 'Нет доступа' }); return res.json({ ok: true, data: await svc.getDashboardStats({ clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/referrals/:id/ai-result', requireReferralAccess(), async (req: AuthRequest, res) => { try { const data = await svc.aiGenerateResult(req.params.id, req.user!.id); return res.json({ ok: true, data: { result: data, requiresDoctorConfirmation: true } } satisfies ApiResponse); } catch (e: any) { return res.status(422).json({ ok: false, error: e.message } satisfies ApiResponse); } });
