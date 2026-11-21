@@ -1,9 +1,12 @@
-import { Router } from 'express';
+import { Router, type Request, type Response, type NextFunction } from 'express';
+import multer from 'multer';
+import path from 'node:path';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { requireSuperadmin } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { resolveReferralListScope } from './referral-list-scope.js';
 import * as svc from './diagnostics.service.js';
+import { isAcceptedFilePayload } from '../files/fileValidation.js';
 import prisma from '../../lib/prisma.js';
 import { assertClinicOrgAccess, assertOrgAccess, resolveClinicAccess } from '../../lib/orgContext.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
@@ -111,6 +114,56 @@ export async function authorizeReferralListScope(user: AuthRequest['user'], scop
 async function patientBelongsToClinic(patientId: string | undefined, clinicId: string): Promise<boolean> { if (!patientId) return true; const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { clinicId: true } }); return !!patient && patient.clinicId === clinicId; }
 async function patientBranch(patientId: string | undefined, clinicId: string): Promise<string | null> { if (!patientId) return null; const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { clinicId: true, branchId: true } }); return patient?.clinicId === clinicId ? patient.branchId : null; }
 export const diagnosticsRouter = Router();
+const MAX_DIAGNOSTIC_ATTACHMENT_BYTES = 60 * 1024 * 1024;
+const MAX_CONCURRENT_DIAGNOSTIC_UPLOADS = 2;
+let activeDiagnosticUploads = 0;
+
+const diagnosticAttachmentParser = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_DIAGNOSTIC_ATTACHMENT_BYTES, files: 1, fields: 0 },
+  fileFilter: (_req, file, callback) => {
+    const allowed = new Set([
+      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf',
+      '.doc', '.docx', '.xls', '.xlsx', '.dcm', '.dicom', '.stl', '.obj',
+    ]);
+    const extension = path.extname(file.originalname).toLowerCase();
+    if (!allowed.has(extension)) return callback(new Error('Недопустимый формат файла.'));
+    callback(null, true);
+  },
+});
+
+function limitConcurrentDiagnosticUploads(_req: Request, res: Response, next: NextFunction) {
+  if (activeDiagnosticUploads >= MAX_CONCURRENT_DIAGNOSTIC_UPLOADS) {
+    return res.status(429).json({ ok: false, error: 'Слишком много одновременных загрузок. Повторите позже.', code: 'UPLOAD_BUSY' });
+  }
+  activeDiagnosticUploads += 1;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    activeDiagnosticUploads = Math.max(0, activeDiagnosticUploads - 1);
+  };
+  res.once('finish', release);
+  res.once('close', release);
+  next();
+}
+
+function parseDiagnosticAttachment(req: Request, res: Response, next: NextFunction) {
+  diagnosticAttachmentParser.single('file')(req, res, (error: any) => {
+    if (!error) return next();
+    if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ ok: false, error: 'Файл превышает допустимый размер 60 МБ.', code: 'FILE_TOO_LARGE' });
+    }
+    return res.status(400).json({ ok: false, error: error.message || 'Не удалось прочитать файл.' });
+  });
+}
+
+async function canReadCenterClinicalFiles(user: AuthRequest['user'], centerId?: string | null): Promise<boolean> {
+  if (!centerId || user?.role === 'SUPERADMIN') return true;
+  if (!sameOrgContext(user, 'DiagnosticCenter', centerId)) return true;
+  return canReadDiagnosticCenterClinicalDetail(await activePartnerRoleKeys(user));
+}
+
 diagnosticsRouter.post('/register', optionalAuth, async (req: AuthRequest, res) => { try { const data = await svc.createRegistrationRequest({ ...req.body, userId: (req.user as any)?.id }); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.use(authenticate);
 
