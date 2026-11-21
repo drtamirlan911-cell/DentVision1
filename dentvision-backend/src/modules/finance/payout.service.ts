@@ -96,6 +96,16 @@ async function resolvePayoutRequesterUserIds(
     const members = await db.supplierMember.findMany({ where: { supplierId: ownerId }, select: { userId: true } });
     return members.map((m) => m.userId);
   }
+  if (ownerType === 'PARTNER') {
+    const members = await db.laboratoryMember.findMany({
+      where: {
+        labId: ownerId,
+        role: { in: ['owner', 'admin', 'manager', 'director', 'lab_manager', 'lab_finance', 'finance', 'accountant'] },
+      },
+      select: { userId: true },
+    });
+    return members.map((m) => m.userId);
+  }
   return [];
 }
 
