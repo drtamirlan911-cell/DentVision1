@@ -158,6 +158,8 @@ describe('recordSaleTx', () => {
 
     expect(result.meta.commission).toBe('500');
     expect(result.meta.net).toBe('9500');
+    expect(result.meta.policyVersion).toBe('1.2');
+    expect(result.meta.policy).toMatchObject({ domain: 'shop', sellerType: 'SUPPLIER', sellerId: 'sup-1' });
     expect(txDelegate.commissionRule.findUnique).toHaveBeenCalledWith({
       where: { domain_scopeId: { domain: 'shop', scopeId: 'sup-1' } },
     });
