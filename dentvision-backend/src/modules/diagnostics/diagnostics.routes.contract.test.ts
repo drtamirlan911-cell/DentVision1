@@ -313,9 +313,10 @@ describe('diagnostics route contract', () => {
     expect(source).toContain('canReadDiagnosticCenterClinicalDetail(roleKeys)');
     expect(source).toContain("await hasPartnerScopedPermission(req.user, 'medical.read')");
     expect(source).toContain('redactDiagnosticCenterOperationalReferral(detail)');
-    expect(source).toContain("delete operational['patientIin']");
-    expect(source).toContain("delete operational['allergies']");
-    expect(source).toContain("delete operational['result']");
+    expect(source).toContain('for (const key of [');
+    expect(source).toContain("'patientIin'");
+    expect(source).toContain("'allergies'");
+    expect(source).toContain("'result'");
     expect(source).toContain('delete visibleEvent.details');
     expect(source).toContain('canReadReferralMedicalDetail(req.user, scope)');
   });
@@ -357,7 +358,9 @@ describe('diagnostics route contract', () => {
     const deleteRoute = source.slice(deleteStart, deleteEnd);
     expect(deleteRoute).toContain('file.uploadedBy === req.user!.id');
     expect(deleteRoute).toContain('canManageDiagnosticCenterTeam(req.user)');
-    expect(deleteRoute).toContain('canReadPartnerDiagnosticFiles(req.user)');
+    expect(deleteRoute).toContain('canReadCenterClinicalFiles(req.user, referral.centerId)');
+    expect(deleteRoute).toContain('canManageDiagnosticCenterTeam(req.user)');
+    expect(deleteRoute).toContain('canManagePartnerDiagnosticFiles(req.user)');
   });
 
   it('stores signed report versions, backfills legacy signatures and exposes controlled amendments', () => {
