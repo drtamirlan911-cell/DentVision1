@@ -311,7 +311,7 @@ export async function buildSupplierInsights(supplierId: string): Promise<Supplie
 
 export async function buildSupplierDashboard(supplierId: string) {
   const wallet = await getOrCreateWallet('SUPPLIER', supplierId);
-  const [products, creditAgg, insights, orders, disputes] = await Promise.all([
+  const [products, creditAgg, insights, orders] = await Promise.all([
     prisma.product.findMany({ where: { supplierId }, orderBy: { updatedAt: 'desc' } }),
     prisma.ledgerEntry.aggregate({
       where: { walletId: wallet.id, direction: 'credit' },
@@ -320,18 +320,24 @@ export async function buildSupplierDashboard(supplierId: string) {
     }),
     buildSupplierInsights(supplierId),
     getSupplierOrders(supplierId),
-    prisma.dispute.findMany({
-      where: { status: { in: ['open', 'OPEN', 'pending', 'resolved', 'RESOLVED'] } },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    }),
   ]);
-
-  const productIds = new Set(products.map((p) => p.id));
-  const myOrderIds = new Set((orders as any[]).map((o) => o.id));
-  const returns = disputes.filter(
-    (d) => myOrderIds.has(d.refId) || (d.refType === 'product' && productIds.has(d.refId)),
-  );
+  const productIds = products.map((p) => p.id);
+  const myOrderIds = (orders as any[]).map((o) => o.id);
+  const disputeScope: any[] = [];
+  if (myOrderIds.length) disputeScope.push({
+    refType: { in: ['order', 'ORDER', 'shop_order', 'SHOP_ORDER'] }, refId: { in: myOrderIds },
+  });
+  if (productIds.length) disputeScope.push({ refType: { in: ['product', 'PRODUCT'] }, refId: { in: productIds } });
+  const returns = disputeScope.length
+    ? await prisma.dispute.findMany({
+        where: { OR: disputeScope }, orderBy: { createdAt: 'desc' }, take: 200,
+        include: { supplierResponses: {
+          where: { supplierId },
+          select: { id: true, responseType: true, note: true, actorUserId: true, createdAt: true },
+          take: 1,
+        } },
+      })
+    : [];
 
   const rated = products.filter((p) => p.rating != null);
   const avgRating = rated.length
@@ -373,7 +379,7 @@ export async function buildSupplierDashboard(supplierId: string) {
       productCount: products.length,
       lowStockCount: lowStock.length,
       outOfStockCount: outOfStock.length,
-      openReturns: returns.filter((r) => ['open', 'OPEN', 'pending'].includes(r.status)).length,
+      openReturns: returns.filter((r) => ['open', 'OPEN', 'pending', 'review', 'REVIEW'].includes(r.status)).length,
       avgRating: avgRating != null ? Number(avgRating.toFixed(2)) : null,
       currency: wallet.currency,
     },
@@ -387,6 +393,10 @@ export async function buildSupplierDashboard(supplierId: string) {
       refType: r.refType,
       refId: r.refId,
       createdAt: r.createdAt,
+      supplierResponse: r.supplierResponses?.[0] || null,
+      canRespond: ['order', 'shop_order'].includes(String(r.refType).toLowerCase())
+        && ['open', 'review', 'pending'].includes(String(r.status).toLowerCase())
+        && !(r.supplierResponses?.length),
     })),
     stock: {
       low: lowStock.map((p) => ({ id: p.id, name: p.name, stock: p.stock, price: p.price, category: p.category })),

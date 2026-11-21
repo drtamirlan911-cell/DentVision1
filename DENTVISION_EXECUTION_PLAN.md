@@ -8,6 +8,16 @@
 - The UI exposes tracking and proof-backed delivery actions. This is manual evidence entry, not a live carrier integration; label purchase, carrier APIs/webhooks, scanner hardware and automatic POD remain open.
 - Returns/RMA/refund/chargeback and seller-platform reconciliation remain open; the current dispute list is not a complete return workflow. Supplier and Marketplace remain **PARTIAL**.
 
+## Marketplace / Supplier OS — seller-side claim response — 2026-11-21
+
+- Added `SupplierDisputeResponse`, an immutable supplier response linked to the canonical dispute, order and supplier. A unique dispute/supplier constraint prevents contradictory duplicate submissions; identical retries are idempotent.
+- Only an owner/manager in the active supplier workspace can respond, after the server verifies that at least one canonical order line belongs to that supplier. Product-only claims remain visible but do not expose this order-response action.
+- The supplier can acknowledge receipt of a return request or contest the claim and must provide a 10–2,000 character explanation. The actor and timestamp are preserved and the action is audit-logged.
+- The response is evidence for platform adjudication only: it does not alter global dispute/order status, create a refund, reverse cashback, issue a chargeback or move wallet/ledger balances. Financial decisions remain in the governed platform/Finance workflow.
+- The supplier dashboard queries only disputes associated with the supplier's visible order lines/products and returns the current supplier's own response. The previous global latest-50 disputes query and client-side filtering are removed.
+- The additive migration is included in the isolated E2E database bootstrap. No production/staging database migration or financial operation was performed.
+- **Boundary:** one immutable response per supplier per order claim; no evidence-file upload, buyer/seller conversation thread, RMA authorization/label, courier pickup/inspection, refund/payment-provider action, chargeback workflow or complete multi-seller line-allocation lifecycle. Supplier/Marketplace remains **PARTIAL** pending exact-head CI/E2E, mobile/operator and end-to-end financial reconciliation evidence.
+
 ## Dental Laboratory OS — partner-owned service catalogue and case price snapshots — 2026-11-21
 
 - Added a first-class catalogue scoped to the canonical Laboratory organization. Owners/managers control service code, type, material, description, published list price and turnaround days; production members receive read-only active entries.

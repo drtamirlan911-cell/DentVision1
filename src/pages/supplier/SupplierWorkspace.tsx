@@ -21,6 +21,7 @@ import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload'
 import { SUPPLIER_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits';
 
 type TabId = 'overview' | 'sales' | 'stock' | 'returns' | 'ads' | 'analytics' | 'catalog' | 'profile'
+type SupplierDisputeResponseType = 'ACKNOWLEDGE_RETURN_REQUEST' | 'CONTEST_RETURN_REQUEST'
 
 interface SupplierCtx {
   scopeId: string
@@ -118,6 +119,9 @@ export default function SupplierWorkspace() {
   const [deliveryOrder, setDeliveryOrder] = useState<any>(null)
   const [deliveryForm, setDeliveryForm] = useState({ proofUrl: '', recipientName: '', note: '' })
   const [deliverySaving, setDeliverySaving] = useState(false)
+  const [returnResponseDispute, setReturnResponseDispute] = useState<any>(null)
+  const [returnResponseNote, setReturnResponseNote] = useState('')
+  const [returnResponseSaving, setReturnResponseSaving] = useState(false)
 
   const loadAll = useCallback(async (t: string) => {
     const [meRes, dashRes, rulesRes] = await Promise.all([
@@ -351,6 +355,24 @@ export default function SupplierWorkspace() {
       toast.error(error?.message || 'Не удалось подтвердить доставку')
     } finally {
       setDeliverySaving(false)
+    }
+  }
+
+  const handleSupplierDisputeResponse = async (responseType: SupplierDisputeResponseType) => {
+    if (!token || !returnResponseDispute) return
+    const note = returnResponseNote.trim()
+    if (note.length < 10 || note.length > 2000) { toast.error('Комментарий должен содержать от 10 до 2000 символов'); return }
+    setReturnResponseSaving(true)
+    try {
+      await api.supplierWs.respondToReturn(token, returnResponseDispute.id, { responseType, note })
+      toast.success('Позиция поставщика зарегистрирована')
+      setReturnResponseDispute(null)
+      setReturnResponseNote('')
+      await loadAll(token)
+    } catch (error: any) {
+      toast.error(error?.message || 'Не удалось отправить ответ')
+    } finally {
+      setReturnResponseSaving(false)
     }
   }
 
@@ -745,18 +767,34 @@ export default function SupplierWorkspace() {
 
           {tab === 'returns' && (
             <div className="space-y-3">
-              <p className="text-sm text-txt-muted">Возвраты и споры по вашим заказам</p>
+              <p className="text-sm text-txt-muted">Претензии по заказам и товарам поставщика. Ответ фиксирует вашу позицию для платформенного рассмотрения и не выполняет возврат денег.</p>
               {(dash?.returns || []).length === 0 ? (
-                <EmptyState icon={<RotateCcw size={28} />} title="Возвратов нет" description="Открытые споры появятся здесь автоматически." />
+                <EmptyState icon={<RotateCcw size={28} />} title="Претензий нет" description="Обращения по вашим заказам и товарам появятся здесь." />
               ) : (
                 (dash.returns as any[]).map((r) => (
                   <Card key={r.id}>
-                    <CardContent className="p-4 flex flex-wrap justify-between gap-3">
-                      <div>
-                        <p className="text-sm text-txt-primary">{r.reason}</p>
-                        <p className="text-xs text-txt-muted mt-1">{r.refType} · {r.refId}</p>
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-txt-primary">{r.reason}</p>
+                          <p className="text-xs text-txt-muted mt-1">{r.refType} · {r.refId} · {new Date(r.createdAt).toLocaleString('ru-RU')}</p>
+                        </div>
+                        <Badge size="xs">{r.status}</Badge>
                       </div>
-                      <Badge size="xs">{r.status}</Badge>
+                      {r.supplierResponse ? (
+                        <div className="rounded-lg border border-bdr-subtle bg-surface-2 p-3 space-y-1">
+                          <p className="text-xs font-semibold text-txt-primary">{r.supplierResponse.responseType === 'ACKNOWLEDGE_RETURN_REQUEST' ? 'Поставщик подтвердил получение претензии' : 'Поставщик оспаривает претензию'}</p>
+                          <p className="text-sm text-txt-secondary whitespace-pre-wrap">{r.supplierResponse.note}</p>
+                          <p className="text-[11px] text-txt-muted">{new Date(r.supplierResponse.createdAt).toLocaleString('ru-RU')}</p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-txt-muted">{r.canRespond ? 'Ожидается официальный ответ поставщика.' : 'Для этого обращения ответ поставщика в текущем процессе не предусмотрен.'}</p>
+                      )}
+                      {canWrite && r.canRespond && !r.supplierResponse && (
+                        <div className="flex flex-wrap justify-end">
+                          <Button size="sm" className="min-h-11" onClick={() => { setReturnResponseDispute(r); setReturnResponseNote('') }}>Ответить на претензию</Button>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))
@@ -981,6 +1019,25 @@ export default function SupplierWorkspace() {
           <Input label="Получатель *" value={deliveryForm.recipientName} onChange={(e) => setDeliveryForm(v => ({ ...v, recipientName: e.target.value }))} placeholder="ФИО получателя" />
           <Input label="Комментарий" value={deliveryForm.note} onChange={(e) => setDeliveryForm(v => ({ ...v, note: e.target.value }))} placeholder="Место и дополнительные детали" />
           <Button className="min-h-11 w-full" disabled={deliverySaving || !deliveryForm.proofUrl.trim() || !deliveryForm.recipientName.trim()} loading={deliverySaving} onClick={handleConfirmDelivery}>Подтвердить вручение</Button>
+        </div>
+      </Modal>
+      <Modal open={!!returnResponseDispute} onClose={() => { if (!returnResponseSaving) setReturnResponseDispute(null) }} title="Ответ по претензии">
+        <div className="space-y-3">
+          <p className="text-sm text-txt-secondary">Выберите позицию и изложите факты. Ответ будет сохранён в истории претензии и передан на рассмотрение платформе. Он не меняет статус спора, не подтверждает автоматический возврат и не списывает средства.</p>
+          <div className="rounded-lg border border-bdr-subtle bg-surface-2 p-3">
+            <p className="text-xs text-txt-muted">Претензия</p>
+            <p className="text-sm text-txt-primary mt-1">{returnResponseDispute?.reason || '—'}</p>
+            <p className="text-xs text-txt-muted mt-1">{returnResponseDispute?.refType} · {returnResponseDispute?.refId}</p>
+          </div>
+          <label className="block text-xs text-txt-muted" htmlFor="supplier-return-response-note">Пояснение поставщика *</label>
+          <textarea id="supplier-return-response-note" value={returnResponseNote} onChange={(event) => setReturnResponseNote(event.target.value)} maxLength={2000} rows={5}
+            className="w-full rounded-lg bg-surface-1 border border-bdr-subtle px-3 py-2 text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-2 focus:ring-dv-gold/40"
+            placeholder="Укажите факты, сроки, комплектность, состояние товара и предложенный вариант урегулирования…" />
+          <p className="text-[11px] text-txt-muted">{returnResponseNote.trim().length}/2000 · минимум 10 символов</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Button className="min-h-11" variant="secondary" loading={returnResponseSaving} disabled={returnResponseSaving || returnResponseNote.trim().length < 10} onClick={() => void handleSupplierDisputeResponse('ACKNOWLEDGE_RETURN_REQUEST')}>Подтвердить получение</Button>
+            <Button className="min-h-11" loading={returnResponseSaving} disabled={returnResponseSaving || returnResponseNote.trim().length < 10} onClick={() => void handleSupplierDisputeResponse('CONTEST_RETURN_REQUEST')}>Оспорить претензию</Button>
+          </div>
         </div>
       </Modal>
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Новый товар" className="w-full max-w-full sm:max-w-lg lg:max-w-xl">
