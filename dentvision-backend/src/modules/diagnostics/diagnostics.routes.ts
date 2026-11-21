@@ -185,7 +185,6 @@ async function canReadClinicDiagnosticFiles(
 ): Promise<boolean> {
   if (!user) return false;
   if (user.role === 'SUPERADMIN') return true;
-  if (referral.doctorId === user.id && await referralBranchAllowed(user, referral)) return true;
   if (!(await assertClinicOrgAccess(user, referral.clinicId))) return false;
 
   const organizationId = await resolveOrganizationIdForClinic(referral.clinicId);
@@ -325,23 +324,25 @@ async function canReadReferralMedicalDetail(
 
 function redactDiagnosticCenterOperationalReferral(referral: any) {
   if (!referral) return referral;
-  const {
-    patientIin: _patientIin,
-    patientBirth: _patientBirth,
-    patientEmail: _patientEmail,
-    pregnancy: _pregnancy,
-    allergies: _allergies,
-    specialNotes: _specialNotes,
-    patientPhoto: _patientPhoto,
-    preliminaryDx: _preliminaryDx,
-    complaints: _complaints,
-    commentForDoctor: _commentForDoctor,
-    commentForLab: _commentForLab,
-    studyGoal: _studyGoal,
-    result: _result,
-    comments: _comments,
-    ...operational
-  } = referral;
+  const operational = { ...referral };
+  for (const key of [
+    'patientIin',
+    'patientBirth',
+    'patientEmail',
+    'pregnancy',
+    'allergies',
+    'specialNotes',
+    'patientPhoto',
+    'preliminaryDx',
+    'complaints',
+    'commentForDoctor',
+    'commentForLab',
+    'studyGoal',
+    'result',
+    'comments',
+  ]) {
+    delete operational[key];
+  }
   return operational;
 }
 
@@ -652,7 +653,11 @@ diagnosticsRouter.get('/centers/:centerId/worklist/:referralId', async (req: Aut
     ]);
     const visibleEvents = canReadClinical
       ? events
-      : events.map(({ details: _details, ...event }) => event);
+      : events.map((event) => {
+          const visibleEvent = { ...event };
+          delete visibleEvent.details;
+          return visibleEvent;
+        });
     return res.json({
       ok: true,
       data: {
