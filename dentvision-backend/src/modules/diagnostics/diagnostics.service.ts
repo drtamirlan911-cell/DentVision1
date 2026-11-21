@@ -249,12 +249,16 @@ export async function grantDiagnosticsAccess(type: 'DiagnosticCenter' | 'Laborat
       await prisma.laboratoryMember.upsert({ where: { labId_userId: { labId: entityId, userId } }, update: { role }, create: { id: uid(), labId: entityId, userId, role } });
     }
     const fullName = `${user.firstName} ${user.lastName}`.trim() || user.email || 'Участник';
+    const normalizedRole = String(role || '').toLowerCase();
+    const personType = type === 'DiagnosticCenter' && normalizedRole === 'radiologist' ? 'RADIOLOGIST'
+      : type === 'DiagnosticCenter' && normalizedRole === 'operator' ? 'OPERATOR'
+      : 'STAFF';
     const originalType = type === 'DiagnosticCenter' ? 'DiagnosticCenterMember' : 'LaboratoryMember';
     let person = await prisma.person.findFirst({ where: { originalType, originalId: `${entityId}:${userId}` } });
     if (person) {
-      person = await prisma.person.update({ where: { id: person.id }, data: { fullName, personType: 'STAFF', organizationId: org.id, originalType, originalId: `${entityId}:${userId}` } });
+      person = await prisma.person.update({ where: { id: person.id }, data: { fullName, personType, organizationId: org.id, originalType, originalId: `${entityId}:${userId}` } });
     } else {
-      person = await prisma.person.create({ data: { id: uid(), fullName, personType: 'STAFF', organizationId: org.id, userId: user.id, originalType, originalId: `${entityId}:${userId}` } });
+      person = await prisma.person.create({ data: { id: uid(), fullName, personType, organizationId: org.id, userId: user.id, originalType, originalId: `${entityId}:${userId}` } });
     }
     const roleKey = DIAGNOSTICS_ROLE_TO_ROLE_KEY[String(role).toLowerCase()];
     if (!roleKey) {
