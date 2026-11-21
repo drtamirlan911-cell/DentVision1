@@ -319,7 +319,7 @@ describe('diagnostics route contract', () => {
     expect(source).toContain("'patientIin'");
     expect(source).toContain("'allergies'");
     expect(source).toContain("'result'");
-    expect(source).toContain('delete visibleEvent.details');
+    expect(source).toContain("Object.entries(event).filter(([key]) => key !== 'details')");
     expect(source).toContain('canReadReferralMedicalDetail(req.user, scope)');
   });
 
