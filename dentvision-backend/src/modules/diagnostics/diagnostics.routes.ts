@@ -12,7 +12,7 @@ import { canAccessReferralBranch } from '../../lib/diagnosticReferralBranchPolic
 import { auditFromReq } from '../compliance/audit.service.js';
 import { DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS, LAB_RESULT_SIGNER_ROLE_KEYS, hasScopedPartnerSignerRole } from './signingAuthorization.js';
 import { assertClinicDoctorSignoff, ClinicalSignoffAuthorizationError } from './clinicalSignoffAuthorization.js';
-import { authorizeDiagnosticCenterStatusTransition } from './diagnosticCenterWorkflow.js';
+import { authorizeDiagnosticCenterStatusTransition, canReadDiagnosticCenterClinicalDetail } from './diagnosticCenterWorkflow.js';
 
 export async function claimReferralPaid(referralId: string, data: { paid: boolean; paidAt?: Date; cost?: number }): Promise<boolean> { const result = await (prisma as any).referral.updateMany({ where: { id: referralId, paid: false }, data }); return result.count === 1; }
 
@@ -369,7 +369,16 @@ diagnosticsRouter.get('/centers/:id/worklist', async (req: AuthRequest, res) => 
     const search = String(req.query.search || '').trim().slice(0, 80);
     const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 100);
     const offset = Math.max(Number(req.query.offset) || 0, 0);
-    return res.json({ ok: true, data: await svc.getDiagnosticCenterWorklist(centerId, { status, priority, search: search || undefined, limit, offset }) } satisfies ApiResponse);
+    const roleKeys = await activePartnerRoleKeys(req.user);
+    const canReadClinical = req.user?.role === 'SUPERADMIN' || canReadDiagnosticCenterClinicalDetail(roleKeys);
+    const data = await svc.getDiagnosticCenterWorklist(centerId, { status, priority, search: search || undefined, limit, offset });
+    if (!canReadClinical) {
+      return res.json({
+        ok: true,
+        data: { ...data, items: data.items.map((item: any) => ({ ...item, patientName: 'Пациент' })) },
+      } satisfies ApiResponse);
+    }
+    return res.json({ ok: true, data } satisfies ApiResponse);
   } catch {
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить рабочую очередь центра' } satisfies ApiResponse);
   }
@@ -381,6 +390,10 @@ diagnosticsRouter.get('/centers/:centerId/worklist/:referralId', async (req: Aut
     const referralId = String(req.params.referralId);
     if (!sameOrgContext(req.user, 'DiagnosticCenter', centerId)) {
       return res.status(403).json({ ok: false, error: 'Нет доступа к карточке исследования центра' });
+    }
+    const roleKeys = await activePartnerRoleKeys(req.user);
+    if (req.user?.role !== 'SUPERADMIN' && !canReadDiagnosticCenterClinicalDetail(roleKeys)) {
+      return res.status(403).json({ ok: false, error: 'Медицинские данные направления доступны только уполномоченным клиническим сотрудникам центра.' });
     }
     const referral = await prisma.referral.findFirst({ where: { id: referralId, centerId } });
     if (!referral) return res.status(404).json({ ok: false, error: 'Исследование не найдено в очереди этого центра' });
