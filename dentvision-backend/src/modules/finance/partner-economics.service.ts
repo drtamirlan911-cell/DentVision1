@@ -20,6 +20,7 @@ export interface PartnerEconomicsInput {
   vertical: PartnerVertical; partnerId: string; grossMinor: bigint; monthlyGmvMinor?: bigint;
   paymentCostMinor?: bigint; aiCostMinor?: bigint; storageCostMinor?: bigint;
   supportCostMinor?: bigint; refundReserveMinor?: bigint; taxMinor?: bigint; branchId?: string | null;
+  paymentId?: string | null;
 }
 export type EconomicsStatus = 'HEALTHY' | 'LOSS' | 'LOW_MARGIN';
 export interface PartnerEconomicsBreakdown {
@@ -104,7 +105,9 @@ export function calculatePartnerEconomics(input: PartnerEconomicsInput, rule: Pa
 export async function recordPartnerEconomics(input: PartnerEconomicsInput & { operationId: string }, db: Prisma.TransactionClient | typeof prisma = prisma) {
   const existing = await db.transaction.findFirst({ where: { type: 'partner_economics', refType: input.vertical, refId: input.operationId } });
   if (existing) return existing;
-  const monthlyGmvMinor = input.monthlyGmvMinor ?? await monthlyPartnerGmv(input.vertical, input.partnerId, new Date(), db);
+  // The current settled case contributes to the month in which its rate is resolved.
+  // Resolve the tier from prior settlements plus this case, not the prior total alone.
+  const monthlyGmvMinor = input.monthlyGmvMinor ?? (await monthlyPartnerGmv(input.vertical, input.partnerId, new Date(), db)) + input.grossMinor;
   const rule = await getPartnerEconomicsRule(input.vertical, db);
   const breakdown = calculatePartnerEconomics({ ...input, monthlyGmvMinor }, rule);
   const id = createHash('sha256').update(`partner-economics:${input.vertical}:${input.operationId}`).digest('hex').slice(0, 32);
@@ -116,6 +119,7 @@ export async function recordPartnerEconomics(input: PartnerEconomicsInput & { op
     commissionMinor: breakdown.commissionMinor.toString(), partnerRevenueMinor: breakdown.partnerRevenueMinor.toString(), contributionMarginMinor: breakdown.contributionMarginMinor.toString(), contributionMarginBps: breakdown.contributionMarginBps, status: breakdown.status,
     costs: { payment: breakdown.paymentCostMinor.toString(), ai: breakdown.aiCostMinor.toString(), storage: breakdown.storageCostMinor.toString(), support: breakdown.supportCostMinor.toString(), refundReserve: breakdown.refundReserveMinor.toString(), tax: breakdown.taxMinor.toString() },
     branchId: input.branchId ?? null,
+    paymentId: input.paymentId ?? null,
   } satisfies Prisma.InputJsonValue;
   try {
     // Serialize wallet initialization/update for each owner. The wallet unique
