@@ -682,6 +682,16 @@ test.describe('Partner operational lifecycle', () => {
       canReadFiles: true,
     });
 
+    const radiologistClinicalDetail = await api.get(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}`,
+      { headers: auth(centerRadiologistToken) },
+    );
+    expect(radiologistClinicalDetail.status()).toBe(200);
+    expect((await radiologistClinicalDetail.json()).data.capabilities).toMatchObject({
+      canReadClinical: true,
+      canReadFiles: true,
+    });
+
     const operatorCanReadFileScope = await api.get(
       `${BASE}/api/diagnostics/referrals/${referral.id}/files/${randomUUID()}/download-url`,
       { headers: auth(operatorScopedToken) },
@@ -689,6 +699,12 @@ test.describe('Partner operational lifecycle', () => {
     // Authorization succeeds through the scoped files.read role; only then
     // does the API report that this particular test file ID does not exist.
     expect(operatorCanReadFileScope.status()).toBe(404);
+
+    const radiologistCanReadFileScope = await api.get(
+      `${BASE}/api/diagnostics/referrals/${referral.id}/files/${randomUUID()}/download-url`,
+      { headers: auth(centerRadiologistToken) },
+    );
+    expect(radiologistCanReadFileScope.status()).toBe(404);
 
     const foreignClinicCannotRequestDiagnosticFile = await api.get(
       `${BASE}/api/diagnostics/referrals/${referral.id}/files/${randomUUID()}/download-url`,
