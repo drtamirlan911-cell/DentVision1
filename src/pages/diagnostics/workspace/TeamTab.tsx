@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Copy, Mail, UserPlus } from 'lucide-react'
+import { Check, Copy, Mail, UserPlus, Users } from 'lucide-react'
 
 import { Card } from '@/components/ui/ds/Card'
 import { Button } from '@/components/ui/ds/Button'
@@ -32,7 +32,7 @@ const ROLES = [
 
 const ROLE_LABELS: Record<string, string> = Object.fromEntries(ROLES.map((r) => [r.value, r.label]))
 
-export function TeamTab({ orgId }: TabProps) {
+export function TeamTab({ config, orgId }: TabProps) {
   const toast = useToast()
   const queryClient = useQueryClient()
   const [role, setRole] = useState('operator')
@@ -46,6 +46,14 @@ export function TeamTab({ orgId }: TabProps) {
     retry: false,
   })
   const invitations = data?.data || data || []
+  const isDiagnosticCenter = config.kind === 'CENTER'
+  const { data: staffData, isLoading: staffLoading, error: staffError } = useQuery({
+    queryKey: ['diagnostics', 'center-worklist-staff', orgId],
+    queryFn: () => api.getDiagnosticCenterWorklistStaff(orgId),
+    enabled: Boolean(orgId && isDiagnosticCenter),
+    retry: false,
+  })
+  const staff = staffData?.data || staffData || []
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -121,6 +129,32 @@ export function TeamTab({ orgId }: TabProps) {
           </Button>
         </div>
       </Card>
+
+      {isDiagnosticCenter && (
+        <Card padding="md">
+          <div className="mb-3 flex items-center gap-2">
+            <Users size={16} className="text-txt-muted" />
+            <h3 className="text-sm font-semibold text-txt-primary">Сотрудники центра</h3>
+          </div>
+          {staffLoading ? <Skeleton className="h-24" /> : staffError ? (
+            <p className="py-4 text-center text-sm text-txt-muted">Состав команды доступен владельцу, администратору или менеджеру центра.</p>
+          ) : staff.length === 0 ? (
+            <p className="py-4 text-center text-sm text-txt-muted">Сотрудники появятся после принятия приглашений.</p>
+          ) : (
+            <ul className="divide-y divide-bdr-subtle">
+              {staff.map((member: any) => (
+                <li key={member.userId} className="flex flex-wrap items-center gap-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-txt-primary">{member.firstName} {member.lastName}</p>
+                    <p className="text-xs text-txt-muted">{member.email}</p>
+                  </div>
+                  <Badge variant="outline">{ROLE_LABELS[member.role] || member.role}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
 
       <Card padding="md">
         <h3 className="text-sm font-semibold text-txt-primary mb-3">Активные приглашения</h3>
