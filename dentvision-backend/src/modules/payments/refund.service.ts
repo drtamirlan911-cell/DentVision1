@@ -70,13 +70,19 @@ export async function refundPayment(
           include: { ledgerEntries: true },
           orderBy: { createdAt: 'asc' },
         })
-      : payment.refType === 'sale'
+      : payment.refType === 'dental_lab_order' && payment.refId
         ? await tx.transaction.findMany({
-            where: { type: 'sale', refType: 'payment', refId: payment.id },
+            where: { type: 'partner_economics', refType: 'DENTAL_LAB', refId: payment.refId },
             include: { ledgerEntries: true },
             orderBy: { createdAt: 'asc' },
           })
-        : [];
+        : payment.refType === 'sale'
+          ? await tx.transaction.findMany({
+              where: { type: 'sale', refType: 'payment', refId: payment.id },
+              include: { ledgerEntries: true },
+              orderBy: { createdAt: 'asc' },
+            })
+          : [];
 
     const financialTotal = originals.reduce((sum, row) => sum + row.amount, 0n);
     const financialRemaining = financialTotal - refunded;
