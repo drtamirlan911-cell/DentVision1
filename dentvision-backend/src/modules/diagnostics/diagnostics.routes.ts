@@ -939,7 +939,7 @@ diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), asy
         resultSignedAt: referral.result?.signedAt,
         isAssignedRadiologist,
       });
-      if (!decision.allowed) {
+      if (decision.allowed === false) {
         return res.status(decision.status).json({ ok: false, error: decision.reason, code: decision.code } satisfies ApiResponse);
       }
       options = { expectedStatus: referral.status, useCenterCatalogPrice: true };
