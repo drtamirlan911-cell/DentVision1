@@ -36,7 +36,12 @@ function feeSnapshot(input: {
   maximumFeeKzt: number | null;
 }): PartnerFeeSnapshot {
   assertValidAmount(input.grossAmountKzt);
-  const percentageFee = Math.round((input.grossAmountKzt * input.rateBps) / 10_000);
+  // Match the finance ledger's integer-minor-unit contract: never round a fee up.
+  // BigInt keeps multiplication exact even for large safe-integer KZT amounts.
+  if (!Number.isSafeInteger(input.rateBps) || input.rateBps < 0 || input.rateBps > 10_000) {
+    throw new Error('rateBps must be an integer between 0 and 10000');
+  }
+  const percentageFee = Number((BigInt(input.grossAmountKzt) * BigInt(input.rateBps)) / 10_000n);
   const commissionKzt = input.maximumFeeKzt === null
     ? Math.max(input.minimumFeeKzt, percentageFee)
     : Math.min(input.maximumFeeKzt, Math.max(input.minimumFeeKzt, percentageFee));
