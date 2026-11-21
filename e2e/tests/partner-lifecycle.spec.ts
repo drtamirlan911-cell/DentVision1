@@ -478,6 +478,65 @@ test.describe('Partner operational lifecycle', () => {
     const referral = (await referralRes.json()).data;
     expect(referral.status).toBe('SENT');
 
+    // Diagnostic-center equipment is owned by the center, assigned only to its
+    // own active equipment, and unavailable to clinics or non-manager staff.
+    const modalityCreate = await api.post(`${BASE}/api/diagnostics/centers/${centerId}/modalities`, {
+      headers: auth(centerOwnerToken),
+      data: {
+        name: 'E2E CBCT room 1',
+        kind: 'CBCT',
+        manufacturer: 'E2E Manufacturer',
+        model: 'CBCT-1',
+        serialNumber: `CBCT-${randomUUID()}`,
+        room: 'Кабинет 1',
+        aeTitle: 'DVE2ECBCT',
+      },
+    });
+    expect(modalityCreate.status()).toBe(201);
+    const modality = (await modalityCreate.json()).data;
+    expect(modality.centerId).toBe(centerId);
+    expect(modality.status).toBe('active');
+
+    const worklist = await api.get(`${BASE}/api/diagnostics/centers/${centerId}/worklist`, {
+      headers: auth(centerOwnerToken),
+    });
+    expect(worklist.status()).toBe(200);
+    const worklistItems = (await worklist.json()).data.items;
+    const worklistReferral = worklistItems.find((item: any) => item.id === referral.id);
+    expect(worklistReferral).toBeTruthy();
+    expect(worklistReferral.patientIin).toBeUndefined();
+    expect(worklistReferral.patientPhone).toBeUndefined();
+    expect(worklistReferral.patientEmail).toBeUndefined();
+
+    const assignModality = await api.patch(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}/modality`,
+      { headers: auth(centerOwnerToken), data: { modalityId: modality.id } },
+    );
+    expect(assignModality.status()).toBe(200);
+    expect((await assignModality.json()).data.modalityId).toBe(modality.id);
+
+    const refreshedWorklist = await api.get(`${BASE}/api/diagnostics/centers/${centerId}/worklist`, {
+      headers: auth(centerOwnerToken),
+    });
+    const assignedItem = (await refreshedWorklist.json()).data.items.find((item: any) => item.id === referral.id);
+    expect(assignedItem.modality?.id).toBe(modality.id);
+
+    const clinicCannotReadEquipment = await api.get(
+      `${BASE}/api/diagnostics/centers/${centerId}/modalities`,
+      { headers: auth(ownerToken) },
+    );
+    expect(clinicCannotReadEquipment.status()).toBe(403);
+    const clinicCannotCreateEquipment = await api.post(
+      `${BASE}/api/diagnostics/centers/${centerId}/modalities`,
+      { headers: auth(ownerToken), data: { name: 'Foreign device', kind: 'CBCT' } },
+    );
+    expect(clinicCannotCreateEquipment.status()).toBe(403);
+    const radiologistCannotAssignEquipment = await api.patch(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}/modality`,
+      { headers: auth(centerRadiologistToken), data: { modalityId: null } },
+    );
+    expect(radiologistCannotAssignEquipment.status()).toBe(403);
+
     for (const [status, actor] of [['ACCEPTED', centerOwnerToken], ['IN_PROGRESS', centerOwnerToken], ['COMPLETED', centerOwnerToken]] as const) {
       const res = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
         headers: auth(actor),
