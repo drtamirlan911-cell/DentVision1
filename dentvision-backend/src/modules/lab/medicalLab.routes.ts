@@ -16,6 +16,7 @@ import {
   type MedicalLabCapability,
 } from './medicalLabAccess.js';
 import { resetMedicalLabResultForRework, validateMedicalLabResultSet } from './medicalLabResults.js';
+import { buildMedicalLabBarcode, isMedicalLabSpecimenTransitionAllowed, normalizeMedicalLabBarcode } from './medicalLabSpecimens.js';
 
 export const medicalLabLifecycleRouter = Router();
 medicalLabLifecycleRouter.use(authenticate);
@@ -41,7 +42,7 @@ type OrderRow = {
   labId: string | null; orderedByUserId: string; status: string; priority: string;
   notes: string | null; specimenType: string | null; collectedAt: Date | null;
   receivedAt: Date | null; resultReadyAt: Date | null; verifiedAt: Date | null;
-  interpretation: string | null; metadata: unknown; createdAt: Date; updatedAt: Date | null;
+  interpretation: string | null; metadata: unknown; accessionRequired: boolean; createdAt: Date; updatedAt: Date | null;
 };
 
 async function resolveLaboratoryScopeId(user: AuthRequest['user']): Promise<string | null> {
@@ -113,7 +114,7 @@ function jsonObject(value: unknown): Record<string, unknown> {
 
 async function getOrder(id: string): Promise<OrderRow | null> {
   const rows = await prisma.$queryRawUnsafe<OrderRow[]>(`
-    SELECT "id","clinicId","patientId","treatmentCaseId","labId","orderedByUserId","status","priority","notes","specimenType","collectedAt","receivedAt","resultReadyAt","verifiedAt","interpretation","metadata","createdAt","updatedAt"
+    SELECT "id","clinicId","patientId","treatmentCaseId","labId","orderedByUserId","status","priority","notes","specimenType","collectedAt","receivedAt","resultReadyAt","verifiedAt","interpretation","metadata","accessionRequired","createdAt","updatedAt"
     FROM "medical_lab_orders" WHERE "id" = $1 LIMIT 1`, id);
   return rows[0] ?? null;
 }
@@ -251,7 +252,7 @@ medicalLabLifecycleRouter.post('/orders', requirePermission('patient.read'), asy
       const catalog = pricedById.get(String(test.testId));
       if (!catalog || (labId && catalog.labId !== String(labId))) return res.status(400).json({ ok: false, error: 'Анализ не принадлежит выбранной лаборатории' });
     }
-    await prisma.$executeRawUnsafe(`INSERT INTO "medical_lab_orders" ("id","clinicId","patientId","treatmentCaseId","labId","orderedByUserId","status","priority","notes","specimenType","metadata","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,'ordered',$7,$8,$9,$10,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`, id, clinicId, patientId ? String(patientId) : null, treatmentCaseId ? String(treatmentCaseId) : null, labId ? String(labId) : null, req.user!.id, String(priority), notes ? String(notes) : null, specimenType ? String(specimenType) : null, metadata ?? null);
+    await prisma.$executeRawUnsafe(`INSERT INTO "medical_lab_orders" ("id","clinicId","patientId","treatmentCaseId","labId","orderedByUserId","status","priority","notes","specimenType","metadata","accessionRequired","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,'ordered',$7,$8,$9,$10,$11,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`, id, clinicId, patientId ? String(patientId) : null, treatmentCaseId ? String(treatmentCaseId) : null, labId ? String(labId) : null, req.user!.id, String(priority), notes ? String(notes) : null, specimenType ? String(specimenType) : null, metadata ?? null, Boolean(labId));
     for (const test of requestedTests) {
       const catalog = test?.testId ? pricedById.get(String(test.testId)) : undefined;
       const priceMinor = catalog?.price != null ? tengeToMinor(Number(catalog.price) || 0) : null;
@@ -268,13 +269,15 @@ medicalLabLifecycleRouter.get('/orders/:id', async (req: AuthRequest, res) => {
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
     if (!(await canAccessOrder(req.user!, order))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
-    const [tests, events, roleKeys] = await Promise.all([
+    const [tests, events, specimens, specimenEvents, roleKeys] = await Promise.all([
       prisma.$queryRawUnsafe(`SELECT * FROM "medical_lab_order_tests" WHERE "orderId"=$1 ORDER BY "createdAt" ASC`, order.id),
       prisma.$queryRawUnsafe(`SELECT * FROM "medical_lab_events" WHERE "orderId"=$1 ORDER BY "createdAt" ASC`, order.id),
+      prisma.$queryRawUnsafe(`SELECT * FROM "medical_lab_specimens" WHERE "orderId"=$1 ORDER BY "createdAt" ASC`, order.id),
+      prisma.$queryRawUnsafe(`SELECT * FROM "medical_lab_specimen_events" WHERE "orderId"=$1 ORDER BY "createdAt" ASC`, order.id),
       resolveMedicalLabRoleKeys(req.user),
     ]);
     const capabilities = medicalLabCapabilitiesForRoles(roleKeys);
-    return res.json({ ok: true, data: { order, tests, events, capabilities, isLaboratoryWorkspace: String(req.user?.organizationType || '').toUpperCase() === 'LABORATORY' } } satisfies ApiResponse);
+    return res.json({ ok: true, data: { order, tests, events, specimens, specimenEvents, capabilities, isLaboratoryWorkspace: String(req.user?.organizationType || '').toUpperCase() === 'LABORATORY' } } satisfies ApiResponse);
   } catch (e: any) { return res.status(500).json({ ok: false, error: e.message || 'Ошибка направления' } satisfies ApiResponse); }
 });
 
