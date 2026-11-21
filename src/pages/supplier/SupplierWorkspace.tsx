@@ -659,7 +659,7 @@ export default function SupplierWorkspace() {
                           </p>
                         </div>
                         <div className="text-right">
-                          <Badge size="xs">{ORDER_STATUS[o.status] || o.status}</Badge>
+                          <Badge size="xs">{ORDER_STATUS[o.supplierFulfillmentStatus || o.status] || o.supplierFulfillmentStatus || o.status}</Badge>
                           <p className="text-sm font-bold text-dv-gold mt-1">{fmtTenge(o.subtotal)}</p>
                         </div>
                       </div>
@@ -684,7 +684,7 @@ export default function SupplierWorkspace() {
                       )}
                       {canWrite && !['delivered', 'cancelled', 'refunded'].includes(o.supplierFulfillmentStatus || o.status) && (
                         <div className="flex flex-wrap gap-2 pt-1">
-                          {o.status !== 'packing' && !o.supplierShipment && (
+                          {!['packing', 'shipped'].includes(o.status) && !o.supplierShipment && (
                             <Button size="xs" variant="secondary" className="min-h-11" onClick={() => handleOrderStatus(o.id, 'packing')}>В сборку</Button>
                           )}
                           {(o.status === 'packing' || o.status === 'shipped') && !o.supplierShipment && (
