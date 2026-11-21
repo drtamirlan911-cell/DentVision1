@@ -103,7 +103,7 @@ export function WorklistTab({ orgId }: TabProps) {
   const rows = worklistQuery.data?.data?.items || worklistQuery.data?.items || []
   const modalities = modalitiesQuery.data?.data || modalitiesQuery.data || []
   const studies = studiesQuery.data?.data || studiesQuery.data || []
-  const staff = staffQuery.data?.data || staffQuery.data || []
+  const staff = staffQuery.data || []
   const detail = detailQuery.data?.data || detailQuery.data || null
   const referral = detail?.referral || null
   const events = Array.isArray(detail?.events) ? detail.events : []
