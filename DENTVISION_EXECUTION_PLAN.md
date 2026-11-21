@@ -933,7 +933,7 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Add QC checklist and authorized sign-off (manager-only `/api/lab-platform/orders/:id/qc`; six required checks: fit, margins, shade, occlusion, surface, documentation; failed QC requires a note; transactional status/event write; authorization and validation tests in `labPlatform.authorization.test.ts`).
 - [ ] Add explicit remake authorization / feedback loop.
 - [ ] Add dispatch, shipping, pickup tracking and proof of delivery.
-- [ ] Add independent services catalogue and pricing management.
+- [x] Add independent services catalogue and pricing management (manager-scoped CRUD, published catalogue, clinic selection, immutable service-name/price snapshots; migration and `labPlatform.services.contract.test.ts`).
 - [ ] Complete invoice → payment → settlement → payout for the laboratory.
 - [ ] Verify durable idempotent notifications and AI operational exception summaries.
 - [ ] Complete owner/manager/technician RBAC and desktop/mobile acceptance. D10 remains OPEN.
