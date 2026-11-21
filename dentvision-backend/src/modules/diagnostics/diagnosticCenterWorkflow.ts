@@ -5,6 +5,7 @@ export interface DiagnosticCenterTransitionInput {
   nextStatus: string;
   roleKeys: readonly string[];
   resultSignedAt?: Date | string | null;
+  isAssignedRadiologist?: boolean;
 }
 
 export type DiagnosticCenterTransitionDecision =
@@ -89,8 +90,8 @@ export function authorizeDiagnosticCenterStatusTransition(
     return { allowed: false, status: 403, code: 'DIAGNOSTIC_ACQUISITION_FORBIDDEN', reason: 'Начинать исследование может только владелец, менеджер, оператор или технический специалист центра.' };
   }
   if (next === 'DELIVERED') {
-    if (!manager && !roleMatches(input.roleKeys, new Set(['radiologist', 'diagnostic_radiologist']))) {
-      return { allowed: false, status: 403, code: 'DIAGNOSTIC_RELEASE_FORBIDDEN', reason: 'Передавать подписанное заключение клинике может только владелец, менеджер или рентгенолог.' };
+    if (!manager && (!roleMatches(input.roleKeys, new Set(['radiologist', 'diagnostic_radiologist'])) || !input.isAssignedRadiologist)) {
+      return { allowed: false, status: 403, code: 'DIAGNOSTIC_RELEASE_FORBIDDEN', reason: 'Передавать подписанное заключение клинике может только владелец, менеджер или назначенный рентгенолог этого исследования.' };
     }
     if (!input.resultSignedAt) {
       return { allowed: false, status: 409, code: 'DIAGNOSTIC_RESULT_UNSIGNED', reason: 'Нельзя передать клинике неподписанное заключение.' };
