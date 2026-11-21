@@ -602,6 +602,35 @@ test.describe('Partner operational lifecycle', () => {
       radiologist: { user: { id: centerRadiologistId } },
     });
 
+    const unassignedRadiologist = await createTestUser({
+      email: `diagnostic-unassigned-radiologist-${randomUUID()}@test.dentvision`,
+      firstName: 'E2E',
+      lastName: 'Unassigned Radiologist',
+      role: 'STUDENT' as any,
+    });
+    const unassignedRadiologistInvite = await api.post(`${BASE}/api/iam/invitations`, {
+      headers: auth(centerOwnerToken),
+      data: { organizationId: centerOrganization!.id, role: 'radiologist', email: unassignedRadiologist.email },
+    });
+    expect(unassignedRadiologistInvite.status(), await unassignedRadiologistInvite.text()).toBe(201);
+    const unassignedRadiologistCode = (await unassignedRadiologistInvite.json()).data.code;
+    const unassignedBaseToken = await login(api, unassignedRadiologist.email);
+    const unassignedJoin = await api.post(`${BASE}/api/iam/join-by-invite`, {
+      headers: auth(unassignedBaseToken), data: { code: unassignedRadiologistCode },
+    });
+    expect(unassignedJoin.status(), await unassignedJoin.text()).toBe(201);
+    const unassignedContextsRes = await api.get(`${BASE}/api/iam/me/contexts`, { headers: auth(unassignedBaseToken) });
+    expect(unassignedContextsRes.status()).toBe(200);
+    const unassignedContexts = (await unassignedContextsRes.json()).data?.contexts || [];
+    const unassignedContext = unassignedContexts.find((item: any) => item.scopeType === 'DIAGNOSTIC_CENTER' && item.organizationId === centerOrganization!.id);
+    expect(unassignedContext?.roleKey).toBe('diagnostic_radiologist');
+    const unassignedSwitch = await api.post(`${BASE}/api/iam/switch-context`, {
+      headers: auth(unassignedBaseToken),
+      data: { scopeType: unassignedContext.scopeType, scopeId: unassignedContext.scopeId, branchId: unassignedContext.branchId },
+    });
+    expect(unassignedSwitch.status(), await unassignedSwitch.text()).toBe(200);
+    const unassignedRadiologistToken = (await unassignedSwitch.json()).data.accessToken;
+
     const foreignAssignee = await api.patch(
       `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}/assignees`,
       { headers: auth(centerOwnerToken), data: { operatorUserId: doctorId } },
@@ -705,6 +734,12 @@ test.describe('Partner operational lifecycle', () => {
       data: { reportText: 'Operator must not sign this report', conclusion: 'Unauthorized' },
     });
     expect(operatorCannotSign.status()).toBe(403);
+
+    const unassignedRadiologistCannotSign = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/sign`, {
+      headers: auth(unassignedRadiologistToken),
+      data: { reportText: 'Unassigned radiologist must not sign', conclusion: 'Unauthorized' },
+    });
+    expect(unassignedRadiologistCannotSign.status()).toBe(403);
 
     const unsignedCompletion = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
       headers: auth(centerOwnerToken),
