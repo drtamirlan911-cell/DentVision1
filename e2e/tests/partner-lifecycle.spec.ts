@@ -870,6 +870,12 @@ test.describe('Partner operational lifecycle', () => {
     });
     expect(duplicateScan.status()).toBe(409);
 
+    const oversizedAliquot = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/' + specimen.id + '/aliquots', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { volume: 6, volumeUnit: 'mL', containerType: 'Aliquot tube' },
+    });
+    expect(oversizedAliquot.status()).toBe(400);
+
     const aliquotResponse = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/' + specimen.id + '/aliquots', {
       headers: auth(medicalLabTechnicianToken),
       data: { volume: 1, volumeUnit: 'mL', containerType: 'Aliquot tube' },
@@ -889,6 +895,12 @@ test.describe('Partner operational lifecycle', () => {
     const processing = await moveTo(labOwnerToken, 'processing');
     expect(processing.status()).toBe(200);
     expect((await processing.json()).data.status).toBe('processing');
+    const processingDetail = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    const processingPayload = (await processingDetail.json()).data;
+    expect(processingPayload.specimens.every((item: any) => item.status === 'processing')).toBe(true);
+    expect(processingPayload.specimenEvents.map((event: any) => event.eventType)).toContain('PROCESSING_STARTED');
 
     const technicianDetail = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
       headers: auth(medicalLabTechnicianToken),
