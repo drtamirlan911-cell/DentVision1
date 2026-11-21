@@ -265,7 +265,7 @@ async function supplierOwnsOrderLine(supplierId: string, orderId: string, client
     client.product.findMany({ where: { supplierId }, select: { id: true } }),
   ]);
   if (!order) return false;
-  const productIds = new Set(products.map((product: { id: string }) => product.id));
+  const productIds = new Set<string>(products.map((product: { id: string }) => String(product.id)));
   return orderHasSupplierLine(order.items, supplierId, productIds);
 }
 
