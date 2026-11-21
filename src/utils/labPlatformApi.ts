@@ -81,6 +81,46 @@ export interface AvailableDentalLab {
 }
 export const getAvailableDentalLabs = () => request<AvailableDentalLab[]>('/available-laboratories');
 export const getLabPlatformDashboard = () => request<LabPlatformDashboard>('/dashboard');
+export interface LabPlatformPayout {
+  id: string;
+  amount: string;
+  status: 'requested' | 'approved' | 'paid' | 'rejected';
+  createdAt: string;
+  updatedAt: string;
+}
+export interface LabPlatformFinance {
+  wallet: { id: string; ownerType: 'PARTNER'; ownerId: string; currency: string; balance: string };
+  availableBalanceMinor: string;
+  payouts: LabPlatformPayout[];
+  economics: {
+    period: { from: string | null; to: string | null };
+    totals: {
+      operations: number;
+      grossMinor: string;
+      commissionMinor: string;
+      partnerPayoutMinor: string;
+      costMinor: string;
+      contributionMarginMinor: string;
+      contributionMarginBps: number;
+    };
+    rows: Array<{
+      transactionId: string;
+      operationId: string;
+      grossMinor: string;
+      commissionMinor: string;
+      partnerPayoutMinor: string;
+      status: string;
+      economicsVersion: number;
+      payoutId: string | null;
+      payoutStatus: string | null;
+      payoutAmountMinor: string | null;
+    }>;
+    discrepancies: number;
+  };
+}
+export const getLabPlatformFinance = () => request<LabPlatformFinance>('/finance');
+export const requestLabPlatformPayout = (amount: number) =>
+  request<LabPlatformPayout>('/payouts', { method: 'POST', body: JSON.stringify({ amount }) });
 export const getLabPlatformOrders = (status?: string) => request<LabPlatformOrder[]>(status ? `/orders?status=${encodeURIComponent(status)}` : '/orders');
 export const updateLabPlatformOrderStatus = (id: string, status: string) => request<LabPlatformOrder>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 export const assignLabTechnician = (id: string, technicianId: string | null) => request<LabPlatformOrder>(`/orders/${id}/technician`, { method: 'PATCH', body: JSON.stringify({ technicianId }) });
