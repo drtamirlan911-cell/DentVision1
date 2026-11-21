@@ -212,7 +212,7 @@ export function WorklistTab({ orgId }: TabProps) {
     try {
       const signed = await api.getDiagnosticReferralFileDownloadUrl(selectedReferralId, fileId)
       const target = String(signed?.url || '')
-      if (!/^https?:\\/\\//i.test(target)) throw new Error('Ссылка на файл не получена.')
+      if (!/^https?:\/\//i.test(target)) throw new Error('Ссылка на файл не получена.')
       if (popup) {
         popup.opener = null
         popup.location.href = target
