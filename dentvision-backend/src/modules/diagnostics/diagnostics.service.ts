@@ -444,12 +444,13 @@ export async function listReferrals(opts: { clinicId?: string; doctorId?: string
 }
 
 export async function getReferral(id: string) {
-  return prisma.referral.findUnique({
+  const referral = await prisma.referral.findUnique({
     where: { id },
     include: {
       ...referralInclude,
       result: {
         include: {
+          signer: { select: { id: true, firstName: true, lastName: true } },
           versions: { orderBy: { version: 'asc' } },
         },
       },
@@ -459,6 +460,29 @@ export async function getReferral(id: string) {
       },
     },
   });
+  if (!referral?.result) return referral;
+  const signerIds = [...new Set([
+    referral.result.signedBy,
+    ...referral.result.versions.map((version) => version.signedBy),
+  ].filter((value): value is string => Boolean(value)))];
+  const signers = signerIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: signerIds } },
+        select: { id: true, firstName: true, lastName: true },
+      })
+    : [];
+  const signerById = new Map(signers.map((signer) => [signer.id, signer]));
+  return {
+    ...referral,
+    result: {
+      ...referral.result,
+      signer: referral.result.signedBy ? signerById.get(referral.result.signedBy) || null : null,
+      versions: referral.result.versions.map((version) => ({
+        ...version,
+        signer: version.signedBy ? signerById.get(version.signedBy) || null : null,
+      })),
+    },
+  };
 }
 
 export async function createReferral(data: {
