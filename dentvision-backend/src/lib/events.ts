@@ -41,6 +41,9 @@ export interface DomainEventMap {
   'medicalLabResult.verified': { orderId: string; clinicId: string; patientId?: string | null; treatmentCaseId?: string | null; userId?: string };
   'medicalLabResult.interpreted': { orderId: string; clinicId: string; patientId?: string | null; treatmentCaseId?: string | null; userId?: string; source?: string };
   'medicalLabQuality.completed': { orderId: string; clinicId: string; patientId?: string | null; decision: 'passed' | 'failed'; userId?: string };
+  'medicalLabSpecimen.accessioned': { orderId: string; specimenId: string; labId: string; accessionNumber: string; userId: string };
+  'medicalLabSpecimen.scanned': { orderId: string; specimenId: string; labId: string; action: 'received' | 'rejected'; orderAdvanced: boolean; userId: string };
+  'medicalLabSpecimen.aliquot_created': { orderId: string; specimenId: string; parentSpecimenId: string; labId: string; userId: string };
   'growth.event': GrowthEventPayload;
 }
 
