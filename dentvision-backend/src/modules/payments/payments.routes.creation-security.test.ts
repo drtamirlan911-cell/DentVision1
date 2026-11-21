@@ -14,6 +14,8 @@ const m = vi.hoisted(() => ({
   invoiceFindFirst: vi.fn(),
   transaction: vi.fn(),
   orderFindUnique: vi.fn(),
+  labOrderFindUnique: vi.fn(),
+  labOrderUpdate: vi.fn(),
   courseFindUnique: vi.fn(),
   providerCreate: vi.fn(),
   providerStatus: vi.fn(),
@@ -37,6 +39,7 @@ vi.mock('../../lib/prisma.js', () => ({
   default: {
     payment: { create: m.paymentCreate, findUnique: m.paymentFindUnique, updateMany: m.paymentUpdateMany },
     order: { findUnique: m.orderFindUnique },
+    labOrder: { findUnique: m.labOrderFindUnique, update: m.labOrderUpdate },
     course: { findUnique: m.courseFindUnique },
     appointment: { findFirst: m.appointmentFindFirst },
     invoice: { findFirst: m.invoiceFindFirst },
@@ -129,7 +132,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  m.user = { id: 'authenticated-user', role: 'DOCTOR', clinicId: 'clinic-owned' };
+  m.user = { id: 'authenticated-user', role: 'DOCTOR', clinicId: 'clinic-owned', branchIds: ['branch-1'] };
   m.reserveIdempotencyKey.mockResolvedValue({ status: 'reserved' });
   m.completeIdempotencyKey.mockResolvedValue(undefined);
   m.deleteIdempotencyKey.mockResolvedValue(undefined);
@@ -142,6 +145,16 @@ beforeEach(() => {
   m.appointmentFindFirst.mockResolvedValue({ id: 'appointment-1', clinicId: 'clinic-owned' });
   m.invoiceFindFirst.mockResolvedValue({ id: 'invoice-1', clinicId: 'clinic-owned', amount: 1000, paidAmount: 0, status: 'unpaid' });
   m.orderFindUnique.mockResolvedValue(null);
+  m.labOrderFindUnique.mockResolvedValue({
+    id: 'lab-order-1',
+    clinicId: 'clinic-owned',
+    status: 'delivered',
+    serviceId: 'service-1',
+    servicePriceSnapshot: 15000,
+    files: { meta: { laboratoryId: 'lab-1' } },
+    patient: { branchId: 'branch-1' },
+  });
+  m.labOrderUpdate.mockResolvedValue({ id: 'lab-order-1' });
   m.courseFindUnique.mockResolvedValue({ id: 'course-1', price: 39900, lecturerId: 'lecturer-1', academyId: 'academy-1' });
   m.providerCreate.mockResolvedValue({ externalId: 'gateway-payment-1', qr: 'https://pay.example/qr' });
   m.providerStatus.mockResolvedValue('pending');
@@ -283,6 +296,71 @@ describe('payment creation server-side pricing and metadata protection', () => {
     expect(saved.meta.qr).toBe('https://pay.example/qr');
     expect(m.providerCreate).toHaveBeenCalledWith({ amountMinor: 3_990_000n, refId: 'clinic-owned' });
     expect(body.ok).toBe(true);
+  });
+
+  it('creates a dental-lab payment only for a delivered order at its immutable service price', async () => {
+    const { response, body } = await postPayment({
+      amountMinor: '1500000',
+      refType: 'dental_lab_order',
+      refId: 'lab-order-1',
+      domain: 'attacker-domain',
+      sellerType: 'PLATFORM',
+      sellerId: 'attacker-seller',
+      meta: { laboratoryId: 'attacker-lab', labOrderId: 'attacker-order', clinicId: 'attacker-clinic', branchId: 'attacker-branch' },
+    });
+    expect(response.status).toBe(201);
+    expect(body.ok).toBe(true);
+    expect(m.reserveIdempotencyKey).toHaveBeenCalledWith('dental-lab-order:lab-order-1');
+    expect(m.providerCreate).toHaveBeenCalledWith({ amountMinor: 1_500_000n, refId: 'lab-order-1' });
+    const saved = m.paymentCreate.mock.calls[0][0].data;
+    expect(saved.refType).toBe('dental_lab_order');
+    expect(saved.domain).toBe('dental_lab');
+    expect(saved.sellerType).toBe('LABORATORY');
+    expect(saved.sellerId).toBe('lab-1');
+    expect(saved.meta).toMatchObject({
+      userId: 'authenticated-user',
+      clinicId: 'clinic-owned',
+      laboratoryId: 'lab-1',
+      labOrderId: 'lab-order-1',
+      branchId: 'branch-1',
+      merchantScope: 'platform',
+    });
+  });
+
+  it('rejects a dental-lab payment with a client-submitted amount that differs from the service snapshot', async () => {
+    const { response } = await postPayment({
+      amountMinor: '1499999',
+      refType: 'dental_lab_order',
+      refId: 'lab-order-1',
+      meta: {},
+    });
+    expect(response.status).toBe(409);
+    expect(m.providerCreate).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+    expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
+  });
+
+  it('rejects dental-lab payment before partner delivery', async () => {
+    m.labOrderFindUnique.mockResolvedValueOnce({
+      id: 'lab-order-1', clinicId: 'clinic-owned', status: 'ready', serviceId: 'service-1',
+      servicePriceSnapshot: 15000, files: { meta: { laboratoryId: 'lab-1' } }, patient: { branchId: 'branch-1' },
+    });
+    const { response } = await postPayment({
+      amountMinor: '1500000', refType: 'dental_lab_order', refId: 'lab-order-1', meta: {},
+    });
+    expect(response.status).toBe(409);
+    expect(m.providerCreate).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects dental-lab payment from a user without access to the order branch', async () => {
+    m.user = { id: 'authenticated-user', role: 'DOCTOR', clinicId: 'clinic-owned', branchIds: ['another-branch'] };
+    const { response } = await postPayment({
+      amountMinor: '1500000', refType: 'dental_lab_order', refId: 'lab-order-1', meta: {},
+    });
+    expect(response.status).toBe(403);
+    expect(m.providerCreate).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
   });
 
   it('rejects enrollment underpayment against the persisted course price', async () => {
