@@ -119,8 +119,8 @@ export interface LabPlatformFinance {
   };
 }
 export const getLabPlatformFinance = () => request<LabPlatformFinance>('/finance');
-export const requestLabPlatformPayout = (amount: number) =>
-  request<LabPlatformPayout>('/payouts', { method: 'POST', body: JSON.stringify({ amount }) });
+export const requestLabPlatformPayout = (amount: string) =>
+  request<LabPlatformPayout>('/payouts', { method: 'POST', body: JSON.stringify({ amount: amount.trim() }) });
 export const getLabPlatformOrders = (status?: string) => request<LabPlatformOrder[]>(status ? `/orders?status=${encodeURIComponent(status)}` : '/orders');
 export const updateLabPlatformOrderStatus = (id: string, status: string) => request<LabPlatformOrder>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 export const assignLabTechnician = (id: string, technicianId: string | null) => request<LabPlatformOrder>(`/orders/${id}/technician`, { method: 'PATCH', body: JSON.stringify({ technicianId }) });
