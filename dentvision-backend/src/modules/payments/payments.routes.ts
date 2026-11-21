@@ -1102,26 +1102,59 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     if (!(await reserveForPayment())) return;
 
     const created = await gateway.createPayment({ amountMinor: minor, refId });
-    const payment = await prisma.payment.create({
-      data: {
-        provider,
-        externalId: created.externalId,
-        amount: minor,
-        status: 'pending',
-        refType: refType || null,
-        refId: refId || null,
-        domain: trustedDomain || null,
-        sellerType: trustedSellerType || null,
-        sellerId: trustedSellerId || null,
-        meta: {
-          ...trustedMeta,
-          // Client metadata cannot override the authenticated payer or scope.
-          qr: created.qr,
-          userId: req.user!.id,
-          merchantScope: 'platform',
-        },
+    const paymentData = {
+      provider,
+      externalId: created.externalId,
+      amount: minor,
+      status: 'pending' as const,
+      refType: refType || null,
+      refId: refId || null,
+      domain: trustedDomain || null,
+      sellerType: trustedSellerType || null,
+      sellerId: trustedSellerId || null,
+      meta: {
+        ...trustedMeta,
+        // Client metadata cannot override the authenticated payer or scope.
+        qr: created.qr,
+        userId: req.user!.id,
+        merchantScope: 'platform',
       },
-    });
+    };
+    const payment = refType === 'dental_lab_order' && refId
+      ? await prisma.$transaction(async (tx) => {
+          // The same row lock is used by the clinic remake-request flow. Only
+          // one of these workflows may win: a pending QR must not race a new
+          // remake dispute, and a dispute must not race a newly-created QR.
+          await tx.$queryRawUnsafe<Array<{ id: string }>>(
+            'SELECT "id" FROM "lab_orders" WHERE "id" = $1 FOR UPDATE',
+            String(refId),
+          );
+          const currentOrder = await dentalLabOrderPaymentDetails(String(refId), tx);
+          if (!currentOrder || currentOrder.status !== 'delivered') {
+            throw new DentalLabPaymentStateError('Заказ изменился: оплата доступна только после подтверждённой доставки');
+          }
+          const currentFiles = currentOrder.files && typeof currentOrder.files === 'object' && !Array.isArray(currentOrder.files)
+            ? currentOrder.files as Record<string, unknown>
+            : {};
+          const currentMeta = currentFiles.meta && typeof currentFiles.meta === 'object' && !Array.isArray(currentFiles.meta)
+            ? currentFiles.meta as Record<string, unknown>
+            : {};
+          const remakeRequest = currentMeta.remakeRequest && typeof currentMeta.remakeRequest === 'object'
+            ? currentMeta.remakeRequest as Record<string, unknown>
+            : null;
+          if (remakeRequest?.status === 'requested') {
+            throw new DentalLabPaymentStateError('Нельзя создать оплату, пока по заказу ожидает решения запрос переделки');
+          }
+          const existingPayment = await tx.payment.findFirst({
+            where: { refType: 'dental_lab_order', refId: String(refId), status: { in: ['pending', 'paid'] } },
+            select: { id: true },
+          });
+          if (existingPayment) {
+            throw new DentalLabPaymentStateError('Для этого заказа уже существует платёж; повторное выставление QR запрещено');
+          }
+          return tx.payment.create({ data: paymentData });
+        })
+      : await prisma.payment.create({ data: paymentData });
 
     await completeIdempotencyKey(idempotencyKey, payment.id);
     keyCompleted = true;
