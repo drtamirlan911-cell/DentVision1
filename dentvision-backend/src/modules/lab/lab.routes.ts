@@ -36,6 +36,7 @@ interface LabOrderMeta {
   doctorId?: string;
   treatmentCaseId?: string;
   remakeRequest?: { id: string; status: 'requested' | 'accepted' | 'rejected'; reason: string; requestedByUserId: string; requestedAt: string; laboratoryId: string; decidedByUserId?: string; decidedAt?: string; responseNote?: string | null };
+  payment?: unknown;
 }
 
 export const VALID_STATUSES = [
