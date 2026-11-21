@@ -37,7 +37,10 @@ describe('diagnostic center referral workflow authorization', () => {
       currentStatus: 'COMPLETED', nextStatus: 'DELIVERED', roleKeys: owner,
     })).toMatchObject({ allowed: false, status: 409, code: 'DIAGNOSTIC_RESULT_UNSIGNED' });
     expect(authorizeDiagnosticCenterStatusTransition({
-      currentStatus: 'COMPLETED', nextStatus: 'DELIVERED', roleKeys: canonicalRadiologist, resultSignedAt: new Date(),
+      currentStatus: 'COMPLETED', nextStatus: 'DELIVERED', roleKeys: canonicalRadiologist, resultSignedAt: new Date(), isAssignedRadiologist: false,
+    })).toMatchObject({ allowed: false, status: 403, code: 'DIAGNOSTIC_RELEASE_FORBIDDEN' });
+    expect(authorizeDiagnosticCenterStatusTransition({
+      currentStatus: 'COMPLETED', nextStatus: 'DELIVERED', roleKeys: canonicalRadiologist, resultSignedAt: new Date(), isAssignedRadiologist: true,
     }).allowed).toBe(true);
     expect(authorizeDiagnosticCenterStatusTransition({
       currentStatus: 'COMPLETED', nextStatus: 'DELIVERED', roleKeys: operator, resultSignedAt: new Date(),
