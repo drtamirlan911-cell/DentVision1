@@ -467,7 +467,7 @@ diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), asy
     const isCenterActor = Boolean(referral.centerId)
       && req.user?.role !== 'SUPERADMIN'
       && sameOrgContext(req.user, 'DiagnosticCenter', String(referral.centerId));
-    let options: { expectedStatus?: any; scheduledDate?: Date; scheduledTime?: string } | undefined;
+    let options: { expectedStatus?: any; scheduledDate?: Date; scheduledTime?: string; useCenterCatalogPrice?: boolean } | undefined;
     if (isCenterActor) {
       const roleKeys = await activePartnerRoleKeys(req.user);
       const decision = authorizeDiagnosticCenterStatusTransition({
@@ -479,7 +479,7 @@ diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), asy
       if (!decision.allowed) {
         return res.status(decision.status).json({ ok: false, error: decision.reason, code: decision.code } satisfies ApiResponse);
       }
-      options = { expectedStatus: referral.status };
+      options = { expectedStatus: referral.status, useCenterCatalogPrice: true };
       if (status === 'SCHEDULED') {
         const dateValue = String(req.body?.scheduledDate || '').trim();
         const timeValue = String(req.body?.scheduledTime || '').trim();
