@@ -1017,3 +1017,14 @@ Recognition is an outcome of independently verifiable product quality and adopti
 - CI `lint-test` failed before `npm test`: the job ran `npm run system-map --prefix dentvision-backend`, which changed the generated `docs/SYSTEM_MAP.md`; `git diff --exit-code -- docs/SYSTEM_MAP.md` then failed. The source had 729 unique route handlers, 683 mounted HTTP routes and 160 Prisma models, while the committed map still said 722 / 680 / 157. This is generated-document drift, not evidence of a failing unit test; unit tests were skipped by that job.
 - The same generated map reports 102 routes without a detected web/mobile consumer. This is an audit queue, not proof that every route is broken; reconcile each route to a real consumer, intentional server-only use or safe removal.
 - Next action: sync the generated System Map from the canonical generator, commit the corrected output and rerun exact-HEAD CI. Then inspect the E2E result and all remaining gates before merge.
+
+
+### Partner ecosystem monetization decision — 2026-11-21
+
+- Product-owner direction: the core operating cabinets for non-clinic partners are free. This includes diagnostic centers, medical-analysis laboratories, dental laboratories, suppliers/manufacturers, academies/lecturers, employers and professional groups.
+- The only standard recurring DentVision subscription is the dental-clinic CRM/practice-management plan. Do not charge partners per organization, branch, seat, listing, onboarding, referral, order or mandatory transaction commission.
+- Public discovery, patient access, referrals, result exchange and cross-partner workflow handoffs must not be artificially blocked behind a clinic CRM subscription.
+- Canonical policy amendment committed to `docs/business/DENTVISION_PARTNER_ECONOMICS.md` in the active PR branch. The amendment explicitly supersedes legacy partner subscription/commission tables; those tables are historical proposals, not implementable pricing.
+- Required implementation audit before release: billing plans and entitlements, subscription creation, checkout, invoice generation, settlement/commission code, branch billing, webhooks, Finance Hub metrics, contracts and negative tests for every non-clinic organization type.
+- Required acceptance: diagnostic center, medical lab, dental lab, supplier, academy and employer can onboard staff and complete their core workflows without a paid plan or platform take-rate; clinic CRM subscription remains independently billable.
+- Current commit for the economics policy: `91d792bfcc17411849a92e73eedd8c7def6df868`. Exact-head CI is pending/not yet evidenced for this commit. Do not merge or claim release readiness until the next exact-head checks pass.
