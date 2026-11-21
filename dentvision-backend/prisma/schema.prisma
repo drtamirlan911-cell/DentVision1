@@ -926,6 +926,7 @@ model LabOrder {
   doctor  User?    @relation("LabOrderDoctor", fields: [doctorId], references: [id], onDelete: SetNull)
   treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)
   dentalLabService DentalLabService? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  dentalLabInvoice DentalLabInvoice?
   dentalLabShipments DentalLabShipment[]
 
   createdAt DateTime  @default(now())
@@ -3306,6 +3307,34 @@ model DentalLabService {
   @@unique([labId, code])
   @@index([labId, active])
   @@map("dental_lab_services")
+}
+
+model DentalLabInvoice {
+  id                 String   @id @default(uuid())
+  invoiceNumber      String   @unique
+  labOrderId         String   @unique
+  laboratoryId       String
+  clinicId           String
+  branchId           String?
+  serviceId          String
+  serviceNameSnapshot String
+  amountMinor        BigInt
+  refundedMinor      BigInt   @default(0)
+  currency           String   @default("KZT")
+  status             String   @default("issued") // issued | paid | partially_refunded | refunded | void
+  issuedAt           DateTime @default(now())
+  paidAt             DateTime?
+  paymentId          String?  @unique
+  issuedByUserId     String
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  labOrder LabOrder @relation(fields: [labOrderId], references: [id], onDelete: Cascade)
+
+  @@index([laboratoryId, status, issuedAt])
+  @@index([clinicId, branchId, status])
+  @@map("dental_lab_invoices")
 }
 
 model DentalLabShipment {
