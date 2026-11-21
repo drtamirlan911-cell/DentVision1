@@ -28,6 +28,9 @@ export interface DomainEventMap {
   'referral.completed': { referralId: string; clinicId: string; centerId: string; doctorId: string; status: string; userId?: string; cost?: any; platformFee?: any };
   'diagnostics.result_ready': { referralId: string; resultId: string; clinicId: string; centerId: string; doctorId: string; userId?: string };
   'diagnostics.result_confirmed': { referralId: string; resultId: string; clinicId: string; centerId?: string; doctorId: string; userId?: string; confirmedBy?: string; confirmedAt?: string };
+  'diagnostics.result_amended': { referralId: string; clinicId: string; centerId: string; doctorId: string; userId: string; version: number; requiresRedelivery: boolean };
+  'labOrder.shipment_created': { clinicId: string; labOrderId: string; laboratoryId: string; shipmentId: string; method: string; userId?: string };
+  'labOrder.delivery_confirmed': { clinicId: string; labOrderId: string; laboratoryId: string; shipmentId: string; method: string; userId?: string };
   'diagnostics.booking.created': { centerId: string; bookingId: string; status: string; userId?: string };
   'diagnostics.booking.status_changed': { centerId: string; bookingId: string; status: string; previousStatus?: string; userId?: string };
   'labOrder.created': { clinicId: string; labOrderId: string; patientId?: string; doctorId?: string; treatmentCaseId?: string; userId?: string };
