@@ -517,6 +517,55 @@ test.describe('Partner operational lifecycle', () => {
     });
     expect(Array.isArray(detailBody.events)).toBe(true);
 
+    const invalidAttachment = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/files/upload`, {
+      headers: { Authorization: `Bearer ${centerOwnerToken}` },
+      multipart: {
+        file: {
+          name: 'not-an-image.png',
+          mimeType: 'image/png',
+          buffer: Buffer.from('this is not a PNG file'),
+        },
+      },
+    });
+    expect(invalidAttachment.status()).toBe(400);
+
+    const tinyPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l2sAAAAASUVORK5CYII=',
+      'base64',
+    );
+    const s3Configured = Boolean(process.env.S3_BUCKET && process.env.S3_ACCESS_KEY && process.env.S3_SECRET_KEY);
+    const attachmentUpload = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/files/upload`, {
+      headers: { Authorization: `Bearer ${centerOwnerToken}` },
+      multipart: {
+        file: { name: 'diagnostic-e2e.png', mimeType: 'image/png', buffer: tinyPng },
+      },
+    });
+    if (!s3Configured) {
+      expect(attachmentUpload.status()).toBe(503);
+      expect((await attachmentUpload.json()).code).toBe('DIAGNOSTIC_STORAGE_UNAVAILABLE');
+      expect(await prisma.referralFile.count({ where: { referralId: referral.id } })).toBe(0);
+    } else {
+      expect(attachmentUpload.status(), await attachmentUpload.text()).toBe(201);
+      const uploadedFile = (await attachmentUpload.json()).data;
+      expect(uploadedFile).toMatchObject({
+        referralId: referral.id,
+        fileName: 'diagnostic-e2e.png',
+        fileType: 'image/png',
+      });
+      const referralWithAttachment = await api.get(`${BASE}/api/diagnostics/referrals/${referral.id}`, {
+        headers: auth(centerOwnerToken),
+      });
+      expect(referralWithAttachment.status()).toBe(200);
+      const storedAttachment = (await referralWithAttachment.json()).data.files.find((file: any) => file.id === uploadedFile.id);
+      expect(storedAttachment?.fileUrl).toMatch(/^https:\/\//);
+      expect(storedAttachment?.fileUrl).not.toContain('s3://');
+      const deleteAttachment = await api.delete(`${BASE}/api/diagnostics/referral-files/${uploadedFile.id}`, {
+        headers: auth(centerOwnerToken),
+      });
+      expect(deleteAttachment.status()).toBe(200);
+      expect(await prisma.referralFile.findUnique({ where: { id: uploadedFile.id } })).toBeNull();
+    }
+
     const centerOrganization = await prisma.organization.findFirst({
       where: { originalType: 'DiagnosticCenter', originalId: centerId },
       select: { id: true },
