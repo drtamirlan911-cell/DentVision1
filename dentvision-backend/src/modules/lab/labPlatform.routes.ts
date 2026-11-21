@@ -369,13 +369,13 @@ labPlatformRouter.patch('/orders/:id/status', async (req: AuthRequest, res) => {
     const membership = await resolveLab(req);
     if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
     const next = String(req.body?.status || '');
-    if (next === 'delivered') return res.status(409).json({ ok: false, error: 'Сначала зарегистрируйте отгрузку и подтвердите вручение получателю.', code: 'LAB_SHIPMENT_REQUIRED' } satisfies ApiResponse);
     await ensureDentalLabOrderEventsTable();
     const outcome = await prisma.$transaction(async (tx) => {
       const orderId = String(req.params.id);
       await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} FOR UPDATE`;
       const existing = await tx.labOrder.findFirst({ where: { id: orderId, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } } });
       if (!existing) return { kind: 'not_found' as const };
+      if (next === 'delivered') return { kind: 'shipment_required' as const };
       const existingMeta = metaOf(existing.files);
       if (!canLabMemberChangeStatus({ role: membership.role, userId: req.user!.id, assignedTechnicianId: existingMeta.technicianId, nextStatus: next })) {
         return { kind: 'forbidden' as const };
@@ -386,6 +386,7 @@ labPlatformRouter.patch('/orders/:id/status', async (req: AuthRequest, res) => {
       return { kind: 'updated' as const, order, previousStatus: existing.status };
     });
     if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
+    if (outcome.kind === 'shipment_required') return res.status(409).json({ ok: false, error: 'Сначала зарегистрируйте отгрузку и подтвердите вручение получателю.', code: 'LAB_SHIPMENT_REQUIRED' } satisfies ApiResponse);
     if (outcome.kind === 'forbidden') return res.status(403).json({ ok: false, error: 'Это действие недоступно вашей роли лаборатории' } satisfies ApiResponse);
     if (outcome.kind === 'invalid_transition') return res.status(409).json({ ok: false, error: `Переход ${outcome.fromStatus} → ${next} недоступен` } satisfies ApiResponse);
     const order = outcome.order;
