@@ -386,7 +386,7 @@ medicalLabLifecycleRouter.post('/orders/:id/specimens/scan', async (req: AuthReq
         uid(), specimen.id, order.id, order.labId, action === 'received' ? 'RECEIVED' : 'REJECTED',
         found[0].status, action, specimen.location, note || (action === 'received' ? 'Barcode scanned at laboratory intake.' : null), req.user!.id,
       );
-      if (action === 'received' && locked[0].status === 'sample_collected') {
+      if (locked[0].status === 'sample_collected') {
         const countRows = await tx.$queryRawUnsafe<Array<{ pending: bigint; accepted: bigint }>>(
           'SELECT COUNT(*) FILTER (WHERE "status"=\'collected\') AS pending, COUNT(*) FILTER (WHERE "status" IN (\'received\',\'processing\',\'consumed\')) AS accepted FROM "medical_lab_specimens" WHERE "orderId"=$1 AND "labId"=$2',
           order.id, order.labId,
@@ -431,6 +431,7 @@ medicalLabLifecycleRouter.post('/orders/:id/specimens/:specimenId/aliquots', asy
     const volume = req.body?.volume === undefined || req.body?.volume === null || req.body?.volume === '' ? null : Number(req.body.volume);
     const volumeUnit = String(req.body?.volumeUnit || '').trim().slice(0, 16) || null;
     if (volume !== null && (!Number.isFinite(volume) || volume <= 0 || volume > 100000)) return res.status(400).json({ ok: false, error: 'Некорректный объём аликвоты' });
+    if (volume !== null && !volumeUnit) return res.status(400).json({ ok: false, error: 'Укажите единицу объёма аликвоты' });
     let aliquot: any;
     await prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<any[]>(
@@ -439,7 +440,8 @@ medicalLabLifecycleRouter.post('/orders/:id/specimens/:specimenId/aliquots', asy
       );
       const parent = rows[0];
       if (!parent) throw new Error('Исходный образец не найден');
-      if (!['received', 'processing'].includes(String(parent.status))) throw new Error('Аликвоту можно создать только из принятого образца');
+      if (String(parent.status) !== 'received') throw new Error('Аликвоту можно создать только до передачи образца в обработку');
+      if (parent.volume !== null && volume === null) throw new Error('Укажите объём аликвоты для образца с известным объёмом');
       if (volume !== null && parent.volume !== null) {
         if (volumeUnit !== String(parent.volumeUnit || '')) throw new Error('Единица объёма аликвоты должна совпадать с исходным образцом');
         const allocated = await tx.$queryRawUnsafe<Array<{ total: string | number | null }>>(
