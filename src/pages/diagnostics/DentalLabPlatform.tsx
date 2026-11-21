@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/ds/Button';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { QueryError } from '@/components/ui/ds/QueryError';
 import { Tabs } from '@/components/ui/ds/Misc';
-import { getLabPlatformDashboard, getLabPlatformFinance, getLabPlatformOrderLifecycle, getLabPlatformOrders, getLabPlatformTeam, assignLabTechnician, requestLabPlatformPayout, updateLabPlatformOrderStatus, updateLabPlatformQualityControl, updateLabPlatformRemakeRequest, createLabPlatformShipment, confirmLabPlatformDelivery, type LabPlatformOrder } from '@/utils/labPlatformApi';
+import { getLabPlatformDashboard, getLabPlatformFinance, getLabPlatformOrderLifecycle, getLabPlatformOrders, getLabPlatformTeam, assignLabTechnician, issueLabPlatformInvoice, requestLabPlatformPayout, updateLabPlatformOrderStatus, updateLabPlatformQualityControl, updateLabPlatformRemakeRequest, createLabPlatformShipment, confirmLabPlatformDelivery, type LabPlatformOrder } from '@/utils/labPlatformApi';
 import DentalLabServicesTab from './DentalLabServicesTab';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
@@ -91,8 +91,8 @@ function QualityControlForm({ busy, onSubmit }: { busy: boolean; onSubmit: (chec
 
 function OrderCard({
   order, onStatus, onQc, onRemakeDecision, onDispatch, onConfirmDelivery, onAssignTechnician,
-  technicians, canManageQc, canManageShipping, canAssignTechnician, canViewDetails,
-  qcBusy, remakeBusy, shipmentBusy, deliveryBusy, assignmentBusy,
+  technicians, canManageQc, canManageShipping, canManageFinance, canAssignTechnician, canViewDetails,
+  onIssueInvoice, invoiceBusy, qcBusy, remakeBusy, shipmentBusy, deliveryBusy, assignmentBusy,
 }: {
   order: LabPlatformOrder;
   onStatus: (id: string, status: string) => void;
@@ -104,6 +104,7 @@ function OrderCard({
   technicians: Array<{ id: string; firstName: string; lastName: string; role?: string }>;
   canManageQc: boolean;
   canManageShipping: boolean;
+  canManageFinance: boolean;
   canAssignTechnician: boolean;
   canViewDetails: boolean;
   qcBusy: boolean;
@@ -111,6 +112,8 @@ function OrderCard({
   shipmentBusy: boolean;
   deliveryBusy: boolean;
   assignmentBusy: boolean;
+  invoiceBusy: boolean;
+  onIssueInvoice: (id: string) => void;
 }) {
   const [responseNote, setResponseNote] = useState('');
   const [shipmentMethod, setShipmentMethod] = useState<'COURIER' | 'PICKUP'>('COURIER');
@@ -140,6 +143,7 @@ function OrderCard({
           <p className="truncate text-sm font-semibold text-txt-primary">{order.type || 'Лабораторная работа'}</p>
           <p className="mt-1 text-xs text-txt-muted">{order.patientName || 'Пациент'} · {order.clinicName || 'Клиника'}</p>
           {order.serviceName && <p className="mt-1 text-xs text-txt-secondary">{order.serviceName}{order.servicePriceSnapshot != null ? ` · ${Number(order.servicePriceSnapshot).toLocaleString('ru-RU')} ₸` : ''}</p>}
+          {order.invoice ? <div className="mt-2 rounded-lg border border-bdr-subtle bg-surface-2 p-2"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold text-txt-primary">Счёт {order.invoice.invoiceNumber}</p><Badge variant={order.invoice.status === 'paid' ? 'success' : order.invoice.status === 'refunded' ? 'error' : order.invoice.status === 'issued' ? 'warning' : 'outline'}>{order.invoice.status === 'paid' ? 'Оплачен' : order.invoice.status === 'issued' ? 'Ожидает оплаты' : order.invoice.status === 'partially_refunded' ? 'Частичный возврат' : order.invoice.status === 'refunded' ? 'Возвращён' : order.invoice.status}</Badge></div><p className="mt-1 text-xs text-txt-secondary">{(Number(BigInt(order.invoice.amountMinor)) / 100).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₸ · {new Date(order.invoice.issuedAt).toLocaleDateString('ru-RU')}</p></div> : order.status === 'delivered' && canManageFinance && <Button size="sm" variant="primary" className="mt-2 w-full" disabled={invoiceBusy} loading={invoiceBusy} onClick={() => onIssueInvoice(order.id)}>Выставить счёт клинике</Button>}
       {order.payment?.status === 'paid' && <div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant="success">Оплачено</Badge><span className="text-[11px] text-txt-muted">{new Date(order.payment.paidAt).toLocaleString('ru-RU')}</span></div>}
         </div>
         <Status status={order.status} />
@@ -336,6 +340,10 @@ export default function DentalLabPlatform() {
   const technicians = (team.data || []).filter((member) => ['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician'].includes(String(member.role || '').toLowerCase()));
   const [payoutAmount, setPayoutAmount] = useState('');
   const payoutAmountMinor = payoutAmountToMinor(payoutAmount);
+  const invoiceMutation = useMutation({
+    mutationFn: (id: string) => issueLabPlatformInvoice(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); },
+  });
   const payoutMutation = useMutation({
     mutationFn: () => requestLabPlatformPayout(payoutAmount.trim()),
     onSuccess: () => {
@@ -397,15 +405,15 @@ export default function DentalLabPlatform() {
           {(filter ? [{ id: filter, label: STAGES.find((s) => s.id === filter)?.label || filter }] : STAGES).map((stage) => (
             <section key={stage.id} className="min-w-0 space-y-3 rounded-2xl bg-surface-0/60 p-2">
               <div className="flex items-center justify-between px-1"><h3 className="text-xs font-semibold text-txt-secondary">{stage.label}</h3><Badge variant="outline">{grouped[stage.id]?.length || 0}</Badge></div>
-              {(grouped[stage.id] || []).slice(0, 20).map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}
+              {(grouped[stage.id] || []).slice(0, 20).map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} canManageFinance={canManageFinance} invoiceBusy={invoiceMutation.isPending} onIssueInvoice={(id) => invoiceMutation.mutate(id)} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}
               {!grouped[stage.id]?.length && <div className="rounded-xl border border-dashed border-bdr-subtle p-5 text-center text-xs text-txt-muted">Нет работ</div>}
             </section>
           ))}
         </div>
       </>}
-      {effectiveTab === 'priority' && <div className="grid gap-3 lg:grid-cols-2">{d.priority.map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}{!d.priority.length && <Card padding="lg"><p className="text-sm text-txt-muted">Критических работ сейчас нет.</p></Card>}</div>}
+      {effectiveTab === 'priority' && <div className="grid gap-3 lg:grid-cols-2">{d.priority.map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} canManageFinance={canManageFinance} invoiceBusy={invoiceMutation.isPending} onIssueInvoice={(id) => invoiceMutation.mutate(id)} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}{!d.priority.length && <Card padding="lg"><p className="text-sm text-txt-muted">Критических работ сейчас нет.</p></Card>}</div>}
       {effectiveTab === 'shipping' && <div className="grid gap-3 lg:grid-cols-2">
-        {(orders.data || []).filter((order) => order.status === 'ready' || order.status === 'delivered').map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}
+        {(orders.data || []).filter((order) => order.status === 'ready' || order.status === 'delivered').map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} canManageFinance={canManageFinance} invoiceBusy={invoiceMutation.isPending} onIssueInvoice={(id) => invoiceMutation.mutate(id)} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}
         {!(orders.data || []).some((order) => order.status === 'ready' || order.status === 'delivered') && <Card padding="lg"><p className="text-sm text-txt-muted">Нет заказов, ожидающих отправки, самовывоза или подтверждения вручения.</p></Card>}
       </div>}
       {effectiveTab === 'services' && <DentalLabServicesTab canManage={canManageQc} />}
