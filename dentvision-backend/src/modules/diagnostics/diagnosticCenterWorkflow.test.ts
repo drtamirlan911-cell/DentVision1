@@ -5,6 +5,7 @@ describe('diagnostic center referral workflow authorization', () => {
   const owner = ['owner'];
   const operator = ['diagnostic_operator'];
   const radiologist = ['radiologist'];
+  const canonicalRadiologist = ['diagnostic_radiologist'];
 
   it('requires a manager to accept a new referral', () => {
     expect(authorizeDiagnosticCenterStatusTransition({ currentStatus: 'SENT', nextStatus: 'ACCEPTED', roleKeys: owner }).allowed).toBe(true);
@@ -17,6 +18,7 @@ describe('diagnostic center referral workflow authorization', () => {
     expect(authorizeDiagnosticCenterStatusTransition({ currentStatus: 'ACCEPTED', nextStatus: 'SCHEDULED', roleKeys: operator }).allowed).toBe(true);
     expect(authorizeDiagnosticCenterStatusTransition({ currentStatus: 'SCHEDULED', nextStatus: 'PATIENT_ARRIVED', roleKeys: operator }).allowed).toBe(true);
     expect(authorizeDiagnosticCenterStatusTransition({ currentStatus: 'PATIENT_ARRIVED', nextStatus: 'IN_PROGRESS', roleKeys: radiologist }).allowed).toBe(true);
+    expect(authorizeDiagnosticCenterStatusTransition({ currentStatus: 'PATIENT_ARRIVED', nextStatus: 'IN_PROGRESS', roleKeys: canonicalRadiologist }).allowed).toBe(true);
     expect(authorizeDiagnosticCenterStatusTransition({ currentStatus: 'SENT', nextStatus: 'IN_PROGRESS', roleKeys: owner })).toMatchObject({
       allowed: false, status: 409, code: 'DIAGNOSTIC_STATUS_TRANSITION_INVALID',
     });
@@ -35,7 +37,7 @@ describe('diagnostic center referral workflow authorization', () => {
       currentStatus: 'COMPLETED', nextStatus: 'DELIVERED', roleKeys: owner,
     })).toMatchObject({ allowed: false, status: 409, code: 'DIAGNOSTIC_RESULT_UNSIGNED' });
     expect(authorizeDiagnosticCenterStatusTransition({
-      currentStatus: 'COMPLETED', nextStatus: 'DELIVERED', roleKeys: radiologist, resultSignedAt: new Date(),
+      currentStatus: 'COMPLETED', nextStatus: 'DELIVERED', roleKeys: canonicalRadiologist, resultSignedAt: new Date(),
     }).allowed).toBe(true);
     expect(authorizeDiagnosticCenterStatusTransition({
       currentStatus: 'COMPLETED', nextStatus: 'DELIVERED', roleKeys: operator, resultSignedAt: new Date(),
@@ -51,6 +53,7 @@ describe('diagnostic center referral workflow authorization', () => {
   it('keeps patient details away from finance-only memberships', () => {
     expect(canReadDiagnosticCenterClinicalDetail(['diagnostic_finance'])).toBe(false);
     expect(canReadDiagnosticCenterClinicalDetail(['radiologist'])).toBe(true);
+    expect(canReadDiagnosticCenterClinicalDetail(['diagnostic_radiologist'])).toBe(true);
     expect(canReadDiagnosticCenterClinicalDetail(['diagnostic_operator'])).toBe(true);
     expect(canReadDiagnosticCenterClinicalDetail(['center_reception'])).toBe(true);
     expect(canReadDiagnosticCenterClinicalDetail(['diagnostic_manager'])).toBe(true);
