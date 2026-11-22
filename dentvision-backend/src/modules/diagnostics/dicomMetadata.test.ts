@@ -29,6 +29,16 @@ function implicitElement(group: number, element: number, value: Buffer): Buffer 
   header.writeUInt32LE(value.length, 4);
   return Buffer.concat([header, value]);
 }
+function explicitBigEndianElement(group: number, element: number, vr: string, value: Buffer): Buffer {
+  const longVr = ['OB', 'OD', 'OF', 'OL', 'OV', 'OW', 'SQ', 'UC', 'UR', 'UT', 'UN'].includes(vr);
+  const header = Buffer.alloc(longVr ? 12 : 8);
+  header.writeUInt16BE(group, 0);
+  header.writeUInt16BE(element, 2);
+  header.write(vr, 4, 2, 'ascii');
+  if (longVr) header.writeUInt32BE(value.length, 8);
+  else header.writeUInt16BE(value.length, 6);
+  return Buffer.concat([header, value]);
+}
 
 function elementTag(group: number, element: number, length: number): Buffer {
   const header = Buffer.alloc(8);
@@ -138,6 +148,35 @@ describe('DICOM Part 10 metadata parser', () => {
       meta,
       ...fields.map(([group, element, value]) => implicitElement(group, element, value)),
     ])).studyInstanceUid).toBe(STUDY);
+  });
+
+  it('supports the standard explicit-VR big-endian dataset transfer syntax', () => {
+    const preamble = Buffer.alloc(132);
+    preamble.write('DICM', 128, 4, 'ascii');
+    const dataset = [
+      explicitBigEndianElement(0x0008, 0x0016, 'UI', padded(SOP_CLASS, 0)),
+      explicitBigEndianElement(0x0008, 0x0018, 'UI', padded(SOP_INSTANCE, 0)),
+      explicitBigEndianElement(0x0020, 0x000d, 'UI', padded(STUDY, 0)),
+      explicitBigEndianElement(0x0020, 0x000e, 'UI', padded(SERIES, 0)),
+      explicitBigEndianElement(0x0028, 0x0010, 'US', Buffer.from([0x00, 0x02])),
+      explicitBigEndianElement(0x0028, 0x0011, 'US', Buffer.from([0x00, 0x02])),
+      explicitBigEndianElement(0x0028, 0x0100, 'US', Buffer.from([0x00, 0x10])),
+      explicitBigEndianElement(0x7fe0, 0x0010, 'OW', Buffer.from([1, 2, 3, 4, 5, 6, 7, 8])),
+    ];
+    const metadata = parseDicomPart10Metadata(Buffer.concat([
+      preamble,
+      fileMeta('1.2.840.10008.1.2.2'),
+      ...dataset,
+    ]));
+    expect(metadata).toMatchObject({
+      transferSyntaxUid: '1.2.840.10008.1.2.2',
+      studyInstanceUid: STUDY,
+      seriesInstanceUid: SERIES,
+      sopInstanceUid: SOP_INSTANCE,
+      rows: 2,
+      columns: 2,
+      bitsAllocated: 16,
+    });
   });
 
   it('rejects non-Part-10 payloads, unsupported syntax and truncated element values', () => {
