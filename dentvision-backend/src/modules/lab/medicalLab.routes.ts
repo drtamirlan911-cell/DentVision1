@@ -4,7 +4,11 @@ import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
-import { tengeToMinor } from '../../lib/money.js';
+import { parseTengeToMinor, serializeBigInt, tengeToMinor } from '../../lib/money.js';
+import { writeAuditLog } from '../compliance/audit.service.js';
+import { getOrCreateWallet } from '../finance/finance.service.js';
+import { availableBalanceMinor, requestPayout, PayoutError } from '../finance/payout.service.js';
+import { getPartnerEconomicsTransparency } from '../finance/partner-economics.service.js';
 import { assertClinicOrgAccess } from '../../lib/orgContext.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { publish } from '../../lib/events.js';
@@ -179,6 +183,88 @@ async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, write 
 async function recordEvent(orderId: string, clinicId: string, fromStatus: string | null, toStatus: string, userId: string, note?: string) {
   await prisma.$executeRawUnsafe(`INSERT INTO "medical_lab_events" ("id","orderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP)`, uid(), orderId, clinicId, fromStatus, toStatus, note ?? null, userId);
 }
+
+medicalLabLifecycleRouter.get('/finance', async (req: AuthRequest, res) => {
+  try {
+    const labId = await resolveLaboratoryScopeId(req.user);
+    if (!labId || !(await requireMedicalLabCapability(req.user, 'finance.read'))) {
+      return res.status(403).json({ ok: false, error: 'Финансы доступны только уполномоченным сотрудникам активной медицинской лаборатории' } satisfies ApiResponse);
+    }
+
+    const wallet = await getOrCreateWallet('PARTNER', labId);
+    const [available, payouts, economics] = await Promise.all([
+      availableBalanceMinor(wallet.id),
+      prisma.payout.findMany({
+        where: { walletId: wallet.id },
+        select: { id: true, amount: true, status: true, createdAt: true, updatedAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      }),
+      getPartnerEconomicsTransparency({ vertical: 'MEDICAL_ANALYSIS', partnerId: labId }),
+    ]);
+
+    return res.json({
+      ok: true,
+      data: serializeBigInt({
+        wallet,
+        availableBalanceMinor: available,
+        canRequestPayout: await requireMedicalLabCapability(req.user, 'finance.manage'),
+        payouts,
+        economics: {
+          period: economics.period,
+          totals: economics.totals,
+          rows: economics.rows.slice(0, 50),
+          discrepancies: economics.discrepancies,
+        },
+      }),
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[medical-lab] finance read failed', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить финансы медицинской лаборатории' } satisfies ApiResponse);
+  }
+});
+
+medicalLabLifecycleRouter.post('/payouts', async (req: AuthRequest, res) => {
+  try {
+    const labId = await resolveLaboratoryScopeId(req.user);
+    if (!labId || !(await requireMedicalLabCapability(req.user, 'finance.manage'))) {
+      return res.status(403).json({ ok: false, error: 'Запрашивать выплаты могут только владелец и финансовая роль активной медицинской лаборатории' } satisfies ApiResponse);
+    }
+
+    const rawAmount = req.body?.amount;
+    if (typeof rawAmount !== 'string' && typeof rawAmount !== 'number') {
+      return res.status(400).json({ ok: false, error: 'Укажите сумму выплаты в тенге' } satisfies ApiResponse);
+    }
+
+    let amountMinor: bigint;
+    try {
+      amountMinor = parseTengeToMinor(rawAmount);
+    } catch {
+      return res.status(400).json({ ok: false, error: 'Некорректная сумма выплаты' } satisfies ApiResponse);
+    }
+
+    try {
+      const payout = await requestPayout({ ownerType: 'PARTNER', ownerId: labId, amountMinor });
+      await writeAuditLog({
+        action: 'MEDICAL_LAB_PAYOUT_REQUESTED',
+        entity: 'payout',
+        entityId: payout.id,
+        details: { laboratoryId: labId, amountMinor: payout.amount.toString() },
+        userId: req.user!.id,
+      });
+      return res.status(201).json({ ok: true, data: serializeBigInt(payout) } satisfies ApiResponse);
+    } catch (error) {
+      if (error instanceof PayoutError) {
+        return res.status(error.code === 'INSUFFICIENT_FUNDS' ? 409 : 400)
+          .json({ ok: false, error: error.message, code: error.code } satisfies ApiResponse);
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error('[medical-lab] payout request failed', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось создать запрос на выплату' } satisfies ApiResponse);
+  }
+});
 
 medicalLabLifecycleRouter.get('/orders', async (req: AuthRequest, res) => {
   try {
