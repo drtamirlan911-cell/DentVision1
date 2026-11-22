@@ -37,6 +37,9 @@ beforeEach(() => {
 });
 
 function paidPayment() {
+  // Clear unconsumed one-shot query results so an early return in one test
+  // cannot leak a queued result into the next test.
+  tx.transaction.findMany.mockReset();
   tx.payment.findUnique.mockResolvedValue({
     id: 'p1',
     amount: 10_000n,
@@ -60,6 +63,9 @@ function paidPayment() {
 }
 
 function paidDentalLabPayment() {
+  // Clear unconsumed one-shot query results so an early return in one test
+  // cannot leak a queued result into the next test.
+  tx.transaction.findMany.mockReset();
   tx.payment.findUnique.mockResolvedValue({
     id: 'p-dental-1',
     amount: 10_000n,
@@ -83,6 +89,9 @@ function paidDentalLabPayment() {
 }
 
 function paidMedicalLabPayment() {
+  // Clear unconsumed one-shot query results so an early return in one test
+  // cannot leak a queued result into the next test.
+  tx.transaction.findMany.mockReset();
   tx.payment.findUnique.mockResolvedValue({
     id: 'p-medical-1',
     amount: 10_000n,
