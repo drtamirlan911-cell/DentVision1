@@ -37,25 +37,25 @@ CREATE INDEX IF NOT EXISTS "partner_branch_subscription_invoices_organizationId_
 CREATE INDEX IF NOT EXISTS "partner_branch_subscription_invoices_ownerId_periodStart_idx"
   ON "partner_branch_subscription_invoices"("ownerId", "periodStart");
 
-DO $ BEGIN
+DO $$ BEGIN
   ALTER TABLE "partner_branch_subscription_invoices"
     ADD CONSTRAINT "partner_branch_subscription_invoices_period_check"
     CHECK ("periodEnd" > "periodStart");
-EXCEPTION WHEN duplicate_object THEN NULL; END $;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-DO $ BEGIN
+DO $$ BEGIN
   ALTER TABLE "partner_branch_subscription_invoices"
     ADD CONSTRAINT "partner_branch_subscription_invoices_counts_check"
     CHECK ("activeBranchCount" >= 0 AND "billableBranchCount" >= 1);
-EXCEPTION WHEN duplicate_object THEN NULL; END $;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-DO $ BEGIN
+DO $$ BEGIN
   ALTER TABLE "partner_branch_subscription_invoices"
     ADD CONSTRAINT "partner_branch_subscription_invoices_amount_check"
     CHECK ("unitPriceKzt" > 0 AND "amountMinor" > 0);
-EXCEPTION WHEN duplicate_object THEN NULL; END $;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-DO $ BEGIN
+DO $$ BEGIN
   ALTER TABLE "partner_branch_subscription_invoices"
     ADD CONSTRAINT "partner_branch_subscription_invoices_subscriptionId_fkey"
     FOREIGN KEY ("subscriptionId") REFERENCES "subscriptions"("id")
