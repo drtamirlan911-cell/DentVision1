@@ -177,6 +177,14 @@ describe('diagnostics partner finance authorization', () => {
     }
   });
 
+  it('allows legacy org administrators basic partner workspace reads without granting finance', () => {
+    expect(partnerRoleKeysHavePermission(['org_admin'], 'diagnostics.read')).toBe(true);
+    expect(partnerRoleKeysHavePermission(['org_admin'], 'lab.read')).toBe(true);
+    expect(partnerRoleKeysHavePermission(['org_admin'], 'billing.read')).toBe(false);
+    expect(partnerRoleKeysHavePermission(['org_admin'], 'billing.manage')).toBe(false);
+    expect(partnerRoleKeysHavePermission(['org_admin'], 'medical.read')).toBe(false);
+  });
+
   it('keeps billing management narrower than billing visibility', () => {
     expect(partnerRoleKeysHavePermission(['DIAGNOSTIC_OWNER'], 'billing.manage')).toBe(true);
     expect(partnerRoleKeysHavePermission(['DIAGNOSTIC_FINANCE'], 'billing.manage')).toBe(true);
