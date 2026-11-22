@@ -25,6 +25,7 @@ import { ServicesTab } from './ServicesTab'
 import { PaymentsTab } from './PaymentsTab'
 import { CashierTab } from './CashierTab'
 import DiagnosticSettlements from '@/pages/diagnostics/DiagnosticSettlements'
+import { PartnerBranchSubscriptionBilling } from '@/components/billing/PartnerBranchSubscriptionBilling'
 import { TeamTab } from './TeamTab'
 import { WorklistTab } from './WorklistTab'
 import { ModalitiesTab } from './ModalitiesTab'
@@ -83,14 +84,19 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
 
   const config = WORKSPACES[kind]
   const canReadOperations = isSuperadmin || iam.hasPermission(kind === 'CENTER' ? 'diagnostics.read' : 'lab.read')
-  const canReadFinance = isSuperadmin || iam.hasPermission('billing.read')
+  const canReadFinance = isSuperadmin || iam.hasPermission('billing.read') || iam.hasPermission('finance.read')
   const canManageBilling = isSuperadmin || iam.hasPermission('billing.manage')
+  const canReadPartnerBilling = isSuperadmin || canReadFinance || iam.hasPermission('billing.manage') || iam.hasPermission('finance.manage')
+  const canManagePartnerBilling = isSuperadmin || iam.hasPermission('billing.manage') || iam.hasPermission('finance.manage')
   const canManageCatalog = isSuperadmin || iam.hasPermission(kind === 'CENTER' ? 'diagnostics.manage' : 'lab.manage')
   const canReadTeam = isSuperadmin || iam.hasPermission('staff.read')
   const isOwnOrg = activeScopeType === config.organizationType
   const ownOrgId = activeWorkspace?.scopeType === config.organizationType
     ? activeWorkspace.scopeId
     : user?.organizationOriginalId || user?.organizationId || ''
+  const partnerBillingOrganizationId = activeScopeType === config.organizationType
+    ? String(activeWorkspace?.organizationId || user?.organizationId || '')
+    : ''
 
   const myOrgs = useMemo(
     () => diagnosticContexts.filter((c: any) => c.scopeType === config.organizationType),
@@ -168,7 +174,7 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
     ...(canReadOperations ? [
       { id: 'referrals', label: config.referralsLabel, icon: <FileText size={14} /> },
     ] : []),
-    ...(canReadFinance ? [
+    ...(canReadPartnerBilling ? [
       { id: 'finance', label: 'Финансы', icon: <TrendingUp size={14} /> },
     ] : []),
     ...(canReadFinance && canReadOperations ? [
@@ -280,7 +286,10 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
           {activeTab === 'referrals' && (
             <ReferralsTab config={config} orgId={orgId} phaseFilter={phaseFilter} onClearPhase={() => setPhaseFilter(null)} />
           )}
-          {activeTab === 'finance' && <DiagnosticSettlements />}
+          {activeTab === 'finance' && <div className="space-y-4">
+            <DiagnosticSettlements />
+            {partnerBillingOrganizationId && <PartnerBranchSubscriptionBilling organizationId={partnerBillingOrganizationId} canReadBilling={canReadPartnerBilling} canManageBilling={canManagePartnerBilling} />}
+          </div>}
           {activeTab === 'services' && <ServicesTab config={config} orgId={orgId} />}
           {activeTab === 'payments' && <PaymentsTab config={config} orgId={orgId} />}
           {activeTab === 'team' && <TeamTab config={config} orgId={orgId} />}
