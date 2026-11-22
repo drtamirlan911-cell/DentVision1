@@ -1010,7 +1010,7 @@ test.describe('Partner operational lifecycle', () => {
     expect(accepted.status()).toBe(200);
     // Client-submitted cost is ignored for a center acceptance; the canonical
     // center catalogue remains the only source of the accepted price snapshot.
-    expect((await accepted.json()).data).toMatchObject({ status: 'ACCEPTED', cost: 10000 });
+    expect((await accepted.json()).data).toMatchObject({ status: 'ACCEPTED', cost: '10000' });
 
     const missingSchedule = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
       headers: auth(centerOwnerToken),
