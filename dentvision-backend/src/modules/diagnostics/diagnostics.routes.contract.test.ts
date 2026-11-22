@@ -369,7 +369,7 @@ describe('diagnostics route contract', () => {
   it('keeps operational diagnostic-center cards redacted unless the scoped role has medical.read', () => {
     expect(source).toContain('canReadDiagnosticCenterClinicalDetail(roleKeys)');
     expect(source).toContain("await hasPartnerScopedPermission(req.user, 'medical.read')");
-    expect(source).toContain('redactDiagnosticCenterOperationalReferral(detail)');
+    expect(source).toContain('redactPartnerReferralForList(detail, { canReadClinical, canReadFinance, canReadFiles })');
     expect(source).toContain('for (const key of [');
     expect(source).toContain("'patientIin'");
     expect(source).toContain("'allergies'");
@@ -384,8 +384,8 @@ describe('diagnostics route contract', () => {
     const route = source.slice(start, end);
     expect(route).toContain('canReadDiagnosticCenterClinicalDetail(roleKeys)');
     expect(route).toContain("await hasPartnerScopedPermission(req.user, 'medical.read')");
-    expect(route).toContain('redactDiagnosticCenterOperationalReferral(detail)');
-    expect(route).toContain("canReadFiles: await hasPartnerScopedPermission(req.user, 'files.read')");
+    expect(route).toContain('redactPartnerReferralForList(detail, { canReadClinical, canReadFinance, canReadFiles })');
+    expect(route).toContain("canReadFiles");
     expect(source).toContain("CENTER_RECEPTION: 'DIAGNOSTIC_RECEPTION'");
     expect(source).toContain("RECEPTION: 'DIAGNOSTIC_RECEPTION'");
     expect(source).toContain("DIAGNOSTIC_RADIOLOGIST: 'RADIOLOGIST'");
