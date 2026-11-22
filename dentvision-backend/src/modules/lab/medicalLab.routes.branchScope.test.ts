@@ -37,4 +37,20 @@ describe('medical lab branch isolation contract', () => {
   it('resolves laboratory scope from the original organization entity id', () => {
     expect(source).toContain('organizationOriginalId ||');
   });
+
+  it('exposes medical-lab finance only through the active laboratory role capabilities', () => {
+    expect(source).toContain("medicalLabLifecycleRouter.get('/capabilities'");
+    expect(source).toContain("medicalLabLifecycleRouter.get('/finance'");
+    expect(source).toContain("medicalLabLifecycleRouter.post('/payouts'");
+    expect(source).toContain("requireMedicalLabCapability(req.user, 'finance.read')");
+    expect(source).toContain("requireMedicalLabCapability(req.user, 'finance.manage')");
+    expect(source).toContain("getOrCreateWallet('PARTNER', labId)");
+    expect(source).toContain("getPartnerEconomicsTransparency({ vertical: 'MEDICAL_ANALYSIS', partnerId: labId })");
+    expect(source).toContain("requestPayout({ ownerType: 'PARTNER', ownerId: labId, amountMinor })");
+    const payoutRoute = source.slice(source.indexOf("medicalLabLifecycleRouter.post('/payouts'"), source.indexOf("medicalLabLifecycleRouter.get('/orders'"));
+    expect(payoutRoute).toContain('parseTengeToMinor(rawAmount)');
+    expect(payoutRoute).toContain('MEDICAL_LAB_PAYOUT_REQUESTED');
+    expect(payoutRoute).not.toContain('req.body.labId');
+    expect(payoutRoute).not.toContain('req.body.ownerId');
+  });
 });
