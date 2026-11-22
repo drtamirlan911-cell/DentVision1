@@ -90,7 +90,8 @@ describe('diagnostics route contract', () => {
     expect(source).toContain("partnerCatalogReadPermission('DiagnosticCenter')");
     expect(source).toContain("partnerCatalogReadPermission('Laboratory')");
     expect(referralsRoute).toContain("hasPartnerScopedPermission(req.user, 'billing.read')");
-    expect(referralsRoute).toContain('redactPartnerReferralFinancials');
+    expect(referralsRoute).toContain('redactPartnerReferralForList(item, access)');
+    expect(source).toContain('if (!access.canReadFinance) visible = redactPartnerReferralFinancials(visible)');
 
     expect(source).toContain('export function partnerRoleKeysHavePermission');
     expect(source).toContain('export function redactPartnerReferralFinancials');
