@@ -42,6 +42,20 @@ describe('medical laboratory scoped role capabilities', () => {
     }
   });
 
+  it('matches the canonical organization staff permissions', () => {
+    expect(medicalLabRoleAllows(['medical_lab_owner'], 'staff.read')).toBe(true);
+    expect(medicalLabRoleAllows(['medical_lab_owner'], 'staff.write')).toBe(true);
+    expect(medicalLabRoleAllows(['medical_lab_owner'], 'staff.manage')).toBe(true);
+    expect(medicalLabRoleAllows(['medical_lab_admin'], 'staff.read')).toBe(true);
+    expect(medicalLabRoleAllows(['medical_lab_admin'], 'staff.write')).toBe(true);
+    expect(medicalLabRoleAllows(['medical_lab_manager'], 'staff.read')).toBe(true);
+    for (const role of ['medical_lab_technician', 'medical_lab_validator', 'medical_lab_quality', 'medical_lab_finance']) {
+      expect(medicalLabRoleAllows([role], 'staff.read')).toBe(false);
+      expect(medicalLabRoleAllows([role], 'staff.write')).toBe(false);
+      expect(medicalLabRoleAllows([role], 'staff.manage')).toBe(false);
+    }
+  });
+
   it('supports union of multiple explicit roles in the same organization', () => {
     const roles = ['medical_lab_technician', 'medical_lab_validator'];
     expect(medicalLabRoleAllows(roles, 'result.write')).toBe(true);
