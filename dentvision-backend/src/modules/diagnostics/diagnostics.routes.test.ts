@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { authorizeReferralListScope } from './diagnostics.routes.js';
+import { authorizeReferralListScope, partnerRoleKeysHavePermission, redactPartnerReferralFinancials } from './diagnostics.routes.js';
 
 const user = (overrides: Record<string, unknown> = {}) => ({
   id: 'u1',
@@ -9,6 +9,46 @@ const user = (overrides: Record<string, unknown> = {}) => ({
   organizationType: 'LABORATORY',
   ...overrides,
 }) as any;
+
+describe('diagnostics partner finance authorization', () => {
+  it('grants billing visibility only to partner roles with an explicit finance permission', () => {
+    for (const role of ['DIAGNOSTIC_OWNER', 'DIAGNOSTIC_ADMIN', 'DIAGNOSTIC_MANAGER', 'DIAGNOSTIC_RECEPTION', 'DIAGNOSTIC_FINANCE']) {
+      expect(partnerRoleKeysHavePermission([role], 'billing.read')).toBe(true);
+    }
+    for (const role of ['DIAGNOSTIC_OPERATOR', 'RADIOLOGIST', 'RADIOLOGY_TECHNICIAN', 'DIAGNOSTIC_QUALITY']) {
+      expect(partnerRoleKeysHavePermission([role], 'billing.read')).toBe(false);
+    }
+  });
+
+  it('keeps billing management narrower than billing visibility', () => {
+    expect(partnerRoleKeysHavePermission(['DIAGNOSTIC_OWNER'], 'billing.manage')).toBe(true);
+    expect(partnerRoleKeysHavePermission(['DIAGNOSTIC_FINANCE'], 'billing.manage')).toBe(true);
+    for (const role of ['DIAGNOSTIC_ADMIN', 'DIAGNOSTIC_MANAGER', 'DIAGNOSTIC_RECEPTION', 'DIAGNOSTIC_OPERATOR', 'RADIOLOGIST']) {
+      expect(partnerRoleKeysHavePermission([role], 'billing.manage')).toBe(false);
+    }
+  });
+
+  it('removes financial amounts but preserves the operational paid state for non-finance roles', () => {
+    const visible = redactPartnerReferralFinancials({
+      id: 'ref-1',
+      patientName: 'Пациент',
+      paid: true,
+      cost: 125000,
+      platformFee: 10000,
+      paidAt: new Date('2026-11-20T10:00:00Z'),
+      settlementId: 'settlement-1',
+      commissionMinor: '1000000',
+      partnerPayoutMinor: '11500000',
+      status: 'DELIVERED',
+    });
+    expect(visible).toEqual({
+      id: 'ref-1',
+      patientName: 'Пациент',
+      paid: true,
+      status: 'DELIVERED',
+    });
+  });
+});
 
 describe('diagnostics referral scope authorization', () => {
   it('allows a laboratory user to read its own laboratory scope', async () => {
