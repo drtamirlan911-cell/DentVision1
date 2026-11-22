@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 /** Curated Academy OS commerce content — webinars & office courses first. */
 
 import { simpleChat } from '../ai/llm/client.js';
@@ -205,7 +206,7 @@ export async function reviewHomeworkWithAI(input: {
     const parsed = raw ? parseHomeworkReviewJson(raw) : null;
     if (parsed) return { ...parsed, source: 'ai' };
   } catch (err) {
-    console.error('[academy] AI homework review failed, falling back to heuristic:', err);
+    console.error('[academy] AI homework review failed, falling back to heuristic:', safeErrorKind(err));
   }
   return { ...reviewHomework(input), source: 'heuristic' };
 }
@@ -238,7 +239,7 @@ export async function getTutorReply(message: string): Promise<{ reply: string; s
     const reply = await simpleChat(TUTOR_SYSTEM_PROMPT, message, { maxTokens: 300 });
     if (reply.trim()) return { reply: reply.trim(), suggestions };
   } catch (err) {
-    console.error('[academy] AI tutor failed, falling back to canned reply:', err);
+    console.error('[academy] AI tutor failed, falling back to canned reply:', safeErrorKind(err));
   }
   return { reply: tutorFallbackReply(message), suggestions };
 }

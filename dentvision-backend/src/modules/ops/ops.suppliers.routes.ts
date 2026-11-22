@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router } from 'express';
 import { SupplierStatus } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
@@ -52,7 +53,7 @@ opsSuppliersRouter.get('/', async (req: AuthRequest, res) => {
 
     return res.json({ ok: true, data: paginatedResponse(data, total, page, limit) } satisfies ApiResponse);
   } catch (error) {
-    console.error('Ops list suppliers error:', error);
+    console.error('Ops list suppliers error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse);
   }
 });
@@ -105,7 +106,7 @@ opsSuppliersRouter.post('/:id/status', async (req: AuthRequest, res) => {
     });
     return res.json({ ok: true, data: supplier } satisfies ApiResponse);
   } catch (error) {
-    console.error('Ops supplier status error:', error);
+    console.error('Ops supplier status error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse);
   }
 });
@@ -137,7 +138,7 @@ opsSuppliersRouter.post('/:id/members', async (req: AuthRequest, res) => {
     await syncPersonFromSupplierMember(member.id, supplier.id, resolvedUserId);
     return res.status(201).json({ ok: true, data: member } satisfies ApiResponse);
   } catch (error) {
-    console.error('Ops add member error:', error);
+    console.error('Ops add member error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse);
   }
 });

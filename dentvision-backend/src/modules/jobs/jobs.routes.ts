@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router, type Response } from 'express';
 import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
@@ -164,7 +165,7 @@ jobsRouter.get('/', optionalAuth, async (req, res) => {
     const list = await prisma.jobVacancy.findMany({ where, orderBy: { createdAt: 'desc' } });
     return res.json(list);
   } catch (error) {
-    console.error('List jobs error:', error);
+    console.error('List jobs error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить вакансии' } satisfies ApiResponse);
   }
 });
@@ -183,7 +184,7 @@ jobsRouter.get('/employer/status', authenticate, requirePermission('jobs.read'),
       },
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('Employer workspace status error:', error);
+    console.error('Employer workspace status error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось проверить статус работодателя' } satisfies ApiResponse);
   }
 });
@@ -202,7 +203,7 @@ jobsRouter.get('/employer/vacancies', authenticate, requirePermission('jobs.read
       data: vacancies.map(({ _count, ...vacancy }) => ({ ...vacancy, applicationsCount: _count.applications })),
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('Employer vacancy list error:', error);
+    console.error('Employer vacancy list error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить вакансии работодателя' } satisfies ApiResponse);
   }
 });
@@ -223,7 +224,7 @@ jobsRouter.get('/employer/resumes', authenticate, requirePermission('jobs.read')
     });
     return res.json({ ok: true, data: resumes } satisfies ApiResponse);
   } catch (error) {
-    console.error('Employer resume discovery error:', error);
+    console.error('Employer resume discovery error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить резюме' } satisfies ApiResponse);
   }
 });
@@ -276,7 +277,7 @@ jobsRouter.get('/employer/vacancies/:id/applications', authenticate, requirePerm
     });
     return res.json({ ok: true, data: applications } satisfies ApiResponse);
   } catch (error) {
-    console.error('Employer applications error:', error);
+    console.error('Employer applications error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить отклики' } satisfies ApiResponse);
   }
 });
@@ -318,7 +319,7 @@ jobsRouter.post('/employer/vacancies', authenticate, requirePermission('jobs.wri
     });
     return res.status(201).json({ ok: true, data: vacancy } satisfies ApiResponse);
   } catch (error) {
-    console.error('Create employer vacancy error:', error);
+    console.error('Create employer vacancy error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось разместить вакансию' } satisfies ApiResponse);
   }
 });
@@ -381,7 +382,7 @@ jobsRouter.patch('/employer/applications/:id/status', authenticate, requirePermi
     if (!updated) return res.status(409).json({ ok: false, error: 'Отклик изменился параллельно. Обновите список.', code: 'APPLICATION_CONFLICT' } satisfies ApiResponse);
     return res.json({ ok: true, data: updated } satisfies ApiResponse);
   } catch (error) {
-    console.error('Update employer application error:', error);
+    console.error('Update employer application error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось изменить статус отклика' } satisfies ApiResponse);
   }
 });
@@ -443,7 +444,7 @@ jobsRouter.post('/employer/invitations', authenticate, requirePermission('jobs.w
     });
     return res.status(201).json({ ok: true, data: invitation } satisfies ApiResponse);
   } catch (error) {
-    console.error('Create candidate invitation error:', error);
+    console.error('Create candidate invitation error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось отправить приглашение' } satisfies ApiResponse);
   }
 });
@@ -462,7 +463,7 @@ jobsRouter.get('/me/invitations', authenticate, async (req: AuthRequest, res) =>
     });
     return res.json({ ok: true, data: invitations } satisfies ApiResponse);
   } catch (error) {
-    console.error('List candidate invitations error:', error);
+    console.error('List candidate invitations error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить приглашения' } satisfies ApiResponse);
   }
 });
@@ -536,7 +537,7 @@ jobsRouter.patch('/me/invitations/:id/respond', authenticate, async (req: AuthRe
     if (!updated) return res.status(409).json({ ok: false, error: 'Приглашение уже изменилось. Обновите список.', code: 'INVITATION_CONFLICT' } satisfies ApiResponse);
     return res.json({ ok: true, data: updated } satisfies ApiResponse);
   } catch (error) {
-    console.error('Respond to candidate invitation error:', error);
+    console.error('Respond to candidate invitation error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось ответить на приглашение' } satisfies ApiResponse);
   }
 });
@@ -594,7 +595,7 @@ jobsRouter.post('/employer/applications/:id/interviews', authenticate, requirePe
     if (!interview) return res.status(409).json({ ok: false, error: 'Отклик изменился параллельно. Обновите страницу.', code: 'APPLICATION_CONFLICT' } satisfies ApiResponse);
     return res.status(201).json({ ok: true, data: interview } satisfies ApiResponse);
   } catch (error) {
-    console.error('Create interview error:', error);
+    console.error('Create interview error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось назначить собеседование' } satisfies ApiResponse);
   }
 });
@@ -612,7 +613,7 @@ jobsRouter.get('/me/interviews', authenticate, async (req: AuthRequest, res) => 
     });
     return res.json({ ok: true, data: interviews } satisfies ApiResponse);
   } catch (error) {
-    console.error('List candidate interviews error:', error);
+    console.error('List candidate interviews error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить собеседования' } satisfies ApiResponse);
   }
 });
@@ -656,7 +657,7 @@ jobsRouter.patch('/me/interviews/:id/respond', authenticate, async (req: AuthReq
     if (!updated) return res.status(409).json({ ok: false, error: 'Собеседование изменилось. Обновите список.', code: 'INTERVIEW_CONFLICT' } satisfies ApiResponse);
     return res.json({ ok: true, data: updated } satisfies ApiResponse);
   } catch (error) {
-    console.error('Respond to interview error:', error);
+    console.error('Respond to interview error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось ответить на приглашение' } satisfies ApiResponse);
   }
 });
@@ -713,7 +714,7 @@ jobsRouter.post('/employer/applications/:id/offers', authenticate, requirePermis
     if (!offer) return res.status(409).json({ ok: false, error: 'Отклик изменился параллельно. Обновите страницу.', code: 'APPLICATION_CONFLICT' } satisfies ApiResponse);
     return res.status(201).json({ ok: true, data: offer } satisfies ApiResponse);
   } catch (error) {
-    console.error('Create employment offer error:', error);
+    console.error('Create employment offer error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось отправить предложение' } satisfies ApiResponse);
   }
 });
@@ -732,7 +733,7 @@ jobsRouter.get('/me/offers', authenticate, async (req: AuthRequest, res) => {
     });
     return res.json({ ok: true, data: offers } satisfies ApiResponse);
   } catch (error) {
-    console.error('List candidate offers error:', error);
+    console.error('List candidate offers error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить предложения о работе' } satisfies ApiResponse);
   }
 });
@@ -777,7 +778,7 @@ jobsRouter.patch('/me/offers/:id/respond', authenticate, async (req: AuthRequest
     if (!updated) return res.status(409).json({ ok: false, error: 'Предложение уже изменилось. Обновите список.', code: 'OFFER_CONFLICT' } satisfies ApiResponse);
     return res.json({ ok: true, data: { ...updated, nextStep: 'EMPLOYMENT_CONTRACT_REQUIRED' } } satisfies ApiResponse);
   } catch (error) {
-    console.error('Respond to employment offer error:', error);
+    console.error('Respond to employment offer error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось ответить на предложение' } satisfies ApiResponse);
   }
 });
@@ -810,7 +811,7 @@ jobsRouter.get('/me/applications', authenticate, async (req: AuthRequest, res) =
     });
     return res.json(apps);
   } catch (error) {
-    console.error('List candidate applications error:', error);
+    console.error('List candidate applications error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить ваши отклики' } satisfies ApiResponse);
   }
 });
@@ -836,7 +837,7 @@ jobsRouter.get('/me/resumes', authenticate, async (req: AuthRequest, res) => {
     });
     return res.json(resumes);
   } catch (error) {
-    console.error('List candidate resumes error:', error);
+    console.error('List candidate resumes error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить ваши резюме' } satisfies ApiResponse);
   }
 });
@@ -882,7 +883,7 @@ jobsRouter.patch('/me/resumes/:id/status', authenticate, async (req: AuthRequest
     if (!updated) return res.status(404).json({ ok: false, error: 'Резюме не найдено' } satisfies ApiResponse);
     return res.json(updated);
   } catch (error) {
-    console.error('Update candidate resume visibility error:', error);
+    console.error('Update candidate resume visibility error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось изменить видимость резюме' } satisfies ApiResponse);
   }
 });
@@ -940,7 +941,7 @@ jobsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     });
     return res.status(201).json({ ok: true, data: resume } satisfies ApiResponse);
   } catch (error) {
-    console.error('Create resume error:', error);
+    console.error('Create resume error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось разместить резюме' } satisfies ApiResponse);
   }
 });
@@ -984,7 +985,7 @@ jobsRouter.post('/:id/apply', authenticate, async (req: AuthRequest, res) => {
     });
     return res.status(result.created ? 201 : 200).json(result.application);
   } catch (error) {
-    console.error('Apply job error:', error);
+    console.error('Apply job error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось откликнуться' } satisfies ApiResponse);
   }
 });

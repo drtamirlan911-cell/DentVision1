@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 /**
  * Community social — feed, comments, saves, DMs (IG/Threads/Telegram essentials).
  */
@@ -143,7 +144,7 @@ communityRouter.get('/posts', optionalAuth, async (req: AuthRequest, res) => {
 
     return res.json({ ok: true, data: posts.map((p) => mapPost(p, userId)) } satisfies ApiResponse);
   } catch (error) {
-    console.error('[Community] list posts', error);
+    console.error('[Community] list posts', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить ленту' } satisfies ApiResponse);
   }
 });
@@ -175,7 +176,7 @@ communityRouter.post('/posts', authenticate, async (req: AuthRequest, res) => {
       data: { ...post, liked: false, saved: false },
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('[Community] create post', error);
+    console.error('[Community] create post', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось опубликовать' } satisfies ApiResponse);
   }
 });
@@ -212,7 +213,7 @@ communityRouter.post('/posts/:id/like', authenticate, async (req: AuthRequest, r
     });
     return res.json({ ok: true, data: { ...updated, liked: true } } satisfies ApiResponse);
   } catch (error) {
-    console.error('[Community] like', error);
+    console.error('[Community] like', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось обновить лайк' } satisfies ApiResponse);
   }
 });
@@ -234,7 +235,7 @@ communityRouter.post('/posts/:id/save', authenticate, async (req: AuthRequest, r
     await prisma.communitySave.create({ data: { id: uid(), postId, userId } });
     return res.json({ ok: true, data: { saved: true } } satisfies ApiResponse);
   } catch (error) {
-    console.error('[Community] save', error);
+    console.error('[Community] save', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось сохранить' } satisfies ApiResponse);
   }
 });
@@ -256,7 +257,7 @@ communityRouter.get('/posts/:id/comments', optionalAuth, async (req: AuthRequest
       authorPhotoUrl: c.author?.photoUrl || c.author?.avatar || null,
     })) } satisfies ApiResponse);
   } catch (error) {
-    console.error('[Community] comments', error);
+    console.error('[Community] comments', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить комментарии' } satisfies ApiResponse);
   }
 });
@@ -286,7 +287,7 @@ communityRouter.post('/posts/:id/comments', authenticate, async (req: AuthReques
 
     return res.status(201).json({ ok: true, data: comment } satisfies ApiResponse);
   } catch (error) {
-    console.error('[Community] add comment', error);
+    console.error('[Community] add comment', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось отправить комментарий' } satisfies ApiResponse);
   }
 });
@@ -327,7 +328,7 @@ communityRouter.get('/people', authenticate, async (req: AuthRequest, res) => {
       })),
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('[Community] people', error);
+    console.error('[Community] people', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось найти людей' } satisfies ApiResponse);
   }
 });
@@ -356,7 +357,7 @@ communityRouter.get('/dm/unread-count', authenticate, async (req: AuthRequest, r
     }
     return res.json({ ok: true, data: { unread } } satisfies ApiResponse);
   } catch (error) {
-    console.error('[Community] dm unread', error);
+    console.error('[Community] dm unread', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse);
   }
 });
@@ -412,7 +413,7 @@ communityRouter.get('/dm', authenticate, async (req: AuthRequest, res) => {
 
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (error) {
-    console.error('[Community] dm inbox', error);
+    console.error('[Community] dm inbox', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить сообщения' } satisfies ApiResponse);
   }
 });
@@ -456,7 +457,7 @@ communityRouter.post('/dm/open', authenticate, async (req: AuthRequest, res) => 
       },
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('[Community] dm open', error);
+    console.error('[Community] dm open', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось открыть чат' } satisfies ApiResponse);
   }
 });
@@ -504,7 +505,7 @@ communityRouter.get('/dm/:id/messages', authenticate, async (req: AuthRequest, r
       },
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('[Community] dm messages', error);
+    console.error('[Community] dm messages', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить чат' } satisfies ApiResponse);
   }
 });
@@ -540,7 +541,7 @@ communityRouter.post('/dm/:id/messages', authenticate, async (req: AuthRequest, 
 
     return res.status(201).json({ ok: true, data: msg } satisfies ApiResponse);
   } catch (error) {
-    console.error('[Community] dm send', error);
+    console.error('[Community] dm send', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось отправить' } satisfies ApiResponse);
   }
 });

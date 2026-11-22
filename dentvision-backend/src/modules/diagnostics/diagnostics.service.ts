@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import prisma from '../../lib/prisma.js';
 import { deleteObject, isStorageKey, keyFromStorageUrl, signedDownloadUrl, storageConfigured, toStorageUrl, uploadObject } from '../../lib/storage.js';
 import { resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
@@ -59,7 +60,7 @@ export async function ensureCenterSubscription(centerId: string) {
     // Fail closed: a database/subscription verification outage must never
     // grant partner access. Callers can surface the unavailable state and
     // retry instead of exposing an unverified center.
-    console.error('[Diagnostics] center subscription verification failed:', error);
+    console.error('[Diagnostics] center subscription verification failed:', safeErrorKind(error));
     return { active: false, status: 'unavailable' as const };
   }
 }
@@ -116,7 +117,7 @@ export async function listCenters(search?: string, city?: string) {
     // Fail closed. If the canonical Organization/subscription visibility
     // boundary cannot be evaluated, returning all active centers would turn
     // an infrastructure error into a tenant/data exposure.
-    console.error('[Diagnostics] center visibility resolution failed:', error);
+    console.error('[Diagnostics] center visibility resolution failed:', safeErrorKind(error));
     return [];
   }
   return prisma.diagnosticCenter.findMany({
@@ -154,7 +155,7 @@ export async function getCenter(id: string, options: { includePrivate?: boolean 
       },
     });
   } catch (error) {
-    console.error('[Diagnostics] center visibility check failed:', error);
+    console.error('[Diagnostics] center visibility check failed:', safeErrorKind(error));
     return null;
   }
 }
@@ -182,7 +183,7 @@ async function syncOrgFromEntity(
       },
     });
   } catch (e) {
-    console.warn(`[Diagnostics] syncOrgFromEntity failed (non-fatal, table may not exist): ${type} ${id}`);
+    console.warn(`[Diagnostics] syncOrgFromEntity failed (non-fatal, table may not exist): ${type} ${id}`, safeErrorKind(e));
   }
 }
 
@@ -230,7 +231,7 @@ export async function getLaboratory(id: string, options: { includePrivate?: bool
       include: { tests: { where: { active: true } } },
     });
   } catch (error) {
-    console.error('[Diagnostics] laboratory visibility check failed:', error);
+    console.error('[Diagnostics] laboratory visibility check failed:', safeErrorKind(error));
     return null;
   }
 }
@@ -441,7 +442,7 @@ export async function grantDiagnosticsAccess(
       grantDiagnosticsAccessInTransaction(type, entityId, userId, role, tx),
     );
   } catch (error) {
-    console.warn(`[Diagnostics] grantDiagnosticsAccess failed (${type} ${entityId}):`, (error as Error).message);
+    console.warn(`[Diagnostics] grantDiagnosticsAccess failed (${type} ${entityId}):`, safeErrorKind(error));
     return false;
   }
 }
@@ -1044,7 +1045,7 @@ export async function uploadReferralFile(data: {
     });
   } catch (error: any) {
     await deleteObject(storageKey).catch((cleanupError) => {
-      console.error('[diagnostics] orphaned S3 object after failed metadata commit', { referralId: referral.id, storageKey, cleanupError });
+      console.error('[diagnostics] orphaned S3 object after failed metadata commit', { referralId: referral.id, storageKey, cleanupError: safeErrorKind(cleanupError) });
     });
     if (data.dicomMetadata && String(error?.code || '') === 'P2002') {
       throw Object.assign(
@@ -1140,12 +1141,7 @@ export async function deleteReferralFile(id: string, userId: string) {
     try {
       await deleteObject(storageKey);
     } catch (error) {
-      console.error('[diagnostics] private orphaned S3 object after metadata deletion', {
-        referralId: file.referralId,
-        fileId: id,
-        storageKey,
-        error,
-      });
+      console.error('[diagnostics] private orphaned S3 object after metadata deletion', { referralId: file.referralId, fileId: id, storageKey, error: safeErrorKind(error) });
     }
   }
 }
