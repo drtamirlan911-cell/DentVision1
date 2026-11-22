@@ -434,10 +434,21 @@ export interface PartnerBranchSubscriptionInvoice {
   paidAt?: string | null;
   paymentId?: string | null;
 }
-export async function getPartnerBranchSubscriptionInvoices(organizationId: string): Promise<PartnerBranchSubscriptionInvoice[]> {
-  if (!organizationId.trim()) throw new Error('Не выбрана активная организация партнёра');
-  const params = new URLSearchParams({ organizationId: organizationId.trim(), take: '50' });
+export async function getPartnerBranchSubscriptionInvoices(organizationId?: string, take = 50): Promise<PartnerBranchSubscriptionInvoice[]> {
+  const safeTake = Number.isSafeInteger(take) && take > 0 ? Math.min(take, 100) : 50;
+  const params = new URLSearchParams({ take: String(safeTake) });
+  if (organizationId?.trim()) params.set('organizationId', organizationId.trim());
   return apiRequest(`/api/finance/partner-branch-billing/invoices?${params.toString()}`);
+}
+export async function issuePartnerBranchSubscriptionInvoice(input: {
+  organizationId: string;
+  periodStart: string;
+  periodEnd: string;
+}): Promise<PartnerBranchSubscriptionInvoice> {
+  return apiRequest('/api/finance/partner-branch-billing/invoices', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 export async function getPayment(paymentId: string): Promise<any> { return apiRequest(`/api/payments/${paymentId}`); }
 export async function confirmPayment(paymentId: string): Promise<any> { return apiRequest(`/api/payments/${paymentId}/confirm`, { method: 'POST', body: JSON.stringify({}) }); }

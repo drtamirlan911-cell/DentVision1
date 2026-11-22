@@ -7,9 +7,10 @@ import {
 import { useToast } from '../../components/ui/ds/Toast';
 import { AreaChartComponent, DonutChartComponent } from '../../components/charts';
 import * as api from '../../utils/api';
+import { PartnerBranchSubscriptionAdminPanel } from '../../components/billing/PartnerBranchSubscriptionAdminPanel';
 import {
   DollarSign, Wallet, ArrowUpDown, AlertTriangle, Check, X, Search, Plus,
-  RefreshCw, Shield, Activity, TrendingUp, CreditCard, Eye, Send,
+  RefreshCw, Shield, Activity, TrendingUp, CreditCard, Eye, Send, Building2,
 } from 'lucide-react';
 
 const fd = (d: string) => {
@@ -93,7 +94,7 @@ const DISPUTE_STATUS_LABEL: Record<string, string> = {
   rejected: 'Отклонён',
 };
 
-type SubTab = 'overview' | 'transactions' | 'wallets' | 'commissions' | 'payouts' | 'disputes' | 'ledger';
+type SubTab = 'overview' | 'transactions' | 'wallets' | 'commissions' | 'payouts' | 'disputes' | 'ledger' | 'partner-billing';
 
 const SUB_TABS: { id: SubTab; label: string; icon: React.ReactNode }[] = [
   { id: 'overview', label: 'Обзор', icon: <Activity size={14} /> },
@@ -103,6 +104,7 @@ const SUB_TABS: { id: SubTab; label: string; icon: React.ReactNode }[] = [
   { id: 'payouts', label: 'Выплаты', icon: <Send size={14} /> },
   { id: 'disputes', label: 'Споры', icon: <AlertTriangle size={14} /> },
   { id: 'ledger', label: 'Леджер', icon: <Shield size={14} /> },
+  { id: 'partner-billing', label: 'Филиальные подписки', icon: <Building2 size={14} /> },
 ];
 
 /** Mirrors the `RevenueSource` enum in schema.prisma. */
@@ -922,6 +924,8 @@ export default function FinanceTab() {
           )}
         </div>
       )}
+
+      {subTab === 'partner-billing' && <PartnerBranchSubscriptionAdminPanel />}
 
       <Modal open={manualModal} onClose={() => setManualModal(false)} title="Ручная транзакция">
         <form onSubmit={e => {

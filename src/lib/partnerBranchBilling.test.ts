@@ -59,5 +59,26 @@ describe('partner branch invoice presentation', () => {
     expect(dentalLabWorkspace).toContain('canReadBilling={canManageFinance}');
     expect(component).not.toContain("status: 'paid'");
   });
+  it('wires platform Finance Hub to the platform-only invoice issuance endpoint', () => {
+    const adminPanel = readFileSync(
+      resolve(process.cwd(), 'src/components/billing/PartnerBranchSubscriptionAdminPanel.tsx'),
+      'utf8',
+    );
+    const financeTab = readFileSync(
+      resolve(process.cwd(), 'src/pages/superadmin/FinanceTab.tsx'),
+      'utf8',
+    );
+    const api = readFileSync(resolve(process.cwd(), 'src/utils/api.ts'), 'utf8');
+
+    expect(financeTab).toContain("id: 'partner-billing'");
+    expect(financeTab).toContain('<PartnerBranchSubscriptionAdminPanel />');
+    expect(adminPanel).toContain("type: 'DIAGNOSTIC_CENTER'");
+    expect(adminPanel).toContain("type: 'LABORATORY'");
+    expect(adminPanel).toContain('issuePartnerBranchSubscriptionInvoice');
+    expect(adminPanel).toContain('periodEnd: new Date(');
+    expect(adminPanel).toContain('getPartnerBranchSubscriptionInvoices(organizationId || undefined, 100)');
+    expect(api).toContain("apiRequest('/api/finance/partner-branch-billing/invoices',");
+  });
+
 
 });
