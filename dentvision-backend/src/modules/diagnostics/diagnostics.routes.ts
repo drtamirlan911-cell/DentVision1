@@ -207,11 +207,11 @@ const PARTNER_FINANCE_FIELDS = [
 ] as const;
 
 /** Remove organization financial values from partner operational responses. */
-export function redactPartnerReferralFinancials<T extends Record<string, any>>(referral: T): T {
+export function redactPartnerReferralFinancials<T extends object>(referral: T): T {
   if (!referral || typeof referral !== 'object') return referral;
-  const safe = { ...referral };
+  const safe = { ...referral } as Record<string, unknown>;
   for (const field of PARTNER_FINANCE_FIELDS) delete safe[field];
-  return safe;
+  return safe as T;
 }
 
 async function canReadCenterClinicalFiles(user: AuthRequest['user'], centerId?: string | null): Promise<boolean> {
