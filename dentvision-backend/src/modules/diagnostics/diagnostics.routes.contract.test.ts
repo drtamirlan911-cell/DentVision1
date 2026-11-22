@@ -380,7 +380,7 @@ describe('diagnostics route contract', () => {
 
   it('separates operational detail, clinical detail and attachment permissions in the center worklist', () => {
     const start = source.indexOf("diagnosticsRouter.get('/centers/:centerId/worklist/:referralId'");
-    const end = source.indexOf("diagnosticsRouter.get('/centers/:id/worklist/staff'", start);
+    const end = source.indexOf("diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/assignees'", start);
     const route = source.slice(start, end);
     expect(route).toContain('canReadDiagnosticCenterClinicalDetail(roleKeys)');
     expect(route).toContain("await hasPartnerScopedPermission(req.user, 'medical.read')");
