@@ -64,6 +64,7 @@ const CenterDashboard = lazyWithRetry(() => import('./pages/diagnostics/CenterDa
 const LabDashboard = lazyWithRetry(() => import('./pages/diagnostics/LabDashboard'));
 const WorkspaceEntry = lazyWithRetry(() => import('./pages/diagnostics/WorkspaceEntry'));
 const RegistrationRequests = lazyWithRetry(() => import('./pages/diagnostics/RegistrationRequests'));
+const DiagnosticSettlements = lazyWithRetry(() => import('./pages/diagnostics/DiagnosticSettlements'));
 
 const Schedule = lazyWithRetry(() => import('./pages/crm/Schedule'));
 const Patients = lazyWithRetry(() => import('./pages/crm/Patients'));
@@ -372,6 +373,7 @@ if (container) {
                   <Route path="calendar" element={guarded('diagnostics-calendar', <DiagnosticCalendar />)} />
                   <Route path="statistics" element={guarded('diagnostics-statistics', <DiagnosticStatistics />)} />
                   <Route path="settings" element={guarded('diagnostics-settings', <DiagnosticSettings />)} />
+                  <Route path="settlements" element={guarded('diagnostics', <DiagnosticSettlements />)} />
                   <Route path="center" element={<RequireWorkspaceScope scopeType="DIAGNOSTIC_CENTER"><Suspense fallback={<PageLoader />}><CenterDashboard /></Suspense></RequireWorkspaceScope>} />
                   <Route path="lab" element={<RequireWorkspaceScope scopeType="LABORATORY"><Suspense fallback={<PageLoader />}><LabDashboard /></Suspense></RequireWorkspaceScope>} />
                   <Route path="workspace" element={<Suspense fallback={<PageLoader />}><WorkspaceEntry /></Suspense>} />
