@@ -118,6 +118,29 @@ async function issueInTransaction(
 
   const vertical = resolvePartnerBranchBillingVertical(organization);
   const plan = planForVertical(vertical);
+  const organizationSettings = settingsObject(organization.settings);
+  if (organizationSettings.ecosystemVisible !== true) {
+    throw new PartnerBranchBillingError(
+      'PARTNER_NOT_ACTIVE',
+      'Партнёр ещё не прошёл активацию и публикацию в экосистеме DentVision',
+      409,
+    );
+  }
+  if (vertical === 'DENTAL_LAB') {
+    const legal = settingsObject(organizationSettings.legal as Prisma.JsonValue | null);
+    const verifiedDentalLab = organizationSettings.laboratoryType === 'DENTAL_LAB'
+      && organizationSettings.selfServiceType === 'dental_lab'
+      && organizationSettings.lifecycle === 'ACTIVE'
+      && organizationSettings.verification === 'VERIFIED'
+      && legal.status === 'READY';
+    if (!verifiedDentalLab) {
+      throw new PartnerBranchBillingError(
+        'PARTNER_NOT_ACTIVE',
+        'Зуботехническая лаборатория не завершила проверку и юридическую активацию',
+        409,
+      );
+    }
+  }
 
   const existingSubscription = await tx.subscription.findUnique({
     where: { ownerType_ownerId: { ownerType: 'PARTNER', ownerId: organization.originalId } },
@@ -135,7 +158,7 @@ async function issueInTransaction(
     ? existingSubscription.plan === 'free'
       ? await tx.subscription.update({
           where: { id: existingSubscription.id },
-          data: { plan },
+          data: { plan, status: 'pending_payment', periodEnd: null },
         })
       : existingSubscription
     : await tx.subscription.create({
