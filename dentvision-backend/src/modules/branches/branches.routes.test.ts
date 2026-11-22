@@ -57,12 +57,13 @@ describe('branch route authorization contract', () => {
   });
 
   it('records branch activation and deactivation history atomically with branch mutations', () => {
-    expect(source).toContain("from './branchStatusHistory.js'");
-    expect(source).toContain('ensureOrganizationBranchStatusHistoryBaseline(tx, organizationId)');
-    expect(source).toContain("source: 'created'");
-    expect(source).toContain("source: rows[0].active ? 'activated' : 'archived'");
-    expect(source).toContain('FOR UPDATE');
-    expect(source).toContain('recordOrganizationBranchStatusEvent(tx');
+    const routeSource = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/branches/branches.routes.ts'), 'utf8');
+    expect(routeSource).toContain("from './branchStatusHistory.js'");
+    expect(routeSource).toContain('ensureOrganizationBranchStatusHistoryBaseline(tx, organizationId)');
+    expect(routeSource).toContain("source: 'created'");
+    expect(routeSource).toContain("source: rows[0].active ? 'activated' : 'archived'");
+    expect(routeSource).toContain('FOR UPDATE');
+    expect(routeSource).toContain('recordOrganizationBranchStatusEvent(tx');
   });
 
 });
