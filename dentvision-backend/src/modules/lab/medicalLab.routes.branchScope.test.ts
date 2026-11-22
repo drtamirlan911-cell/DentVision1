@@ -50,6 +50,18 @@ describe('medical lab branch isolation contract', () => {
     expect(teamRoute).not.toContain('req.body.organizationId');
   });
 
+  it('scopes the team directory to the active laboratory and staff.read role', () => {
+    const teamStart = source.indexOf("medicalLabLifecycleRouter.get('/team'");
+    const teamEnd = source.indexOf("medicalLabLifecycleRouter.get('/finance'", teamStart);
+    const teamRoute = source.slice(teamStart, teamEnd);
+    expect(teamRoute).toContain("requireMedicalLabCapability(req.user, 'staff.read')");
+    expect(teamRoute).toContain('resolveLaboratoryScopeId(req.user)');
+    expect(teamRoute).toContain('where: { labId }');
+    expect(teamRoute).toContain('include: {');
+    expect(teamRoute).not.toContain('req.query.labId');
+    expect(teamRoute).not.toContain('req.body.labId');
+  });
+
   it('exposes medical-lab finance only through the active laboratory role capabilities', () => {
     expect(source).toContain("medicalLabLifecycleRouter.get('/capabilities'");
     expect(source).toContain("medicalLabLifecycleRouter.get('/finance'");
