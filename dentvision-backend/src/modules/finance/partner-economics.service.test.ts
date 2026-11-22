@@ -3,6 +3,15 @@ import { calculatePartnerEconomics, buildPartnerEconomicsDashboard, canonicalPar
 
 const [diagnostic, analysis, dentalLab] = canonicalPartnerEconomicsRules();
 
+describe('canonical partner branch subscription tariffs', () => {
+  it('keeps finance minor-unit rules aligned with the approved KZT price book', () => {
+    expect(diagnostic.subscriptionMinor).toBe(4_990_000n);
+    expect(analysis.subscriptionMinor).toBe(1_990_000n);
+    expect(dentalLab.subscriptionMinor).toBe(2_990_000n);
+  });
+});
+
+
 const base = {
   partnerId: 'partner-1',
   paymentCostMinor: 0n,
