@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, CheckCircle2, Clock3, FlaskConical, Plus, ShieldCheck, Sparkles, TestTube2, Wallet, XCircle } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
@@ -52,7 +53,17 @@ export default function MedicalLabWorkspace() {
     enabled: isLaboratoryWorkspace && canReadFinance,
   });
   const [payoutAmount, setPayoutAmount] = useState('');
-  const [activeSection, setActiveSection] = useState<'operations' | 'finance'>('operations');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeSection, setActiveSection] = useState<'operations' | 'finance'>(() =>
+    searchParams.get('tab') === 'finance' ? 'finance' : 'operations',
+  );
+  const selectSection = (section: 'operations' | 'finance') => {
+    setActiveSection(section);
+    const next = new URLSearchParams(searchParams);
+    if (section === 'finance') next.set('tab', 'finance');
+    else next.delete('tab');
+    setSearchParams(next, { replace: true });
+  };
   const payoutAmountMinor = parsePayoutAmountMinor(payoutAmount);
   const payoutMutation = useMutation({
     mutationFn: () => requestMedicalLabPayout(payoutAmount.trim()),
@@ -137,10 +148,10 @@ export default function MedicalLabWorkspace() {
       <PageHeader title="Медицинская лаборатория" subtitle="Направление → биоматериал → исследование → результат → верификация → клиническая интерпретация" />
       {isLaboratoryWorkspace && canReadFinance && (
         <div role="tablist" aria-label="Разделы медицинской лаборатории" className="flex flex-wrap gap-2 border-b border-bdr-subtle pb-3">
-          <Button role="tab" id="medical-lab-operations-tab" aria-controls="medical-lab-operations-panel" aria-selected={activeSection === 'operations'} variant={activeSection === 'operations' ? 'primary' : 'secondary'} size="sm" onClick={() => setActiveSection('operations')}>
+          <Button role="tab" id="medical-lab-operations-tab" aria-controls="medical-lab-operations-panel" aria-selected={activeSection === 'operations'} variant={activeSection === 'operations' ? 'primary' : 'secondary'} size="sm" onClick={() => selectSection('operations')}>
             Операции и образцы
           </Button>
-          <Button role="tab" id="medical-lab-finance-tab" aria-controls="medical-lab-finance-panel" aria-selected={activeSection === 'finance'} variant={activeSection === 'finance' ? 'primary' : 'secondary'} size="sm" onClick={() => setActiveSection('finance')}>
+          <Button role="tab" id="medical-lab-finance-tab" aria-controls="medical-lab-finance-panel" aria-selected={activeSection === 'finance'} variant={activeSection === 'finance' ? 'primary' : 'secondary'} size="sm" onClick={() => selectSection('finance')}>
             Финансы
           </Button>
         </div>
