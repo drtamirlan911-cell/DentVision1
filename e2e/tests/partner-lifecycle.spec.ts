@@ -423,33 +423,24 @@ test.describe('Partner operational lifecycle', () => {
     const technicianContexts = (await technicianContextsRes.json()).data?.contexts || [];
     const technicianContext = technicianContexts.find((item: any) => item.scopeType === 'LABORATORY' && item.organizationId === dentalLabClaims.organizationId);
     expect(technicianContext).toBeTruthy();
-    const technicianBranch = technicianContext.branchId || (await prisma.branch.findFirst({
-      where: { organizationId: dentalLabClaims.organizationId!, active: true },
-      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-      select: { id: true },
-    }))?.id;
-    expect(technicianBranch).toBeTruthy();
-    // Context switching validates branch membership independently from the
-    // organization-scoped PersonRole. Grant this technician the actual branch
-    // assignment; the route must continue to reject unrelated branches.
-    await prisma.branchMember.upsert({
-      where: { personId_branchId: { personId: technicianPerson.id, branchId: technicianBranch! } },
-      update: { active: true },
-      create: { id: randomUUID(), personId: technicianPerson.id, branchId: technicianBranch!, active: true },
-    });
+    // Dental production roles are ASSIGNED-scoped: they must not inherit or
+    // select an organization branch. Orders are authorized through the
+    // immutable technicianId assignment on each laboratory work item.
+    expect(technicianContext.branchId).toBeUndefined();
     const switchedTechnician = await api.post(`${BASE}/api/iam/switch-context`, {
       headers: auth(dentalTechnicianBaseToken),
-      data: { scopeType: technicianContext.scopeType, scopeId: technicianContext.scopeId, branchId: technicianBranch },
+      data: { scopeType: technicianContext.scopeType, scopeId: technicianContext.scopeId },
     });
     const switchedTechnicianBody = await switchedTechnician.json();
     expect(switchedTechnician.status(), JSON.stringify(switchedTechnicianBody)).toBe(200);
     dentalTechnicianToken = switchedTechnicianBody.data.accessToken;
-    const dentalTechnicianClaims = JSON.parse(Buffer.from(dentalTechnicianToken.split('.')[1], 'base64url').toString('utf8')) as { role?: string; organizationType?: string; organizationId?: string };
+    const dentalTechnicianClaims = JSON.parse(Buffer.from(dentalTechnicianToken.split('.')[1], 'base64url').toString('utf8')) as { role?: string; organizationType?: string; organizationId?: string; branchId?: string };
     // The canonical PersonRole remains dental_technician; the legacy JWT enum
     // compatibility claim is LAB and must never be used as the partner role key.
     expect(dentalTechnicianClaims.role).toBe('LAB');
     expect(dentalTechnicianClaims.organizationType).toBe('LABORATORY');
     expect(dentalTechnicianClaims.organizationId).toBe(dentalLabClaims.organizationId);
+    expect(dentalTechnicianClaims.branchId).toBeUndefined();
 
     const patient = await api.post(`${BASE}/api/patients`, {
       headers: auth(ownerToken),
