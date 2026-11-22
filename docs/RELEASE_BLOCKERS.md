@@ -891,3 +891,12 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - Diagnostic center/laboratory Finance tabs use actual settlement records rather than the legacy dashboard fields that the backend does not provide.
 - This is source-level correction only. Do not certify it until the current final HEAD has one successful CI run (lint-test including all unit tests, backend lint, frontend lint, E2E), plus Quality Gate and RB-034. Earlier heads with unit-test failures are superseded, not passed.
 - Diagnostic center, medical laboratory and dental laboratory remain **PARTIAL**; platform remittance execution, tax invoices/EDS/VAT evidence, refunds/chargebacks, branch-level finance reconciliation, external integrations and operator/staging evidence remain release blockers.
+
+  
+## Partner billing checkpoint — 2026-11-22 (candidate PR #352)
+
+- The approved diagnostic-center, medical-laboratory and dental-laboratory monthly branch tariffs now have one code-level price book aligned to `docs/business/DENTVISION_PARTNER_ECONOMICS.md` v1.2.
+- The quote primitive enforces activation and minimum billable quantity, validates branch counts and safe KZT totals, and is the source for Finance's persisted per-vertical subscription price snapshots.
+- Added unit tests for all published rates, inactive organizations, the one-branch minimum, additional billable branches, invalid counts and numeric overflow. Finance tests assert that persisted minor-unit rule snapshots match the published KZT values.
+- **Not closed:** recurring invoice generation, payment-provider collection/callback reconciliation, paid/overdue/failed entitlement transitions, activation/deactivation effective dates, proration/credits, refunds, tax invoices/EDS/VAT, dunning/retries, and independent payout/bank settlement evidence. This quote helper does not bill or collect money.
+- **Release classification unchanged:** Diagnostic Center, Medical Laboratory and Dental Laboratory remain PARTIAL; D10 and production readiness remain OPEN/NOT READY until full billing lifecycle, vertical workflows, approved staging evidence, provider/legal acceptance, RB-035 and required release gates pass. No production/staging database, PHI, secrets or payment provider was accessed or changed.
