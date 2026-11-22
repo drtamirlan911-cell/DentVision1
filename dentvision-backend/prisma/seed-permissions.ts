@@ -166,6 +166,38 @@ async function seedE2EPartnerFixtures() {
       });
     }
 
+    // Branch-scoped partner roles need a real organization BranchMember.
+    // The context API intentionally does not substitute the organization default
+    // branch for an operator/technician; the isolated E2E fixture must model the
+    // same explicit assignment a production manager would make.
+    const partnerDefinition = PARTNER_ROLE_DEFINITIONS.find(
+      (definition) => definition.key.toLowerCase() === fixture.role,
+    );
+    if (partnerDefinition?.defaultScope === 'BRANCH') {
+      const branch = await prisma.branch.upsert({
+        where: {
+          organizationId_code: {
+            organizationId: organization.id,
+            code: 'E2E-PARTNER-MAIN',
+          },
+        },
+        update: { name: `${fixture.organizationName} — Main`, active: true, isDefault: true },
+        create: {
+          id: randomUUID(),
+          organizationId: organization.id,
+          code: 'E2E-PARTNER-MAIN',
+          name: `${fixture.organizationName} — Main`,
+          active: true,
+          isDefault: true,
+        },
+      });
+      await prisma.branchMember.upsert({
+        where: { personId_branchId: { personId: person.id, branchId: branch.id } },
+        update: { active: true },
+        create: { id: randomUUID(), personId: person.id, branchId: branch.id, active: true },
+      });
+    }
+
     if (fixture.organizationType === 'ACADEMY') {
       const academy = await prisma.academy.findFirst({ where: { name: fixture.organizationName } });
       const academyRecord = academy ?? await prisma.academy.create({
