@@ -65,3 +65,60 @@ describe('canonical partner economics v1.2', () => {
     }
   });
 });
+
+
+describe('partner branch subscription quote v1.2', () => {
+  it('uses only the approved monthly branch prices', () => {
+    expect(calculatePartnerBranchSubscriptionQuote({
+      vertical: 'DIAGNOSTIC_3D', organizationActivated: true, activeBillableBranchCount: 1,
+    })).toMatchObject({ unitPriceKzt: 49_900, billableBranchCount: 1, monthlyTotalKzt: 49_900, currency: 'KZT' });
+
+    expect(calculatePartnerBranchSubscriptionQuote({
+      vertical: 'MEDICAL_ANALYSIS', organizationActivated: true, activeBillableBranchCount: 1,
+    })).toMatchObject({ unitPriceKzt: 19_900, billableBranchCount: 1, monthlyTotalKzt: 19_900, currency: 'KZT' });
+
+    expect(calculatePartnerBranchSubscriptionQuote({
+      vertical: 'DENTAL_LAB', organizationActivated: true, activeBillableBranchCount: 1,
+    })).toMatchObject({ unitPriceKzt: 29_900, billableBranchCount: 1, monthlyTotalKzt: 29_900, currency: 'KZT' });
+  });
+
+  it('applies the one-branch minimum only to an activated organization', () => {
+    const activeWithoutRegisteredBranches = calculatePartnerBranchSubscriptionQuote({
+      vertical: 'DIAGNOSTIC_3D', organizationActivated: true, activeBillableBranchCount: 0,
+    });
+    expect(activeWithoutRegisteredBranches.billableBranchCount).toBe(1);
+    expect(activeWithoutRegisteredBranches.monthlyTotalKzt).toBe(49_900);
+
+    const inactive = calculatePartnerBranchSubscriptionQuote({
+      vertical: 'DIAGNOSTIC_3D', organizationActivated: false, activeBillableBranchCount: 4,
+    });
+    expect(inactive.billableBranchCount).toBe(0);
+    expect(inactive.monthlyTotalKzt).toBe(0);
+  });
+
+  it('multiplies by all active billable branches without rounding or overflow', () => {
+    const quote = calculatePartnerBranchSubscriptionQuote({
+      vertical: 'MEDICAL_ANALYSIS', organizationActivated: true, activeBillableBranchCount: 3,
+    });
+    expect(quote.billableBranchCount).toBe(3);
+    expect(quote.monthlyTotalKzt).toBe(59_700);
+    expect(quote.policyVersion).toBe('1.2');
+  });
+
+  it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid active branch count %s',
+    (activeBillableBranchCount) => {
+      expect(() => calculatePartnerBranchSubscriptionQuote({
+        vertical: 'DENTAL_LAB', organizationActivated: true, activeBillableBranchCount,
+      })).toThrow(/non-negative safe integer/);
+    },
+  );
+
+  it('rejects a total outside the safe integer KZT range', () => {
+    expect(() => calculatePartnerBranchSubscriptionQuote({
+      vertical: 'DIAGNOSTIC_3D',
+      organizationActivated: true,
+      activeBillableBranchCount: Number.MAX_SAFE_INTEGER,
+    })).toThrow(/safe KZT amount range/);
+  });
+});
