@@ -758,7 +758,10 @@ export async function uploadReferralFile(data: {
     if (!modality) throw Object.assign(new Error('Оборудование направления не принадлежит выбранному диагностическому центру.'), { code: 'DICOM_MODALITY_SCOPE_INVALID' });
   }
 
-  const originalName = String(data.fileName || 'study-file').trim().replace(/[\/\\\u0000-\u001f<>:"|?*]/g, '_').slice(0, 180) || 'study-file';
+  const originalName = Array.from(String(data.fileName || 'study-file').trim(), (character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x1f || '/\\\\<>:"|?*'.includes(character) ? '_' : character;
+  }).join('').slice(0, 180) || 'study-file';
   const extension = originalName.match(/\.[A-Za-z0-9]{1,12}$/)?.[0].toLowerCase() || '';
   const fileId = uid();
   const storageKey = `clinics/${referral.clinicId}/diagnostics/${referral.id}/${fileId}${extension}`;
