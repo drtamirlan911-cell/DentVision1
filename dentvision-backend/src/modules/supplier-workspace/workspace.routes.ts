@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router } from 'express';
 import type { Response, NextFunction } from 'express';
 import prisma from '../../lib/prisma.js';
@@ -77,7 +78,7 @@ supplierWorkspaceRouter.get('/dashboard', async (req: AuthRequest, res) => {
     const data = await buildSupplierDashboard(req.user!.supplierId!);
     return res.json({ ok: true, data: serializeBigInt(data) } satisfies ApiResponse);
   } catch (error) {
-    console.error('Supplier dashboard error:', error);
+    console.error('Supplier dashboard error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить кабинет' } satisfies ApiResponse);
   }
 });
@@ -87,7 +88,7 @@ supplierWorkspaceRouter.get('/insights', async (req: AuthRequest, res) => {
     const insights = await buildSupplierInsights(req.user!.supplierId!);
     return res.json({ ok: true, data: insights } satisfies ApiResponse);
   } catch (error) {
-    console.error('Supplier insights error:', error);
+    console.error('Supplier insights error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось получить рекомендации' } satisfies ApiResponse);
   }
 });
@@ -97,7 +98,7 @@ supplierWorkspaceRouter.get('/orders', async (req: AuthRequest, res) => {
     const orders = await getSupplierOrders(req.user!.supplierId!);
     return res.json({ ok: true, data: orders } satisfies ApiResponse);
   } catch (error) {
-    console.error('Supplier orders error:', error);
+    console.error('Supplier orders error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить заказы' } satisfies ApiResponse);
   }
 });
@@ -185,7 +186,7 @@ supplierWorkspaceRouter.post('/orders/:id/shipments', requireSupplierWrite, asyn
     return res.status(result.kind === 'created' ? 201 : 200).json({ ok: true, data: { shipment: result.shipment, orderStatus: result.orderStatus, idempotent: result.kind === 'idempotent' } } satisfies ApiResponse);
   } catch (error: any) {
     if (String(error?.code || '') === 'P2002') return res.status(409).json({ ok: false, error: 'Этот трек-номер уже используется поставщиком', code: 'SUPPLIER_TRACKING_DUPLICATE' } satisfies ApiResponse);
-    console.error('Supplier shipment create error:', error);
+    console.error('Supplier shipment create error:', safeErrorKind(error));
     return res.status(400).json({ ok: false, error: 'Не удалось зарегистрировать отгрузку' } satisfies ApiResponse);
   }
 });
@@ -244,14 +245,14 @@ supplierWorkspaceRouter.post('/orders/:id/delivery-confirmation', requireSupplie
       await writeAuditLog({ action: 'SUPPLIER_DELIVERY_CONFIRMED', entity: 'supplier_shipment', entityId: result.shipment?.id || orderId, details: { orderId, supplierId, orderCompleted: result.orderCompleted, recipientName }, userId: req.user!.id });
       if (result.orderCompleted) {
         const { releaseOrderCashback } = await import('../dentcash/cashback.engine.js');
-        await releaseOrderCashback(orderId).catch((error) => console.error('[dentcash release]', error));
+        await releaseOrderCashback(orderId).catch((error) => console.error('[dentcash release]', safeErrorKind(error)));
         const { restockFromOrder } = await import('../inventory/orderRestock.js');
-        await restockFromOrder(orderId).catch((error) => console.error('[inventory restock]', error));
+        await restockFromOrder(orderId).catch((error) => console.error('[inventory restock]', safeErrorKind(error)));
       }
     }
     return res.status(200).json({ ok: true, data: { shipment: result.shipment, orderCompleted: result.kind === 'delivered' ? result.orderCompleted : false, idempotent: result.kind === 'idempotent' } } satisfies ApiResponse);
   } catch (error) {
-    console.error('Supplier delivery confirmation error:', error);
+    console.error('Supplier delivery confirmation error:', safeErrorKind(error));
     return res.status(400).json({ ok: false, error: 'Не удалось подтвердить доставку' } satisfies ApiResponse);
   }
 });
@@ -336,7 +337,7 @@ supplierWorkspaceRouter.post('/returns/:id/respond', requireSupplierWrite, async
     });
     return res.status(outcome.status).json(outcome.body as ApiResponse);
   } catch (error: any) {
-    console.error('Supplier dispute response error:', error);
+    console.error('Supplier dispute response error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось зарегистрировать ответ по претензии' } satisfies ApiResponse);
   }
 });
@@ -398,7 +399,7 @@ supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async 
       const { releaseOrderCashback } = await import('../dentcash/cashback.engine.js');
       // Full-order release: multi-supplier split needs per-line status (future).
       await releaseOrderCashback(order.id)
-        .catch((err) => console.error('[dentcash release]', err));
+        .catch((err) => console.error('[dentcash release]', safeErrorKind(err)));
 
       // Коробка приехала — склад клиники должен узнать об этом сам.
       // Приход идемпотентен по ссылке на заказ, так что повторный перевод
@@ -406,7 +407,7 @@ supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async 
       // заказ доставлен независимо от того, удалось ли оприходовать.
       const { restockFromOrder } = await import('../inventory/orderRestock.js');
       await restockFromOrder(order.id)
-        .catch((err) => console.error('[inventory restock]', err));
+        .catch((err) => console.error('[inventory restock]', safeErrorKind(err)));
     }
     await writeAuditLog({
       action: 'SUPPLIER_ORDER_STATUS_CHANGED',
@@ -422,12 +423,12 @@ supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async 
         refType: 'order',
         refId: order.id,
         reason: 'cancelled',
-      }).catch((err) => console.error('[dentcash reverse]', err));
+      }).catch((err) => console.error('[dentcash reverse]', safeErrorKind(err)));
     }
 
     return res.json({ ok: true, data: order } satisfies ApiResponse);
   } catch (error) {
-    console.error('Supplier order status error:', error);
+    console.error('Supplier order status error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось обновить статус' } satisfies ApiResponse);
   }
 });
@@ -478,7 +479,7 @@ supplierWorkspaceRouter.post('/promotions', requireSupplierWrite, async (req: Au
       },
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('Supplier promotion error:', error);
+    console.error('Supplier promotion error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось создать акцию' } satisfies ApiResponse);
   }
 });
@@ -491,7 +492,7 @@ supplierWorkspaceRouter.get('/cashback-rules', async (req: AuthRequest, res) => 
     });
     return res.json({ ok: true, data: serializeBigInt(rules) } satisfies ApiResponse);
   } catch (error) {
-    console.error('Cashback rules list error:', error);
+    console.error('Cashback rules list error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить правила кэшбэка' } satisfies ApiResponse);
   }
 });
@@ -547,7 +548,7 @@ supplierWorkspaceRouter.put('/cashback-rules', requireSupplierWrite, async (req:
     }
     return res.json({ ok: true, data: serializeBigInt(rule) } satisfies ApiResponse);
   } catch (error) {
-    console.error('Cashback rules upsert error:', error);
+    console.error('Cashback rules upsert error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось сохранить правило' } satisfies ApiResponse);
   }
 });
@@ -600,7 +601,7 @@ supplierWorkspaceRouter.post('/products', requireSupplierWrite, async (req: Auth
     });
     return res.status(201).json({ ok: true, data: product } satisfies ApiResponse);
   } catch (error) {
-    console.error('Supplier create product error:', error);
+    console.error('Supplier create product error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при создании товара' } satisfies ApiResponse);
   }
 });
@@ -703,7 +704,7 @@ supplierWorkspaceRouter.get('/analytics', async (req: AuthRequest, res) => {
       },
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('Supplier analytics error:', error);
+    console.error('Supplier analytics error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка аналитики' } satisfies ApiResponse);
   }
 });

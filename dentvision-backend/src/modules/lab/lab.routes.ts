@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
@@ -131,7 +132,7 @@ labRouter.get('/', requirePermission('lab.read'), async (req: AuthRequest, res) 
     const orders = await prisma.labOrder.findMany({ where: { clinicId, ...branchScopedLabOrder(req) }, include: { dentalLabInvoice: true }, orderBy: { createdAt: 'desc' }, take: limit });
     return res.json({ ok: true, data: orders.map(serializeLabOrder) } satisfies ApiResponse);
   } catch (error: any) {
-    console.error('[Lab] list error:', error);
+    console.error('[Lab] list error:', safeErrorKind(error));
     const code = error?.code || error?.meta?.code;
     if (code === 'P2021' || code === 'P2022' || /does not exist|column|relation/i.test(String(error?.message || ''))) return res.json({ ok: true, data: [], warning: 'Таблица lab_orders не готова — примените миграцию 20260720_community_lab_fix' } as any);
     return res.status(500).json({ ok: false, error: 'Не удалось получить заказы лаборатории' } satisfies ApiResponse);
@@ -238,7 +239,7 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
       publish('labOrder.created', { clinicId, labOrderId: order.id, patientId: order.patientId || undefined, doctorId: order.doctorId || undefined, treatmentCaseId: body.treatmentCaseId || undefined, userId: req.user?.id });
     }
     return res.status(id ? 200 : 201).json({ ok: true, data: serializeLabOrder(order) } satisfies ApiResponse);
-  } catch (error) { console.error('[Lab] upsert error:', error); return res.status(500).json({ ok: false, error: 'Не удалось сохранить заказ лаборатории' } satisfies ApiResponse); }
+  } catch (error) { console.error('[Lab] upsert error:', safeErrorKind(error)); return res.status(500).json({ ok: false, error: 'Не удалось сохранить заказ лаборатории' } satisfies ApiResponse); }
 });
 
 labRouter.patch('/:id/status', requirePermission('lab.write'), async (req: AuthRequest, res) => {
@@ -273,7 +274,7 @@ labRouter.patch('/:id/status', requirePermission('lab.write'), async (req: AuthR
     await writeAuditLog({ action: 'LAB_ORDER_STATUS_CHANGED', entity: 'lab_order', entityId: order.id, details: { workflow: 'dental-laboratory', queueKey: 'lab-orders', fromStatus: outcome.previousStatus, toStatus: order.status, patientId: order.patientId || null }, userId: req.user!.id, clinicId });
     publish('labOrder.status_changed', { clinicId, labOrderId: order.id, patientId: order.patientId || undefined, doctorId: order.doctorId || undefined, status: order.status, previousStatus: outcome.previousStatus, userId: req.user?.id });
     return res.json({ ok: true, data: serializeLabOrder(order) } satisfies ApiResponse);
-  } catch (error) { console.error('[Lab] status update error:', error); return res.status(500).json({ ok: false, error: 'Не удалось обновить статус заказа' } satisfies ApiResponse); }
+  } catch (error) { console.error('[Lab] status update error:', safeErrorKind(error)); return res.status(500).json({ ok: false, error: 'Не удалось обновить статус заказа' } satisfies ApiResponse); }
 });
 
 labRouter.post('/:id/remake-request', requirePermission('lab.write'), async (req: AuthRequest, res) => {
@@ -338,7 +339,7 @@ labRouter.post('/:id/remake-request', requirePermission('lab.write'), async (req
     publish('labOrder.remake_requested', { clinicId, labOrderId: orderId, laboratoryId: outcome.request.laboratoryId, requestId: outcome.request.id, userId: req.user!.id });
     return res.status(201).json({ ok: true, data: serializeLabOrder(outcome.order) } satisfies ApiResponse);
   } catch (error) {
-    console.error('[Lab] remake request error:', error);
+    console.error('[Lab] remake request error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось отправить запрос на переделку' } satisfies ApiResponse);
   }
 });
@@ -361,5 +362,5 @@ labRouter.delete('/:id', requirePermission('appointment.write'), async (req: Aut
     if (outcome === 'partner_owned') return res.status(409).json({ ok: false, error: 'Переданный партнёру заказ нельзя удалить из клиники: его производственная история должна быть сохранена.', code: 'LAB_PARTNER_WORKFLOW_OWNED' } satisfies ApiResponse);
     await writeAuditLog({ action: 'LAB_ORDER_DELETED', entity: 'lab_order', entityId: orderId, userId: req.user!.id, clinicId });
     return res.json({ ok: true, data: { deleted: true } } satisfies ApiResponse);
-  } catch (error) { console.error('[Lab] delete error:', error); return res.status(500).json({ ok: false, error: 'Не удалось удалить заказ лаборатории' } satisfies ApiResponse); }
+  } catch (error) { console.error('[Lab] delete error:', safeErrorKind(error)); return res.status(500).json({ ok: false, error: 'Не удалось удалить заказ лаборатории' } satisfies ApiResponse); }
 });

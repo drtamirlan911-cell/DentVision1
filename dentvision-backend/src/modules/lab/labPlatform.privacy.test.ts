@@ -3,12 +3,21 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { safeErrorKind } from '../../lib/safeError.js';
 
-const routes = readFileSync(
-  resolve(process.cwd(), 'dentvision-backend/src/modules/lab/labPlatform.routes.ts'),
-  'utf8',
-);
+const routePaths = [
+  'dentvision-backend/src/modules/lab/labPlatform.routes.ts',
+  'dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts',
+  'dentvision-backend/src/modules/lab/medicalLab.routes.ts',
+  'dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts',
+  'dentvision-backend/src/modules/academy/academy.routes.ts',
+  'dentvision-backend/src/modules/lab/lab.routes.ts',
+];
 
-describe('Laboratory route privacy logging', () => {
+const routeSources = routePaths.map((path) => ({
+  path,
+  source: readFileSync(resolve(process.cwd(), path), 'utf8'),
+}));
+
+describe('Partner workspace privacy logging', () => {
   it('classifies Error objects without serializing patient or clinical details', () => {
     const result = safeErrorKind(new Error(
       'Patient Dana Example, phone +7 701 555 0101, diagnosis private pulpitis',
@@ -26,13 +35,15 @@ describe('Laboratory route privacy logging', () => {
     expect(JSON.stringify(result)).not.toContain('+7 701 555 0101');
   });
 
-  it('never writes raw exceptions from partner laboratory routes to operational logs', () => {
-    const logLines = routes.split('\n').filter((line) => line.includes('console.error('));
-    expect(logLines).toHaveLength(16);
-    expect(routes).toContain("import { safeErrorKind } from '../../lib/safeError.js';");
-    for (const line of logLines) {
-      expect(line).toContain('safeErrorKind(error)');
-      expect(line).not.toMatch(/,\s*error\s*\)/);
+  it('does not log raw exceptions from partner workspaces', () => {
+    for (const { path, source } of routeSources) {
+      const logLines = source.split('\\n').filter((line) => line.includes('console.error('));
+      expect(logLines.length, path).toBeGreaterThan(0);
+      expect(source, path).toContain("import { safeErrorKind } from '../../lib/safeError.js';");
+      for (const line of logLines) {
+        expect(line, path).toContain('safeErrorKind(');
+        expect(line, path).not.toMatch(/,\\s*(?:error|err)\\s*\\)/);
+      }
     }
   });
 });

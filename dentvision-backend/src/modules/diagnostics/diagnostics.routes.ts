@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import multer from 'multer';
 import path from 'node:path';
@@ -46,7 +47,7 @@ async function ensureClinicSubscriptionWritableIfClinicActor(req: AuthRequest, r
     }
     return true;
   } catch (error) {
-    console.error('[diagnostics] clinic write gate', error);
+    console.error('[diagnostics] clinic write gate', safeErrorKind(error));
     res.status(503).json({ ok: false, error: 'Не удалось проверить подписку клиники', code: 'CLINIC_ACCESS_UNVERIFIED' });
     return false;
   }
@@ -485,7 +486,7 @@ diagnosticsRouter.get('/settlements', async (req: AuthRequest, res) => {
       },
     } satisfies ApiResponse);
   } catch (error: any) {
-    console.error('[diagnostics] settlement list failed', error);
+    console.error('[diagnostics] settlement list failed', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить расчёты.' } satisfies ApiResponse);
   }
 });
@@ -552,7 +553,7 @@ diagnosticsRouter.post('/settlements/:id/pay', async (req: AuthRequest, res) => 
     } satisfies ApiResponse);
   } catch (error: any) {
     const status = Number(error?.status) || 500;
-    if (status >= 500) console.error('[diagnostics] settlement payment request failed', error);
+    if (status >= 500) console.error('[diagnostics] settlement payment request failed', safeErrorKind(error));
     return res.status(status).json({
       ok: false,
       error: error?.message || 'Не удалось создать ссылку оплаты расчёта.',
@@ -575,7 +576,7 @@ diagnosticsRouter.get('/stats', requireSuperadmin, async (_req: AuthRequest, res
     }, {});
     return res.json({ ok: true, data: { ...base, byStatus } } satisfies ApiResponse);
   } catch (error) {
-    console.error('[diagnostics/stats]', error);
+    console.error('[diagnostics/stats]', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось получить статистику диагностики' } satisfies ApiResponse);
   }
 });
@@ -585,7 +586,7 @@ diagnosticsRouter.get('/commission-rules', requireSuperadmin, async (_req: AuthR
     const rules = await prisma.commissionRule.findMany({ where: { domain: 'diagnostics' }, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }] });
     return res.json({ ok: true, data: rules } satisfies ApiResponse);
   } catch (error) {
-    console.error('[diagnostics/commission-rules:list]', error);
+    console.error('[diagnostics/commission-rules:list]', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось получить правила комиссий' } satisfies ApiResponse);
   }
 });
@@ -626,7 +627,7 @@ diagnosticsRouter.post('/commission-rules', requireSuperadmin, async (req: AuthR
     });
     return res.status(201).json({ ok: true, data: rule } satisfies ApiResponse);
   } catch (error) {
-    console.error('[diagnostics/commission-rules:create]', error);
+    console.error('[diagnostics/commission-rules:create]', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось сохранить правило комиссии' } satisfies ApiResponse);
   }
 });
@@ -1058,7 +1059,7 @@ diagnosticsRouter.patch('/centers/:centerId/worklist/:referralId/assignees', asy
     if (result.kind === 'invalid_radiologist') return res.status(400).json({ ok: false, error: 'Рентгенолог должен быть активным сотрудником этого центра с ролью radiologist' });
     return res.json({ ok: true, data: result.data } satisfies ApiResponse);
   } catch (error: any) {
-    console.error('[diagnostics/worklist/assignees]', error);
+    console.error('[diagnostics/worklist/assignees]', safeErrorKind(error));
     return res.status(400).json({ ok: false, error: error?.message || 'Не удалось назначить сотрудников' } satisfies ApiResponse);
   }
 });
@@ -1159,7 +1160,7 @@ diagnosticsRouter.get('/referrals/:id', requireReferralAccess(true), async (req:
       data: redactPartnerReferralForList(data, access),
     } satisfies ApiResponse);
   } catch (error: any) {
-    console.error('[diagnostics/referrals:detail]', error);
+    console.error('[diagnostics/referrals:detail]', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить направление' } satisfies ApiResponse);
   }
 });
@@ -1382,7 +1383,7 @@ diagnosticsRouter.post('/referrals/:id/files/upload', requireReferralAccess(true
     const code = String(error?.code || '');
     const unavailable = code === 'DIAGNOSTIC_STORAGE_UNAVAILABLE';
     const conflict = ['DICOM_STUDY_LINK_CONFLICT', 'DICOM_MODALITY_LINK_CONFLICT', 'DICOM_INSTANCE_ALREADY_EXISTS'].includes(code);
-    console.error('[diagnostics/referral-files:upload]', error);
+    console.error('[diagnostics/referral-files:upload]', safeErrorKind(error));
     return res.status(unavailable ? 503 : conflict ? 409 : 400).json({
       ok: false,
       error: error?.message || 'Не удалось сохранить файл исследования',

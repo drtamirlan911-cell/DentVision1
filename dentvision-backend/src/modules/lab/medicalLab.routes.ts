@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
@@ -148,7 +149,7 @@ async function ensureClinicSubscriptionWritableIfClinicActor(req: AuthRequest, r
     }
     return true;
   } catch (error) {
-    console.error('[medical-lab] clinic subscription write gate', error);
+    console.error('[medical-lab] clinic subscription write gate', safeErrorKind(error));
     res.status(503).json({ ok: false, error: 'Не удалось проверить подписку клиники', code: 'CLINIC_ACCESS_UNVERIFIED' });
     return false;
   }
@@ -164,7 +165,7 @@ medicalLabLifecycleRouter.get('/capabilities', async (req: AuthRequest, res) => 
       data: { laboratoryId: labId, roles, capabilities: medicalLabCapabilitiesForRoles(roles) },
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('[medical-lab] capabilities read failed', error);
+    console.error('[medical-lab] capabilities read failed', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить права медицинской лаборатории' } satisfies ApiResponse);
   }
 });
@@ -197,7 +198,7 @@ medicalLabLifecycleRouter.get('/team', async (req: AuthRequest, res) => {
       })),
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('[medical-lab] team read failed', error);
+    console.error('[medical-lab] team read failed', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить команду медицинской лаборатории' } satisfies ApiResponse);
   }
 });
@@ -267,7 +268,7 @@ medicalLabLifecycleRouter.get('/finance', async (req: AuthRequest, res) => {
       }),
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('[medical-lab] finance read failed', error);
+    console.error('[medical-lab] finance read failed', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить финансы медицинской лаборатории' } satisfies ApiResponse);
   }
 });
@@ -312,7 +313,7 @@ medicalLabLifecycleRouter.post('/payouts', async (req: AuthRequest, res) => {
       throw error;
     }
   } catch (error) {
-    console.error('[medical-lab] payout request failed', error);
+    console.error('[medical-lab] payout request failed', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось создать запрос на выплату' } satisfies ApiResponse);
   }
 });
