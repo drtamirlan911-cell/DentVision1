@@ -236,7 +236,7 @@ if (container) {
                 <Route path="medical-lab/equipment" element={<Navigate to="/medical-lab" replace />} />
                 <Route path="medical-lab/staff" element={<Navigate to="/settings" replace />} />
                 <Route path="medical-lab/branches" element={<Navigate to="/settings" replace />} />
-                <Route path="medical-lab/finance" element={<Navigate to="/diagnostics/workspace" replace />} />
+                <Route path="medical-lab/finance" element={<Navigate to="/diagnostics/lab?workspace=medical-lab&tab=finance" replace />} />
                 <Route path="medical-lab/analytics" element={<Navigate to="/analytics" replace />} />
                 <Route path="medical-lab/settings" element={<Navigate to="/settings" replace />} />
 
