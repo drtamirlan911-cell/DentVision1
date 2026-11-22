@@ -431,6 +431,20 @@ describe('diagnostics route contract', () => {
     expect(serviceSource).not.toContain('patientId: metadata.patientId');
   });
 
+  it('fails closed for duplicate SOP objects, cross-referral Study UID and final-instance cleanup', () => {
+    const uploadStart = source.indexOf("diagnosticsRouter.post('/referrals/:id/files/upload'");
+    const legacyStart = source.indexOf("diagnosticsRouter.post('/referrals/:id/files'", uploadStart);
+    const uploadRoute = source.slice(uploadStart, legacyStart);
+    expect(uploadRoute).toContain("DICOM_STUDY_LINK_CONFLICT");
+    expect(uploadRoute).toContain("DICOM_INSTANCE_ALREADY_EXISTS");
+    expect(uploadRoute).toContain("const conflict = ['DICOM_STUDY_LINK_CONFLICT'");
+    expect(serviceSource).toContain("code: 'DICOM_INSTANCE_ALREADY_EXISTS'");
+    expect(serviceSource).toContain('study.referralId !== referral.id');
+    expect(serviceSource).toContain('series: { none: {} }');
+    expect(serviceSource).toContain('instances: { none: {} }');
+    expect(serviceSource).toContain("await deleteObject(storageKey).catch");
+  });
+
   it('deletes referral-file metadata and audit before best-effort object cleanup', () => {
     const start = serviceSource.indexOf('export async function deleteReferralFile');
     const end = serviceSource.indexOf('// ─── Comments ───', start);
