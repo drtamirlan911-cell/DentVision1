@@ -169,13 +169,7 @@ function parseDiagnosticAttachment(req: Request, res: Response, next: NextFuncti
   });
 }
 
-async function hasPartnerScopedPermission(
-  user: AuthRequest['user'],
-  permission: string,
-): Promise<boolean> {
-  if (!user) return false;
-  if (user.role === 'SUPERADMIN') return true;
-  const roleKeys = await activePartnerRoleKeys(user);
+export function partnerRoleKeysHavePermission(roleKeys: readonly string[], permission: string): boolean {
   const canonicalRoleAliases: Record<string, string> = {
     DIAGNOSTIC_RADIOLOGIST: 'RADIOLOGIST',
     CENTER_RECEPTION: 'DIAGNOSTIC_RECEPTION',
@@ -184,10 +178,40 @@ async function hasPartnerScopedPermission(
     MODALITY_TECHNICIAN: 'RADIOLOGY_TECHNICIAN',
   };
   return roleKeys.some((key) => {
-    const roleKey = String(key).toUpperCase();
+    const roleKey = String(key).trim().toUpperCase();
     const canonicalRoleKey = canonicalRoleAliases[roleKey] || roleKey;
     return Boolean(PARTNER_ROLE_BY_KEY[canonicalRoleKey]?.permissions.includes(permission));
   });
+}
+
+async function hasPartnerScopedPermission(
+  user: AuthRequest['user'],
+  permission: string,
+): Promise<boolean> {
+  if (!user) return false;
+  if (user.role === 'SUPERADMIN') return true;
+  return partnerRoleKeysHavePermission(await activePartnerRoleKeys(user), permission);
+}
+
+const PARTNER_FINANCE_FIELDS = [
+  'cost',
+  'platformFee',
+  'paidAt',
+  'settlementId',
+  'commissionMinor',
+  'commissionBps',
+  'partnerRevenueMinor',
+  'partnerPayoutMinor',
+  'contributionMarginMinor',
+  'contributionMarginBps',
+] as const;
+
+/** Remove organization financial values from partner operational responses. */
+export function redactPartnerReferralFinancials<T extends Record<string, any>>(referral: T): T {
+  if (!referral || typeof referral !== 'object') return referral;
+  const safe = { ...referral };
+  for (const field of PARTNER_FINANCE_FIELDS) delete safe[field];
+  return safe;
 }
 
 async function canReadCenterClinicalFiles(user: AuthRequest['user'], centerId?: string | null): Promise<boolean> {
@@ -342,7 +366,7 @@ async function canReadReferralMedicalDetail(
 
 function redactDiagnosticCenterOperationalReferral(referral: any) {
   if (!referral) return referral;
-  const operational = { ...referral };
+  const operational = redactPartnerReferralFinancials(referral);
   for (const key of [
     'patientIin',
     'patientBirth',
@@ -752,14 +776,13 @@ diagnosticsRouter.get('/centers/:id/worklist', async (req: AuthRequest, res) => 
     const offset = Math.max(Number(req.query.offset) || 0, 0);
     const roleKeys = await activePartnerRoleKeys(req.user);
     const canReadClinical = req.user?.role === 'SUPERADMIN' || canReadDiagnosticCenterClinicalDetail(roleKeys);
+    const canReadFinance = req.user?.role === 'SUPERADMIN' || partnerRoleKeysHavePermission(roleKeys, 'billing.read');
     const data = await svc.getDiagnosticCenterWorklist(centerId, { status, priority, search: search || undefined, limit, offset });
-    if (!canReadClinical) {
-      return res.json({
-        ok: true,
-        data: { ...data, items: data.items.map((item: any) => ({ ...item, patientName: 'Пациент' })) },
-      } satisfies ApiResponse);
-    }
-    return res.json({ ok: true, data } satisfies ApiResponse);
+    const items = data.items.map((item: any) => {
+      const financeSafe = canReadFinance ? item : redactPartnerReferralFinancials(item);
+      return canReadClinical ? financeSafe : { ...financeSafe, patientName: 'Пациент' };
+    });
+    return res.json({ ok: true, data: { ...data, items } } satisfies ApiResponse);
   } catch {
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить рабочую очередь центра' } satisfies ApiResponse);
   }
@@ -780,6 +803,8 @@ diagnosticsRouter.get('/centers/:centerId/worklist/:referralId', async (req: Aut
     if (!referral) return res.status(404).json({ ok: false, error: 'Исследование не найдено в очереди этого центра' });
     const canReadClinical = req.user?.role === 'SUPERADMIN'
       || await hasPartnerScopedPermission(req.user, 'medical.read');
+    const canReadFinance = req.user?.role === 'SUPERADMIN'
+      || await hasPartnerScopedPermission(req.user, 'billing.read');
     const [detail, events] = await Promise.all([
       svc.getReferral(referralId),
       prisma.auditLog.findMany({
@@ -797,7 +822,9 @@ diagnosticsRouter.get('/centers/:centerId/worklist/:referralId', async (req: Aut
     return res.json({
       ok: true,
       data: {
-        referral: canReadClinical ? detail : redactDiagnosticCenterOperationalReferral(detail),
+        referral: canReadClinical
+          ? (canReadFinance ? detail : redactPartnerReferralFinancials(detail))
+          : redactDiagnosticCenterOperationalReferral(detail),
         events: visibleEvents,
         capabilities: {
           canReadClinical,
@@ -996,7 +1023,12 @@ diagnosticsRouter.get('/referrals', async (req: AuthRequest, res) => {
       limit: q.limit ? Math.min(Number(q.limit) || 50, 100) : 50,
       offset: q.offset ? Math.max(Number(q.offset) || 0, 0) : 0,
     });
-    return res.json({ ok: true, data } satisfies ApiResponse);
+    const isPartnerScope = Boolean(scope.centerId || scope.labId);
+    const canReadFinance = !isPartnerScope || await hasPartnerScopedPermission(req.user, 'billing.read');
+    const visibleData = canReadFinance
+      ? data
+      : { ...data, items: data.items.map((item: any) => redactPartnerReferralFinancials(item)) };
+    return res.json({ ok: true, data: visibleData } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
   }
@@ -1014,7 +1046,12 @@ diagnosticsRouter.get('/referrals/:id', requireReferralAccess(true), async (req:
     }
     const data = await svc.getReferral(req.params.id);
     if (!data) return res.status(404).json({ ok: false, error: 'Referral not found' });
-    return res.json({ ok: true, data } satisfies ApiResponse);
+    const isPartnerScope = Boolean(scope.centerId || scope.labId);
+    const canReadFinance = !isPartnerScope || await hasPartnerScopedPermission(req.user, 'billing.read');
+    return res.json({
+      ok: true,
+      data: canReadFinance ? data : redactPartnerReferralFinancials(data),
+    } satisfies ApiResponse);
   } catch (error: any) {
     console.error('[diagnostics/referrals:detail]', error);
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить направление' } satisfies ApiResponse);
@@ -1366,7 +1403,19 @@ diagnosticsRouter.delete('/referral-files/:id', async (req: AuthRequest, res) =>
   }
 });
 diagnosticsRouter.post('/referrals/:id/comments', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const text = String(req.body?.text || '').trim(); if (!text) return res.status(400).json({ ok: false, error: 'Комментарий не может быть пустым' }); return res.status(201).json({ ok: true, data: await svc.addComment(req.params.id, req.user!.id, text) } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
-diagnosticsRouter.get('/dashboard', async (req: AuthRequest, res) => { try { const q = req.query as Record<string, string | undefined>; const scope = await authorizeReferralListScope(req.user, { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }); if (scope.ok === false) return res.status(scope.status || 403).json({ ok: false, error: scope.error || 'Нет доступа' }); return res.json({ ok: true, data: await svc.getDashboardStats({ clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.get('/dashboard', async (req: AuthRequest, res) => {
+  try {
+    const q = req.query as Record<string, string | undefined>;
+    const scope = await authorizeReferralListScope(req.user, { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId });
+    if (scope.ok === false) return res.status(scope.status || 403).json({ ok: false, error: scope.error || 'Нет доступа' });
+    if ((q.centerId || q.labId) && !(await hasPartnerScopedPermission(req.user, 'billing.read'))) {
+      return res.status(403).json({ ok: false, error: 'Финансовая сводка доступна только сотрудникам с правом billing.read.' } satisfies ApiResponse);
+    }
+    return res.json({ ok: true, data: await svc.getDashboardStats({ clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }) } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
 diagnosticsRouter.post('/referrals/:id/ai-result', requireReferralAccess(), async (req: AuthRequest, res) => { try { const data = await svc.aiGenerateResult(req.params.id, req.user!.id); return res.json({ ok: true, data: { result: data, requiresDoctorConfirmation: true } } satisfies ApiResponse); } catch (e: any) { return res.status(422).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/referrals/:id/confirm-ai-result', requireReferralAccess(), async (req: AuthRequest, res) => {
   try {
