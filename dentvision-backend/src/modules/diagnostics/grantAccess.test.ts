@@ -16,10 +16,12 @@ const mocks = vi.hoisted(() => ({
   personRoleUpsert: vi.fn(),
   branchFindFirst: vi.fn(),
   branchMemberUpsert: vi.fn(),
+  transaction: vi.fn(),
 }));
 
 vi.mock('../../lib/prisma.js', () => ({
   default: {
+    $transaction: mocks.transaction,
     user: { findUnique: mocks.userFindUnique },
     diagnosticCenter: { findUnique: mocks.centerFindUnique },
     laboratory: { findUnique: mocks.labFindUnique },
@@ -45,7 +47,28 @@ const CENTER_ID = 'center-1';
 const USER_ID = 'user-1';
 
 beforeEach(() => {
-  for (const fn of Object.values(mocks)) fn.mockReset();
+  for (const [key, fn] of Object.entries(mocks)) {
+    if (key !== 'transaction') fn.mockReset();
+  }
+  mocks.transaction.mockReset();
+  mocks.transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => callback({
+    user: { findUnique: mocks.userFindUnique },
+    diagnosticCenter: { findUnique: mocks.centerFindUnique },
+    laboratory: { findUnique: mocks.labFindUnique },
+    organization: { findFirst: mocks.organizationFindFirst, upsert: mocks.organizationUpsert },
+    diagnosticCenterMember: { upsert: mocks.centerMemberUpsert },
+    laboratoryMember: { upsert: mocks.labMemberUpsert },
+    person: {
+      findFirst: mocks.personFindFirst,
+      findUnique: mocks.personFindUnique,
+      create: mocks.personCreate,
+      update: mocks.personUpdate,
+    },
+    role: { findUnique: mocks.roleFindUnique },
+    personRole: { upsert: mocks.personRoleUpsert },
+    branch: { findFirst: mocks.branchFindFirst },
+    branchMember: { upsert: mocks.branchMemberUpsert },
+  }));
   mocks.userFindUnique.mockResolvedValue({
     id: USER_ID, firstName: 'A', lastName: 'B', email: 'a@b.com', phone: null,
   });
