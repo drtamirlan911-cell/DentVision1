@@ -209,6 +209,7 @@ export async function paySettlement(settlementId: string) {
   }
 
   const gateway = providers.kaspi_qr;
+  let paymentPersisted = false;
   try {
     const created = await gateway.createPayment({ amountMinor: settlement.commissionMinor, refId: settlementId });
     const payment = await prisma.payment.create({
@@ -218,11 +219,22 @@ export async function paySettlement(settlementId: string) {
         meta: { qr: created.qr, ownerType: settlement.ownerType, ownerId: settlement.ownerId, settlementId },
       },
     });
-    const invoicedSettlement = await prisma.settlement.update({ where: { id: settlementId }, data: { status: 'invoiced', paymentId: payment.id } });
+    paymentPersisted = true;
+    // The webhook may win the race after the gateway responds. Only move an
+    // active settlement to invoiced; a paid/void state must never be downgraded.
+    await prisma.settlement.updateMany({
+      where: { id: settlementId, status: { notIn: ['paid', 'void'] } },
+      data: { status: 'invoiced', paymentId: payment.id },
+    });
+    const invoicedSettlement = (await prisma.settlement.findUnique({ where: { id: settlementId } })) ?? settlement;
     await prisma.idempotencyRecord.update({ where: { id: reservation.id }, data: { paymentId: payment.id } });
-    return { settlement: invoicedSettlement, payment, alreadyPaid: false as const, qr: created.qr };
+    return { settlement: invoicedSettlement, payment, alreadyPaid: invoicedSettlement.status === 'paid', qr: created.qr };
   } catch (error) {
-    await prisma.idempotencyRecord.delete({ where: { id: reservation.id } }).catch(() => undefined);
+    // Once a pending Payment exists, retain the idempotency reservation. A
+    // retry can find and reuse that payment rather than create another QR link.
+    if (!paymentPersisted) {
+      await prisma.idempotencyRecord.delete({ where: { id: reservation.id } }).catch(() => undefined);
+    }
     throw error;
   }
 }
