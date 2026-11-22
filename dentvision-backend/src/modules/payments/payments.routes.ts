@@ -1695,25 +1695,33 @@ paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
       });
       settled = result.settled;
     } else {
-      // Non-paid callbacks may only transition a still-pending payment. A stale
-      // failed/pending callback must never overwrite a paid or terminal state.
-      await prisma.$transaction(async (tx) => {
-        const changed = await tx.payment.updateMany({
+      // Preserve the existing payment path for all other products. Only partner
+      // branch invoices need the coupled invoice-hold release in this transaction.
+      if (
+        (newStatus === 'failed' || newStatus === 'expired')
+        && payment.refType === 'partner_branch_subscription_invoice'
+        && payment.refId
+      ) {
+        await prisma.$transaction(async (tx) => {
+          const changed = await tx.payment.updateMany({
+            where: { id: payment.id, status: 'pending' },
+            data: { status: newStatus },
+          });
+          if (changed.count === 1) {
+            await releasePartnerBranchSubscriptionInvoicePayment({
+              invoiceId: payment.refId!,
+              paymentId: payment.id,
+            }, tx);
+          }
+        });
+      } else {
+        // Non-paid callbacks for ordinary payments retain the original guarded
+        // updateMany path: a stale failure cannot overwrite a settled payment.
+        await prisma.payment.updateMany({
           where: { id: payment.id, status: 'pending' },
           data: { status: newStatus },
         });
-        if (
-          changed.count === 1
-          && (newStatus === 'failed' || newStatus === 'expired')
-          && payment.refType === 'partner_branch_subscription_invoice'
-          && payment.refId
-        ) {
-          await releasePartnerBranchSubscriptionInvoicePayment({
-            invoiceId: payment.refId,
-            paymentId: payment.id,
-          }, tx);
-        }
-      });
+      }
     }
 
     const latestPayment = await prisma.payment.findUnique({ where: { id: payment.id } });
