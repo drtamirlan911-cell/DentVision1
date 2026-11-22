@@ -147,7 +147,7 @@ type Db = Prisma.TransactionClient | typeof prisma;
  */
 export async function availableBalanceMinor(walletId: string, db: Db = prisma): Promise<bigint> {
   const [wallet, pending] = await Promise.all([
-    db.wallet.findUnique({ where: { id: walletId }, select: { balance: true } }),
+    db.wallet.findUnique({ where: { id: walletId }, select: { balance: true, ownerType: true } }),
     db.payout.findMany({
       where: { walletId, status: { in: [...PENDING_PAYOUT_STATUSES] } },
       select: { amount: true },
@@ -155,7 +155,22 @@ export async function availableBalanceMinor(walletId: string, db: Db = prisma): 
   ]);
   if (!wallet) return 0n;
   const held = pending.reduce((sum, p) => sum + p.amount, 0n);
-  return wallet.balance - held;
+
+  // Diagnostic and medical-lab referrals are collected directly by the partner.
+  // Their partner_economics wallet credit is an analytics mirror of partner net,
+  // not cash held by DentVision and therefore not money the platform can pay out.
+  // Exclude only this non-cash credit; genuine Marketplace / platform-collected
+  // sale proceeds remain withdrawable under the normal payout rules.
+  let externallyCollectedPartnerRevenue = 0n;
+  if (wallet.ownerType === 'PARTNER') {
+    const mirroredCredits = await db.ledgerEntry.findMany({
+      where: { walletId, direction: 'credit', transaction: { type: 'partner_economics' } },
+      select: { amount: true },
+    });
+    externallyCollectedPartnerRevenue = mirroredCredits.reduce((sum, entry) => sum + entry.amount, 0n);
+  }
+
+  return wallet.balance - held - externallyCollectedPartnerRevenue;
 }
 
 export interface RequestPayoutInput {
