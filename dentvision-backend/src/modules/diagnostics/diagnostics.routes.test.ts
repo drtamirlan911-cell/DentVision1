@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { authorizeReferralListScope, diagnosticsRouter, partnerReferralReadPermission, partnerRoleKeysHavePermission, redactPartnerReferralFinancials, redactPartnerReferralForList, redactPartnerDashboardStats, partnerCatalogReadPermission } from './diagnostics.routes.js';
-import { canReadDiagnosticCenterCatalog } from './diagnostics.service.js';
+import { canReadDiagnosticCenterCatalog, canReadPartnerCatalog } from './diagnostics.service.js';
 
 const user = (overrides: Record<string, unknown> = {}) => ({
   id: 'u1',
