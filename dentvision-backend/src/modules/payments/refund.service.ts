@@ -76,7 +76,16 @@ export async function refundPayment(
             include: { ledgerEntries: true },
             orderBy: { createdAt: 'asc' },
           })
-        : payment.refType === 'sale'
+        : payment.refType === 'medical_lab_order' && payment.refId
+          ? await tx.transaction.findMany({
+              // Medical analysis settlement is recognized only in Finance Core
+              // after the confirmed payment. Refund the exact immutable ledger
+              // operation for this medical-lab order, not its mutable test list.
+              where: { type: 'partner_economics', refType: 'MEDICAL_ANALYSIS', refId: payment.refId },
+              include: { ledgerEntries: true },
+              orderBy: { createdAt: 'asc' },
+            })
+          : payment.refType === 'sale'
           ? await tx.transaction.findMany({
               where: { type: 'sale', refType: 'payment', refId: payment.id },
               include: { ledgerEntries: true },
