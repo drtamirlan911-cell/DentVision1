@@ -721,6 +721,21 @@ test.describe('Partner operational lifecycle', () => {
         { headers: auth(centerOwnerToken) },
       );
       expect(crossReferralDownload.status()).toBe(404);
+
+      const crossStudyFixture = buildDicomPart10Fixture({
+        study: dicomIds.study,
+        series: dicomUid(),
+        sop: dicomUid(),
+      });
+      const crossStudyUpload = await api.post(`${BASE}/api/diagnostics/referrals/${otherReferral.id}/files/upload`, {
+        headers: { Authorization: `Bearer ${centerOwnerToken}` },
+        multipart: {
+          file: { name: 'cross-referral-study.dcm', mimeType: 'application/dicom', buffer: crossStudyFixture.buffer },
+        },
+      });
+      expect(crossStudyUpload.status()).toBe(409);
+      expect((await crossStudyUpload.json()).code).toBe('DICOM_STUDY_LINK_CONFLICT');
+      expect(await prisma.referralFile.count({ where: { referralId: otherReferral.id } })).toBe(0);
       const deleteDicom = await api.delete(`${BASE}/api/diagnostics/referral-files/${uploadedDicom.id}`, {
         headers: auth(centerOwnerToken),
       });
