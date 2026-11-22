@@ -419,12 +419,10 @@ export function redactPartnerDashboardStats<T extends { recent?: object[] }>(
   stats: T,
   access: { canReadClinical: boolean; canReadFinance: boolean; canReadFiles: boolean },
 ): T {
-  return {
-    ...stats,
-    recent: access.canReadClinical
-      ? (stats.recent || []).map((item) => redactPartnerReferralForList(item, access))
-      : [],
-  };
+  const recent = access.canReadClinical
+    ? (stats.recent || []).map((item) => redactPartnerReferralForList(item, access))
+    : [];
+  return { ...stats, recent } as T;
 }
 
 diagnosticsRouter.post('/register', optionalAuth, async (req: AuthRequest, res) => { try { const data = await svc.createRegistrationRequest({ ...req.body, userId: (req.user as any)?.id }); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
@@ -879,6 +877,8 @@ diagnosticsRouter.get('/centers/:centerId/worklist/:referralId', async (req: Aut
       || await hasPartnerScopedPermission(req.user, 'medical.read');
     const canReadFinance = req.user?.role === 'SUPERADMIN'
       || await hasPartnerScopedPermission(req.user, 'billing.read');
+    const canReadFiles = req.user?.role === 'SUPERADMIN'
+      || await hasPartnerScopedPermission(req.user, 'files.read');
     const [detail, events] = await Promise.all([
       svc.getReferral(referralId),
       prisma.auditLog.findMany({
@@ -896,14 +896,9 @@ diagnosticsRouter.get('/centers/:centerId/worklist/:referralId', async (req: Aut
     return res.json({
       ok: true,
       data: {
-        referral: canReadClinical
-          ? (canReadFinance ? detail : redactPartnerReferralFinancials(detail))
-          : redactPartnerReferralForList(detail),
+        referral: redactPartnerReferralForList(detail, { canReadClinical, canReadFinance, canReadFiles }),
         events: visibleEvents,
-        capabilities: {
-          canReadClinical,
-          canReadFiles: await hasPartnerScopedPermission(req.user, 'files.read'),
-        },
+        capabilities: { canReadClinical, canReadFiles },
       },
     } satisfies ApiResponse);
   } catch {
