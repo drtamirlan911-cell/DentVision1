@@ -86,25 +86,52 @@ export function TeamTab({ config, orgId }: TabProps) {
   const inviteRoleOptions = isDiagnosticCenter
     ? ROLES
     : laboratoryType === 'DENTAL_LAB' ? DENTAL_LAB_ROLES : MEDICAL_LAB_ROLES
+  const isDentalLab = !isDiagnosticCenter && laboratoryType === 'DENTAL_LAB'
+  const isMedicalLab = !isDiagnosticCenter && laboratoryType === 'MEDICAL_LAB'
   const defaultInviteRole = isDiagnosticCenter
     ? 'operator'
-    : laboratoryType === 'DENTAL_LAB' ? 'dental_technician' : 'medical_lab_technician'
+    : isDentalLab ? 'dental_technician' : 'medical_lab_technician'
 
   useEffect(() => {
     if (!inviteRoleOptions.some((option) => option.value === role)) setRole(defaultInviteRole)
   }, [inviteRoleOptions, defaultInviteRole, role])
 
-  const { data: staffData, isLoading: staffLoading, error: staffError } = useQuery({
+  const centerStaffQuery = useQuery({
     queryKey: ['diagnostics', 'center-worklist-staff', orgId],
     queryFn: () => api.getDiagnosticCenterWorklistStaff(orgId),
-    enabled: Boolean(orgId && isDiagnosticCenter),
+    enabled: Boolean(orgId && isDiagnosticCenter && iam.hasPermission('staff.read')),
     retry: false,
   })
-  const staff = staffData || []
+  const dentalLabTeamQuery = useQuery({
+    queryKey: ['dental-lab', 'team', orgId],
+    queryFn: api.getDentalLabTeam,
+    enabled: Boolean(orgId && isDentalLab && iam.hasPermission('staff.read')),
+    retry: false,
+  })
+  const medicalLabTeamQuery = useQuery({
+    queryKey: ['medical-lab', 'team', orgId],
+    queryFn: api.getMedicalLabTeam,
+    enabled: Boolean(orgId && isMedicalLab && iam.hasPermission('staff.read')),
+    retry: false,
+  })
+  const activeStaffQuery = isDiagnosticCenter ? centerStaffQuery : isDentalLab ? dentalLabTeamQuery : medicalLabTeamQuery
+  const staffData = activeStaffQuery.data || []
+  const staff = staffData.map((member: any) => {
+    const nameParts = String(member.name || '').trim().split(/\\s+/).filter(Boolean)
+    return {
+      ...member,
+      userId: member.userId || member.id,
+      firstName: member.firstName || nameParts[0] || '',
+      lastName: member.lastName || nameParts.slice(1).join(' '),
+    }
+  }).filter((member: any) => Boolean(member.userId))
+  const staffLoading = activeStaffQuery.isLoading
+  const staffError = activeStaffQuery.error
+  const teamLabel = isDiagnosticCenter ? 'Сотрудники центра' : 'Сотрудники лаборатории'
   const branchesQuery = useQuery({
-    queryKey: ['branches', 'diagnostic-center-team', orgId],
+    queryKey: ['branches', 'partner-team', orgId],
     queryFn: () => api.listBranches({ organizationId: orgId }),
-    enabled: Boolean(orgId && isDiagnosticCenter && canManageBranches),
+    enabled: Boolean(orgId && canManageBranches),
     retry: false,
   })
   const activeBranches = (branchesQuery.data || []).filter((branch: any) => branch.active !== false)
@@ -120,7 +147,7 @@ export function TeamTab({ config, orgId }: TabProps) {
         row.members.map((member: any) => member.userId).filter(Boolean) as string[],
       ]))
     },
-    enabled: Boolean(orgId && isDiagnosticCenter && canManageBranches && activeBranches.length),
+    enabled: Boolean(orgId && canManageBranches && activeBranches.length),
     retry: false,
   })
 
@@ -227,14 +254,14 @@ export function TeamTab({ config, orgId }: TabProps) {
         </div>
       </Card>
 
-      {isDiagnosticCenter && (
+      {iam.hasPermission('staff.read') && (
         <Card padding="md">
           <div className="mb-3 flex items-center gap-2">
             <Users size={16} className="text-txt-muted" />
-            <h3 className="text-sm font-semibold text-txt-primary">Сотрудники центра</h3>
+            <h3 className="text-sm font-semibold text-txt-primary">{teamLabel}</h3>
           </div>
           {staffLoading ? <Skeleton className="h-24" /> : staffError ? (
-            <p className="py-4 text-center text-sm text-txt-muted">Состав команды доступен владельцу, администратору или менеджеру центра.</p>
+            <p className="py-4 text-center text-sm text-txt-muted">Состав команды доступен сотрудникам с правом staff.read.</p>
           ) : staff.length === 0 ? (
             <p className="py-4 text-center text-sm text-txt-muted">Сотрудники появятся после принятия приглашений.</p>
           ) : (
