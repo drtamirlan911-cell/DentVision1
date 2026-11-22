@@ -24,7 +24,7 @@ import { OnlineBookingsTab } from './OnlineBookingsTab'
 import { ServicesTab } from './ServicesTab'
 import { PaymentsTab } from './PaymentsTab'
 import { CashierTab } from './CashierTab'
-import { FinanceTab } from './FinanceTab'
+import DiagnosticSettlements from '@/pages/diagnostics/DiagnosticSettlements'
 import { TeamTab } from './TeamTab'
 import { WorklistTab } from './WorklistTab'
 import { ModalitiesTab } from './ModalitiesTab'
@@ -280,7 +280,7 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
           {activeTab === 'referrals' && (
             <ReferralsTab config={config} orgId={orgId} phaseFilter={phaseFilter} onClearPhase={() => setPhaseFilter(null)} />
           )}
-          {activeTab === 'finance' && <FinanceTab config={config} orgId={orgId} />}
+          {activeTab === 'finance' && <DiagnosticSettlements />}
           {activeTab === 'services' && <ServicesTab config={config} orgId={orgId} />}
           {activeTab === 'payments' && <PaymentsTab config={config} orgId={orgId} />}
           {activeTab === 'team' && <TeamTab config={config} orgId={orgId} />}
