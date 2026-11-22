@@ -107,6 +107,19 @@ describe('diagnostics route contract', () => {
     expect(dashboardRoute).not.toContain("hasPartnerScopedPermission(req.user, 'billing.read')");
   });
 
+  it('separates settlement visibility from permission to issue a Kaspi invoice', () => {
+    const readStart = source.indexOf("diagnosticsRouter.get('/settlements'");
+    const payStart = source.indexOf("diagnosticsRouter.post('/settlements/:id/pay'");
+    const readRoute = source.slice(readStart, payStart);
+    const payRoute = source.slice(payStart, payStart + 1700);
+
+    expect(readRoute).toContain("hasPartnerScopedPermission(req.user, 'billing.read')");
+    expect(readRoute).toContain('canRequestPayment: await canManagePartnerSettlement(req.user)');
+    expect(readRoute).not.toContain('canManagePartnerSettlement(req.user)))');
+    expect(payRoute).toContain('canManagePartnerSettlement(req.user)');
+    expect(source).toContain("return hasPartnerScopedPermission(user, 'billing.manage')");
+  });
+
   it('exposes diagnostic partner settlements only inside the active organization context', () => {
     expect(source).toContain("diagnosticsRouter.get('/settlements'");
     expect(source).toContain("diagnosticsRouter.post('/settlements/:id/pay'");
