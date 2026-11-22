@@ -884,3 +884,10 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - Codex P2 datasource binding is addressed in the candidate: write mode requires Prisma's actual DATABASE_URL to exactly match AI_ADMIN_EXTERNAL_ID_BACKFILL_STAGING_DATABASE_URL or AI_ADMIN_EXTERNAL_ID_BACKFILL_PRODUCTION_DATABASE_URL for the selected target. Missing or mismatched values fail closed; URLs are never logged. Regression coverage includes staging/production mismatch and missing expected URL; focused tests 11/11, backend TypeScript, changed-file ESLint and diff check passed locally. Exact-head GitHub CI, Quality Gate and Codex re-review remain pending.
 
 - 2026-11-14 audit addendum: book_appointment.tool.ts also wrote patientName/patientPhone into AiAdminSession in plaintext. The candidate now stops this duplicate write and extends the guarded backfill to encrypt legacy copies into dedicated ciphertext fields; RB-029 remains open until staging reconciliation.
+
+## Partner settlement permission / finance UI follow-up — 2026-11-22
+
+- Settlement read now requires the active partner's canonical `billing.read`; issuing/reusing a Kaspi invoice requires canonical `billing.manage`. The server returns an explicit `canRequestPayment` capability so a read-only user is not offered a button that will fail with 403.
+- Diagnostic center/laboratory Finance tabs use actual settlement records rather than the legacy dashboard fields that the backend does not provide.
+- This is source-level correction only. Do not certify it until the current final HEAD has one successful CI run (lint-test including all unit tests, backend lint, frontend lint, E2E), plus Quality Gate and RB-034. Earlier heads with unit-test failures are superseded, not passed.
+- Diagnostic center, medical laboratory and dental laboratory remain **PARTIAL**; platform remittance execution, tax invoices/EDS/VAT evidence, refunds/chargebacks, branch-level finance reconciliation, external integrations and operator/staging evidence remain release blockers.
