@@ -85,8 +85,8 @@ async function canManagePartnerBilling(user: AuthRequest['user']): Promise<boole
 async function canManagePartnerSettlement(user: AuthRequest['user']): Promise<boolean> {
   if (!user) return false;
   if (user.role === 'SUPERADMIN') return true;
-  // A cashier may collect a patient's payment, but cannot issue a platform-fee invoice.
-  return hasPartnerManagementSuffix(await activePartnerRoleKeys(user), false);
+  // Issuing a platform-fee invoice is a billing-management action, not a job-title check.
+  return hasPartnerScopedPermission(user, 'billing.manage');
 }
 async function canManagePartnerCatalog(user: AuthRequest['user']): Promise<boolean> {
   if (!user) return false;
@@ -443,10 +443,12 @@ diagnosticsRouter.get('/settlements', async (req: AuthRequest, res) => {
   try {
     const isSuperadmin = req.user?.role === 'SUPERADMIN';
     const activeScope = resolveActivePartnerSettlementScope(req.user);
+    const canReadSettlements = isSuperadmin
+      || await hasPartnerScopedPermission(req.user, 'billing.read');
+    if (!activeScope && !isSuperadmin || !canReadSettlements) {
+      return res.status(403).json({ ok: false, error: 'Расчёты доступны сотрудникам с правом billing.read в активном партнёрском кабинете.' } satisfies ApiResponse);
+    }
     if (!isSuperadmin) {
-      if (!activeScope || !(await canManagePartnerSettlement(req.user))) {
-        return res.status(403).json({ ok: false, error: 'Расчёты доступны только финансовым и руководящим ролям активного партнёрского кабинета.' } satisfies ApiResponse);
-      }
       // Partner users cannot widen their own scope with URL parameters.
       if (req.query.ownerType || req.query.ownerId) {
         return res.status(400).json({ ok: false, error: 'Область расчётов определяется активным рабочим пространством.' } satisfies ApiResponse);
@@ -479,6 +481,7 @@ diagnosticsRouter.get('/settlements', async (req: AuthRequest, res) => {
           commissionMinor: settlement.commissionMinor.toString(),
         })),
         count: settlements.length,
+        canRequestPayment: await canManagePartnerSettlement(req.user),
       },
     } satisfies ApiResponse);
   } catch (error: any) {
