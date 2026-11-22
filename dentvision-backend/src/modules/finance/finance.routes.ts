@@ -243,7 +243,7 @@ async function hasPartnerFinanceReadPermission(userId: string, organizationId: s
       },
     },
   });
-  const allowed = new Set(['finance.read', 'finance.manage', 'billing.manage']);
+  const allowed = new Set(['finance.read', 'finance.manage', 'billing.read', 'billing.manage']);
   return memberships.some((membership) =>
     membership.role.permissions.some((item) => allowed.has(item.permission.key)),
   );
