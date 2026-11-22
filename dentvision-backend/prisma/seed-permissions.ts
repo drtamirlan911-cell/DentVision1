@@ -87,14 +87,25 @@ async function seedE2EPartnerFixtures() {
       select: { id: true },
     });
 
+    const laboratoryType = fixture.organizationType === 'LABORATORY'
+      ? (fixture.role.startsWith('dental_') ? 'DENTAL_LAB' : 'MEDICAL_LAB')
+      : null;
+    const organizationSettings = laboratoryType
+      ? { laboratoryType, selfServiceType: laboratoryType === 'DENTAL_LAB' ? 'dental_lab' : 'medical_lab' }
+      : undefined;
     const organization = await prisma.organization.upsert({
       where: { id: (await prisma.organization.findFirst({ where: { type: fixture.organizationType, name: fixture.organizationName }, select: { id: true } }))?.id || randomUUID() },
-      update: { type: fixture.organizationType, name: fixture.organizationName },
+      update: {
+        type: fixture.organizationType,
+        name: fixture.organizationName,
+        ...(organizationSettings ? { settings: organizationSettings } : {}),
+      },
       create: {
         id: randomUUID(),
         name: fixture.organizationName,
         type: fixture.organizationType,
         originalType: 'E2E',
+        ...(organizationSettings ? { settings: organizationSettings } : {}),
       },
     });
 
