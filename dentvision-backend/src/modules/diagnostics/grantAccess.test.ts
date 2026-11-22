@@ -155,6 +155,31 @@ describe('grantDiagnosticsAccess — organization isolation', () => {
     );
   });
 
+  it('maps a legacy owner to the canonical dental-lab owner role when the organization is dental', async () => {
+    mocks.labFindUnique.mockResolvedValue({ id: 'lab-dental', name: 'Dental Lab', city: null, address: null, phone: null, email: null });
+    mocks.organizationFindFirst.mockResolvedValue({ id: 'org-dental', settings: { laboratoryType: 'DENTAL_LAB' } });
+
+    await grantDiagnosticsAccess('Laboratory', 'lab-dental', USER_ID, 'owner');
+
+    expect(mocks.labMemberUpsert).toHaveBeenCalledWith({
+      where: { labId_userId: { labId: 'lab-dental', userId: USER_ID } },
+      update: { role: 'owner' },
+      create: { id: expect.any(String), labId: 'lab-dental', userId: USER_ID, role: 'owner' },
+    });
+    expect(mocks.roleFindUnique).toHaveBeenCalledWith({ where: { key: 'dental_lab_owner' } });
+    expect(mocks.branchFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('maps a legacy owner to the canonical medical-lab owner role when the organization is medical', async () => {
+    mocks.labFindUnique.mockResolvedValue({ id: 'lab-medical', name: 'Medical Lab', city: null, address: null, phone: null, email: null });
+    mocks.organizationFindFirst.mockResolvedValue({ id: 'org-medical', settings: { laboratoryType: 'MEDICAL_LAB' } });
+
+    await grantDiagnosticsAccess('Laboratory', 'lab-medical', USER_ID, 'owner');
+
+    expect(mocks.roleFindUnique).toHaveBeenCalledWith({ where: { key: 'medical_lab_owner' } });
+    expect(mocks.branchFindFirst).not.toHaveBeenCalled();
+  });
+
   it('uses the laboratory member key for laboratories', async () => {
     mocks.labFindUnique.mockResolvedValue({ id: 'lab-1', name: 'Lab', city: null, address: null, phone: null, email: null });
 
