@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CreditCard, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/ds/Badge';
@@ -50,7 +50,11 @@ export function PartnerBranchSubscriptionBilling({
     queryKey: ['partner-branch-billing', 'payment', organizationId, selectedPaymentId],
     queryFn: () => getPayment(selectedPaymentId!),
     enabled: canManageBilling && Boolean(selectedPaymentId),
-    refetchInterval: (query) => query.state.data?.status === 'paid' || query.state.data?.providerStatus === 'paid' ? false : 15_000,
+    refetchInterval: (query) => {
+      const status = String(query.state.data?.status || '').toLowerCase();
+      const providerStatus = String(query.state.data?.providerStatus || '').toLowerCase();
+      return ['paid', 'failed', 'expired'].includes(status) || ['paid', 'failed', 'expired'].includes(providerStatus) ? false : 15_000;
+    },
   });
 
   const startPaymentMutation = useMutation({
@@ -80,6 +84,10 @@ export function PartnerBranchSubscriptionBilling({
       void queryClient.invalidateQueries({ queryKey: ['partner-branch-billing', 'invoices', organizationId] });
       void paymentQuery.refetch();
     },
+    onError: () => {
+      void queryClient.invalidateQueries({ queryKey: ['partner-branch-billing', 'invoices', organizationId] });
+      void paymentQuery.refetch();
+    },
   });
 
   if (!canReadBilling || !organizationId) return null;
@@ -92,6 +100,14 @@ export function PartnerBranchSubscriptionBilling({
   const paymentQrIsImage = paymentQr.startsWith('data:image/');
   const paymentQrIsLink = /^https?:\/\//i.test(paymentQr);
   const providerPaid = payment?.status === 'paid' || payment?.providerStatus === 'paid';
+  const paymentTerminalStatus = String(payment?.status || payment?.providerStatus || '').toLowerCase();
+  const paymentFailed = ['failed', 'expired'].includes(paymentTerminalStatus);
+
+  useEffect(() => {
+    if (paymentFailed) {
+      void queryClient.invalidateQueries({ queryKey: ['partner-branch-billing', 'invoices', organizationId] });
+    }
+  }, [paymentFailed, organizationId, queryClient]);
 
   return (
     <section className="space-y-3" aria-labelledby="partner-branch-billing-title">
@@ -171,7 +187,11 @@ export function PartnerBranchSubscriptionBilling({
                 <div className="space-y-3 rounded-xl border border-bdr-subtle bg-surface-1 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-semibold text-txt-primary">Платёж {selectedPaymentId.slice(0, 12)}</p>
-                    <Badge variant={providerPaid ? 'success' : 'warning'}>{providerPaid ? 'Оплата подтверждена провайдером' : 'Ожидает подтверждения Kaspi'}</Badge>
+                    <Badge variant={providerPaid ? 'success' : paymentFailed ? 'error' : 'warning'}>
+                      {providerPaid ? 'Оплата подтверждена провайдером'
+                        : paymentFailed ? (paymentTerminalStatus === 'expired' ? 'Платёж истёк' : 'Платёж отклонён')
+                          : 'Ожидает подтверждения Kaspi'}
+                    </Badge>
                   </div>
                   {paymentQuery.isLoading ? <Skeleton className="h-20" /> : paymentQuery.isError ? (
                     <QueryError what="данные платежа" onRetry={() => paymentQuery.refetch()} />
@@ -183,11 +203,12 @@ export function PartnerBranchSubscriptionBilling({
                       {payment?.providerStatus && <p className="text-xs text-txt-muted">Статус провайдера: {String(payment.providerStatus)}</p>}
                     </>
                   )}
-                  {invoice.status !== 'paid' && invoice.status !== 'void' && (
+                  {!paymentFailed && invoice.status !== 'paid' && invoice.status !== 'void' && (
                     <Button size="sm" variant="secondary" loading={confirmMutation.isPending} disabled={confirmMutation.isPending || paymentQuery.isLoading} onClick={() => confirmMutation.mutate()}>
                       {providerPaid ? 'Завершить подтверждение оплаты' : 'Проверить оплату'}
                     </Button>
                   )}
+                  {paymentFailed && <p role="status" className="text-xs text-error">Платёж не завершён. Счёт освобождён и доступен для повторной оплаты.</p>}
                   {confirmMutation.isError && <p role="alert" className="text-xs text-error">{confirmMutation.error instanceof Error ? confirmMutation.error.message : 'Не удалось проверить оплату'}</p>}
                   {providerPaid && invoice.status !== 'paid' && <p className="text-xs text-success">Провайдер подтвердил оплату. Завершите серверное подтверждение, чтобы обновить статус счёта и подписки.</p>}
                 </div>

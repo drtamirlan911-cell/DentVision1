@@ -1559,6 +1559,52 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       }
     }
 
+    // A user who checks a terminal partner payment should be able to retry
+    // immediately. Release the invoice reservation atomically with the payment
+    // status, but only after the provider has returned a conclusive failure.
+    if (
+      payment.refType === 'partner_branch_subscription_invoice'
+      && payment.refId
+      && (providerStatus === 'failed' || providerStatus === 'expired')
+    ) {
+      const terminalPayment = await prisma.$transaction(async (tx) => {
+        const changed = await tx.payment.updateMany({
+          where: { id: payment.id, status: 'pending' },
+          data: { status: providerStatus },
+        });
+        if (changed.count === 1) {
+          const released = await releasePartnerBranchSubscriptionInvoicePayment({
+            invoiceId: payment.refId!,
+            paymentId: payment.id,
+          }, tx);
+          if (!released) throw new Error('PARTNER_INVOICE_HOLD_NOT_RELEASED');
+        }
+        return tx.payment.findUniqueOrThrow({ where: { id: payment.id } });
+      });
+
+      if (terminalPayment.status === 'paid') {
+        return res.json({
+          ok: true,
+          data: { ...serializeBigInt(terminalPayment), settled: true, alreadyPaid: true },
+        } satisfies ApiResponse);
+      }
+      if (payment.externalId && terminalPayment.status === providerStatus) {
+        markMockPaymentStatus(payment.externalId, providerStatus);
+      }
+      return res.status(402).json({
+        ok: false,
+        error: providerStatus === 'expired'
+          ? 'Срок оплаты истёк. Счёт снова доступен для оплаты.'
+          : 'Провайдер отклонил платёж. Счёт снова доступен для оплаты.',
+        code: providerStatus === 'expired' ? 'PAYMENT_EXPIRED' : 'PAYMENT_FAILED',
+        data: {
+          paymentStatus: terminalPayment.status,
+          providerStatus,
+          invoiceCanRetry: terminalPayment.status === 'failed' || terminalPayment.status === 'expired',
+        },
+      } satisfies ApiResponse);
+    }
+
     const isProduction = env.NODE_ENV === 'production';
     const hasValidSecret = env.KASPI_CALLBACK_SECRET && env.KASPI_CALLBACK_SECRET.length >= 32;
 

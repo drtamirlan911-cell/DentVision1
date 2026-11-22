@@ -112,5 +112,27 @@ describe('partner branch invoice presentation', () => {
     expect(paymentGet).toContain('Provider-pending, provider-paid and unknown payments keep their hold');
   });
 
+  it('releases a partner invoice immediately from confirm after provider-confirmed failed/expired', () => {
+    const paymentRoutes = readFileSync(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/payments/payments.routes.ts'),
+      'utf8',
+    );
+    const start = paymentRoutes.indexOf("paymentsRouter.post('/:id/confirm'");
+    const end = paymentRoutes.indexOf('paymentsRouter.post(', start + 20);
+    const confirm = paymentRoutes.slice(start, end);
+
+    const terminalGuard = confirm.indexOf("providerStatus === 'failed' || providerStatus === 'expired'");
+    const guardedPaymentUpdate = confirm.indexOf("where: { id: payment.id, status: 'pending' }");
+    const invoiceRelease = confirm.indexOf('releasePartnerBranchSubscriptionInvoicePayment(');
+    const latestRead = confirm.indexOf('tx.payment.findUniqueOrThrow({ where: { id: payment.id } })');
+
+    expect(terminalGuard).toBeGreaterThanOrEqual(0);
+    expect(guardedPaymentUpdate).toBeGreaterThan(terminalGuard);
+    expect(invoiceRelease).toBeGreaterThan(guardedPaymentUpdate);
+    expect(latestRead).toBeGreaterThan(invoiceRelease);
+    expect(confirm).toContain("terminalPayment.status === 'paid'");
+    expect(confirm).toContain("code: providerStatus === 'expired' ? 'PAYMENT_EXPIRED' : 'PAYMENT_FAILED'");
+  });
+
 
 });
