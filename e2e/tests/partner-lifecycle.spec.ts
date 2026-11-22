@@ -593,7 +593,7 @@ test.describe('Partner operational lifecycle', () => {
       multipart: { file: { name: 'malformed.dcm', mimeType: 'application/dicom', buffer: malformedDicom } },
     });
     expect(malformedDicomUpload.status()).toBe(400);
-    expect((await malformedDicomUpload.json()).code).toBe('DICOM_TRANSFER_SYNTAX_UNSUPPORTED');
+    expect((await malformedDicomUpload.json()).code).toBe('DICOM_METADATA_INVALID');
 
     const s3Configured = Boolean(process.env.S3_BUCKET && process.env.S3_ACCESS_KEY && process.env.S3_SECRET_KEY);
     const attachmentUpload = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/files/upload`, {
