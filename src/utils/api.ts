@@ -792,9 +792,24 @@ export const createDiagnosticsLabTest = (labId: string, data: { name: string; ca
 export const collectDiagnosticsLabCashierPayment = (labId: string, payload: { referralId: string; cost: number }) => apiRequest(`/api/diagnostics/laboratories/${labId}/cashier/collect`, { method: 'POST', body: JSON.stringify(payload) });
 export async function getDiagnosticsLabDashboard(labId: string): Promise<any> { return getDiagnosticsDashboard({ labId }); }
 export const getDiagnosticsLabPayments = (labId: string) => getDiagnosticReferrals({ labId });
-export async function getDiagnosticsSettlements(): Promise<any[]> {
-  const response = await apiRequest('/api/diagnostics/settlements');
-  return response?.items ?? [];
+export interface DiagnosticsSettlementsResponse {
+  items: Array<{
+    id: string;
+    ownerType: 'CENTER' | 'LAB';
+    ownerId: string;
+    periodStart: string;
+    periodEnd: string;
+    referralCount: number;
+    commissionMinor: string;
+    status: 'open' | 'invoiced' | 'paid' | 'void';
+    dueDate: string | null;
+    paidAt: string | null;
+  }>;
+  count: number;
+  canRequestPayment: boolean;
+}
+export async function getDiagnosticsSettlements(): Promise<DiagnosticsSettlementsResponse> {
+  return apiRequest('/api/diagnostics/settlements');
 }
 export async function requestDiagnosticsSettlementPayment(settlementId: string): Promise<any> {
   return apiRequest(`/api/diagnostics/settlements/${encodeURIComponent(settlementId)}/pay`, {
