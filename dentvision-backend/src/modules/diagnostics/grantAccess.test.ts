@@ -55,9 +55,10 @@ beforeEach(() => {
 });
 
 describe('DIAGNOSTICS_ROLE_TO_ROLE_KEY', () => {
-  it('omits roles that have no seeded counterpart', () => {
-    expect(DIAGNOSTICS_ROLE_TO_ROLE_KEY.radiologist).toBeUndefined();
-    expect(DIAGNOSTICS_ROLE_TO_ROLE_KEY.operator).toBeUndefined();
+  it('maps seeded diagnostic roles and never grants an organization-admin fallback', () => {
+    expect(DIAGNOSTICS_ROLE_TO_ROLE_KEY.radiologist).toBe('diagnostic_radiologist');
+    expect(DIAGNOSTICS_ROLE_TO_ROLE_KEY.operator).toBe('diagnostic_operator');
+    expect(Object.values(DIAGNOSTICS_ROLE_TO_ROLE_KEY)).not.toContain('org_admin');
   });
 
   it('never maps anything to org_admin', () => {
@@ -82,7 +83,7 @@ describe('grantDiagnosticsAccess — unified role', () => {
   it('fails closed for a role with no unified counterpart', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    const ok = await grantDiagnosticsAccess('DiagnosticCenter', CENTER_ID, USER_ID, 'radiologist');
+    const ok = await grantDiagnosticsAccess('DiagnosticCenter', CENTER_ID, USER_ID, 'custom_unmapped_role');
 
     expect(ok).toBe(true); // membership still granted
     expect(mocks.personRoleUpsert).not.toHaveBeenCalled();
@@ -93,7 +94,7 @@ describe('grantDiagnosticsAccess — unified role', () => {
   it('still records the legacy membership and the Person when the role is unmapped', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    await grantDiagnosticsAccess('DiagnosticCenter', CENTER_ID, USER_ID, 'operator');
+    await grantDiagnosticsAccess('DiagnosticCenter', CENTER_ID, USER_ID, 'custom_unmapped_role');
 
     expect(mocks.centerMemberUpsert).toHaveBeenCalledOnce();
     expect(mocks.personCreate).toHaveBeenCalledOnce();
