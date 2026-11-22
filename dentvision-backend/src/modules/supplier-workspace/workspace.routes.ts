@@ -663,7 +663,17 @@ supplierWorkspaceRouter.post('/payouts', requireSupplierWrite, async (req: AuthR
   // requested any number of times. `requestPayout` checks what is actually
   // available — balance minus everything already requested and unresolved.
   try {
-    const payout = await requestPayout({ ownerType: 'SUPPLIER', ownerId: req.user!.supplierId!, amountMinor: minor });
+    const payout = await prisma.$transaction(async (tx) => {
+      const created = await requestPayout({ ownerType: 'SUPPLIER', ownerId: req.user!.supplierId!, amountMinor: minor }, tx);
+      await writeAuditLog({
+        action: 'SUPPLIER_PAYOUT_REQUESTED',
+        entity: 'payout',
+        entityId: created.id,
+        details: { supplierId: req.user!.supplierId!, amountMinor: created.amount.toString() },
+        userId: req.user!.id,
+      }, tx);
+      return created;
+    });
     return res.status(201).json({ ok: true, data: serializeBigInt(payout) } satisfies ApiResponse);
   } catch (e: any) {
     if (e instanceof PayoutError) {
