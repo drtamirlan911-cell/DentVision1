@@ -259,13 +259,16 @@ medicalLabLifecycleRouter.post('/payouts', async (req: AuthRequest, res) => {
     }
 
     try {
-      const payout = await requestPayout({ ownerType: 'PARTNER', ownerId: labId, amountMinor });
-      await writeAuditLog({
-        action: 'MEDICAL_LAB_PAYOUT_REQUESTED',
-        entity: 'payout',
-        entityId: payout.id,
-        details: { laboratoryId: labId, amountMinor: payout.amount.toString() },
-        userId: req.user!.id,
+      const payout = await prisma.$transaction(async (tx) => {
+        const created = await requestPayout({ ownerType: 'PARTNER', ownerId: labId, amountMinor }, tx);
+        await writeAuditLog({
+          action: 'MEDICAL_LAB_PAYOUT_REQUESTED',
+          entity: 'payout',
+          entityId: created.id,
+          details: { laboratoryId: labId, amountMinor: created.amount.toString() },
+          userId: req.user!.id,
+        }, tx);
+        return created;
       });
       return res.status(201).json({ ok: true, data: serializeBigInt(payout) } satisfies ApiResponse);
     } catch (error) {
