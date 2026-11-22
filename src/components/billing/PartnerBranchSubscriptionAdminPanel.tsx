@@ -80,8 +80,10 @@ export function PartnerBranchSubscriptionAdminPanel() {
 
   const issueMutation = useMutation({
     mutationFn: () => {
-      if (!organizationId || !periodStart || !periodEnd || periodEnd <= periodStart) {
-        throw new Error('Выберите организацию и корректный период');
+      const currentOrganizations = organizationsQuery.data || [];
+      const activeSelection = currentOrganizations.find((org) => org.id === organizationId);
+      if (!activeSelection || !organizationId || !periodStart || !periodEnd || periodEnd <= periodStart) {
+        throw new Error('Выберите доступную организацию и корректный период');
       }
       return issuePartnerBranchSubscriptionInvoice({
         organizationId,
@@ -117,7 +119,7 @@ export function PartnerBranchSubscriptionAdminPanel() {
           <div className="grid gap-3 md:grid-cols-2">
             <label className="block space-y-1 text-xs text-txt-secondary">
               Поиск организации
-              <input value={search} onChange={(event) => setSearch(event.target.value)} maxLength={120} placeholder="Название центра или лаборатории" className="min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" />
+              <input value={search} onChange={(event) => { setSearch(event.target.value); setOrganizationId(''); setIssuedMessage(''); }} maxLength={120} placeholder="Название центра или лаборатории" className="min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" />
             </label>
             <label className="block space-y-1 text-xs text-txt-secondary">
               Партнёрская организация
@@ -152,7 +154,7 @@ export function PartnerBranchSubscriptionAdminPanel() {
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-txt-muted">Начало должно быть раньше окончания. Повторный выпуск того же периода вернёт существующий счёт, а не создаст дубликат.</p>
-          <Button size="sm" disabled={!organizationId || !validPeriod || issueMutation.isPending} loading={issueMutation.isPending} onClick={() => { setIssuedMessage(''); issueMutation.mutate(); }}>
+          <Button size="sm" disabled={!selectedOrganization || !validPeriod || issueMutation.isPending} loading={issueMutation.isPending} onClick={() => { setIssuedMessage(''); issueMutation.mutate(); }}>
             Сформировать счёт
           </Button>
         </div>
