@@ -80,5 +80,16 @@ describe('partner branch invoice presentation', () => {
     expect(api).toContain("apiRequest('/api/finance/partner-branch-billing/invoices',");
   });
 
+  it('clears stale admin organization selection when the search changes', () => {
+    const adminPanel = readFileSync(
+      resolve(process.cwd(), 'src/components/billing/PartnerBranchSubscriptionAdminPanel.tsx'),
+      'utf8',
+    );
+    expect(adminPanel).toContain("setSearch(event.target.value); setOrganizationId(''); setIssuedMessage('')");
+    expect(adminPanel).toContain('disabled={!selectedOrganization || !validPeriod || issueMutation.isPending}');
+    expect(adminPanel).toContain('const activeSelection = currentOrganizations.find((org) => org.id === organizationId)');
+    expect(adminPanel).toContain('if (!activeSelection || !organizationId || !periodStart || !periodEnd');
+  });
+
 
 });
