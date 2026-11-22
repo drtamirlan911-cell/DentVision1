@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
-import { PARTNER_ECONOMICS_POLICY_VERSION } from '../billing/partnerEconomics.js';
+import { calculatePartnerBranchSubscriptionQuote, PARTNER_ECONOMICS_POLICY_VERSION } from '../billing/partnerEconomics.js';
 
 export const PARTNER_VERTICALS = {
   DIAGNOSTIC_3D: 'DIAGNOSTIC_3D',
@@ -11,6 +11,16 @@ export const PARTNER_VERTICALS = {
 
 export type PartnerVertical = (typeof PARTNER_VERTICALS)[keyof typeof PARTNER_VERTICALS];
 type VolumeTier = { upToMinor: bigint | null; percentBps: number };
+
+function branchSubscriptionUnitMinor(vertical: PartnerVertical): bigint {
+  const quote = calculatePartnerBranchSubscriptionQuote({
+    vertical,
+    organizationActivated: true,
+    activeBillableBranchCount: 1,
+  });
+  // Finance persistence uses tiyn; the canonical policy quote uses whole KZT.
+  return BigInt(quote.unitPriceKzt) * 100n;
+}
 
 export interface PartnerEconomicsRule {
   vertical: PartnerVertical; version: number; effectiveFrom: string; percentBps: number;
@@ -31,11 +41,11 @@ export interface PartnerEconomicsBreakdown {
 }
 
 const CANONICAL_RULES: Record<PartnerVertical, PartnerEconomicsRule> = {
-  DIAGNOSTIC_3D: { vertical: 'DIAGNOSTIC_3D', version: 1, effectiveFrom: '2026-09-11T00:00:00.000Z', percentBps: 700, minFeeMinor: 50_000n, maxFeeMinor: 300_000n, subscriptionMinor: 4_990_000n },
-  MEDICAL_ANALYSIS: { vertical: 'MEDICAL_ANALYSIS', version: 1, effectiveFrom: '2026-09-11T00:00:00.000Z', percentBps: 600, minFeeMinor: 15_000n, maxFeeMinor: 250_000n, subscriptionMinor: 1_990_000n },
+  DIAGNOSTIC_3D: { vertical: 'DIAGNOSTIC_3D', version: 1, effectiveFrom: '2026-09-11T00:00:00.000Z', percentBps: 700, minFeeMinor: 50_000n, maxFeeMinor: 300_000n, subscriptionMinor: branchSubscriptionUnitMinor('DIAGNOSTIC_3D') },
+  MEDICAL_ANALYSIS: { vertical: 'MEDICAL_ANALYSIS', version: 1, effectiveFrom: '2026-09-11T00:00:00.000Z', percentBps: 600, minFeeMinor: 15_000n, maxFeeMinor: 250_000n, subscriptionMinor: branchSubscriptionUnitMinor('MEDICAL_ANALYSIS') },
   DENTAL_LAB: {
     vertical: 'DENTAL_LAB', version: 1, effectiveFrom: '2026-09-11T00:00:00.000Z', percentBps: 800,
-    minFeeMinor: 50_000n, maxFeeMinor: 1_500_000n, subscriptionMinor: 2_990_000n,
+    minFeeMinor: 50_000n, maxFeeMinor: 1_500_000n, subscriptionMinor: branchSubscriptionUnitMinor('DENTAL_LAB'),
     volumeTiers: [
       { upToMinor: 100_000_000n, percentBps: 1000 }, { upToMinor: 500_000_000n, percentBps: 800 },
       { upToMinor: 1_500_000_000n, percentBps: 700 }, { upToMinor: 3_000_000_000n, percentBps: 600 },
