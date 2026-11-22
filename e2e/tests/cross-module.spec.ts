@@ -91,11 +91,9 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
         userId: centerUserId,
       },
     });
-    const centerRole = await prisma.role.upsert({
-      where: { key: 'org_admin' },
-      update: {},
-      create: { id: randomUUID(), key: 'org_admin', name: 'Organization Admin', isSystem: true },
-    });
+    // Diagnostic workflow authority comes from the canonical center-scoped role,
+    // not the generic organization administrator compatibility role.
+    const centerRole = await prisma.role.findUniqueOrThrow({ where: { key: 'diagnostic_owner' } });
     await prisma.personRole.create({
       data: {
         id: randomUUID(),
