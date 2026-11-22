@@ -559,6 +559,10 @@ async function settlePaidPayment(
     }
   }
 
+  if (payment.refType === 'partner_branch_subscription_invoice') {
+    settled = (await settlePartnerBranchSubscriptionInvoicePayment(payment, db)) || settled;
+  }
+
   if (payment.refType === 'medical_lab_order') {
     settled = (await settleMedicalLabOrderPayment(payment, db)) || settled;
   }
@@ -703,6 +707,25 @@ async function assertPaymentOwner(
       }
     }
     return canManageClinicBillingMutation(req.user!, clinicId);
+  }
+
+  if (payment.refType === 'partner_branch_subscription_invoice') {
+    if (!payment.refId || !req.user) return false;
+    if (req.user.role === 'SUPERADMIN') return true;
+    const organizationId = String(req.user.organizationId || '');
+    const ownerId = String(req.user.organizationOriginalId || '');
+    if (!organizationId || !ownerId) return false;
+    const invoice = await prisma.partnerBranchSubscriptionInvoice.findUnique({
+      where: { id: payment.refId },
+      select: { organizationId: true, ownerId: true },
+    });
+    if (!invoice || invoice.organizationId !== organizationId || invoice.ownerId !== ownerId) return false;
+    return hasPartnerBranchBillingPermission({
+      userId: req.user.id,
+      organizationId,
+      ownerId,
+      permissions: ['billing.manage', 'finance.manage'],
+    });
   }
 
   // Orders are canonical ownership records. Historical payment metadata was
