@@ -169,6 +169,40 @@ medicalLabLifecycleRouter.get('/capabilities', async (req: AuthRequest, res) => 
   }
 });
 
+medicalLabLifecycleRouter.get('/team', async (req: AuthRequest, res) => {
+  try {
+    const labId = await resolveLaboratoryScopeId(req.user);
+    if (!labId || !(await requireMedicalLabCapability(req.user, 'staff.read'))) {
+      return res.status(403).json({ ok: false, error: 'Состав команды доступен сотрудникам с правом staff.read' } satisfies ApiResponse);
+    }
+
+    const members = await prisma.laboratoryMember.findMany({
+      where: { labId },
+      include: {
+        user: {
+          select: { id: true, firstName: true, lastName: true, email: true, avatar: true },
+        },
+      },
+      orderBy: [{ createdAt: 'asc' }],
+    });
+    return res.json({
+      ok: true,
+      data: members.map((member) => ({
+        id: member.userId,
+        userId: member.userId,
+        role: member.role,
+        firstName: member.user.firstName,
+        lastName: member.user.lastName,
+        email: member.user.email,
+        avatar: member.user.avatar,
+      })),
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[medical-lab] team read failed', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить команду медицинской лаборатории' } satisfies ApiResponse);
+  }
+});
+
 async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, write = false): Promise<boolean> {
   if (user?.role === 'SUPERADMIN') return true;
 
