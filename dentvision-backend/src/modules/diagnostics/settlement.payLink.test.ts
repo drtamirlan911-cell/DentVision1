@@ -160,6 +160,8 @@ describe('settlement Kaspi payment link lifecycle', () => {
 
   it('never downgrades a settlement already confirmed as paid', async () => {
     currentSettlement = { ...currentSettlement, status: 'paid', paidAt: new Date(), paymentId: payment.id };
+    // Simulate a stale initial read racing with a webhook that commits "paid".
+    state.settlementFindUnique.mockResolvedValueOnce({ ...currentSettlement, status: 'open' });
     state.idempotencyFindUnique.mockResolvedValue({
       id: 'reservation-1',
       expiresAt: new Date(Date.now() + 60_000),
