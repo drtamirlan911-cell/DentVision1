@@ -154,4 +154,50 @@ describe('grantDiagnosticsAccess — organization isolation', () => {
       where: { originalType: 'LaboratoryMember', originalId: `lab-1:${USER_ID}` },
     });
   });
+
+  it('assigns canonical medical-lab roles and creates only the default branch membership for branch-scoped staff', async () => {
+    mocks.labFindUnique.mockResolvedValue({ id: 'lab-1', name: 'Medical Lab', city: null, address: null, phone: null, email: null });
+
+    await grantDiagnosticsAccess('Laboratory', 'lab-1', USER_ID, 'medical_lab_technician');
+
+    expect(mocks.labMemberUpsert).toHaveBeenCalledWith({
+      where: { labId_userId: { labId: 'lab-1', userId: USER_ID } },
+      update: { role: 'medical_lab_technician' },
+      create: { id: expect.any(String), labId: 'lab-1', userId: USER_ID, role: 'medical_lab_technician' },
+    });
+    expect(mocks.roleFindUnique).toHaveBeenCalledWith({ where: { key: 'medical_lab_technician' } });
+    expect(mocks.personRoleUpsert).toHaveBeenCalledOnce();
+    expect(mocks.branchMemberUpsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { personId_branchId: { personId: 'person-1', branchId: 'branch-default' } },
+    }));
+  });
+
+  it('keeps assigned dental technicians in the dental role family without granting an arbitrary branch', async () => {
+    mocks.labFindUnique.mockResolvedValue({ id: 'lab-2', name: 'Dental Lab', city: null, address: null, phone: null, email: null });
+
+    await grantDiagnosticsAccess('Laboratory', 'lab-2', USER_ID, 'dental_technician');
+
+    expect(mocks.labMemberUpsert).toHaveBeenCalledWith({
+      where: { labId_userId: { labId: 'lab-2', userId: USER_ID } },
+      update: { role: 'dental_technician' },
+      create: { id: expect.any(String), labId: 'lab-2', userId: USER_ID, role: 'dental_technician' },
+    });
+    expect(mocks.roleFindUnique).toHaveBeenCalledWith({ where: { key: 'dental_technician' } });
+    expect(mocks.personRoleUpsert).toHaveBeenCalledOnce();
+    expect(mocks.branchFindFirst).not.toHaveBeenCalled();
+    expect(mocks.branchMemberUpsert).not.toHaveBeenCalled();
+  });
+
+  it('keeps the dental administrator canonical while preserving the legacy manager role', async () => {
+    mocks.labFindUnique.mockResolvedValue({ id: 'lab-3', name: 'Dental Lab', city: null, address: null, phone: null, email: null });
+
+    await grantDiagnosticsAccess('Laboratory', 'lab-3', USER_ID, 'dental_lab_admin');
+
+    expect(mocks.labMemberUpsert).toHaveBeenCalledWith({
+      where: { labId_userId: { labId: 'lab-3', userId: USER_ID } },
+      update: { role: 'admin' },
+      create: { id: expect.any(String), labId: 'lab-3', userId: USER_ID, role: 'admin' },
+    });
+    expect(mocks.roleFindUnique).toHaveBeenCalledWith({ where: { key: 'dental_lab_admin' } });
+  });
 });
