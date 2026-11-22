@@ -4,6 +4,7 @@ import { resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { assertClinicDoctorSignoff } from './clinicalSignoffAuthorization.js';
 import { DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS, hasScopedPartnerSignerRole } from './signingAuthorization.js';
 import { uid } from '../../lib/helpers.js';
+import { PARTNER_ROLE_BY_KEY } from '../../lib/roleAccessRegistry.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { simpleChat } from '../ai/llm/client.js';
 import { publish } from '../../lib/events.js';
@@ -297,6 +298,30 @@ export async function grantDiagnosticsAccess(type: 'DiagnosticCenter' | 'Laborat
         update: { scopeType: 'organization', scopeId: org.id },
         create: { personId: person.id, roleId: dbRole.id, scopeType: 'organization', scopeId: org.id, scopeKey },
       });
+
+      const normalizedRoleKey = roleKey.toUpperCase();
+      const partnerRoleKey = normalizedRoleKey === 'DIAGNOSTIC_RADIOLOGIST'
+        ? 'RADIOLOGIST'
+        : normalizedRoleKey;
+      const roleDefinition = PARTNER_ROLE_BY_KEY[partnerRoleKey];
+      if (roleDefinition?.defaultScope === 'BRANCH') {
+        // Branch-scoped staff start in the active default branch only. The
+        // organization PersonRole grants workspace membership; BranchMember
+        // separately grants branch access. Never fan an invitation out to
+        // every branch in the organization.
+        const defaultBranch = await prisma.branch.findFirst({
+          where: { organizationId: org.id, active: true },
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+          select: { id: true },
+        });
+        if (defaultBranch) {
+          await prisma.branchMember.upsert({
+            where: { personId_branchId: { personId: person.id, branchId: defaultBranch.id } },
+            update: { active: true },
+            create: { id: uid(), personId: person.id, branchId: defaultBranch.id, active: true },
+          });
+        }
+      }
     }
     return true;
   } catch (e) {
