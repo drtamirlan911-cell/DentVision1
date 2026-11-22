@@ -74,6 +74,15 @@ export async function getCenterSubscription(centerId: string) {
 
 // ─── Centers ───
 
+export function canReadDiagnosticCenterCatalog(input: {
+  isPubliclyVisible: boolean;
+  subscriptionActive: boolean;
+  isActiveOrganizationMember: boolean;
+}): boolean {
+  return input.subscriptionActive
+    && (input.isPubliclyVisible || input.isActiveOrganizationMember);
+}
+
 export async function listCenters(search?: string, city?: string) {
   const where: any = { active: true };
   if (search) where.name = { contains: search, mode: 'insensitive' };
@@ -110,7 +119,7 @@ export async function listCenters(search?: string, city?: string) {
   });
 }
 
-export async function getCenter(id: string) {
+export async function getCenter(id: string, options: { includePrivate?: boolean } = {}) {
   try {
     const org = await prisma.organization.findFirst({
       where: { type: 'DIAGNOSTIC_CENTER', originalType: 'DiagnosticCenter', originalId: id },
@@ -120,10 +129,13 @@ export async function getCenter(id: string) {
     const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings))
       ? org.settings as Record<string, unknown>
       : {};
-    if (settings.ecosystemVisible !== true) return null;
 
     const subscription = await ensureCenterSubscription(id);
-    if (!subscription.active) return null;
+    if (!canReadDiagnosticCenterCatalog({
+      isPubliclyVisible: settings.ecosystemVisible === true,
+      subscriptionActive: Boolean(subscription.active),
+      isActiveOrganizationMember: options.includePrivate === true,
+    })) return null;
 
     return prisma.diagnosticCenter.findFirst({
       where: { id, active: true },
