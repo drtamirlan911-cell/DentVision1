@@ -1,3 +1,14 @@
+## Current release reconciliation — 2026-11-22 (candidate PR #352)
+
+- **Current main:** `758ffe7f39112848df701a8b988f44af03845597`.
+- **Partner-workspace candidate:** PR [#352](https://github.com/drtamirlan911-cell/DentVision1/pull/352), branch `fix/partner-workspace-context-ux-20261120`, current documented source/document head before this reconciliation: `dc682d5eabe0a4438fd8b380ee8e77a9a6278db9`. PR is **OPEN / UNMERGED**. The branch contains 651 commits ahead of the common base and 142 changed files; despite being up to date with current main (0 commits behind), this is a large accumulated candidate and must not be merged without full diff/history review and green exact-head checks.
+- **Partner workspace corrections in the candidate:** distinct `diagnostics.read` vs `lab.read` authorization; active-membership access to private center/laboratory catalogues while keeping public discovery gated; exact static staff route before dynamic referral detail route; IAM-gated partner workspace tabs; role-scoped referral redaction for clinical, finance and attachments; finance-only dashboard omits recent patient referrals. Regression coverage was added for route matching, partner catalog access, family-specific read permissions, minimum data projection and finance-only dashboard behavior.
+- **Exact-head verification:** CI / Quality Gate / RB-034 were still queued or in progress for the latest source/document head at the time of this entry. Earlier attempts on intermediate heads were cancelled after subsequent branch updates. No green exact-head result is claimed. Do not merge PR #352 until the final SHA has successful CI, Quality Gate and RB-034, the 142-file diff has been reviewed for unrelated changes, and required approvals are present.
+- **Release classification:** diagnostic center, medical laboratory and dental laboratory remain **PARTIAL**. This candidate addresses workspace routing/permissions/data boundaries only; it does not close DICOM network/PACS viewer, full LIS accession and QC/analyzer integration, dental-lab remake/logistics/settlement, staging evidence, Android/operator acceptance, or other release blockers.
+- **Environment boundary:** no production/staging database, PHI, secret/key, payment provider, migration, legal signature or production deployment was accessed or changed. Main was not modified or merged.
+
+---
+
 ## Current release reconciliation — 2026-11-18
 
 - **Current main:** `7289f369b1effa28db94e3e1e4541e4500bc5ee0`. PR #346 merged as `4bbd61a339d5f3c4d40d1d5990f633a7b9a87864`; PR #347 merged as `ad2b8651432073ba3c1426a59f3b31f704479557`; PR #348 merged as `7289f369b1effa28db94e3e1e4541e4500bc5ee0`. PR #322 is also merged as `462c6fcc1994c345b51feabff5f2357debdfffba` and contains isolated Codespaces developer infrastructure.
