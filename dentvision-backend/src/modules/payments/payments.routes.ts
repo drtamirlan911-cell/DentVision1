@@ -1113,7 +1113,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     // domain=crm, clinicId or merchantScope in the request.
     const platformRefTypes = new Set([
       'subscription', 'enrollment', 'academy_event', 'order', 'shop_order',
-      'medical_lab_order', 'dental_lab_order',
+      'medical_lab_order', 'dental_lab_order', 'partner_branch_subscription_invoice',
     ]);
     const isClinicCashier = !platformRefTypes.has(String(refType || '')) &&
       (domain === 'crm' || refType === 'appointment' || refType === 'crm_invoice');
