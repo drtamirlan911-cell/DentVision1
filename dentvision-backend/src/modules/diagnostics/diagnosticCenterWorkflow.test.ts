@@ -7,6 +7,17 @@ describe('diagnostic center referral workflow authorization', () => {
   const radiologist = ['radiologist'];
   const canonicalRadiologist = ['diagnostic_radiologist'];
 
+  it('recognizes canonical diagnostic organization roles but not generic org_admin', () => {
+    for (const role of ['diagnostic_owner', 'diagnostic_admin', 'diagnostic_manager']) {
+      expect(authorizeDiagnosticCenterStatusTransition({ currentStatus: 'SENT', nextStatus: 'ACCEPTED', roleKeys: [role] }).allowed).toBe(true);
+      expect(canReadDiagnosticCenterClinicalDetail([role])).toBe(true);
+    }
+    expect(authorizeDiagnosticCenterStatusTransition({
+      currentStatus: 'SENT', nextStatus: 'ACCEPTED', roleKeys: ['org_admin'],
+    })).toMatchObject({ allowed: false, status: 403, code: 'DIAGNOSTIC_ACCEPT_FORBIDDEN' });
+    expect(canReadDiagnosticCenterClinicalDetail(['org_admin'])).toBe(false);
+  });
+
   it('requires a manager to accept a new referral', () => {
     expect(authorizeDiagnosticCenterStatusTransition({ currentStatus: 'SENT', nextStatus: 'ACCEPTED', roleKeys: owner }).allowed).toBe(true);
     expect(authorizeDiagnosticCenterStatusTransition({ currentStatus: 'SENT', nextStatus: 'ACCEPTED', roleKeys: operator })).toMatchObject({
