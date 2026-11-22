@@ -3230,6 +3230,7 @@ model DiagnosticCenter {
   radiologists Radiologist[]
   bookings     DiagnosticBooking[]
   modalities   DiagnosticModality[]
+  dicomStudies DiagnosticDicomStudy[]
 
   @@map("diagnostic_centers")
 }
@@ -3400,6 +3401,7 @@ model DiagnosticModality {
 
   center    DiagnosticCenter @relation(fields: [centerId], references: [id], onDelete: Cascade)
   referrals Referral[]
+  dicomStudies DiagnosticDicomStudy[]
 
   @@unique([centerId, serialNumber])
   @@index([centerId, status])
@@ -3550,6 +3552,7 @@ model Referral {
   modality    DiagnosticModality? @relation(fields: [modalityId], references: [id], onDelete: SetNull)
   reviewer    User?             @relation("ReferralReviewer", fields: [reviewerId], references: [id])
   files       ReferralFile[]
+  dicomStudies DiagnosticDicomStudy[]
   comments    ReferralComment[]
   result      DiagnosticResult?
   settlement  Settlement?       @relation("SettlementReferrals", fields: [settlementId], references: [id], onDelete: SetNull)
@@ -3607,9 +3610,73 @@ model ReferralFile {
 
   referral Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
   uploader User     @relation(fields: [uploadedBy], references: [id])
+  dicomInstance DiagnosticDicomInstance?
 
   @@index([referralId])
   @@map("referral_files")
+}
+
+model DiagnosticDicomStudy {
+  id               String   @id @default(uuid())
+  referralId       String
+  centerId         String
+  modalityId       String?
+  studyInstanceUid String
+  accessionNumber  String?
+  modality         String?
+  studyDate        String?
+  studyTime        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  referral Referral          @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  center   DiagnosticCenter  @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  device   DiagnosticModality? @relation(fields: [modalityId], references: [id], onDelete: SetNull)
+  series   DiagnosticDicomSeries[]
+
+  @@unique([centerId, studyInstanceUid])
+  @@index([referralId, createdAt])
+  @@index([modalityId])
+  @@map("diagnostic_dicom_studies")
+}
+
+model DiagnosticDicomSeries {
+  id                 String   @id @default(uuid())
+  dicomStudyId       String
+  seriesInstanceUid  String
+  modality           String?
+  seriesNumber       String?
+  createdAt          DateTime @default(now())
+
+  study     DiagnosticDicomStudy     @relation(fields: [dicomStudyId], references: [id], onDelete: Cascade)
+  instances DiagnosticDicomInstance[]
+
+  @@unique([dicomStudyId, seriesInstanceUid])
+  @@index([dicomStudyId, createdAt])
+  @@map("diagnostic_dicom_series")
+}
+
+model DiagnosticDicomInstance {
+  id                       String   @id @default(uuid())
+  seriesId                 String
+  referralFileId           String   @unique
+  sopInstanceUid           String   @unique
+  sopClassUid              String
+  transferSyntaxUid        String
+  fileName                 String
+  fileSize                 Int
+  rows                     Int?
+  columns                  Int?
+  numberOfFrames           Int?
+  bitsAllocated            Int?
+  photometricInterpretation String?
+  createdAt                DateTime @default(now())
+
+  series      DiagnosticDicomSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  referralFile ReferralFile          @relation(fields: [referralFileId], references: [id], onDelete: Cascade)
+
+  @@index([seriesId, createdAt])
+  @@map("diagnostic_dicom_instances")
 }
 
 model ReferralComment {
