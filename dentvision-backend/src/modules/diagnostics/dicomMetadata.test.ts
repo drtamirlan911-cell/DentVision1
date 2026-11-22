@@ -39,10 +39,18 @@ function elementTag(group: number, element: number, length: number): Buffer {
 }
 
 function fileMeta(transferSyntax = '1.2.840.10008.1.2.1'): Buffer {
-  return Buffer.concat([
+  const rest = Buffer.concat([
+    explicitElement(0x0002, 0x0001, 'OB', Buffer.from([0, 1])),
     explicitElement(0x0002, 0x0002, 'UI', padded(SOP_CLASS, 0)),
     explicitElement(0x0002, 0x0003, 'UI', padded(SOP_INSTANCE, 0)),
     explicitElement(0x0002, 0x0010, 'UI', padded(transferSyntax, 0)),
+    explicitElement(0x0002, 0x0012, 'UI', padded('1.2.826.0.1.3680043.10.543', 0)),
+  ]);
+  const groupLength = Buffer.alloc(4);
+  groupLength.writeUInt32LE(rest.length, 0);
+  return Buffer.concat([
+    explicitElement(0x0002, 0x0000, 'UL', groupLength),
+    rest,
   ]);
 }
 
