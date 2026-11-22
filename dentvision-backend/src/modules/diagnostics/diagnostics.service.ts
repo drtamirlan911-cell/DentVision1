@@ -289,9 +289,39 @@ export async function grantDiagnosticsAccess(type: 'DiagnosticCenter' | 'Laborat
     const org = await prisma.organization.findFirst({ where: { originalType: type, originalId: entityId } });
     if (!org) return false;
     const normalizedRole = String(role || '').trim().toLowerCase();
+    const organizationSettings = org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)
+      ? org.settings as Record<string, unknown>
+      : {};
+    const laboratoryFamily = String(organizationSettings.laboratoryType || '').toUpperCase() === 'DENTAL_LAB'
+      ? 'DENTAL_LAB'
+      : 'MEDICAL_LAB';
     const canonicalLaboratoryRole = type === 'Laboratory' && Boolean(PARTNER_ROLE_BY_KEY[normalizedRole.toUpperCase()]);
-    const roleKey = canonicalLaboratoryRole
-      ? normalizedRole
+    const legacyLaboratoryRoleKeys: Record<string, Record<string, string>> = {
+      MEDICAL_LAB: {
+        owner: 'medical_lab_owner',
+        admin: 'medical_lab_admin',
+        manager: 'medical_lab_manager',
+        technician: 'medical_lab_technician',
+        reception: 'medical_lab_reception',
+        doctor: 'medical_lab_doctor',
+        validator: 'medical_lab_validator',
+        quality: 'medical_lab_quality',
+        finance: 'medical_lab_finance',
+      },
+      DENTAL_LAB: {
+        owner: 'dental_lab_owner',
+        admin: 'dental_lab_admin',
+        manager: 'dental_lab_manager',
+        technician: 'dental_technician',
+        coordinator: 'lab_coordinator',
+        quality: 'qc_specialist',
+        finance: 'lab_finance',
+      },
+    };
+    const roleKey = type === 'Laboratory'
+      ? (canonicalLaboratoryRole
+          ? normalizedRole
+          : legacyLaboratoryRoleKeys[laboratoryFamily][normalizedRole])
       : DIAGNOSTICS_ROLE_TO_ROLE_KEY[normalizedRole];
     if (!roleKey) {
       console.warn(`[Diagnostics] No unified role for ${type} member role '${role}' (user ${userId})`);
