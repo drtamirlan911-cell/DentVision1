@@ -6,17 +6,20 @@ export type MedicalLabCapability =
   | 'result.write'
   | 'result.verify'
   | 'result.interpret'
-  | 'quality.perform';
+  | 'quality.perform'
+  | 'finance.read'
+  | 'finance.manage';
 
 const ROLE_CAPABILITIES: Record<string, readonly MedicalLabCapability[]> = {
-  medical_lab_owner: ['specimen.collect', 'specimen.receive', 'order.process', 'order.cancel', 'quality.perform'],
-  medical_lab_admin: ['specimen.collect', 'specimen.receive', 'order.process', 'order.cancel', 'quality.perform'],
-  medical_lab_manager: ['specimen.collect', 'specimen.receive', 'order.process', 'order.cancel', 'quality.perform'],
-  medical_lab_reception: ['specimen.collect', 'specimen.receive', 'order.cancel'],
+  medical_lab_owner: ['specimen.collect', 'specimen.receive', 'order.process', 'order.cancel', 'quality.perform', 'finance.read', 'finance.manage'],
+  medical_lab_admin: ['specimen.collect', 'specimen.receive', 'order.process', 'order.cancel', 'quality.perform', 'finance.read'],
+  medical_lab_manager: ['specimen.collect', 'specimen.receive', 'order.process', 'order.cancel', 'quality.perform', 'finance.read'],
+  medical_lab_reception: ['specimen.collect', 'specimen.receive', 'order.cancel', 'finance.read'],
   medical_lab_technician: ['specimen.collect', 'specimen.receive', 'order.process', 'result.write'],
   medical_lab_validator: ['result.verify'],
   medical_lab_doctor: ['result.interpret'],
   medical_lab_quality: ['quality.perform'],
+  medical_lab_finance: ['finance.read', 'finance.manage'],
 };
 
 /**
@@ -45,6 +48,8 @@ export const MEDICAL_LAB_CAPABILITIES: readonly MedicalLabCapability[] = [
   'result.verify',
   'result.interpret',
   'quality.perform',
+  'finance.read',
+  'finance.manage',
 ];
 
 export function medicalLabCapabilitiesForRoles(roleKeys: readonly string[]): MedicalLabCapability[] {
