@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Copy, Mail, UserPlus, Users } from 'lucide-react'
 
@@ -31,7 +31,32 @@ const ROLES = [
   { value: 'admin', label: 'Администратор' },
 ]
 
-const ROLE_LABELS: Record<string, string> = Object.fromEntries(ROLES.map((r) => [r.value, r.label]))
+const MEDICAL_LAB_ROLES = [
+  { value: 'medical_lab_admin', label: 'Администратор' },
+  { value: 'medical_lab_manager', label: 'Управляющий' },
+  { value: 'medical_lab_reception', label: 'Регистратура' },
+  { value: 'medical_lab_technician', label: 'Лаборант' },
+  { value: 'medical_lab_validator', label: 'Валидатор результатов' },
+  { value: 'medical_lab_doctor', label: 'Врач лаборатории' },
+  { value: 'medical_lab_finance', label: 'Финансы' },
+  { value: 'medical_lab_quality', label: 'Контроль качества' },
+] as const
+
+const DENTAL_LAB_ROLES = [
+  { value: 'dental_lab_admin', label: 'Администратор' },
+  { value: 'dental_lab_manager', label: 'Управляющий' },
+  { value: 'lab_coordinator', label: 'Координатор' },
+  { value: 'dental_technician', label: 'Зубной техник' },
+  { value: 'cad_designer', label: 'CAD-дизайнер' },
+  { value: 'ceramist', label: 'Керамист' },
+  { value: 'orthodontic_technician', label: 'Ортодонтический техник' },
+  { value: 'qc_specialist', label: 'Контроль качества' },
+  { value: 'lab_finance', label: 'Финансы' },
+] as const
+
+const ROLE_LABELS: Record<string, string> = Object.fromEntries(
+  [...ROLES, ...MEDICAL_LAB_ROLES, ...DENTAL_LAB_ROLES].map((r) => [r.value, r.label]),
+)
 
 export function TeamTab({ config, orgId }: TabProps) {
   const toast = useToast()
@@ -51,6 +76,24 @@ export function TeamTab({ config, orgId }: TabProps) {
   })
   const invitations = data?.data || data || []
   const isDiagnosticCenter = config.kind === 'CENTER'
+  const organizationQuery = useQuery({
+    queryKey: ['organizations', 'me', 'team-invite-role-family', orgId],
+    queryFn: api.getMyOrganization,
+    enabled: Boolean(orgId && !isDiagnosticCenter),
+    retry: false,
+  })
+  const laboratoryType = String(organizationQuery.data?.organization?.settings?.laboratoryType || '').toUpperCase()
+  const inviteRoleOptions = isDiagnosticCenter
+    ? ROLES
+    : laboratoryType === 'DENTAL_LAB' ? DENTAL_LAB_ROLES : MEDICAL_LAB_ROLES
+  const defaultInviteRole = isDiagnosticCenter
+    ? 'operator'
+    : laboratoryType === 'DENTAL_LAB' ? 'dental_technician' : 'medical_lab_technician'
+
+  useEffect(() => {
+    if (!inviteRoleOptions.some((option) => option.value === role)) setRole(defaultInviteRole)
+  }, [inviteRoleOptions, defaultInviteRole, role])
+
   const { data: staffData, isLoading: staffLoading, error: staffError } = useQuery({
     queryKey: ['diagnostics', 'center-worklist-staff', orgId],
     queryFn: () => api.getDiagnosticCenterWorklistStaff(orgId),
@@ -152,12 +195,19 @@ export function TeamTab({ config, orgId }: TabProps) {
             <select
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              className="min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold"
+              disabled={!isDiagnosticCenter && (!organizationQuery.data || organizationQuery.isError)}
+              className="min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold disabled:opacity-60"
             >
-              {ROLES.map((r) => (
+              {inviteRoleOptions.map((r) => (
                 <option key={r.value} value={r.value}>{r.label}</option>
               ))}
             </select>
+            {!isDiagnosticCenter && organizationQuery.isLoading && (
+              <span className="mt-1 block text-xs text-txt-muted">Определяем специализацию лаборатории…</span>
+            )}
+            {!isDiagnosticCenter && organizationQuery.isError && (
+              <span className="mt-1 block text-xs text-error">Не удалось определить тип лаборатории. Приглашения временно недоступны.</span>
+            )}
           </label>
           <Input
             label="Email (необязательно)"
@@ -169,6 +219,7 @@ export function TeamTab({ config, orgId }: TabProps) {
             variant="primary"
             className="min-h-11"
             loading={createMutation.isPending}
+            disabled={!isDiagnosticCenter && (!organizationQuery.data || organizationQuery.isError)}
             onClick={() => createMutation.mutate()}
           >
             <UserPlus size={16} /> Создать код
