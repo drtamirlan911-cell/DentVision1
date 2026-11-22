@@ -57,6 +57,10 @@ function fmtMoney(minor: string | number | undefined): string {
   return n.toLocaleString('ru-RU') + ' ₸'
 }
 
+function isPositiveMinor(value: unknown): boolean {
+  try { return BigInt(String(value ?? '0')) > 0n } catch { return false }
+}
+
 function fmtTenge(value: number): string {
   return Math.round(value).toLocaleString('ru-RU') + ' ₸'
 }
@@ -446,10 +450,10 @@ export default function SupplierWorkspace() {
 
   const handlePayout = async () => {
     if (!token) return
-    const balance = Number(kpis.balanceMinor || 0)
-    if (balance <= 0) { toast.error('Нет средств для вывода'); return }
+    const balanceMinor = String(kpis.balanceMinor ?? '0')
+    if (!isPositiveMinor(balanceMinor)) { toast.error('Нет доступных средств для вывода'); return }
     try {
-      await api.supplierWs.requestPayout(token, { amountMinor: String(balance) })
+      await api.supplierWs.requestPayout(token, { amountMinor: balanceMinor })
       toast.success('Заявка на выплату создана')
       await loadAll(token)
     } catch (e: any) {
@@ -939,9 +943,41 @@ export default function SupplierWorkspace() {
                   description="Когда клиники начнут чаще покупать ваши позиции, здесь появятся сигналы роста."
                 />
               )}
-              <Button variant="outline" className="min-h-11" icon={<Wallet size={15} />} disabled={!canWrite || Number(kpis.balanceMinor) <= 0} onClick={handlePayout}>
-                Запросить выплату ({fmtMoney(kpis.balanceMinor)})
-              </Button>
+              <Card padding="md" className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-txt-muted">Учётный баланс</p>
+                    <p className="mt-1 text-lg font-semibold text-txt-primary">{fmtMoney(kpis.accountingBalanceMinor)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-txt-muted">Доступно к выплате</p>
+                    <p className="mt-1 text-lg font-semibold text-txt-primary">{fmtMoney(kpis.balanceMinor)}</p>
+                  </div>
+                  <Button variant="outline" className="min-h-11" icon={<Wallet size={15} />} disabled={!canWrite || !isPositiveMinor(kpis.balanceMinor)} onClick={handlePayout}>
+                    Запросить выплату ({fmtMoney(kpis.balanceMinor)})
+                  </Button>
+                </div>
+                <div className="border-t border-bdr-subtle pt-3">
+                  <h3 className="text-sm font-semibold text-txt-primary">История выплат</h3>
+                  {(dash?.payouts || []).length > 0 ? (
+                    <div className="mt-2 divide-y divide-bdr-subtle">
+                      {(dash.payouts as any[]).slice(0, 10).map((payout) => (
+                        <div key={payout.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                          <div>
+                            <p className="font-medium text-txt-primary">{fmtMoney(payout.amount)}</p>
+                            <p className="text-xs text-txt-muted">{new Date(payout.createdAt).toLocaleDateString('ru-RU')}</p>
+                          </div>
+                          <Badge variant={payout.status === 'paid' ? 'success' : payout.status === 'rejected' ? 'error' : 'outline'}>
+                            {({ requested: 'Заявлена', approved: 'Одобрена', paid: 'Выплачена', rejected: 'Отклонена' } as Record<string, string>)[payout.status] || payout.status}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-txt-muted">Запросов на выплату пока нет.</p>
+                  )}
+                </div>
+              </Card>
             </div>
           )}
 
