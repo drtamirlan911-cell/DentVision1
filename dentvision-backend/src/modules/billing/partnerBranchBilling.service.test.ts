@@ -222,7 +222,7 @@ describe('partner branch invoice issuance', () => {
     await expect(issuePartnerBranchInvoiceForTest({
       organizationId: 'org-center-1',
       periodStart,
-      periodEnd: new Date('2027-01-15T00:00:00.000Z'),
+      periodEnd,
     }, tx)).rejects.toMatchObject({ code: 'BILLING_PERIOD_OVERLAP' });
   });
 
@@ -252,10 +252,6 @@ describe('partner branch invoice issuance', () => {
     expect(created.invoice).toBeUndefined();
   });
 
-});
-
-
-
   it('accepts only a full calendar month with an exclusive next-month boundary', async () => {
     const { tx, created } = makeDb();
     await expect(issuePartnerBranchInvoiceForTest({
@@ -265,6 +261,8 @@ describe('partner branch invoice issuance', () => {
     }, tx)).rejects.toMatchObject({ code: 'INVALID_PERIOD' });
     expect(created.invoice).toBeUndefined();
   });
+});
+
 describe('partner invoice payment settlement', () => {
   function makeSettlementDb(options: {
     invoiceStatus?: string;
