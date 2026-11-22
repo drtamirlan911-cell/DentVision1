@@ -1046,8 +1046,8 @@ diagnosticsRouter.get('/referrals', async (req: AuthRequest, res) => {
       centerId: q.centerId,
       labId: q.labId,
     });
-    const access = await authorizeReferralListScope(req.user, scope);
-    if (access.ok === false) return res.status(access.status || 403).json({ ok: false, error: access.error || 'Нет доступа' });
+    const scopeAccess = await authorizeReferralListScope(req.user, scope);
+    if (scopeAccess.ok === false) return res.status(scopeAccess.status || 403).json({ ok: false, error: scopeAccess.error || 'Нет доступа' });
     const referralReadPermission = partnerReferralReadPermission(scope);
     if (referralReadPermission && !(await hasPartnerScopedPermission(req.user, referralReadPermission))) {
       return res.status(403).json({
