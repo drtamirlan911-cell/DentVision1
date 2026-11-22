@@ -2950,6 +2950,7 @@ enum RevenueSource {
   ACADEMY
   MARKETPLACE
   AI
+  PARTNER_BRANCH_SUBSCRIPTION
 }
 
 enum ExpenseCategory {
