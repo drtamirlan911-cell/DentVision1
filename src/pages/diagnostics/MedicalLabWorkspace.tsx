@@ -156,7 +156,7 @@ export default function MedicalLabWorkspace() {
           </Button>
         </div>
       )}
-      {(!isLaboratoryWorkspace || activeSection === 'operations') && (
+      {(!isLaboratoryWorkspace || !canReadFinance || activeSection === 'operations') && (
         <section role="tabpanel" id="medical-lab-operations-panel" aria-labelledby="medical-lab-operations-tab" tabIndex={0} className="space-y-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
         {[['ordered', 'Направлено', Activity], ['sample_collected', 'Материал', TestTube2], ['processing', 'В работе', FlaskConical], ['result_ready', 'Результаты', Clock3], ['verified', 'Проверено', ShieldCheck], ['cancelled', 'Отменено', XCircle]].map(([id, label, Icon]) => (
