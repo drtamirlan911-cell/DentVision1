@@ -783,13 +783,13 @@ test.describe('Partner operational lifecycle', () => {
       select: { id: true },
     });
     expect(operatorPerson?.id).toBeTruthy();
-    // diagnostic_operator is BRANCH-scoped: organization invitation alone must
-    // not grant a branch. Simulate the manager's explicit branch assignment.
-    await prisma.branchMember.upsert({
+    // Accepting a BRANCH-scoped invitation grants only the active default
+    // branch; workspace access must not depend on an out-of-band DB mutation.
+    const defaultBranchMembership = await prisma.branchMember.findUnique({
       where: { personId_branchId: { personId: operatorPerson!.id, branchId: operatorContext.branchId } },
-      update: { active: true },
-      create: { id: randomUUID(), personId: operatorPerson!.id, branchId: operatorContext.branchId, active: true },
+      select: { id: true, active: true },
     });
+    expect(defaultBranchMembership).toMatchObject({ active: true });
     const switchedOperator = await api.post(`${BASE}/api/iam/switch-context`, {
       headers: auth(operatorBaseToken),
       data: { scopeType: operatorContext.scopeType, scopeId: operatorContext.scopeId, branchId: operatorContext.branchId },
