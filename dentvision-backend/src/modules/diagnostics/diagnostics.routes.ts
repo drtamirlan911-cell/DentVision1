@@ -1108,12 +1108,14 @@ diagnosticsRouter.post('/referrals/:id/files/upload', requireReferralAccess(true
       },
     } satisfies ApiResponse);
   } catch (error: any) {
-    const unavailable = error?.code === 'DIAGNOSTIC_STORAGE_UNAVAILABLE';
+    const code = String(error?.code || '');
+    const unavailable = code === 'DIAGNOSTIC_STORAGE_UNAVAILABLE';
+    const conflict = ['DICOM_STUDY_LINK_CONFLICT', 'DICOM_MODALITY_LINK_CONFLICT', 'DICOM_INSTANCE_ALREADY_EXISTS'].includes(code);
     console.error('[diagnostics/referral-files:upload]', error);
-    return res.status(unavailable ? 503 : 400).json({
+    return res.status(unavailable ? 503 : conflict ? 409 : 400).json({
       ok: false,
-      error: unavailable ? error.message : (error?.message || 'Не удалось сохранить файл исследования'),
-      ...(error?.code ? { code: error.code } : {}),
+      error: error?.message || 'Не удалось сохранить файл исследования',
+      ...(code ? { code } : {}),
     } satisfies ApiResponse);
   }
 });
