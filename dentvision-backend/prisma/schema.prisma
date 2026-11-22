@@ -2287,9 +2287,47 @@ model Subscription {
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 
+  partnerBranchInvoices PartnerBranchSubscriptionInvoice[]
+
   @@unique([ownerType, ownerId])
   @@map("subscriptions")
 }
+
+/// Immutable monthly branch-capacity invoice for a verified partner organization.
+/// Payment-provider execution is linked by paymentId only after platform settlement.
+model PartnerBranchSubscriptionInvoice {
+  id                   String   @id @default(uuid())
+  subscriptionId       String
+  organizationId       String
+  ownerId              String
+  invoiceNumber        String   @unique
+  vertical             String
+  policyVersion        String
+  periodStart          DateTime
+  periodEnd            DateTime
+  activeBranchCount    Int
+  billableBranchCount  Int
+  branchIds            Json
+  unitPriceKzt         Int
+  amountMinor          BigInt
+  currency             String   @default("KZT")
+  status               String   @default("issued")
+  issuedAt             DateTime @default(now())
+  paidAt               DateTime?
+  paymentId            String?  @unique
+  createdByUserId      String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([subscriptionId, periodStart])
+  @@index([organizationId, status, periodStart])
+  @@index([ownerId, periodStart])
+  @@map("partner_branch_subscription_invoices")
+}
+
 
 model Payout {
   id       String @id @default(uuid())
@@ -4121,6 +4159,7 @@ model Organization {
   persons     Person[]
   invitations OrganizationInvitation[]
   branches     Branch[]
+  partnerBranchSubscriptionInvoices PartnerBranchSubscriptionInvoice[]
   employerVacancies JobVacancy[] @relation("EmployerJobVacancies")
   jobInvitations JobInvitation[] @relation("JobInvitationEmployer")
   jobInterviews JobInterview[] @relation("JobInterviewEmployer")
