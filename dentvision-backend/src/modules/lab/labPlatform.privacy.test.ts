@@ -16,7 +16,12 @@ const routePaths = [
   "dentvision-backend/src/modules/ops/ops.suppliers.routes.ts",
   "dentvision-backend/src/modules/suppliers/suppliers.routes.ts",
   "dentvision-backend/src/modules/diagnostics/diagnostics.service.ts",
-  "dentvision-backend/src/modules/school/academyContent.ts"
+  "dentvision-backend/src/modules/school/academyContent.ts",
+  "dentvision-backend/src/modules/payments/payments.routes.ts",
+  "dentvision-backend/src/modules/finance/finance.routes.ts",
+  "dentvision-backend/src/modules/finance/disputes.routes.ts",
+  "dentvision-backend/src/modules/billing/clinicBilling.routes.ts",
+  "dentvision-backend/src/modules/billing/clinicSubscription.service.ts"
 ];
 
 const routeSources = routePaths.map((path) => ({
@@ -24,40 +29,38 @@ const routeSources = routePaths.map((path) => ({
   source: readFileSync(resolve(process.cwd(), path), 'utf8'),
 }));
 
-describe('Partner and patient-facing privacy logging', () => {
-  it('classifies Error objects without serializing patient or clinical details', () => {
+describe('Partner, patient-facing and finance privacy logging', () => {
+  it('classifies Error objects without serializing patient, financial or clinical details', () => {
     const result = safeErrorKind(new Error(
-      'Patient Dana Example, phone +7 701 555 0101, diagnosis private pulpitis',
+      'Patient Dana Example, phone +7 701 555 0101, diagnosis private pulpitis, payment token secret',
     ));
     expect(result).toBe('Error');
     expect(JSON.stringify(result)).not.toContain('Dana Example');
     expect(JSON.stringify(result)).not.toContain('+7 701 555 0101');
     expect(JSON.stringify(result)).not.toContain('private pulpitis');
+    expect(JSON.stringify(result)).not.toContain('payment token secret');
   });
 
   it('classifies non-Error throws without serializing their value', () => {
-    const result = safeErrorKind('Patient Dana Example +7 701 555 0101');
+    const result = safeErrorKind('Patient Dana Example +7 701 555 0101 payment token secret');
     expect(result).toBe('NonError');
     expect(JSON.stringify(result)).not.toContain('Dana Example');
     expect(JSON.stringify(result)).not.toContain('+7 701 555 0101');
+    expect(JSON.stringify(result)).not.toContain('payment token secret');
   });
 
-  it('never logs raw exceptions from partner and patient-facing modules', () => {
+  it('never logs raw exception messages or objects from ecosystem and financial routes', () => {
     for (const { path, source } of routeSources) {
       const logLines = source.split(String.fromCharCode(10)).filter((line) =>
         line.includes('console.error(') || line.includes('console.warn('),
       );
       expect(logLines.length, path).toBeGreaterThan(0);
       expect(source, path).toContain("import { safeErrorKind } from '../../lib/safeError.js';");
-      for (const line of logLines) {
-        expect(line, path).toContain('safeErrorKind(');
-        const hasRawExceptionArgument = [
-          ', error);', ', err);', ', e);',
-          ', error));', ', err));', ', e));',
-          '(error as Error).message', '(e as Error).message',
-        ].some((suffix) => line.includes(suffix));
-        expect(hasRawExceptionArgument, path).toBe(false);
-      }
+      const unsafeExceptionLogs = logLines.filter((line) => {
+        const rawArgument = /,\s*(?:error|err|e)(?:\?\.message)?(?:\);|\)\);|\s*as Error)/.test(line);
+        return rawArgument && !line.includes('safeErrorKind(');
+      });
+      expect(unsafeExceptionLogs, path).toEqual([]);
     }
   });
 });

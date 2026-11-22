@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router } from 'express';
 import type { Prisma, WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
@@ -398,7 +399,7 @@ async function settleEnrollmentPayment(
       amountMinor: payment.amount,
       lecturerId: course.lecturerId,
       academyId: course.academyId,
-    }).catch((err) => console.error('[dentcash academy]', err));
+    }).catch((err) => console.error('[dentcash academy]', safeErrorKind(err)));
   }
 
   return true;
@@ -553,7 +554,7 @@ async function settlePaidPayment(
           paymentId: payment.id,
           amountMinor: payment.amount,
           clinicId: payment.refId,
-        }).catch((err) => console.error('[dentcash saas]', err));
+        }).catch((err) => console.error('[dentcash saas]', safeErrorKind(err)));
       }
       settled = true;
     }
@@ -643,7 +644,7 @@ async function requireClinicPaymentWritable(req: AuthRequest, res: any, clinicId
     }
     return true;
   } catch (error) {
-    console.error('[payments] clinic subscription write guard', error);
+    console.error('[payments] clinic subscription write guard', safeErrorKind(error));
     res.status(503).json({
       ok: false,
       error: 'Не удалось проверить подписку клиники',
@@ -1359,7 +1360,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         error: error.message,
       } satisfies ApiResponse);
     }
-    console.error('Create payment error:', error);
+    console.error('Create payment error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при создании платежа' } satisfies ApiResponse);
   }
 });
@@ -1430,7 +1431,7 @@ paymentsRouter.post('/:id/refund', authenticate, async (req: AuthRequest, res) =
         error.code === 'INVALID_AMOUNT' || error.code === 'IDEMPOTENCY_REQUIRED' ? 400 : 409;
       return res.status(status).json({ ok: false, error: error.message } satisfies ApiResponse);
     }
-    console.error('Refund payment error:', error);
+    console.error('Refund payment error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка возврата платежа' } satisfies ApiResponse);
   }
 });
@@ -1626,7 +1627,7 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       },
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('Confirm payment error:', error);
+    console.error('Confirm payment error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка подтверждения оплаты' } satisfies ApiResponse);
   }
 });
@@ -1739,7 +1740,7 @@ paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
 
     return res.json({ ok: true, data: { id: payment.id, status: effectiveStatus, settled } } satisfies ApiResponse);
   } catch (error) {
-    console.error('Kaspi callback error:', error);
+    console.error('Kaspi callback error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка обработки callback' } satisfies ApiResponse);
   }
 });
@@ -1856,7 +1857,7 @@ paymentsRouter.post('/callbacks/kaspi/clinic/:clinicId', async (req, res) => {
     if (error instanceof ClinicPaymentsError) {
       return res.status(error.status).json({ ok: false, error: error.message } satisfies ApiResponse);
     }
-    console.error('Clinic Kaspi callback error:', error);
+    console.error('Clinic Kaspi callback error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка обработки callback клиники' } satisfies ApiResponse);
   }
 });

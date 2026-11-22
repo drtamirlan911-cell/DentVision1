@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 /**
  * Clinic SaaS subscription helpers — single source of truth for plans,
  * trial bootstrap, payment activation, and expiry notifications.
@@ -116,7 +117,7 @@ async function resolveClinicRole(userId: string, clinicId: string) {
     const access = await resolveClinicAccess(userId, clinicId);
     if (access) return { source: 'unified' as const, role: access.role };
   } catch (e: any) {
-    console.warn('[clinic-billing] resolveClinicAccess failed (non-fatal):', e?.message);
+    console.warn('[clinic-billing] resolveClinicAccess failed (non-fatal):', safeErrorKind(e));
   }
   return null;
 }

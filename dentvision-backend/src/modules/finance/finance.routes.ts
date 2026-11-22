@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router } from 'express';
 import type { Prisma, WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
@@ -94,7 +95,7 @@ financeRouter.get('/wallets/:ownerType/:ownerId', async (req: AuthRequest, res) 
     const wallet = await getOrCreateWallet(ownerType as WalletOwnerType, ownerId);
     return res.json({ ok: true, data: serializeBigInt(wallet) } satisfies ApiResponse);
   } catch (error) {
-    console.error('Get wallet error:', error);
+    console.error('Get wallet error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при получении кошелька' } satisfies ApiResponse);
   }
 });
@@ -142,7 +143,7 @@ financeRouter.get('/transactions', requirePermission('finance.manage'), async (r
     });
     return res.json({ ok: true, data: serializeBigInt(transactions) } satisfies ApiResponse);
   } catch (error) {
-    console.error('List transactions error:', error);
+    console.error('List transactions error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при получении транзакций' } satisfies ApiResponse);
   }
 });
@@ -186,7 +187,7 @@ financeRouter.get('/partner-economics/reconciliation', requirePermission('financ
     const result = await reconcilePartnerEconomics({ from, to, vertical, partnerId });
     return res.json({ ok: true, data: serializeBigInt(result) } satisfies ApiResponse);
   } catch (error) {
-    console.error('Partner economics reconciliation error:', error);
+    console.error('Partner economics reconciliation error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось выполнить сверку экономики партнёров' } satisfies ApiResponse);
   }
 });
@@ -296,7 +297,7 @@ financeRouter.get('/partner-branch-billing/invoices', async (req: AuthRequest, r
     });
     return res.json({ ok: true, data: serializeBigInt(invoices) } satisfies ApiResponse);
   } catch (error) {
-    console.error('[partner-branch-billing] invoice list failed:', error);
+    console.error('[partner-branch-billing] invoice list failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить счета филиальной подписки' } satisfies ApiResponse);
   }
 });
@@ -341,7 +342,7 @@ financeRouter.post('/partner-branch-billing/invoices', requirePermission('financ
     if (error instanceof PartnerBranchBillingError) {
       return res.status(error.status).json({ ok: false, error: error.message, code: error.code } satisfies ApiResponse);
     }
-    console.error('[partner-branch-billing] invoice issuance failed:', error);
+    console.error('[partner-branch-billing] invoice issuance failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось выставить счёт филиальной подписки' } satisfies ApiResponse);
   }
 });
@@ -390,7 +391,7 @@ financeRouter.post('/commission-rules', requirePermission('finance.manage'), asy
     });
     return res.status(201).json({ ok: true, data: rule } satisfies ApiResponse);
   } catch (error) {
-    console.error('Commission rule error:', error);
+    console.error('Commission rule error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при создании правила комиссии' } satisfies ApiResponse);
   }
 });
@@ -435,7 +436,7 @@ financeRouter.post('/sales', requirePermission('finance.manage'), async (req: Au
     });
     return res.status(201).json({ ok: true, data: serializeBigInt(transaction) } satisfies ApiResponse);
   } catch (error) {
-    console.error('Record sale error:', error);
+    console.error('Record sale error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при проведении продажи' } satisfies ApiResponse);
   }
 });
@@ -499,7 +500,7 @@ financeRouter.post('/transactions/manual', requirePermission('finance.manage'), 
     });
     return res.status(201).json({ ok: true, data: serializeBigInt(transaction) } satisfies ApiResponse);
   } catch (error) {
-    console.error('Manual transaction error:', error);
+    console.error('Manual transaction error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при создании ручной транзакции' } satisfies ApiResponse);
   }
 });
@@ -587,7 +588,7 @@ financeRouter.get('/expenses', requirePermission('finance.manage'), async (req: 
     });
     return res.json({ ok: true, data: serializeBigInt(expenses) } satisfies ApiResponse);
   } catch (error) {
-    console.error('List platform expenses error:', error);
+    console.error('List platform expenses error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при получении расходов' } satisfies ApiResponse);
   }
 });
@@ -628,7 +629,7 @@ financeRouter.post('/expenses', requirePermission('finance.manage'), async (req:
     });
     return res.status(201).json({ ok: true, data: serializeBigInt(expense) } satisfies ApiResponse);
   } catch (error) {
-    console.error('Create platform expense error:', error);
+    console.error('Create platform expense error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при создании расхода' } satisfies ApiResponse);
   }
 });
@@ -656,7 +657,7 @@ financeRouter.get('/revenue-by-source', requirePermission('finance.manage'), asy
 
     return res.json({ ok: true, data: report } satisfies ApiResponse);
   } catch (error) {
-    console.error('[finance] revenue-by-source', error);
+    console.error('[finance] revenue-by-source', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось собрать выручку по источникам' } satisfies ApiResponse);
   }
 });

@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
@@ -53,7 +54,7 @@ disputesRouter.post('/', async (req: AuthRequest, res) => {
     });
     return res.status(201).json({ ok: true, data: dispute } satisfies ApiResponse);
   } catch (error) {
-    console.error('Create dispute error:', error);
+    console.error('Create dispute error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при создании спора' } satisfies ApiResponse);
   }
 });
@@ -144,7 +145,7 @@ disputesRouter.post('/:id/status', requireSuperadmin, async (req: AuthRequest, r
           reason: 'dispute_resolved',
         });
       } catch (error) {
-        console.error('Dispute refund failed:', error);
+        console.error('Dispute refund failed:', safeErrorKind(error));
         // Do not report a successful financial resolution when the compensating
         // financial action failed.
         await prisma.dispute.updateMany({
@@ -164,7 +165,7 @@ disputesRouter.post('/:id/status', requireSuperadmin, async (req: AuthRequest, r
 
     return res.json({ ok: true, data: dispute } satisfies ApiResponse);
   } catch (error) {
-    console.error('Update dispute error:', error);
+    console.error('Update dispute error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при обновлении спора' } satisfies ApiResponse);
   }
 });
