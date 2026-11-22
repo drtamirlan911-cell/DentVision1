@@ -8,6 +8,7 @@ import { hasOrganizationLegalOwnerAuthority } from '../../lib/organizationLegalA
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import branchesRouter from '../branches/branches.routes.js';
+import { ensureOrganizationBranchStatusHistoryBaseline, recordOrganizationBranchStatusEvent } from '../branches/branchStatusHistory.js';
 import { generateTokens } from '../../lib/jwt.js';
 import { resolveAuthContext, resolveOrganizationRoleKey } from '../../lib/authContext.js';
 import { auditFromReq } from '../compliance/audit.service.js';
@@ -249,16 +250,19 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
       const personId = await ensurePersonRole(tx, req.user!.id, organizationId, scopedRoleKey);
 
       // Every self-service organization starts with one real operational branch.
-      // This is the canonical Organization → Branch scope; it is persisted and
-      // immediately manageable after refresh rather than being UI-only state.
+      // Establish the branch-history baseline before the initial branch is inserted.
       const branchId = uid();
       const branchCode = (name.trim().toUpperCase().replace(/[^A-ZА-Я0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 32) || 'MAIN');
+      await ensureOrganizationBranchStatusHistoryBaseline(tx, organizationId);
       await tx.$executeRaw`
         INSERT INTO "branches"
           ("id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault", "created_at", "updated_at", "settings")
         VALUES
           (${branchId}, ${organizationId}, ${type === 'clinic' ? entityId : null}, ${branchCode}, ${name.trim()}, ${city}, ${address}, ${phone}, true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)
       `;
+      await recordOrganizationBranchStatusEvent(tx, {
+        branchId, organizationId, active: true, actorUserId: req.user!.id, source: 'created',
+      });
       await tx.branchMember.upsert({
         where: { personId_branchId: { personId, branchId } },
         update: {},
