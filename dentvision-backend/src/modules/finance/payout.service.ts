@@ -227,12 +227,12 @@ export interface RequestPayoutInput {
  * One function for both workspaces: the lecturer and supplier routes had the
  * same balance check copied into each, and each was wrong the same way.
  */
-export async function requestPayout(input: RequestPayoutInput) {
+export async function requestPayout(input: RequestPayoutInput, db: Db = prisma) {
   if (input.amountMinor <= 0n) {
     throw new PayoutError('INVALID_AMOUNT', 'Сумма выплаты должна быть больше нуля');
   }
 
-  return prisma.$transaction(async (tx) => {
+  const createRequest = async (tx: Prisma.TransactionClient) => {
     const wallet = await getOrCreateWallet(input.ownerType, input.ownerId, input.currency || 'KZT', tx);
     // Serialize requests for the same wallet so concurrent requests cannot
     // both observe the same available balance.
@@ -247,7 +247,13 @@ export async function requestPayout(input: RequestPayoutInput) {
     return tx.payout.create({
       data: { walletId: wallet.id, amount: input.amountMinor, status: 'requested' },
     });
-  });
+  };
+
+  // Routes may pass their transaction client to keep the payout row and its
+  // audit event atomic. Standalone callers retain the service-owned transaction.
+  return db === prisma
+    ? prisma.$transaction(createRequest)
+    : createRequest(db as Prisma.TransactionClient);
 }
 
 export interface PayoutFilters {
