@@ -413,7 +413,15 @@ export function WorklistTab({ orgId }: TabProps) {
                   <div className="rounded-lg border border-bdr-subtle p-3">
                     {referral.files?.length ? referral.files.map((file: any) => (
                       <div key={file.id} className="mb-2 flex min-h-9 items-center justify-between gap-2 text-xs">
-                        <span className="min-w-0 truncate text-txt-primary">{file.fileName || 'Файл исследования'} <span className="text-txt-muted">· {file.fileType || 'Файл'}</span></span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-txt-primary">{file.fileName || 'Файл исследования'} <span className="text-txt-muted">· {file.fileType || 'Файл'}</span></p>
+                          {file.dicom && <p className="mt-1 text-[10px] text-txt-muted">
+                            DICOM {file.dicom.study?.modality || file.dicom.series?.modality || ''}
+                            {file.dicom.rows && file.dicom.columns ? ` · ${file.dicom.rows}×${file.dicom.columns}` : ''}
+                            {file.dicom.numberOfFrames ? ` · ${file.dicom.numberOfFrames} кадров` : ''}
+                            {file.dicom.series?.seriesNumber ? ` · серия ${file.dicom.series.seriesNumber}` : ''}
+                          </p>}
+                        </div>
                         {file.downloadAvailable ? (
                           <button type="button" onClick={() => void openReferralFile(file.id)} className="min-h-9 shrink-0 px-2 py-2 text-accent underline">Открыть</button>
                         ) : (
