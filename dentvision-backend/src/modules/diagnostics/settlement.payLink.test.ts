@@ -128,6 +128,28 @@ describe('settlement Kaspi payment link lifecycle', () => {
     });
   });
 
+  it('retains the reservation when a payment exists but the idempotency update fails', async () => {
+    state.idempotencyUpdate.mockRejectedValueOnce(new Error('temporary idempotency write failure'));
+
+    await expect(paySettlement('settlement-1')).rejects.toThrow('temporary idempotency write failure');
+    expect(state.paymentCreate).toHaveBeenCalledTimes(1);
+    expect(state.idempotencyDelete).not.toHaveBeenCalled();
+
+    state.idempotencyFindUnique.mockResolvedValue({
+      id: 'reservation-1',
+      expiresAt: new Date(Date.now() + 60_000),
+      paymentId: null,
+    });
+    state.paymentFindFirst.mockResolvedValue(payment);
+
+    const retry = await paySettlement('settlement-1');
+
+    expect(retry.settlement.status).toBe('invoiced');
+    expect(retry.payment?.id).toBe(payment.id);
+    expect(state.providerCreatePayment).toHaveBeenCalledTimes(1);
+    expect(state.paymentCreate).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects a void settlement without creating another payment', async () => {
     currentSettlement = { ...currentSettlement, status: 'void' };
 
