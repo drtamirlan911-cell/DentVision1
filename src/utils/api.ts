@@ -794,14 +794,13 @@ export async function getDiagnosticsLabDashboard(labId: string): Promise<any> { 
 export const getDiagnosticsLabPayments = (labId: string) => getDiagnosticReferrals({ labId });
 export async function getDiagnosticsSettlements(): Promise<any[]> {
   const response = await apiRequest('/api/diagnostics/settlements');
-  return response?.data?.items ?? [];
+  return response?.items ?? [];
 }
 export async function requestDiagnosticsSettlementPayment(settlementId: string): Promise<any> {
-  const response = await apiRequest(`/api/diagnostics/settlements/${encodeURIComponent(settlementId)}/pay`, {
+  return apiRequest(`/api/diagnostics/settlements/${encodeURIComponent(settlementId)}/pay`, {
     method: 'POST',
     body: '{}',
   });
-  return response?.data ?? response;
 }
 
 export async function getDiagnosticCenterWorklistStaff(centerId: string): Promise<any[]> {
