@@ -370,28 +370,61 @@ async function canReadReferralMedicalDetail(
   return canReadClinicDiagnosticFiles(user, referral);
 }
 
-function redactDiagnosticCenterOperationalReferral(referral: any) {
-  if (!referral) return referral;
-  const operational = redactPartnerReferralFinancials(referral);
+function redactPartnerOperationalReferral<T extends object>(referral: T): T {
+  if (!referral || typeof referral !== 'object') return referral;
+  const operational = { ...referral } as Record<string, unknown>;
   for (const key of [
+    'patientId',
     'patientIin',
     'patientBirth',
+    'patientAge',
+    'patientGender',
+    'patientPhone',
     'patientEmail',
     'pregnancy',
     'allergies',
     'specialNotes',
     'patientPhoto',
+    'anatomicalSites',
     'preliminaryDx',
     'complaints',
     'commentForDoctor',
     'commentForLab',
     'studyGoal',
+    'treatmentCaseId',
+    'doctorPhone',
+    'doctorEmail',
     'result',
     'comments',
   ]) {
     delete operational[key];
   }
-  return operational;
+  return operational as T;
+}
+
+/** Apply three independent partner capabilities to referral list/detail projections. */
+export function redactPartnerReferralForList<T extends object>(
+  referral: T,
+  access: { canReadClinical: boolean; canReadFinance: boolean; canReadFiles: boolean },
+): T {
+  if (!referral || typeof referral !== 'object') return referral;
+  let visible = { ...referral } as Record<string, unknown>;
+  if (!access.canReadFinance) visible = redactPartnerReferralFinancials(visible);
+  if (!access.canReadClinical) visible = redactPartnerOperationalReferral(visible);
+  if (!access.canReadFiles) delete visible.files;
+  return visible as T;
+}
+
+export function redactPartnerDashboardStats<T extends { recent?: object[] }>(
+  stats: T,
+  access: { canReadClinical: boolean; canReadFinance: boolean; canReadFiles: boolean },
+): T {
+  return {
+    ...stats,
+    recent: access.canReadClinical
+      ? (stats.recent || []).map((item) => redactPartnerReferralForList(item, access))
+      : [],
+  };
 }
 
 diagnosticsRouter.post('/register', optionalAuth, async (req: AuthRequest, res) => { try { const data = await svc.createRegistrationRequest({ ...req.body, userId: (req.user as any)?.id }); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
@@ -865,7 +898,7 @@ diagnosticsRouter.get('/centers/:centerId/worklist/:referralId', async (req: Aut
       data: {
         referral: canReadClinical
           ? (canReadFinance ? detail : redactPartnerReferralFinancials(detail))
-          : redactDiagnosticCenterOperationalReferral(detail),
+          : redactPartnerReferralForList(detail),
         events: visibleEvents,
         capabilities: {
           canReadClinical,
@@ -1044,10 +1077,16 @@ diagnosticsRouter.get('/referrals', async (req: AuthRequest, res) => {
       offset: q.offset ? Math.max(Number(q.offset) || 0, 0) : 0,
     });
     const isPartnerScope = Boolean(scope.centerId || scope.labId);
-    const canReadFinance = !isPartnerScope || await hasPartnerScopedPermission(req.user, 'billing.read');
-    const visibleData = canReadFinance
-      ? data
-      : { ...data, items: data.items.map((item: any) => redactPartnerReferralFinancials(item)) };
+    const access = isPartnerScope
+      ? {
+          canReadClinical: await hasPartnerScopedPermission(req.user, 'medical.read'),
+          canReadFinance: await hasPartnerScopedPermission(req.user, 'billing.read'),
+          canReadFiles: await hasPartnerScopedPermission(req.user, 'files.read'),
+        }
+      : { canReadClinical: true, canReadFinance: true, canReadFiles: true };
+    const visibleData = isPartnerScope
+      ? { ...data, items: data.items.map((item: any) => redactPartnerReferralForList(item, access)) }
+      : data;
     return res.json({ ok: true, data: visibleData } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
@@ -1067,10 +1106,16 @@ diagnosticsRouter.get('/referrals/:id', requireReferralAccess(true), async (req:
     const data = await svc.getReferral(req.params.id);
     if (!data) return res.status(404).json({ ok: false, error: 'Referral not found' });
     const isPartnerScope = Boolean(scope.centerId || scope.labId);
-    const canReadFinance = !isPartnerScope || await hasPartnerScopedPermission(req.user, 'billing.read');
+    const access = isPartnerScope
+      ? {
+          canReadClinical: true,
+          canReadFinance: await hasPartnerScopedPermission(req.user, 'billing.read'),
+          canReadFiles: await hasPartnerScopedPermission(req.user, 'files.read'),
+        }
+      : { canReadClinical: true, canReadFinance: true, canReadFiles: true };
     return res.json({
       ok: true,
-      data: canReadFinance ? data : redactPartnerReferralFinancials(data),
+      data: redactPartnerReferralForList(data, access),
     } satisfies ApiResponse);
   } catch (error: any) {
     console.error('[diagnostics/referrals:detail]', error);
@@ -1431,7 +1476,16 @@ diagnosticsRouter.get('/dashboard', async (req: AuthRequest, res) => {
     if ((q.centerId || q.labId) && !(await hasPartnerScopedPermission(req.user, 'billing.read'))) {
       return res.status(403).json({ ok: false, error: 'Финансовая сводка доступна только сотрудникам с правом billing.read.' } satisfies ApiResponse);
     }
-    return res.json({ ok: true, data: await svc.getDashboardStats({ clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }) } satisfies ApiResponse);
+    const stats = await svc.getDashboardStats({ clinicId: q.clinicId, centerId: q.centerId, labId: q.labId });
+    const isPartnerScope = Boolean(q.centerId || q.labId);
+    const visibleStats = isPartnerScope
+      ? redactPartnerDashboardStats(stats, {
+          canReadClinical: await hasPartnerScopedPermission(req.user, 'medical.read'),
+          canReadFinance: true,
+          canReadFiles: await hasPartnerScopedPermission(req.user, 'files.read'),
+        })
+      : stats;
+    return res.json({ ok: true, data: visibleStats } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
   }
