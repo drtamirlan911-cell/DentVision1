@@ -183,7 +183,6 @@ medicalLabLifecycleRouter.get('/team', async (req: AuthRequest, res) => {
           select: { id: true, firstName: true, lastName: true, email: true, avatar: true },
         },
       },
-      orderBy: [{ createdAt: 'asc' }],
     });
     return res.json({
       ok: true,
