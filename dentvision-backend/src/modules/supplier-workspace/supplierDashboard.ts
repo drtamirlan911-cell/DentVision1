@@ -1,5 +1,6 @@
 import prisma from '../../lib/prisma.js';
 import { getOrCreateWallet } from '../finance/finance.service.js';
+import { availableBalanceMinor } from '../finance/payout.service.js';
 
 export interface SupplierInsight {
   id: string;
@@ -311,7 +312,7 @@ export async function buildSupplierInsights(supplierId: string): Promise<Supplie
 
 export async function buildSupplierDashboard(supplierId: string) {
   const wallet = await getOrCreateWallet('SUPPLIER', supplierId);
-  const [products, creditAgg, insights, orders] = await Promise.all([
+  const [products, creditAgg, insights, orders, availableBalance, payouts] = await Promise.all([
     prisma.product.findMany({ where: { supplierId }, orderBy: { updatedAt: 'desc' } }),
     prisma.ledgerEntry.aggregate({
       where: { walletId: wallet.id, direction: 'credit' },
@@ -320,6 +321,13 @@ export async function buildSupplierDashboard(supplierId: string) {
     }),
     buildSupplierInsights(supplierId),
     getSupplierOrders(supplierId),
+    availableBalanceMinor(wallet.id),
+    prisma.payout.findMany({
+      where: { walletId: wallet.id },
+      select: { id: true, amount: true, status: true, createdAt: true, updatedAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    }),
   ]);
   const returns = await prisma.dispute.findMany({
     where: { returnItems: { some: { supplierId } } },
@@ -371,7 +379,10 @@ export async function buildSupplierDashboard(supplierId: string) {
 
   return {
     kpis: {
-      balanceMinor: wallet.balance.toString(),
+      // `balanceMinor` is the genuinely withdrawable amount consumed by the UI.
+      // Preserve the full accounting balance under an explicit separate name.
+      balanceMinor: availableBalance.toString(),
+      accountingBalanceMinor: wallet.balance.toString(),
       earnedMinor: (creditAgg._sum.amount ?? 0n).toString(),
       salesCount: creditAgg._count,
       orders30: sales30.length,
@@ -385,6 +396,13 @@ export async function buildSupplierDashboard(supplierId: string) {
     },
     insights,
     demandTop,
+    payouts: payouts.map((payout) => ({
+      id: payout.id,
+      amount: payout.amount.toString(),
+      status: payout.status,
+      createdAt: payout.createdAt,
+      updatedAt: payout.updatedAt,
+    })),
     orders: (orders as any[]).slice(0, 40),
     returns: returns.map((r) => ({
       id: r.id,
