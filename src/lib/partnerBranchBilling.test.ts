@@ -91,5 +91,26 @@ describe('partner branch invoice presentation', () => {
     expect(adminPanel).toContain('if (!activeSelection || !organizationId || !periodStart || !periodEnd');
   });
 
+  it('does not release an old partner invoice hold until Kaspi confirms failed or expired', () => {
+    const routeSource = readFileSync(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/payments/payments.routes.ts'),
+      'utf8',
+    );
+    const start = routeSource.indexOf("paymentsRouter.get('/:id', authenticate");
+    const end = routeSource.indexOf("paymentsRouter.post('/:id/confirm'", start);
+    const paymentGet = routeSource.slice(start, end);
+
+    const providerCheck = paymentGet.indexOf('providerStatus = await gateway.getPaymentStatus(payment.externalId)');
+    const stalePaymentCheck = paymentGet.indexOf("payment.refType === 'partner_branch_subscription_invoice'");
+    const terminalStatusGuard = paymentGet.indexOf("providerStatus === 'failed' || providerStatus === 'expired'");
+    const invoiceRelease = paymentGet.indexOf('releasePartnerBranchSubscriptionInvoicePayment(');
+
+    expect(providerCheck).toBeGreaterThanOrEqual(0);
+    expect(stalePaymentCheck).toBeGreaterThan(providerCheck);
+    expect(terminalStatusGuard).toBeGreaterThan(stalePaymentCheck);
+    expect(invoiceRelease).toBeGreaterThan(terminalStatusGuard);
+    expect(paymentGet).toContain('Provider-pending, provider-paid and unknown payments keep their hold');
+  });
+
 
 });

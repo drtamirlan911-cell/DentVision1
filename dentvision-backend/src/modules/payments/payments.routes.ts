@@ -1446,33 +1446,6 @@ paymentsRouter.get('/:id', authenticate, async (req: AuthRequest, res) => {
     return res.status(403).json({ ok: false, error: 'Нет доступа к платежу' } satisfies ApiResponse);
   }
 
-  // Lazy-expire stale pending payments (> 24h old)
-  if (payment.status === 'pending') {
-    const age = Date.now() - payment.createdAt.getTime();
-    if (age > 86_400_000) {
-      if (payment.refType === 'partner_branch_subscription_invoice' && payment.refId) {
-        payment = await prisma.$transaction(async (tx) => {
-          const expired = await tx.payment.updateMany({
-            where: { id: payment!.id, status: 'pending' },
-            data: { status: 'expired' },
-          });
-          if (expired.count === 1) {
-            await releasePartnerBranchSubscriptionInvoicePayment({
-              invoiceId: payment!.refId!,
-              paymentId: payment!.id,
-            }, tx);
-          }
-          return tx.payment.findUniqueOrThrow({ where: { id: payment!.id } });
-        });
-      } else {
-        payment = await prisma.payment.update({
-          where: { id: payment.id },
-          data: { status: 'expired' },
-        });
-      }
-    }
-  }
-
   const meta = (payment.meta || {}) as { qr?: string; clinicId?: string; merchantScope?: string };
   let providerStatus: string | null = null;
   if (payment.externalId) {
@@ -1484,6 +1457,38 @@ paymentsRouter.get('/:id', authenticate, async (req: AuthRequest, res) => {
     } else if (payment.provider !== 'clinic_kaspi') {
       const gateway = providers[payment.provider] || providers.kaspi_qr;
       providerStatus = await gateway.getPaymentStatus(payment.externalId);
+    }
+  }
+
+  // Lazy-expire stale pending payments (> 24h old). Partner invoice holds are
+  // released only after Kaspi has conclusively reported failed/expired. A late
+  // callback or provider-paid payment must never lose its invoice reservation
+  // merely because a user opened the payment screen after 24 hours.
+  if (payment.status === 'pending' && Date.now() - payment.createdAt.getTime() > 86_400_000) {
+    if (payment.refType === 'partner_branch_subscription_invoice' && payment.refId) {
+      if (providerStatus === 'failed' || providerStatus === 'expired') {
+        payment = await prisma.$transaction(async (tx) => {
+          const terminal = await tx.payment.updateMany({
+            where: { id: payment!.id, status: 'pending' },
+            data: { status: providerStatus! },
+          });
+          if (terminal.count === 1) {
+            const released = await releasePartnerBranchSubscriptionInvoicePayment({
+              invoiceId: payment!.refId!,
+              paymentId: payment!.id,
+            }, tx);
+            if (!released) throw new Error('PARTNER_INVOICE_HOLD_NOT_RELEASED');
+          }
+          return tx.payment.findUniqueOrThrow({ where: { id: payment!.id } });
+        });
+      }
+      // Provider-pending, provider-paid and unknown payments keep their hold.
+      // Provider-paid remains confirmable through the existing atomic /confirm route.
+    } else {
+      payment = await prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: 'expired' },
+      });
     }
   }
   return res.json({
