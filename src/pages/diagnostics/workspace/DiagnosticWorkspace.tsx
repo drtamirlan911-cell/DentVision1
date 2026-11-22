@@ -84,7 +84,7 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
 
   const config = WORKSPACES[kind]
   const canReadOperations = isSuperadmin || iam.hasPermission(kind === 'CENTER' ? 'diagnostics.read' : 'lab.read')
-  const canReadFinance = isSuperadmin || iam.hasPermission('billing.read') || iam.hasPermission('finance.read')
+  const canReadFinance = isSuperadmin || iam.hasPermission('billing.read')
   const canManageBilling = isSuperadmin || iam.hasPermission('billing.manage')
   const canReadPartnerBilling = isSuperadmin || canReadFinance || iam.hasPermission('billing.manage') || iam.hasPermission('finance.manage')
   const canManagePartnerBilling = isSuperadmin || iam.hasPermission('billing.manage') || iam.hasPermission('finance.manage')
