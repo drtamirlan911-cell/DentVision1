@@ -190,7 +190,7 @@ test.describe('Partner operational lifecycle', () => {
     const radiologistContexts = (await radiologistContextsRes.json()).data?.contexts || [];
     const radiologistContext = radiologistContexts.find((item: any) => item.scopeType === 'DIAGNOSTIC_CENTER' && item.organizationId === centerOrgId);
     expect(radiologistContext).toBeTruthy();
-    expect(radiologistContext.roleKey).toBe('diagnostic_radiologist');
+    expect(radiologistContext.roleKey).toBe('radiologist');
     const switchedRadiologist = await api.post(`${BASE}/api/iam/switch-context`, {
       headers: auth(radiologistBaseToken),
       data: { scopeType: radiologistContext.scopeType, scopeId: radiologistContext.scopeId, branchId: radiologistContext.branchId },
@@ -915,7 +915,7 @@ test.describe('Partner operational lifecycle', () => {
     expect(unassignedContextsRes.status()).toBe(200);
     const unassignedContexts = (await unassignedContextsRes.json()).data?.contexts || [];
     const unassignedContext = unassignedContexts.find((item: any) => item.scopeType === 'DIAGNOSTIC_CENTER' && item.organizationId === centerOrganization!.id);
-    expect(unassignedContext?.roleKey).toBe('diagnostic_radiologist');
+    expect(unassignedContext?.roleKey).toBe('radiologist');
     const unassignedSwitch = await api.post(`${BASE}/api/iam/switch-context`, {
       headers: auth(unassignedBaseToken),
       data: { scopeType: unassignedContext.scopeType, scopeId: unassignedContext.scopeId, branchId: unassignedContext.branchId },
