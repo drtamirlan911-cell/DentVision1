@@ -71,7 +71,7 @@ export default function DiagnosticSettlements() {
     queryKey: ['diagnostics', 'settlements'],
     queryFn: api.getDiagnosticsSettlements,
   });
-  const settlements: DiagnosticSettlement[] = query.data || [];
+  const settlements = useMemo<DiagnosticSettlement[]>(() => query.data ?? [], [query.data]);
 
   const totals = useMemo(() => ({
     due: sumMinor(settlements.filter((item) => item.status === 'open' || item.status === 'invoiced')),
