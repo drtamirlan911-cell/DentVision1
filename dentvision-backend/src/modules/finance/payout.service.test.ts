@@ -20,6 +20,7 @@ const { tx, prismaMock } = vi.hoisted(() => {
   const delegate = () => ({
     wallet: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     payout: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
+    payment: { findMany: vi.fn() },
     transaction: { create: vi.fn() },
     lecturer: { findUnique: vi.fn() },
     supplierMember: { findMany: vi.fn() },
@@ -51,7 +52,7 @@ function walletHolding(
   balance: bigint,
   pending: bigint[] = [],
   ownerType: string = 'LECTURER',
-  partnerEconomicsCredits: Array<{ amount: bigint; paymentId?: string | null }> = [],
+  partnerEconomicsCredits: Array<{ amount: bigint; paymentId?: string | null; vertical?: string; operationId?: string }> = [],
 ) {
   tx.wallet.findUnique.mockResolvedValue({
     id: 'w1',
@@ -61,9 +62,13 @@ function walletHolding(
     ownerId: ownerType === 'PARTNER' ? 'lab-1' : 'lect-1',
   });
   tx.payout.findMany.mockResolvedValue(pending.map((amount) => ({ amount })));
-  tx.ledgerEntry.findMany.mockResolvedValue(partnerEconomicsCredits.map(({ amount, paymentId }) => ({
+  tx.ledgerEntry.findMany.mockResolvedValue(partnerEconomicsCredits.map(({ amount, paymentId, vertical, operationId }) => ({
     amount,
-    transaction: { meta: paymentId ? { paymentId } : {} },
+    transaction: {
+      meta: paymentId ? { paymentId } : {},
+      refType: vertical,
+      refId: operationId,
+    },
   })));
 }
 
@@ -73,6 +78,7 @@ beforeEach(() => {
   tx.payout.update.mockImplementation(async ({ data }: never) => ({ id: 'p1', ...(data as object) }));
   tx.wallet.create.mockResolvedValue({ id: 'w1', balance: 0n, currency: 'KZT' });
   tx.ledgerEntry.findMany.mockResolvedValue([]);
+  tx.payment.findMany.mockResolvedValue([]);
   tx.transaction.create.mockResolvedValue({ id: 't1' });
   tx.wallet.update.mockResolvedValue({});
   tx.wallet.updateMany.mockResolvedValue({ count: 1 });
@@ -105,7 +111,7 @@ describe('available balance is the balance minus what is already claimed', () =>
     expect(await availableBalanceMinor('w1', tx as never)).toBe(0n);
     expect(tx.ledgerEntry.findMany).toHaveBeenCalledWith({
       where: { walletId: 'w1', direction: 'credit', transaction: { type: 'partner_economics' } },
-      select: { amount: true, transaction: { select: { meta: true } } },
+      select: { amount: true, transaction: { select: { meta: true, refType: true, refId: true } } },
     });
   });
 
@@ -117,6 +123,35 @@ describe('available balance is the balance minus what is already claimed', () =>
   it('keeps proceeds paid through the DentVision gateway available for partner payout', async () => {
     walletHolding(100_000n, [], 'PARTNER', [{ amount: 100_000n, paymentId: 'platform-payment-1' }]);
     expect(await availableBalanceMinor('w1', tx as never)).toBe(100_000n);
+  });
+
+  it('keeps legacy medical-lab proceeds withdrawable when a paid platform Payment proves collection', async () => {
+    walletHolding(100_000n, [], 'PARTNER', [{
+      amount: 100_000n,
+      vertical: 'MEDICAL_ANALYSIS',
+      operationId: 'medical-order-legacy',
+    }]);
+    tx.payment.findMany.mockResolvedValue([{ refType: 'medical_lab_order', refId: 'medical-order-legacy' }]);
+
+    expect(await availableBalanceMinor('w1', tx as never)).toBe(100_000n);
+    expect(tx.payment.findMany).toHaveBeenCalledWith({
+      where: {
+        status: 'paid',
+        OR: [{ refType: 'medical_lab_order', refId: 'medical-order-legacy' }],
+      },
+      select: { refType: true, refId: true },
+    });
+  });
+
+  it('keeps legacy direct medical-lab referral collections unavailable without a paid platform Payment', async () => {
+    walletHolding(100_000n, [], 'PARTNER', [{
+      amount: 100_000n,
+      vertical: 'MEDICAL_ANALYSIS',
+      operationId: 'direct-referral-1',
+    }]);
+    tx.payment.findMany.mockResolvedValue([]);
+
+    expect(await availableBalanceMinor('w1', tx as never)).toBe(0n);
   });
 
   it('does not apply partner-economics exclusions to lecturer wallets', async () => {
