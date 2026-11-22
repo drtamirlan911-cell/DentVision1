@@ -12,6 +12,7 @@ import { countAwaitingAction, countByPhase, type PhaseId } from '@/lib/referralS
 import { selectWorkspaceContext } from '@/lib/workspaceContext'
 import { queryKeys } from '@/queries/keys'
 import { useAuth } from '@/store/auth.store'
+import { useIam } from '@/iam'
 import * as api from '@/utils/api'
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext'
 import EcosystemCaseFlow from '@/components/ecosystem/EcosystemCaseFlow'
@@ -38,8 +39,14 @@ import { OrganizationOnboarding } from '@/components/OrganizationOnboarding'
  */
 export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   const { user, activeWorkspace, workspaceContexts } = useAuth()
+  const iam = useIam()
   const ecosystem = useEcosystemUrlContext()
   const isSuperadmin = user?.role === 'superadmin'
+  const canReadOperations = isSuperadmin || iam.hasPermission('diagnostics.read')
+  const canReadFinance = isSuperadmin || iam.hasPermission('billing.read')
+  const canManageBilling = isSuperadmin || iam.hasPermission('billing.manage')
+  const canManageCatalog = isSuperadmin || iam.hasPermission('diagnostics.manage')
+  const canReadTeam = isSuperadmin || iam.hasPermission('staff.read')
   const activeScopeType = String(activeWorkspace?.scopeType || user?.organizationType || '').toUpperCase()
 
   const claimedKind: OrgKind | undefined =
@@ -122,19 +129,22 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   // Membership in another organization does not activate that context.
   // Diagnostic API access is available only in the active authorized context;
   // an ecosystem URL organizationId is context, not authorization proof.
-  const hasDiagnosticAccess = !requiresWorkspaceSelection && (isSuperadmin || (isOwnOrg && orgId === ownOrgId))
+  const hasDiagnosticAccess = !requiresWorkspaceSelection && (isSuperadmin || (isOwnOrg && orgId === ownOrgId && (canReadOperations || canReadFinance)))
   const needsOnboarding = !pinnedKind && !claimedKind && !requiresWorkspaceSelection && !isOwnOrg && !isSuperadmin
     && !contextsLoading && !contextsError && diagnosticContexts.length === 0
 
   useEffect(() => {
-    setActiveTab(kind === 'CENTER' ? 'worklist' : 'referrals')
-  }, [kind])
+    if (kind === 'CENTER' && canReadOperations) setActiveTab('worklist')
+    else if (canReadOperations) setActiveTab('referrals')
+    else if (canReadFinance) setActiveTab('finance')
+    else setActiveTab('')
+  }, [kind, canReadOperations, canReadFinance])
 
   const scope = config.referralScope(orgId)
   const { data: referralsData } = useQuery({
     queryKey: queryKeys.diagnostics.referrals({ ...scope, limit: '100' }),
     queryFn: () => api.getDiagnosticReferrals({ ...scope, limit: '100' }),
-    enabled: !!orgId && hasDiagnosticAccess,
+    enabled: !!orgId && hasDiagnosticAccess && canReadOperations,
   })
   const referrals = useMemo(
     () => referralsData?.items || referralsData?.data || referralsData?.referrals || [],
@@ -145,17 +155,29 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   const awaiting = useMemo(() => countAwaitingAction(referrals), [referrals])
 
   const tabs = [
-    ...(kind === 'CENTER' ? [
+    ...(kind === 'CENTER' && canReadOperations ? [
       { id: 'worklist', label: 'Рабочая очередь', icon: <FileText size={14} /> },
       { id: 'online-bookings', label: 'Онлайн-запись', icon: <CalendarClock size={14} /> },
+    ] : []),
+    ...(kind === 'CENTER' && canManageCatalog ? [
       { id: 'modalities', label: 'Оборудование', icon: <FlaskConical size={14} /> },
     ] : []),
-    { id: 'cashier', label: 'Касса', icon: <Wallet size={14} /> },
-    { id: 'referrals', label: config.referralsLabel, icon: <FileText size={14} /> },
-    { id: 'finance', label: 'Финансы', icon: <TrendingUp size={14} /> },
-    { id: 'services', label: config.servicesLabel, icon: <FlaskConical size={14} /> },
-    { id: 'payments', label: 'Оплаты', icon: <DollarSign size={14} /> },
-    { id: 'team', label: 'Сотрудники', icon: <Users size={14} /> },
+    ...(canManageBilling ? [
+      { id: 'cashier', label: 'Касса', icon: <Wallet size={14} /> },
+    ] : []),
+    ...(canReadOperations ? [
+      { id: 'referrals', label: config.referralsLabel, icon: <FileText size={14} /> },
+    ] : []),
+    ...(canReadFinance ? [
+      { id: 'finance', label: 'Финансы', icon: <TrendingUp size={14} /> },
+      { id: 'payments', label: 'Оплаты', icon: <DollarSign size={14} /> },
+    ] : []),
+    ...(canManageCatalog ? [
+      { id: 'services', label: config.servicesLabel, icon: <FlaskConical size={14} /> },
+    ] : []),
+    ...(canReadTeam ? [
+      { id: 'team', label: 'Сотрудники', icon: <Users size={14} /> },
+    ] : []),
   ]
 
   return (
@@ -225,23 +247,25 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
 
       {orgId && hasDiagnosticAccess && (
         <>
-          <Card padding="lg">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <HeroStat
-                value={awaiting}
-                label="Ждут вашего действия"
-                hint={`${counts.inProgress} в работе · ${counts.done} завершено`}
-                icon={<FileText size={26} />}
-                tone={awaiting > 0 ? 'gold' : 'success'}
-              />
-              <Pipeline
-                counts={counts}
-                activePhase={phaseFilter}
-                onSelect={(phase) => { setPhaseFilter(phase); setActiveTab('referrals') }}
-                className="lg:max-w-2xl lg:flex-1"
-              />
-            </div>
-          </Card>
+          {canReadOperations && (
+            <Card padding="lg">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                <HeroStat
+                  value={awaiting}
+                  label="Ждут вашего действия"
+                  hint={`${counts.inProgress} в работе · ${counts.done} завершено`}
+                  icon={<FileText size={26} />}
+                  tone={awaiting > 0 ? 'gold' : 'success'}
+                />
+                <Pipeline
+                  counts={counts}
+                  activePhase={phaseFilter}
+                  onSelect={(phase) => { setPhaseFilter(phase); setActiveTab('referrals') }}
+                  className="lg:max-w-2xl lg:flex-1"
+                />
+              </div>
+            </Card>
+          )}
 
           <div className="-mx-4 px-4 sm:mx-0 sm:px-0">
             <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} wrap />
