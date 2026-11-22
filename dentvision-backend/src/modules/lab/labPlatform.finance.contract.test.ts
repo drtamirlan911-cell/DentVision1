@@ -33,8 +33,10 @@ describe('Dental Laboratory Finance Hub and payout boundaries', () => {
     expect(route).toContain('canLabManageFinance(membership.role)');
     expect(route).toContain('parseTengeToMinor(rawAmount)');
     expect(route).toContain("ownerType: 'PARTNER', ownerId: membership.labId");
-    expect(route).toContain('requestPayout(');
+    expect(route).toContain('prisma.$transaction(async (tx) =>');
+    expect(route).toContain('requestPayout({ ownerType: \'PARTNER\', ownerId: membership.labId, amountMinor }, tx)');
     expect(route).toContain('DENTAL_LAB_PAYOUT_REQUESTED');
+    expect(route).toContain('}, tx);');
     expect(route).toContain('PayoutError');
     expect(route).not.toContain('transitionPayout(');
     expect(route).not.toContain('tx.wallet.update(');
@@ -53,6 +55,11 @@ describe('Dental Laboratory Finance Hub and payout boundaries', () => {
     const resolver = payoutService.slice(start, end);
     expect(resolver).toContain("ownerType === 'PARTNER'");
     expect(resolver).toContain('db.laboratoryMember.findMany');
+    expect(resolver).toContain('db.organization.findFirst');
+    expect(resolver).toContain('db.personRole.findMany');
+    expect(resolver).toContain("medical_lab_finance");
+    expect(resolver).toContain("dental_lab_owner");
+    expect(resolver).toContain('new Set([...legacyMembers.map');
     expect(resolver).toContain('labId: ownerId');
     expect(resolver).toContain("role: { in: ['owner', 'admin', 'manager', 'director', 'lab_manager', 'lab_finance', 'finance', 'accountant'] }");
   });
