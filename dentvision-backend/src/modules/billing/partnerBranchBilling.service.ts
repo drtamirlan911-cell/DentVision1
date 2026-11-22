@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 
 import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
+import { writeRevenue } from '../finance/revenue.service.js';
 import { calculatePartnerBranchSubscriptionQuote, type PartnerBranchSubscriptionVertical } from './partnerEconomics.js';
 
 export type PartnerBranchBillingErrorCode =
@@ -283,4 +284,147 @@ export async function issuePartnerBranchSubscriptionInvoice(
 ) {
   if (db) return issueInTransaction(db, input);
   return prisma.$transaction((tx) => issueInTransaction(tx, input));
+}
+
+
+export type PartnerBillingPermission = 'billing.read' | 'billing.manage' | 'finance.read' | 'finance.manage';
+
+/**
+ * Resolve partner billing access from the current organization context and its
+ * scoped PersonRole permissions. A caller-provided organization ID is not proof
+ * of membership; both the Organization mapping and role scope are checked.
+ */
+export async function hasPartnerBranchBillingPermission(
+  input: {
+    userId: string;
+    organizationId: string;
+    ownerId: string;
+    permissions: readonly PartnerBillingPermission[];
+  },
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<boolean> {
+  if (!input.userId || !input.organizationId || !input.ownerId || input.permissions.length === 0) return false;
+  const organization = await db.organization.findFirst({
+    where: {
+      id: input.organizationId,
+      originalId: input.ownerId,
+      archivedAt: null,
+    },
+    select: { id: true, type: true, originalType: true },
+  });
+  if (!organization) return false;
+  const partnerTypeMatches =
+    (organization.type === 'DIAGNOSTIC_CENTER' && organization.originalType === 'DiagnosticCenter')
+    || (organization.type === 'LABORATORY' && organization.originalType === 'Laboratory');
+  if (!partnerTypeMatches) return false;
+
+  const memberships = await db.personRole.findMany({
+    where: {
+      scopeType: 'organization',
+      scopeId: organization.id,
+      person: { userId: input.userId, organizationId: organization.id },
+    },
+    select: {
+      role: {
+        select: {
+          permissions: { select: { permission: { select: { key: true } } } },
+        },
+      },
+    },
+  });
+  const allowed = new Set(input.permissions);
+  return memberships.some((membership) =>
+    membership.role.permissions.some((assignment) => allowed.has(assignment.permission.key as PartnerBillingPermission)),
+  );
+}
+
+/**
+ * Called only from the shared atomic Payment settlement transaction. It links
+ * one exact platform payment to one immutable partner invoice, activates the
+ * corresponding subscription period and recognizes the distinct revenue source.
+ */
+export async function settlePartnerBranchSubscriptionInvoicePayment(
+  payment: {
+    id: string;
+    refId: string | null;
+    amount: bigint;
+    currency?: string;
+  },
+  db: Prisma.TransactionClient,
+): Promise<boolean> {
+  if (!payment.refId) return false;
+
+  await db.$queryRaw`SELECT "id" FROM "partner_branch_subscription_invoices" WHERE "id" = ${payment.refId} FOR UPDATE`;
+  const invoice = await db.partnerBranchSubscriptionInvoice.findUnique({
+    where: { id: payment.refId },
+    include: { subscription: true },
+  });
+  if (!invoice) return false;
+
+  if (invoice.status === 'paid' && invoice.paymentId === payment.id) return true;
+  if (invoice.status !== 'payment_pending' || invoice.paymentId !== payment.id) {
+    throw new PartnerBranchBillingError(
+      'BILLING_PERIOD_OVERLAP',
+      'Счёт изменился или не связан с этим платёжным запросом',
+      409,
+    );
+  }
+  if (payment.currency && payment.currency !== invoice.currency) {
+    throw new PartnerBranchBillingError('INVALID_PERIOD', 'Валюта платежа не совпадает со счётом', 409);
+  }
+  if (payment.amount !== invoice.amountMinor) {
+    throw new PartnerBranchBillingError('INVALID_PERIOD', 'Сумма платежа не совпадает с неизменяемым снимком счёта', 409);
+  }
+  if (invoice.subscription.ownerType !== 'PARTNER' || invoice.subscription.ownerId !== invoice.ownerId) {
+    throw new PartnerBranchBillingError('SUBSCRIPTION_PLAN_CONFLICT', 'Счёт связан с неподходящей подпиской партнёра', 409);
+  }
+
+  const now = new Date();
+  const previousPeriodEnd = invoice.subscription.periodEnd;
+  const nextPeriodEnd = previousPeriodEnd && previousPeriodEnd > invoice.periodEnd
+    ? previousPeriodEnd
+    : invoice.periodEnd;
+  const periodAlreadyStarted = invoice.periodStart <= now || Boolean(previousPeriodEnd && previousPeriodEnd > now);
+  const nextStatus = nextPeriodEnd <= now ? 'expired' : periodAlreadyStarted ? 'active' : 'scheduled';
+
+  await db.partnerBranchSubscriptionInvoice.update({
+    where: { id: invoice.id },
+    data: { status: 'paid', paidAt: now, paymentId: payment.id },
+  });
+  await db.subscription.update({
+    where: { id: invoice.subscriptionId },
+    data: {
+      plan: planForVertical(invoice.vertical as PartnerBranchSubscriptionVertical),
+      status: nextStatus,
+      periodEnd: nextPeriodEnd,
+    },
+  });
+  await writeRevenue({
+    source: 'PARTNER_BRANCH_SUBSCRIPTION',
+    amountMinor: payment.amount,
+    refType: 'partner_branch_subscription_invoice',
+    refId: invoice.id,
+  }, db);
+  return true;
+}
+
+/**
+ * Release a payment hold after the provider has definitively failed or expired.
+ * A stale callback cannot reopen an invoice linked to a different or paid payment.
+ */
+export async function releasePartnerBranchSubscriptionInvoicePayment(
+  input: { invoiceId: string; paymentId: string },
+  db: Prisma.TransactionClient,
+): Promise<boolean> {
+  await db.$queryRaw`SELECT "id" FROM "partner_branch_subscription_invoices" WHERE "id" = ${input.invoiceId} FOR UPDATE`;
+  const invoice = await db.partnerBranchSubscriptionInvoice.findUnique({
+    where: { id: input.invoiceId },
+    select: { id: true, status: true, paymentId: true },
+  });
+  if (!invoice || invoice.status !== 'payment_pending' || invoice.paymentId !== input.paymentId) return false;
+  await db.partnerBranchSubscriptionInvoice.update({
+    where: { id: invoice.id },
+    data: { status: 'issued', paymentId: null },
+  });
+  return true;
 }
