@@ -44,7 +44,6 @@ INSERT INTO "branch_status_history_baselines" ("organization_id", "initialized_a
 SELECT o."id", CURRENT_TIMESTAMP
 FROM "organizations" o
 WHERE o."type" IN ('DIAGNOSTIC_CENTER', 'LABORATORY')
-  AND o."archivedAt" IS NULL
 ON CONFLICT ("organization_id") DO NOTHING;
 
 INSERT INTO "branch_status_events"
