@@ -507,11 +507,15 @@ labPlatformRouter.patch('/orders/:id/status', async (req: AuthRequest, res) => {
       await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} FOR UPDATE`;
       const existing = await tx.labOrder.findFirst({ where: { id: orderId, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } } });
       if (!existing) return { kind: 'not_found' as const };
-      if (next === 'delivered') return { kind: 'shipment_required' as const };
       const existingMeta = metaOf(existing.files);
+      // Authorization is evaluated before workflow prerequisites: technicians
+      // must receive 403 for a forbidden delivery action, not a 409 that leaks
+      // delivery state. Authorized managers/logistics then receive the shipment
+      // prerequisite conflict when attempting to skip the shipment workflow.
       if (!canLabMemberChangeStatus({ role: membership.role, userId: req.user!.id, assignedTechnicianId: existingMeta.technicianId, nextStatus: next })) {
         return { kind: 'forbidden' as const };
       }
+      if (next === 'delivered') return { kind: 'shipment_required' as const };
       if (!STATUS_FLOW[existing.status]?.includes(next)) return { kind: 'invalid_transition' as const, fromStatus: existing.status };
       const order = await tx.labOrder.update({ where: { id: existing.id }, data: { status: next as any } });
       await appendEventInTransaction(tx, order, existing.status, order.status, req.user!.id, req.body?.note ? String(req.body.note) : undefined);
