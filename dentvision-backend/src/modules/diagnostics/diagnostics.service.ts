@@ -915,7 +915,10 @@ export async function getReferralFileDownloadUrl(referralId: string, fileId: str
 }
 
 export async function deleteReferralFile(id: string, userId: string) {
-  const file = await prisma.referralFile.findUnique({ where: { id } });
+  const file = await prisma.referralFile.findUnique({
+    where: { id },
+    include: { dicomInstance: { select: { seriesId: true, series: { select: { dicomStudyId: true } } } } },
+  });
   if (!file) throw new Error('File not found');
   let storageKey: string | null = null;
   if (isStorageKey(file.fileUrl)) {
@@ -939,6 +942,14 @@ export async function deleteReferralFile(id: string, userId: string) {
   // rather than leaving a database row pointing at a missing medical record.
   await prisma.$transaction(async (tx) => {
     await tx.referralFile.delete({ where: { id } });
+    if (file.dicomInstance) {
+      await tx.diagnosticDicomSeries.deleteMany({
+        where: { id: file.dicomInstance.seriesId, instances: { none: {} } },
+      });
+      await tx.diagnosticDicomStudy.deleteMany({
+        where: { id: file.dicomInstance.series.dicomStudyId, series: { none: {} } },
+      });
+    }
     await writeAuditLog({
       action: 'FILE_DELETED',
       entity: 'referral',
