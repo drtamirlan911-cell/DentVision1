@@ -109,7 +109,7 @@ export function PartnerBranchSubscriptionAdminPanel() {
   const selectedOrganization = organizations.find((org) => org.id === organizationId);
   const invoices = invoicesQuery.data || [];
   const organizationNames = useMemo(() => new Map(organizations.map((org) => [org.id, org.name])), [organizations]);
-  const validPeriod = Boolean(periodStart && periodEnd && periodEnd > periodStart);
+  const validPeriod = Boolean(periodStart && periodStart.endsWith('-01') && periodEnd && periodEnd > periodStart);
 
   return (
     <div className="space-y-4">
@@ -150,16 +150,22 @@ export function PartnerBranchSubscriptionAdminPanel() {
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block space-y-1 text-xs text-txt-secondary">
             Начало периода
-            <input type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} className="min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" />
+            <input type="date" value={periodStart} onChange={(event) => {
+              const value = event.target.value;
+              setPeriodStart(value);
+              if (!value) { setPeriodEnd(''); return; }
+              const [year, month] = value.split('-').map(Number);
+              setPeriodEnd(new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10));
+            }} className="min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" />
           </label>
           <label className="block space-y-1 text-xs text-txt-secondary">
             Окончание периода (не включается)
-            <input type="date" value={periodEnd} min={periodStart || undefined} onChange={(event) => setPeriodEnd(event.target.value)} className="min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" />
+            <input type="date" value={periodEnd} readOnly aria-label="Первое число следующего месяца — конец периода, не включается" className="min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-2 px-3 text-sm text-txt-muted" />
           </label>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-txt-muted">Начало должно быть раньше окончания. Повторный выпуск того же периода вернёт существующий счёт, а не создаст дубликат.</p>
+          <p className="text-xs text-txt-muted">Выберите первое число месяца. Конец периода подставляется автоматически и не включается в расчёт. Повторный выпуск того же периода вернёт существующий счёт.</p>
           <Button size="sm" disabled={!selectedOrganization || !validPeriod || issueMutation.isPending} loading={issueMutation.isPending} onClick={() => { setIssuedMessage(''); issueMutation.mutate(); }}>
             Сформировать счёт
           </Button>

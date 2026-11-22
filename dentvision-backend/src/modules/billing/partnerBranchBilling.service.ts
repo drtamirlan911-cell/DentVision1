@@ -101,6 +101,27 @@ async function issueInTransaction(
     asOf: Date;
   },
 ) {
+  const expectedPeriodStart = new Date(Date.UTC(
+    input.periodStart.getUTCFullYear(),
+    input.periodStart.getUTCMonth(),
+    1,
+  ));
+  const expectedPeriodEnd = new Date(Date.UTC(
+    input.periodStart.getUTCFullYear(),
+    input.periodStart.getUTCMonth() + 1,
+    1,
+  ));
+  if (
+    input.periodStart.getTime() !== expectedPeriodStart.getTime()
+    || input.periodEnd.getTime() !== expectedPeriodEnd.getTime()
+  ) {
+    throw new PartnerBranchBillingError(
+      'INVALID_PERIOD',
+      'Филиальная подписка выставляется за полный календарный месяц',
+      400,
+    );
+  }
+
   const organizationId = String(input.organizationId || '').trim();
   if (!organizationId) {
     throw new PartnerBranchBillingError('ORGANIZATION_NOT_FOUND', 'Не указана организация партнёра');

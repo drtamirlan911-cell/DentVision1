@@ -255,6 +255,16 @@ describe('partner branch invoice issuance', () => {
 });
 
 
+
+  it('accepts only a full calendar month with an exclusive next-month boundary', async () => {
+    const { tx, created } = makeDb();
+    await expect(issuePartnerBranchInvoiceForTest({
+      organizationId: 'org-center-1',
+      periodStart: new Date('2026-12-15T00:00:00.000Z'),
+      periodEnd: new Date('2027-01-15T00:00:00.000Z'),
+    }, tx)).rejects.toMatchObject({ code: 'INVALID_PERIOD' });
+    expect(created.invoice).toBeUndefined();
+  });
 describe('partner invoice payment settlement', () => {
   function makeSettlementDb(options: {
     invoiceStatus?: string;
