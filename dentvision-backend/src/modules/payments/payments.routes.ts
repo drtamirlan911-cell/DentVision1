@@ -29,12 +29,14 @@ import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billi
 import { canTransitionOrder } from '../../lib/orderStatus.js';
 import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
+import { hasPartnerBranchBillingPermission, releasePartnerBranchSubscriptionInvoicePayment, settlePartnerBranchSubscriptionInvoicePayment, PartnerBranchBillingError } from '../billing/partnerBranchBilling.service.js';
 
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
 export const paymentsRouter = Router();
 
 const SERVER_OWNED_PAYMENT_META_KEYS = new Set([
   'userid', 'clinicid', 'merchantscope', 'clinicpaymode', 'qr', 'laboratoryid', 'laborderid', 'branchid',
+  'partnerbranchsubscriptioninvoiceid', 'organizationid', 'organizationoriginalid', 'ownerid', 'vertical', 'policyversion',
 ]);
 
 function clientSafePaymentMeta(value: unknown): Record<string, unknown> {
