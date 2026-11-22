@@ -46,7 +46,10 @@ describe('medical lab branch isolation contract', () => {
     expect(source).toContain("requireMedicalLabCapability(req.user, 'finance.manage')");
     expect(source).toContain("getOrCreateWallet('PARTNER', labId)");
     expect(source).toContain("getPartnerEconomicsTransparency({ vertical: 'MEDICAL_ANALYSIS', partnerId: labId })");
-    expect(source).toContain("requestPayout({ ownerType: 'PARTNER', ownerId: labId, amountMinor })");
+    expect(source).toContain("prisma.$transaction(async (tx) =>");
+    expect(source).toContain("requestPayout({ ownerType: 'PARTNER', ownerId: labId, amountMinor }, tx)");
+    expect(source).toContain("action: 'MEDICAL_LAB_PAYOUT_REQUESTED'");
+    expect(source).toContain('}, tx);');
     const payoutRoute = source.slice(source.indexOf("medicalLabLifecycleRouter.post('/payouts'"), source.indexOf("medicalLabLifecycleRouter.get('/orders'"));
     expect(payoutRoute).toContain('parseTengeToMinor(rawAmount)');
     expect(payoutRoute).toContain('MEDICAL_LAB_PAYOUT_REQUESTED');
