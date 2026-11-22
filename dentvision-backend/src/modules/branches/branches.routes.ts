@@ -10,6 +10,7 @@ import { resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { canCreateClinicBranch, isBranchBillingOrganizationType, quoteBranchSubscription } from '../finance/branchBillingPolicy.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { auditFromReq } from '../compliance/audit.service.js';
+import { ensureOrganizationBranchStatusHistoryBaseline, recordOrganizationBranchStatusEvent } from './branchStatusHistory.js';
 
 export const branchesRouter = Router();
 branchesRouter.use(authenticate);
@@ -325,14 +326,21 @@ branchesRouter.post('/', enforceTargetClinicTrial, async (req: AuthRequest, res)
         return res.status(409).json({ ok: false, error: 'Филиал с таким кодом уже существует', code: 'BRANCH_CODE_CONFLICT' });
       }
       const branchId = uid();
-      const rows = await prisma.$queryRaw<BranchRow[]>`
-        INSERT INTO "branches"
-          ("id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault", "created_at", "updated_at", "settings")
-        VALUES
-          (${branchId}, ${organizationId}, ${clinicId || null}, ${branchCode}, ${name.trim()}, ${city || null}, ${address || null}, ${phone || null}, true,
-            NOT EXISTS (SELECT 1 FROM "branches" WHERE "organization_id" = ${organizationId}), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ${settings ?? null})
-        RETURNING "id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault" AS is_default, "settings", "created_at" AS created_at, "updated_at" AS updated_at
-      `;
+      const rows = await prisma.$transaction(async (tx) => {
+        await ensureOrganizationBranchStatusHistoryBaseline(tx, organizationId);
+        const inserted = await tx.$queryRaw<BranchRow[]>`
+          INSERT INTO "branches"
+            ("id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault", "created_at", "updated_at", "settings")
+          VALUES
+            (${branchId}, ${organizationId}, ${clinicId || null}, ${branchCode}, ${name.trim()}, ${city || null}, ${address || null}, ${phone || null}, true,
+              NOT EXISTS (SELECT 1 FROM "branches" WHERE "organization_id" = ${organizationId}), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ${settings ?? null})
+          RETURNING "id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault" AS is_default, "settings", "created_at" AS created_at, "updated_at" AS updated_at
+        `;
+        if (inserted[0]) await recordOrganizationBranchStatusEvent(tx, {
+          branchId, organizationId, active: true, actorUserId: req.user!.id, source: 'created',
+        });
+        return inserted;
+      });
       await auditFromReq(req, { action: 'branch.created', entity: 'branch', entityId: branchId, details: { organizationId, code: branchCode } });
       return res.status(201).json({ ok: true, data: serialize(rows[0]) });
     }
@@ -362,14 +370,21 @@ branchesRouter.post('/', enforceTargetClinicTrial, async (req: AuthRequest, res)
       return res.status(409).json({ ok: false, error: 'Филиал с таким кодом уже существует', code: 'BRANCH_CODE_CONFLICT' });
     }
     const branchId = uid();
-    const rows = await prisma.$queryRaw<BranchRow[]>`
-      INSERT INTO "branches"
-        ("id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault", "created_at", "updated_at", "settings")
-      VALUES
-        (${branchId}, ${clinicOrganizationId}, ${clinicId}, ${branchCode}, ${name.trim()}, ${city || null}, ${address || null}, ${phone || null}, true,
-          NOT EXISTS (SELECT 1 FROM "branches" WHERE "clinic_id" = ${clinicId}), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ${settings ?? null})
-      RETURNING "id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault" AS is_default, "settings", "created_at" AS created_at, "updated_at" AS updated_at
-    `;
+    const rows = await prisma.$transaction(async (tx) => {
+      if (clinicOrganizationId) await ensureOrganizationBranchStatusHistoryBaseline(tx, clinicOrganizationId);
+      const inserted = await tx.$queryRaw<BranchRow[]>`
+        INSERT INTO "branches"
+          ("id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault", "created_at", "updated_at", "settings")
+        VALUES
+          (${branchId}, ${clinicOrganizationId}, ${clinicId}, ${branchCode}, ${name.trim()}, ${city || null}, ${address || null}, ${phone || null}, true,
+            NOT EXISTS (SELECT 1 FROM "branches" WHERE "clinic_id" = ${clinicId}), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ${settings ?? null})
+        RETURNING "id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault" AS is_default, "settings", "created_at" AS created_at, "updated_at" AS updated_at
+      `;
+      if (inserted[0] && clinicOrganizationId) await recordOrganizationBranchStatusEvent(tx, {
+        branchId, organizationId: clinicOrganizationId, active: true, actorUserId: req.user!.id, source: 'created',
+      });
+      return inserted;
+    });
     return res.status(201).json({ ok: true, data: serialize(rows[0]) });
   } catch (error: any) {
     if (error?.code === '23505' || String(error?.message || '').includes('branches_clinic_id_code_key') || String(error?.message || '').includes('branches_organization_id_code_key')) {
@@ -402,11 +417,28 @@ branchesRouter.patch('/:id', enforceTargetClinicTrial, async (req: AuthRequest, 
     if (nextCode !== branch.code && branch.organization_id && await branchCodeTaken(branch.organization_id, nextCode, branchId)) {
       return res.status(409).json({ ok: false, error: 'Филиал с таким кодом уже существует', code: 'BRANCH_CODE_CONFLICT' });
     }
-    const updated = await prisma.$queryRaw<BranchRow[]>`
-      UPDATE "branches" SET "code" = ${nextCode}, "name" = COALESCE(${name ?? null}, "name"), "city" = ${city === undefined ? branch.city : city || null}, "address" = ${address === undefined ? branch.address : address || null}, "phone" = ${phone === undefined ? branch.phone : phone || null}, "active" = COALESCE(${active ?? null}, "active"), "settings" = ${settings === undefined ? branch.settings : settings}, "updated_at" = CURRENT_TIMESTAMP
-      WHERE "id" = ${branchId}
-      RETURNING "id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault" AS is_default, "settings", "created_at" AS created_at, "updated_at" AS updated_at
-    `;
+    const updated = await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ active: boolean; organization_id: string | null }>>`
+        SELECT "active", "organization_id" FROM "branches" WHERE "id" = ${branchId} FOR UPDATE
+      `;
+      if (!locked[0]) return [] as BranchRow[];
+      if (locked[0].organization_id && active !== undefined && active !== locked[0].active) {
+        await ensureOrganizationBranchStatusHistoryBaseline(tx, locked[0].organization_id);
+      }
+      const rows = await tx.$queryRaw<BranchRow[]>`
+        UPDATE "branches" SET "code" = ${nextCode}, "name" = COALESCE(${name ?? null}, "name"), "city" = ${city === undefined ? branch.city : city || null}, "address" = ${address === undefined ? branch.address : address || null}, "phone" = ${phone === undefined ? branch.phone : phone || null}, "active" = COALESCE(${active ?? null}, "active"), "settings" = ${settings === undefined ? branch.settings : settings}, "updated_at" = CURRENT_TIMESTAMP
+        WHERE "id" = ${branchId}
+        RETURNING "id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault" AS is_default, "settings", "created_at" AS created_at, "updated_at" AS updated_at
+      `;
+      if (rows[0] && locked[0].organization_id && rows[0].active !== locked[0].active) {
+        await recordOrganizationBranchStatusEvent(tx, {
+          branchId, organizationId: locked[0].organization_id, active: rows[0].active,
+          actorUserId: req.user!.id, source: rows[0].active ? 'activated' : 'archived',
+        });
+      }
+      return rows;
+    });
+    if (!updated[0]) return res.status(404).json({ ok: false, error: 'Филиал не найден' });
     await auditFromReq(req, { action: active === false ? 'branch.archived' : 'branch.updated', entity: 'branch', entityId: branchId, details: { active, code: nextCode } });
     return res.json({ ok: true, data: serialize(updated[0]) });
   } catch (error: any) {

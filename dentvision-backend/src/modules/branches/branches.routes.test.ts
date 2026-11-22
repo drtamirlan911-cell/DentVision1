@@ -56,4 +56,13 @@ describe('branch route authorization contract', () => {
     expect(source).toContain("BRANCH_MEMBER_ASSIGNED_ELSEWHERE");
   });
 
+  it('records branch activation and deactivation history atomically with branch mutations', () => {
+    expect(source).toContain("from './branchStatusHistory.js'");
+    expect(source).toContain('ensureOrganizationBranchStatusHistoryBaseline(tx, organizationId)');
+    expect(source).toContain("source: 'created'");
+    expect(source).toContain("source: rows[0].active ? 'activated' : 'archived'");
+    expect(source).toContain('FOR UPDATE');
+    expect(source).toContain('recordOrganizationBranchStatusEvent(tx');
+  });
+
 });

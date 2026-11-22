@@ -26,4 +26,13 @@ describe('branch consistency migration contracts', () => {
     expect(source).not.toContain('p.clinic_id');
     expect(source).not.toContain('NEW.clinic_id');
   });
+  it('creates a non-retroactive branch status history baseline for partner billing', () => {
+    const source = readFileSync(resolve(root, '20261123110000_branch_status_history/migration.sql'), 'utf8');
+    expect(source).toContain('branch_status_history_baselines');
+    expect(source).toContain('branch_status_events');
+    expect(source).toContain('SELECT b."id", b."organization_id", b."active"');
+    expect(source).toContain("'baseline'");
+    expect(source).toContain('branch_status_events_branch_effective_idx');
+  });
+
 });
