@@ -1,8 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildWorkspaceContexts, roleLabelFor, userRoleForPartnerRole, type ContextSources } from './contexts.js';
+import { buildWorkspaceContexts, roleLabelFor, shouldAttachDefaultPartnerBranchHint, userRoleForPartnerRole, type ContextSources } from './contexts.js';
 
 const empty: ContextSources = { memberships: [], supplierMemberships: [], lecturer: null, diagnosticCenterMemberships: [], laboratoryMemberships: [], persons: [] };
+
+describe('default partner branch hint', () => {
+  it('does not attach a default branch to roles scoped to assigned work items', () => {
+    expect(shouldAttachDefaultPartnerBranchHint('diagnostic_radiologist')).toBe(false);
+    expect(shouldAttachDefaultPartnerBranchHint('medical_lab_validator')).toBe(false);
+    expect(shouldAttachDefaultPartnerBranchHint('medical_lab_doctor')).toBe(false);
+    expect(shouldAttachDefaultPartnerBranchHint('dental_technician')).toBe(false);
+    expect(shouldAttachDefaultPartnerBranchHint('cad_designer')).toBe(false);
+  });
+
+  it('allows a default branch hint for organization and branch scoped partner roles', () => {
+    expect(shouldAttachDefaultPartnerBranchHint('diagnostic_owner')).toBe(true);
+    expect(shouldAttachDefaultPartnerBranchHint('diagnostic_operator')).toBe(true);
+    expect(shouldAttachDefaultPartnerBranchHint('medical_lab_technician')).toBe(true);
+  });
+});
 
 describe('workspace contexts', () => {
   it('returns one row for a clinic that exists in both halves', () => {
