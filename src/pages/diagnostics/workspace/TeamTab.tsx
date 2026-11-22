@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/ds/Input'
 import { Badge } from '@/components/ui/ds/Badge'
 import { Skeleton } from '@/components/ui/ds/Skeleton'
 import { useToast } from '@/components/ui/ds/Toast'
+import { useIam } from '@/iam'
 import * as api from '@/utils/api'
 
 import type { TabProps } from './types'
@@ -35,9 +36,12 @@ const ROLE_LABELS: Record<string, string> = Object.fromEntries(ROLES.map((r) => 
 export function TeamTab({ config, orgId }: TabProps) {
   const toast = useToast()
   const queryClient = useQueryClient()
+  const iam = useIam()
+  const canManageBranches = iam.hasPermission('staff.write') || iam.hasPermission('staff.manage')
   const [role, setRole] = useState('operator')
   const [email, setEmail] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
+  const [branchChoiceByUser, setBranchChoiceByUser] = useState<Record<string, string>>({})
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['iam', 'invitations', orgId],
@@ -54,6 +58,48 @@ export function TeamTab({ config, orgId }: TabProps) {
     retry: false,
   })
   const staff = staffData || []
+  const branchesQuery = useQuery({
+    queryKey: ['branches', 'diagnostic-center-team', orgId],
+    queryFn: () => api.listBranches({ organizationId: orgId }),
+    enabled: Boolean(orgId && isDiagnosticCenter && canManageBranches),
+    retry: false,
+  })
+  const activeBranches = (branchesQuery.data || []).filter((branch: any) => branch.active !== false)
+  const branchMembershipsQuery = useQuery({
+    queryKey: ['branches', 'diagnostic-center-memberships', orgId, activeBranches.map((branch: any) => branch.id).join(',')],
+    queryFn: async () => {
+      const rows = await Promise.all(activeBranches.map(async (branch: any) => ({
+        branchId: branch.id as string,
+        members: await api.getBranchMembers(branch.id),
+      })))
+      return Object.fromEntries(rows.map((row) => [
+        row.branchId,
+        row.members.map((member: any) => member.userId).filter(Boolean) as string[],
+      ]))
+    },
+    enabled: Boolean(orgId && isDiagnosticCenter && canManageBranches && activeBranches.length),
+    retry: false,
+  })
+
+  const assignBranchMutation = useMutation({
+    mutationFn: ({ userId, branchId }: { userId: string; branchId: string }) =>
+      api.assignBranchMember(branchId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['branches', 'diagnostic-center-memberships', orgId] })
+      toast.success('Сотрудник закреплён за филиалом')
+    },
+    onError: (e: any) => toast.error(e?.message || 'Не удалось закрепить сотрудника за филиалом'),
+  })
+
+  const unassignBranchMutation = useMutation({
+    mutationFn: ({ userId, branchId }: { userId: string; branchId: string }) =>
+      api.unassignBranchMember(branchId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['branches', 'diagnostic-center-memberships', orgId] })
+      toast.success('Доступ к филиалу снят')
+    },
+    onError: (e: any) => toast.error(e?.message || 'Не удалось снять доступ к филиалу'),
+  })
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -149,6 +195,64 @@ export function TeamTab({ config, orgId }: TabProps) {
                     <p className="text-xs text-txt-muted">{member.email}</p>
                   </div>
                   <Badge variant="outline">{ROLE_LABELS[member.role] || member.role}</Badge>
+                  {canManageBranches && (
+                    <div className="w-full space-y-2 rounded-lg bg-surface-1 p-3 sm:max-w-[420px]">
+                      <p className="text-xs font-medium text-txt-secondary">Доступ к филиалам</p>
+                      {branchMembershipsQuery.isPending || branchesQuery.isPending ? (
+                        <Skeleton className="h-8" />
+                      ) : branchMembershipsQuery.isError || branchesQuery.isError ? (
+                        <p className="text-xs text-txt-muted">Не удалось загрузить закрепления филиалов.</p>
+                      ) : (
+                        <>
+                          <div className="flex flex-wrap gap-1.5">
+                            {activeBranches.filter((branch: any) => (branchMembershipsQuery.data?.[branch.id] || []).includes(member.userId)).map((branch: any) => (
+                              <span key={branch.id} className="inline-flex items-center gap-1 rounded-full border border-bdr-subtle px-2 py-1 text-xs text-txt-secondary">
+                                {branch.name}
+                                <button
+                                  type="button"
+                                  aria-label={`Снять доступ к филиалу ${branch.name} у ${member.firstName} ${member.lastName}`}
+                                  className="rounded-full px-1 text-txt-muted hover:bg-surface-2 hover:text-txt-primary"
+                                  disabled={unassignBranchMutation.isPending}
+                                  onClick={() => unassignBranchMutation.mutate({ userId: member.userId, branchId: branch.id })}
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                            {activeBranches.every((branch: any) => !(branchMembershipsQuery.data?.[branch.id] || []).includes(member.userId)) && (
+                              <span className="text-xs text-txt-muted">Филиалы не назначены</span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <select
+                              aria-label={`Выбрать филиал для ${member.firstName} ${member.lastName}`}
+                              value={branchChoiceByUser[member.userId] || ''}
+                              onChange={(event) => setBranchChoiceByUser((current) => ({ ...current, [member.userId]: event.target.value }))}
+                              className="min-h-10 min-w-0 flex-1 rounded-lg border border-bdr-subtle bg-surface-0 px-3 py-2 text-xs text-txt-primary"
+                            >
+                              <option value="">Выбрать филиал</option>
+                              {activeBranches.filter((branch: any) => !(branchMembershipsQuery.data?.[branch.id] || []).includes(member.userId)).map((branch: any) => (
+                                <option key={branch.id} value={branch.id}>{branch.name}</option>
+                              ))}
+                            </select>
+                            <Button
+                              size="xs"
+                              variant="secondary"
+                              disabled={!branchChoiceByUser[member.userId] || assignBranchMutation.isPending}
+                              loading={assignBranchMutation.isPending}
+                              onClick={() => {
+                                const branchId = branchChoiceByUser[member.userId]
+                                if (branchId) assignBranchMutation.mutate({ userId: member.userId, branchId })
+                                setBranchChoiceByUser((current) => ({ ...current, [member.userId]: '' }))
+                              }}
+                            >
+                              Добавить
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
