@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { authorizeReferralListScope, partnerReferralReadPermission, partnerRoleKeysHavePermission, redactPartnerReferralFinancials } from './diagnostics.routes.js';
+import { authorizeReferralListScope, diagnosticsRouter, partnerReferralReadPermission, partnerRoleKeysHavePermission, redactPartnerReferralFinancials } from './diagnostics.routes.js';
+import { canReadDiagnosticCenterCatalog } from './diagnostics.service.js';
 
 const user = (overrides: Record<string, unknown> = {}) => ({
   id: 'u1',
@@ -9,6 +10,46 @@ const user = (overrides: Record<string, unknown> = {}) => ({
   organizationType: 'LABORATORY',
   ...overrides,
 }) as any;
+
+describe('diagnostic center route matching', () => {
+  it('registers the exact staff endpoint before the dynamic referral detail endpoint', () => {
+    const getRoutes = (diagnosticsRouter as any).stack
+      .filter((layer: any) => layer.route?.methods?.get)
+      .map((layer: any) => layer.route.path);
+    const staffIndex = getRoutes.indexOf('/centers/:id/worklist/staff');
+    const detailIndex = getRoutes.indexOf('/centers/:centerId/worklist/:referralId');
+
+    expect(staffIndex).toBeGreaterThanOrEqual(0);
+    expect(detailIndex).toBeGreaterThanOrEqual(0);
+    expect(staffIndex).toBeLessThan(detailIndex);
+  });
+});
+
+describe('diagnostic center catalog visibility', () => {
+  it('allows an active member to open its own catalog when public discovery is disabled', () => {
+    expect(canReadDiagnosticCenterCatalog({
+      isPubliclyVisible: false,
+      subscriptionActive: true,
+      isActiveOrganizationMember: true,
+    })).toBe(true);
+  });
+
+  it('does not expose a private catalog to non-members', () => {
+    expect(canReadDiagnosticCenterCatalog({
+      isPubliclyVisible: false,
+      subscriptionActive: true,
+      isActiveOrganizationMember: false,
+    })).toBe(false);
+  });
+
+  it('does not expose a catalog when the center subscription is inactive', () => {
+    expect(canReadDiagnosticCenterCatalog({
+      isPubliclyVisible: true,
+      subscriptionActive: false,
+      isActiveOrganizationMember: true,
+    })).toBe(false);
+  });
+});
 
 describe('diagnostic and laboratory referral read permissions', () => {
   it('uses diagnostics.read for centers and lab.read for laboratories', () => {
