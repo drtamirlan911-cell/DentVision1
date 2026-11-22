@@ -89,6 +89,7 @@ test.describe('Partner operational lifecycle', () => {
   let medicalLabQualityToken = '';
   let medicalLabValidatorToken = '';
   let medicalLabDoctorToken = '';
+  let medicalLabFinanceToken = '';
   const medicalLabUserIds: string[] = [];
   const medicalLabOrderIds: string[] = [];
   let dentalLabOwnerToken = '';
@@ -310,6 +311,8 @@ test.describe('Partner operational lifecycle', () => {
     const medicalDoctor = await createMedicalLabRole('doctor', 'medical_lab_doctor');
     medicalLabDoctorId = medicalDoctor.id;
     medicalLabDoctorToken = medicalDoctor.token;
+    const medicalFinance = await createMedicalLabRole('finance', 'medical_lab_finance');
+    medicalLabFinanceToken = medicalFinance.token;
 
     const dentalLabOwner = await createTestUser({ email: `dental-lab-owner-${Date.now()}@test.dentvision`, firstName: 'Dental Lab', lastName: 'Owner' });
     const dentalLabBaseToken = await login(api, dentalLabOwner.email);
@@ -1583,6 +1586,63 @@ test.describe('Partner operational lifecycle', () => {
     });
     expect(otherPartnerRead.status()).toBe(403);
   });
+  test('PARTNER-002-FINANCE: medical-lab owner and finance role can view finances; bench roles cannot', async () => {
+    expect(labOwnerToken).toBeTruthy();
+    expect(medicalLabFinanceToken).toBeTruthy();
+    expect(medicalLabTechnicianToken).toBeTruthy();
+    expect(medicalLabQualityToken).toBeTruthy();
+
+    const ownerCapabilities = await api.get(BASE + '/api/lab-orders/medical-laboratory/capabilities', {
+      headers: auth(labOwnerToken),
+    });
+    expect(ownerCapabilities.status()).toBe(200);
+    expect((await ownerCapabilities.json()).data.capabilities).toEqual(expect.arrayContaining(['finance.read', 'finance.manage']));
+
+    const financeRead = await api.get(BASE + '/api/lab-orders/medical-laboratory/finance', {
+      headers: auth(medicalLabFinanceToken),
+    });
+    expect(financeRead.status(), await financeRead.text()).toBe(200);
+    const financeData = (await financeRead.json()).data;
+    expect(financeData.availableBalanceMinor).toBe('0');
+    expect(financeData.economics.totals.grossMinor).toBe('0');
+    expect(financeData.canRequestPayout).toBe(true);
+
+    const managerRead = await api.get(BASE + '/api/lab-orders/medical-laboratory/finance', {
+      headers: auth(labOwnerToken),
+    });
+    expect(managerRead.status()).toBe(200);
+
+    const technicianCapabilities = await api.get(BASE + '/api/lab-orders/medical-laboratory/capabilities', {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    expect(technicianCapabilities.status()).toBe(200);
+    expect((await technicianCapabilities.json()).data.capabilities).not.toContain('finance.read');
+
+    const technicianFinance = await api.get(BASE + '/api/lab-orders/medical-laboratory/finance', {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    expect(technicianFinance.status()).toBe(403);
+
+    const qualityFinance = await api.get(BASE + '/api/lab-orders/medical-laboratory/finance', {
+      headers: auth(medicalLabQualityToken),
+    });
+    expect(qualityFinance.status()).toBe(403);
+
+    const technicianPayout = await api.post(BASE + '/api/lab-orders/medical-laboratory/payouts', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { amount: '1.00' },
+    });
+    expect(technicianPayout.status()).toBe(403);
+
+    const financePayout = await api.post(BASE + '/api/lab-orders/medical-laboratory/payouts', {
+      headers: auth(medicalLabFinanceToken),
+      data: { amount: '1.00' },
+    });
+    // The finance role passes authorization, but the empty E2E wallet cannot fund a request.
+    expect(financePayout.status()).toBe(409);
+    expect((await financePayout.json()).code).toBe('INSUFFICIENT_FUNDS');
+  });
+
   test('PARTNER-003: dental lab owner → clinic assignment → technician → production → delivery → tenant isolation', async () => {
     expect(fixtureDentalLabId).toBeTruthy();
     expect(dentalLabOwnerToken).toBeTruthy();
