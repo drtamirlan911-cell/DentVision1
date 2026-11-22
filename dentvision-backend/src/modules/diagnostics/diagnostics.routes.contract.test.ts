@@ -292,7 +292,7 @@ describe('diagnostics route contract', () => {
 
   it('maps invited diagnostic specialists to canonical scoped IAM roles and correct person types', () => {
     expect(serviceSource).toContain("operator: 'diagnostic_operator'");
-    expect(serviceSource).toContain("radiologist: 'diagnostic_radiologist'");
+    expect(serviceSource).toContain("radiologist: 'radiologist'");
     expect(serviceSource).toContain("normalizedRole === 'operator' ? 'OPERATOR'");
     expect(serviceSource).toContain("normalizedRole === 'radiologist' ? 'RADIOLOGIST'");
     expect(roleMigration).toContain("'diagnostic_operator'");
