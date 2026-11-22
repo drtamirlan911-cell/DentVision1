@@ -77,6 +77,23 @@ describe('diagnostics route contract', () => {
     expect(serviceSource).not.toContain('platformFee: updatedReferral.platformFee');
   });
 
+  it('keeps financial dashboard and referral money fields behind partner billing permission', () => {
+    const dashboardStart = source.indexOf("diagnosticsRouter.get('/dashboard'");
+    const dashboardRoute = source.slice(dashboardStart, dashboardStart + 1500);
+    expect(dashboardRoute).toContain("hasPartnerScopedPermission(req.user, 'billing.read')");
+    expect(dashboardRoute).toContain('Финансовая сводка доступна только сотрудникам');
+
+    const referralsStart = source.indexOf("diagnosticsRouter.get('/referrals'");
+    const referralsEnd = source.indexOf("diagnosticsRouter.post('/referrals'", referralsStart);
+    const referralsRoute = source.slice(referralsStart, referralsEnd);
+    expect(referralsRoute).toContain("hasPartnerScopedPermission(req.user, 'diagnostics.read')");
+    expect(referralsRoute).toContain("hasPartnerScopedPermission(req.user, 'billing.read')");
+    expect(referralsRoute).toContain('redactPartnerReferralFinancials');
+
+    expect(source).toContain('export function partnerRoleKeysHavePermission');
+    expect(source).toContain('export function redactPartnerReferralFinancials');
+  });
+
   it('exposes diagnostic partner settlements only inside the active organization context', () => {
     expect(source).toContain("diagnosticsRouter.get('/settlements'");
     expect(source).toContain("diagnosticsRouter.post('/settlements/:id/pay'");
