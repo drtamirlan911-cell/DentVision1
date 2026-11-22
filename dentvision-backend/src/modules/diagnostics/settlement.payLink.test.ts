@@ -76,7 +76,7 @@ describe('settlement Kaspi payment link lifecycle', () => {
       return currentSettlement;
     });
     state.settlementUpdateMany.mockImplementation(async ({ where, data }) => {
-      if (where.status?.not !== 'paid' || currentSettlement.status !== 'paid') {
+      if (!where.status?.notIn?.includes(currentSettlement.status)) {
         currentSettlement = { ...currentSettlement, ...data };
         return { count: 1 };
       }
@@ -101,8 +101,8 @@ describe('settlement Kaspi payment link lifecycle', () => {
     expect(result.payment?.id).toBe(payment.id);
     expect(result.qr).toBe(qr);
     expect(state.providerCreatePayment).toHaveBeenCalledTimes(1);
-    expect(state.settlementUpdate).toHaveBeenCalledWith({
-      where: { id: 'settlement-1' },
+    expect(state.settlementUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'settlement-1', status: { notIn: ['paid', 'void'] } },
       data: { status: 'invoiced', paymentId: payment.id },
     });
   });
@@ -123,9 +123,17 @@ describe('settlement Kaspi payment link lifecycle', () => {
     expect(state.providerCreatePayment).not.toHaveBeenCalled();
     expect(state.paymentCreate).not.toHaveBeenCalled();
     expect(state.settlementUpdateMany).toHaveBeenCalledWith({
-      where: { id: 'settlement-1', status: { not: 'paid' } },
+      where: { id: 'settlement-1', status: { notIn: ['paid', 'void'] } },
       data: { status: 'invoiced', paymentId: payment.id },
     });
+  });
+
+  it('rejects a void settlement without creating another payment', async () => {
+    currentSettlement = { ...currentSettlement, status: 'void' };
+
+    await expect(paySettlement('settlement-1')).rejects.toMatchObject({ status: 409 });
+    expect(state.providerCreatePayment).not.toHaveBeenCalled();
+    expect(state.paymentCreate).not.toHaveBeenCalled();
   });
 
   it('never downgrades a settlement already confirmed as paid', async () => {
@@ -142,7 +150,7 @@ describe('settlement Kaspi payment link lifecycle', () => {
     expect(result.settlement.status).toBe('paid');
     expect(currentSettlement.status).toBe('paid');
     expect(state.settlementUpdateMany).toHaveBeenCalledWith({
-      where: { id: 'settlement-1', status: { not: 'paid' } },
+      where: { id: 'settlement-1', status: { notIn: ['paid', 'void'] } },
       data: { status: 'invoiced', paymentId: payment.id },
     });
   });
