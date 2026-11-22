@@ -169,6 +169,15 @@ describe('the same money cannot be requested twice', () => {
     ).resolves.toMatchObject({ status: 'requested', amount: 100_000n });
   });
 
+  it('uses a caller-owned transaction so the caller can commit payout and audit together', async () => {
+    walletHolding(100_000n);
+    await expect(
+      requestPayout({ ownerType: 'LECTURER', ownerId: 'lect-1', amountMinor: 50_000n }, tx as never),
+    ).resolves.toMatchObject({ status: 'requested', amount: 50_000n });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(tx.payout.create).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects payout requests funded only by partner-collected diagnostic revenue', async () => {
     walletHolding(100_000n, [], 'PARTNER', [{ amount: 100_000n }]);
     await expect(
