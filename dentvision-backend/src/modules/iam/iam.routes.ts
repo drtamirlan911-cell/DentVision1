@@ -7,7 +7,7 @@ import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { uid } from '../../lib/helpers.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
-import { buildWorkspaceContexts, roleLabelFor, userRoleForPartnerRole } from './contexts.js';
+import { buildWorkspaceContexts, roleLabelFor, shouldAttachDefaultPartnerBranchHint, userRoleForPartnerRole } from './contexts.js';
 import type { ScopeType } from './contexts.js';
 import {
   acceptInvitation,
@@ -305,7 +305,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
           context.branchId = String(req.user.branchId);
           continue;
         }
-        if (!context.branchId && context.organizationId) {
+        if (!context.branchId && context.organizationId && shouldAttachDefaultPartnerBranchHint(context.roleKey)) {
           const branchId = defaultBranchByOrg.get(context.organizationId);
           if (branchId) context.branchId = branchId;
         }
