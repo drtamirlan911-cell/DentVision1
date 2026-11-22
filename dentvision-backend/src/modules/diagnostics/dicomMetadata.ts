@@ -135,7 +135,9 @@ function decodeText(buffer: Buffer, offset: number, length: number): string {
 }
 
 function validUid(value: string): boolean {
-  return value.length > 0 && value.length <= 64 && /^\d+(?:\.\d+)*$/.test(value);
+  // DICOM UID components are decimal integers; multi-digit components may not
+  // start with zero. Keep the complete encoded UID within the 64-char limit.
+  return value.length > 0 && value.length <= 64 && /^(?:0|[1-9]\d*)(?:\.(?:0|[1-9]\d*))*$/.test(value);
 }
 
 function parseOptionalUInt16(buffer: Buffer, offset: number, length: number, littleEndian: boolean): number | undefined {
@@ -148,7 +150,7 @@ function parseOptionalInteger(text: string | undefined, label: string): number |
   if (!text) return undefined;
   if (!/^\d+$/.test(text)) throw new Error(`DICOM ${label} is invalid.`);
   const value = Number(text);
-  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`DICOM ${label} is invalid.`);
+  if (!Number.isSafeInteger(value) || value < 1) throw new Error(`DICOM ${label} is invalid.`);
   return value;
 }
 
