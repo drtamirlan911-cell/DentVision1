@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/ds/Badge';
 import { Button } from '@/components/ui/ds/Button';
 import { QueryError } from '@/components/ui/ds/QueryError';
 import * as api from '@/utils/api';
+import { useAuth } from '@/store/auth.store';
 
 type SettlementStatus = 'open' | 'invoiced' | 'paid' | 'void';
 
@@ -63,12 +64,19 @@ function externalPaymentUrl(value: unknown): string | null {
 
 export default function DiagnosticSettlements() {
   const queryClient = useQueryClient();
+  const { activeWorkspace } = useAuth();
+  const workspaceCacheKey = [
+    activeWorkspace?.scopeType ?? 'no-scope',
+    activeWorkspace?.scopeId ?? 'no-organization',
+    activeWorkspace?.roleKey ?? 'no-role',
+    activeWorkspace?.branchId ?? 'all-branches',
+  ].join(':');
   const [paymentUrls, setPaymentUrls] = useState<Record<string, string>>({});
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
 
   const query = useQuery({
-    queryKey: ['diagnostics', 'settlements'],
+    queryKey: ['diagnostics', 'settlements', workspaceCacheKey],
     queryFn: api.getDiagnosticsSettlements,
   });
   const settlements = useMemo<DiagnosticSettlement[]>(() => query.data?.items ?? [], [query.data?.items]);
