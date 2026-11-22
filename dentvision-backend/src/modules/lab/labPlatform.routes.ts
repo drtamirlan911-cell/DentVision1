@@ -441,13 +441,16 @@ labPlatformRouter.post('/payouts', async (req: AuthRequest, res) => {
       return res.status(400).json({ ok: false, error: 'Некорректная сумма выплаты' } satisfies ApiResponse);
     }
     try {
-      const payout = await requestPayout({ ownerType: 'PARTNER', ownerId: membership.labId, amountMinor });
-      await writeAuditLog({
-        action: 'DENTAL_LAB_PAYOUT_REQUESTED',
-        entity: 'payout',
-        entityId: payout.id,
-        details: { laboratoryId: membership.labId, amountMinor: payout.amount.toString() },
-        userId: req.user!.id,
+      const payout = await prisma.$transaction(async (tx) => {
+        const created = await requestPayout({ ownerType: 'PARTNER', ownerId: membership.labId, amountMinor }, tx);
+        await writeAuditLog({
+          action: 'DENTAL_LAB_PAYOUT_REQUESTED',
+          entity: 'payout',
+          entityId: created.id,
+          details: { laboratoryId: membership.labId, amountMinor: created.amount.toString() },
+          userId: req.user!.id,
+        }, tx);
+        return created;
       });
       return res.status(201).json({ ok: true, data: serializeBigInt(payout) } satisfies ApiResponse);
     } catch (error) {
