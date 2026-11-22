@@ -30,4 +30,31 @@ describe('partner branch invoice presentation', () => {
     expect(partnerBranchInvoiceStatusTone('paid')).toBe('success');
     expect(partnerBranchInvoiceStatusTone('void')).toBe('error');
   });
+  it('keeps partner payment creation bound to the immutable invoice and provider settlement', () => {
+    const component = readFileSync(
+      resolve(process.cwd(), 'src/components/billing/PartnerBranchSubscriptionBilling.tsx'),
+      'utf8',
+    );
+    const api = readFileSync(resolve(process.cwd(), 'src/utils/api.ts'), 'utf8');
+    const diagnosticWorkspace = readFileSync(
+      resolve(process.cwd(), 'src/pages/diagnostics/workspace/DiagnosticWorkspace.tsx'),
+      'utf8',
+    );
+    const dentalLabWorkspace = readFileSync(
+      resolve(process.cwd(), 'src/pages/diagnostics/DentalLabPlatform.tsx'),
+      'utf8',
+    );
+
+    expect(component).toContain('amountMinor: String(invoice.amountMinor)');
+    expect(component).toContain("provider: 'kaspi_qr'");
+    expect(component).toContain("refType: 'partner_branch_subscription_invoice'");
+    expect(component).toContain('confirmPayment(selectedPaymentId)');
+    expect(component).toContain('enabled: canManageBilling && Boolean(selectedPaymentId)');
+    expect(component).toContain("invoice.status === 'issued' && canManageBilling");
+    expect(api).toContain('/api/finance/partner-branch-billing/invoices?');
+    expect(diagnosticWorkspace).toContain('activeWorkspace?.organizationId || user?.organizationId');
+    expect(dentalLabWorkspace).toContain("activeOrganizationType === 'LABORATORY'");
+    expect(component).not.toContain("status: 'paid'");
+  });
+
 });

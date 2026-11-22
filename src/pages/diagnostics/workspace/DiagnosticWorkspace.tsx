@@ -135,16 +135,16 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   // Membership in another organization does not activate that context.
   // Diagnostic API access is available only in the active authorized context;
   // an ecosystem URL organizationId is context, not authorization proof.
-  const hasDiagnosticAccess = !requiresWorkspaceSelection && (isSuperadmin || (isOwnOrg && orgId === ownOrgId && (canReadOperations || canReadFinance)))
+  const hasDiagnosticAccess = !requiresWorkspaceSelection && (isSuperadmin || (isOwnOrg && orgId === ownOrgId && (canReadOperations || canReadPartnerBilling)))
   const needsOnboarding = !pinnedKind && !claimedKind && !requiresWorkspaceSelection && !isOwnOrg && !isSuperadmin
     && !contextsLoading && !contextsError && diagnosticContexts.length === 0
 
   useEffect(() => {
     if (kind === 'CENTER' && canReadOperations) setActiveTab('worklist')
     else if (canReadOperations) setActiveTab('referrals')
-    else if (canReadFinance) setActiveTab('finance')
+    else if (canReadPartnerBilling) setActiveTab('finance')
     else setActiveTab('')
-  }, [kind, canReadOperations, canReadFinance])
+  }, [kind, canReadOperations, canReadPartnerBilling])
 
   const scope = config.referralScope(orgId)
   const { data: referralsData } = useQuery({

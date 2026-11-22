@@ -50,7 +50,7 @@ export function PartnerBranchSubscriptionBilling({
     queryKey: ['partner-branch-billing', 'payment', organizationId, selectedPaymentId],
     queryFn: () => getPayment(selectedPaymentId!),
     enabled: canManageBilling && Boolean(selectedPaymentId),
-    refetchInterval: (query) => query.state.data?.status === 'paid' ? false : 15_000,
+    refetchInterval: (query) => query.state.data?.status === 'paid' || query.state.data?.providerStatus === 'paid' ? false : 15_000,
   });
 
   const startPaymentMutation = useMutation({
