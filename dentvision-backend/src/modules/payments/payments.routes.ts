@@ -227,6 +227,7 @@ async function settleMedicalLabOrderPayment(
     grossMinor: order.amountMinor,
     operationId: payment.refId,
     branchId: order.branchId,
+    paymentId: payment.id,
   }, db);
   return true;
 }
