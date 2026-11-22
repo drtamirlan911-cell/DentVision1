@@ -7,7 +7,8 @@ import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { uid } from '../../lib/helpers.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
-import { buildWorkspaceContexts, roleLabelFor, shouldAttachDefaultPartnerBranchHint, userRoleForPartnerRole } from './contexts.js';
+import { buildWorkspaceContexts, roleLabelFor, shouldAttachDefaultPartnerBranchHint, shouldAttachMemberPartnerBranchHint, userRoleForPartnerRole } from './contexts.js';
+import { PARTNER_ROLE_BY_KEY } from '../../lib/roleAccessRegistry.js';
 import type { ScopeType } from './contexts.js';
 import {
   acceptInvitation,
@@ -113,7 +114,15 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
     // enforced by context switching endpoints.
     const persons = await prisma.person.findMany({
       where: { userId },
-      include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true, archivedAt: true } }, personRoles: { include: { role: true } } },
+      include: {
+        organization: { select: { id: true, name: true, type: true, logo: true, originalId: true, archivedAt: true } },
+        personRoles: { include: { role: true } },
+        branchMemberships: {
+          where: { active: true },
+          orderBy: { createdAt: 'asc' },
+          select: { branchId: true, branch: { select: { organizationId: true, active: true } } },
+        },
+      },
     }).catch((error) => {
       console.error('IAM contexts: canonical person read failed; using legacy memberships', error);
       return [];
@@ -275,6 +284,13 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
             scopeType,
             scopeId,
             organizationId: org.id,
+            ...(shouldAttachMemberPartnerBranchHint(activeRole)
+              ? {
+                  branchId: activePerson.branchMemberships?.find((membership) =>
+                    membership.branch?.active !== false && membership.branch?.organizationId === org.id,
+                  )?.branchId,
+                }
+              : {}),
             name: org.name,
             roleKey: activeRole,
             roleLabel: roleLabelFor(activeRole),
@@ -301,9 +317,13 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       `;
       const defaultBranchByOrg = new Map(branchRows.map((row) => [row.organizationId, row.branchId]));
       for (const context of contexts) {
+        if (shouldAttachMemberPartnerBranchHint(context.roleKey)) {
+          // Branch-scoped partner roles receive only a branch already assigned
+          // through BranchMember; never substitute the organization's default.
+          continue;
+        }
         if (!shouldAttachDefaultPartnerBranchHint(context.roleKey)) {
-          // An assigned-scope role must not inherit a stale/default branch claim
-          // from a previous workspace token; its access follows assigned work.
+          // ASSIGNED/OWN roles work from explicit work-item assignments, not a branch.
           delete context.branchId;
           continue;
         }
@@ -369,18 +389,57 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
           const member = await prisma.supplierMember.findUnique({ where: { userId_supplierId: { userId: user.id, supplierId: entityId } } });
           if (member) supplierContext = { supplierId: entityId, supplierRole: member.role };
         }
+        const roleRows = await prisma.personRole.findMany({
+          where: { personId: person.id, scopeType: 'organization', scopeId: org.id },
+          include: { role: true },
+        });
+        const roleDefinitions = roleRows
+          .map((row) => PARTNER_ROLE_BY_KEY[String(row.role.key || '').trim().toUpperCase()])
+          .filter((definition): definition is NonNullable<typeof definition> => Boolean(definition));
+        const hasOrganizationPartnerRole = roleDefinitions.some((definition) => definition.defaultScope === 'ORGANIZATION');
+        const hasBranchPartnerRole = roleDefinitions.some((definition) => definition.defaultScope === 'BRANCH');
+        const hasAssignedPartnerRole = roleDefinitions.some((definition) => definition.defaultScope === 'ASSIGNED' || definition.defaultScope === 'OWN');
+        const legacyOrganizationManager = roleRows.some((row) => {
+          const key = String(row.role.key || '').toLowerCase();
+          if (['owner', 'admin', 'manager', 'director'].includes(key)) return true;
+          if (org.type === 'CLINIC') return ['org_owner', 'org_admin'].includes(key);
+          if (org.type === 'EMPLOYER') return key === 'employer_owner';
+          return false;
+        });
+        const orgManager = hasOrganizationPartnerRole || legacyOrganizationManager;
         let selectedBranchId: string | undefined;
         if (branchId) {
-          const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null }>>`SELECT "id", "organization_id" FROM "branches" WHERE "id" = ${branchId} LIMIT 1`;
-          if (!rows[0] || rows[0].organization_id !== org.id) return res.status(403).json({ ok: false, error: 'Филиал не относится к выбранной организации' });
-          const roleRows = await prisma.personRole.findMany({
-            where: { personId: person.id, scopeType: 'organization', scopeId: org.id },
-            include: { role: true },
+          const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null; active: boolean }>>`SELECT "id", "organization_id", "active" FROM "branches" WHERE "id" = ${branchId} LIMIT 1`;
+          if (!rows[0] || rows[0].organization_id !== org.id || !rows[0].active) {
+            return res.status(403).json({ ok: false, error: 'Филиал не относится к активным филиалам выбранной организации' });
+          }
+          if (hasAssignedPartnerRole && !hasOrganizationPartnerRole && !hasBranchPartnerRole) {
+            return res.status(403).json({ ok: false, error: 'Эта роль работает по назначенным задачам, а не по филиалу' });
+          }
+          const assigned = await prisma.branchMember.findUnique({
+            where: { personId_branchId: { personId: person.id, branchId } },
           });
-          const orgManager = roleRows.some((pr) => ['owner', 'org_owner', 'admin', 'org_admin', 'employer_owner'].includes(pr.role.key.toLowerCase()));
-          const assigned = await prisma.branchMember.findUnique({ where: { personId_branchId: { personId: person.id, branchId } } });
-          if (!orgManager && !assigned) return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
+          if (!orgManager && (!assigned || !assigned.active)) {
+            return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
+          }
           selectedBranchId = branchId;
+        } else if (hasBranchPartnerRole && !hasOrganizationPartnerRole) {
+          const memberships = await prisma.branchMember.findMany({
+            where: {
+              personId: person.id,
+              active: true,
+              branch: { organizationId: org.id, active: true },
+            },
+            orderBy: { createdAt: 'asc' },
+            select: { branchId: true },
+          });
+          if (memberships.length === 0) {
+            return res.status(403).json({ ok: false, error: 'Для этой роли сначала назначьте филиал', code: 'BRANCH_ASSIGNMENT_REQUIRED' });
+          }
+          if (memberships.length > 1) {
+            return res.status(400).json({ ok: false, error: 'Выберите филиал для входа в рабочий контекст', code: 'BRANCH_SELECTION_REQUIRED' });
+          }
+          selectedBranchId = memberships[0].branchId;
         }
         const tokens = generateTokens({ ...base, role: scopedRole, organizationId: org.id, organizationOriginalId: org.originalId || undefined, organizationType: org.type, personType: person.personType, ...(selectedBranchId ? { branchId: selectedBranchId } : {}), ...supplierContext, ...(org.type === 'CLINIC' && org.originalId ? { clinicId: org.originalId } : {}) });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'organization', entityId: org.id, details: { scopeType: org.type } });
