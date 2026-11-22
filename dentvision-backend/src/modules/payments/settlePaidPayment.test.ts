@@ -281,6 +281,7 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
       partnerId: 'lab-1',
       grossMinor: 1_500_000n,
       operationId: 'lab-order-1',
+      paymentId: 'pay-med-1',
     }, fakeTx);
   });
 
@@ -322,6 +323,7 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
       partnerId: 'lab-1',
       grossMinor: 1_500_000n,
       operationId: 'lab-order-race',
+      paymentId: 'pay-integrated-race',
     }, db);
   });
 
