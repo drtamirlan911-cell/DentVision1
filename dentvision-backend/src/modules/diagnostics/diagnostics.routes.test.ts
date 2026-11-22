@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { authorizeReferralListScope, partnerRoleKeysHavePermission, redactPartnerReferralFinancials } from './diagnostics.routes.js';
+import { authorizeReferralListScope, partnerReferralReadPermission, partnerRoleKeysHavePermission, redactPartnerReferralFinancials } from './diagnostics.routes.js';
 
 const user = (overrides: Record<string, unknown> = {}) => ({
   id: 'u1',
@@ -9,6 +9,28 @@ const user = (overrides: Record<string, unknown> = {}) => ({
   organizationType: 'LABORATORY',
   ...overrides,
 }) as any;
+
+describe('diagnostic and laboratory referral read permissions', () => {
+  it('uses diagnostics.read for centers and lab.read for laboratories', () => {
+    expect(partnerReferralReadPermission({ centerId: 'center-1' })).toBe('diagnostics.read');
+    expect(partnerReferralReadPermission({ labId: 'lab-1' })).toBe('lab.read');
+    expect(partnerReferralReadPermission({})).toBeNull();
+  });
+
+  it('allows canonical laboratory owners and technicians to read their own order list without diagnostic-center rights', () => {
+    for (const role of ['MEDICAL_LAB_OWNER', 'MEDICAL_LAB_TECHNICIAN', 'DENTAL_LAB_OWNER', 'DENTAL_TECHNICIAN']) {
+      expect(partnerRoleKeysHavePermission([role], 'lab.read')).toBe(true);
+      expect(partnerRoleKeysHavePermission([role], 'diagnostics.read')).toBe(false);
+    }
+  });
+
+  it('keeps diagnostic-center operational roles on diagnostics.read', () => {
+    for (const role of ['DIAGNOSTIC_OWNER', 'DIAGNOSTIC_ADMIN', 'DIAGNOSTIC_MANAGER', 'DIAGNOSTIC_OPERATOR']) {
+      expect(partnerRoleKeysHavePermission([role], 'diagnostics.read')).toBe(true);
+      expect(partnerRoleKeysHavePermission([role], 'lab.read')).toBe(false);
+    }
+  });
+});
 
 describe('diagnostics partner finance authorization', () => {
   it('grants billing visibility only to partner roles with an explicit finance permission', () => {
