@@ -578,6 +578,15 @@ test.describe('Partner operational lifecycle', () => {
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l2sAAAAASUVORK5CYII=',
       'base64',
     );
+    const malformedDicom = Buffer.alloc(140);
+    malformedDicom.write('DICM', 128, 4, 'ascii');
+    const malformedDicomUpload = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/files/upload`, {
+      headers: { Authorization: `Bearer ${centerOwnerToken}` },
+      multipart: { file: { name: 'malformed.dcm', mimeType: 'application/dicom', buffer: malformedDicom } },
+    });
+    expect(malformedDicomUpload.status()).toBe(400);
+    expect((await malformedDicomUpload.json()).code).toBe('DICOM_TRANSFER_SYNTAX_UNSUPPORTED');
+
     const s3Configured = Boolean(process.env.S3_BUCKET && process.env.S3_ACCESS_KEY && process.env.S3_SECRET_KEY);
     const attachmentUpload = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/files/upload`, {
       headers: { Authorization: `Bearer ${centerOwnerToken}` },
@@ -620,6 +629,74 @@ test.describe('Partner operational lifecycle', () => {
       });
       expect(deleteAttachment.status()).toBe(200);
       expect(await prisma.referralFile.findUnique({ where: { id: uploadedFile.id } })).toBeNull();
+    }
+
+    const dicomIds = { study: dicomUid(), series: dicomUid(), sop: dicomUid() };
+    const dicomFixture = buildDicomPart10Fixture(dicomIds);
+    const dicomUpload = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/files/upload`, {
+      headers: { Authorization: `Bearer ${centerOwnerToken}` },
+      multipart: {
+        file: { name: 'diagnostic-e2e.dcm', mimeType: 'application/dicom', buffer: dicomFixture.buffer },
+      },
+    });
+    if (!s3Configured) {
+      expect(dicomUpload.status()).toBe(503);
+      expect((await dicomUpload.json()).code).toBe('DIAGNOSTIC_STORAGE_UNAVAILABLE');
+      expect(await prisma.diagnosticDicomStudy.count({ where: { referralId: referral.id } })).toBe(0);
+    } else {
+      expect(dicomUpload.status(), await dicomUpload.text()).toBe(201);
+      const uploadedDicom = (await dicomUpload.json()).data;
+      expect(uploadedDicom).toMatchObject({
+        fileName: 'diagnostic-e2e.dcm',
+        fileType: 'application/dicom',
+        downloadAvailable: true,
+        dicom: { modality: 'CT', sopInstanceUid: dicomIds.sop },
+      });
+      const indexedStudy = await prisma.diagnosticDicomStudy.findUnique({
+        where: { centerId_studyInstanceUid: { centerId, studyInstanceUid: dicomIds.study } },
+        include: { series: { include: { instances: true } } },
+      });
+      expect(indexedStudy).toMatchObject({
+        referralId: referral.id,
+        centerId,
+        modality: 'CT',
+        studyInstanceUid: dicomIds.study,
+        series: [{
+          seriesInstanceUid: dicomIds.series,
+          instances: [{
+            referralFileId: uploadedDicom.id,
+            sopInstanceUid: dicomIds.sop,
+            sopClassUid: dicomFixture.sopClass,
+            transferSyntaxUid: '1.2.840.10008.1.2.1',
+            rows: 512,
+            columns: 512,
+            bitsAllocated: 16,
+          }],
+        }],
+      });
+      const referralWithDicom = await api.get(`${BASE}/api/diagnostics/referrals/${referral.id}`, {
+        headers: auth(centerOwnerToken),
+      });
+      expect(referralWithDicom.status()).toBe(200);
+      const dicomFile = (await referralWithDicom.json()).data.files.find((file: any) => file.id === uploadedDicom.id);
+      expect(dicomFile.fileUrl).toBeNull();
+      expect(dicomFile.dicom).toMatchObject({
+        sopInstanceUid: dicomIds.sop,
+        series: { seriesInstanceUid: dicomIds.series, modality: 'CT' },
+        study: { studyInstanceUid: dicomIds.study, modality: 'CT' },
+      });
+      const crossReferralDownload = await api.get(
+        `${BASE}/api/diagnostics/referrals/${unrelatedReferralId}/files/${uploadedDicom.id}/download-url`,
+        { headers: auth(centerOwnerToken) },
+      );
+      expect(crossReferralDownload.status()).toBe(404);
+      const deleteDicom = await api.delete(`${BASE}/api/diagnostics/referral-files/${uploadedDicom.id}`, {
+        headers: auth(centerOwnerToken),
+      });
+      expect(deleteDicom.status()).toBe(200);
+      expect(await prisma.diagnosticDicomInstance.count({ where: { sopInstanceUid: dicomIds.sop } })).toBe(0);
+      expect(await prisma.diagnosticDicomSeries.count({ where: { seriesInstanceUid: dicomIds.series } })).toBe(0);
+      expect(await prisma.diagnosticDicomStudy.count({ where: { studyInstanceUid: dicomIds.study } })).toBe(0);
     }
 
     const centerOrganization = await prisma.organization.findFirst({
