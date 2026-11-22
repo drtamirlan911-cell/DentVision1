@@ -28,6 +28,20 @@ describe('medical laboratory scoped role capabilities', () => {
     expect(medicalLabRoleAllows(['medical_lab_quality'], 'result.verify')).toBe(false);
   });
 
+  it('allows finance visibility to owner, admin, manager, reception and finance roles only', () => {
+    for (const role of ['medical_lab_owner', 'medical_lab_admin', 'medical_lab_manager', 'medical_lab_reception', 'medical_lab_finance']) {
+      expect(medicalLabRoleAllows([role], 'finance.read')).toBe(true);
+    }
+    expect(medicalLabRoleAllows(['medical_lab_owner'], 'finance.manage')).toBe(true);
+    expect(medicalLabRoleAllows(['medical_lab_finance'], 'finance.manage')).toBe(true);
+    expect(medicalLabRoleAllows(['medical_lab_admin'], 'finance.manage')).toBe(false);
+    expect(medicalLabRoleAllows(['medical_lab_manager'], 'finance.manage')).toBe(false);
+    for (const role of ['medical_lab_technician', 'medical_lab_validator', 'medical_lab_doctor', 'medical_lab_quality']) {
+      expect(medicalLabRoleAllows([role], 'finance.read')).toBe(false);
+      expect(medicalLabRoleAllows([role], 'finance.manage')).toBe(false);
+    }
+  });
+
   it('supports union of multiple explicit roles in the same organization', () => {
     const roles = ['medical_lab_technician', 'medical_lab_validator'];
     expect(medicalLabRoleAllows(roles, 'result.write')).toBe(true);
