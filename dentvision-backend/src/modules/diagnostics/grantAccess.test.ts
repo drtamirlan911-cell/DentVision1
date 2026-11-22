@@ -113,19 +113,26 @@ describe('grantDiagnosticsAccess — unified role', () => {
 
     const ok = await grantDiagnosticsAccess('DiagnosticCenter', CENTER_ID, USER_ID, 'custom_unmapped_role');
 
-    expect(ok).toBe(true); // membership still granted
+    expect(ok).toBe(false);
+    expect(mocks.centerMemberUpsert).not.toHaveBeenCalled();
+    expect(mocks.personCreate).not.toHaveBeenCalled();
     expect(mocks.personRoleUpsert).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledOnce();
     warn.mockRestore();
   });
 
-  it('still records the legacy membership and the Person when the role is unmapped', async () => {
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('does not persist a legacy membership when a canonical DB role is missing', async () => {
+    mocks.roleFindUnique.mockResolvedValue(null);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    await grantDiagnosticsAccess('DiagnosticCenter', CENTER_ID, USER_ID, 'custom_unmapped_role');
+    const ok = await grantDiagnosticsAccess('Laboratory', 'lab-missing-role', USER_ID, 'medical_lab_finance');
 
-    expect(mocks.centerMemberUpsert).toHaveBeenCalledOnce();
-    expect(mocks.personCreate).toHaveBeenCalledOnce();
+    expect(ok).toBe(false);
+    expect(mocks.labMemberUpsert).not.toHaveBeenCalled();
+    expect(mocks.personCreate).not.toHaveBeenCalled();
+    expect(mocks.personRoleUpsert).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 });
 
