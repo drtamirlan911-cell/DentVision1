@@ -191,7 +191,7 @@ export default function DiagnosticSettlements() {
                         {settlement.status === 'invoiced' ? 'Открыть счёт' : 'Создать счёт Kaspi QR'}
                       </Button>
                     )}
-                    {paymentUrl && settlement.status !== 'paid' && (
+                    {paymentUrl && settlement.status !== 'paid' && settlement.status !== 'void' && (
                       <a
                         href={paymentUrl}
                         target="_blank"
