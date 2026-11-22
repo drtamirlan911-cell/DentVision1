@@ -8,6 +8,7 @@ import {
 
 const periodStart = new Date('2026-12-01T00:00:00.000Z');
 const periodEnd = new Date('2027-01-01T00:00:00.000Z');
+const billingAsOf = new Date('2026-12-01T00:00:00.000Z');
 
 function makeDb(options: {
   organization?: any;
@@ -16,6 +17,7 @@ function makeDb(options: {
   subscription?: any;
   existingInvoice?: any;
   overlappingInvoice?: any;
+  historyBoundary?: Date;
 } = {}) {
   const created: { subscription?: any; invoice?: any } = {};
   const organization = options.organization ?? {
@@ -28,6 +30,15 @@ function makeDb(options: {
   const active = options.active ?? true;
   const tx: any = {
     $executeRaw: async () => undefined,
+    $queryRaw: async (strings: TemplateStringsArray) => {
+      const sql = strings.join(' ');
+      if (sql.includes('INSERT INTO "branch_status_history_baselines"')) return [];
+      if (sql.includes('FROM "branch_status_history_baselines"')) {
+        return [{ initialized_at: options.historyBoundary ?? new Date('2026-10-01T00:00:00.000Z') }];
+      }
+      if (sql.includes('FROM "branches" b')) return options.branches ?? [{ id: 'branch-a' }, { id: 'branch-b' }];
+      return [];
+    },
     organization: {
       findFirst: async () => organization,
     },
@@ -90,10 +101,14 @@ describe('partner branch invoice vertical resolution', () => {
   });
 });
 
+async function issuePartnerBranchInvoiceForTest(input: Parameters<typeof issuePartnerBranchSubscriptionInvoice>[0], db: any) {
+  return issuePartnerBranchSubscriptionInvoice(input, db, billingAsOf);
+}
+
 describe('partner branch invoice issuance', () => {
   it('creates an immutable invoice using active branch snapshots and KZT minor units', async () => {
     const { tx, created } = makeDb();
-    const result = await issuePartnerBranchSubscriptionInvoice({
+    const result = await issuePartnerBranchInvoiceForTest({
       organizationId: 'org-center-1',
       periodStart,
       periodEnd,
@@ -125,7 +140,7 @@ describe('partner branch invoice issuance', () => {
 
   it('applies the documented one-branch minimum to an active single-location partner', async () => {
     const { tx, created } = makeDb({ branches: [] });
-    await issuePartnerBranchSubscriptionInvoice({
+    await issuePartnerBranchInvoiceForTest({
       organizationId: 'org-center-1', periodStart, periodEnd,
     }, tx);
 
@@ -146,7 +161,7 @@ describe('partner branch invoice issuance', () => {
       settings: { laboratoryType: 'DENTAL_LAB', selfServiceType: 'dental_lab', lifecycle: 'ACTIVE', verification: 'VERIFIED', ecosystemVisible: true, legal: { status: 'READY' } },
     };
     const { tx, created } = makeDb({ organization, branches: [{ id: 'lab-branch' }] });
-    await issuePartnerBranchSubscriptionInvoice({
+    await issuePartnerBranchInvoiceForTest({
       organizationId: organization.id, periodStart, periodEnd,
     }, tx);
 
@@ -159,7 +174,7 @@ describe('partner branch invoice issuance', () => {
 
   it('fails closed for an inactive partner and does not create an invoice', async () => {
     const { tx, created } = makeDb({ active: false });
-    await expect(issuePartnerBranchSubscriptionInvoice({
+    await expect(issuePartnerBranchInvoiceForTest({
       organizationId: 'org-center-1', periodStart, periodEnd,
     }, tx)).rejects.toMatchObject({ code: 'PARTNER_NOT_ACTIVE' });
     expect(created.invoice).toBeUndefined();
@@ -185,7 +200,7 @@ describe('partner branch invoice issuance', () => {
       existingInvoice: original,
       branches: [],
     });
-    const result = await issuePartnerBranchSubscriptionInvoice({
+    const result = await issuePartnerBranchInvoiceForTest({
       organizationId: 'org-center-1', periodStart, periodEnd,
     }, tx);
 
@@ -204,7 +219,7 @@ describe('partner branch invoice issuance', () => {
       },
       overlappingInvoice: { id: 'overlap' },
     });
-    await expect(issuePartnerBranchSubscriptionInvoice({
+    await expect(issuePartnerBranchInvoiceForTest({
       organizationId: 'org-center-1',
       periodStart,
       periodEnd: new Date('2027-01-15T00:00:00.000Z'),
@@ -213,12 +228,30 @@ describe('partner branch invoice issuance', () => {
 
   it('rejects invalid or reversed billing periods', async () => {
     const { tx } = makeDb();
-    await expect(issuePartnerBranchSubscriptionInvoice({
+    await expect(issuePartnerBranchInvoiceForTest({
       organizationId: 'org-center-1',
       periodStart,
       periodEnd: periodStart,
     }, tx)).rejects.toMatchObject({ code: 'INVALID_PERIOD' });
+  }); 
+  it('rejects a period earlier than the recorded branch-history baseline', async () => {
+    const { tx, created } = makeDb({ historyBoundary: new Date('2026-12-02T00:00:00.000Z') });
+    await expect(issuePartnerBranchInvoiceForTest({
+      organizationId: 'org-center-1', periodStart, periodEnd,
+    }, tx)).rejects.toMatchObject({ code: 'BILLING_HISTORY_UNAVAILABLE' });
+    expect(created.invoice).toBeUndefined();
   });
+
+  it('rejects a future period instead of pricing it from today’s branch flags', async () => {
+    const { tx, created } = makeDb();
+    await expect(issuePartnerBranchSubscriptionInvoice({
+      organizationId: 'org-center-1',
+      periodStart: new Date('2027-01-01T00:00:00.000Z'),
+      periodEnd: new Date('2027-02-01T00:00:00.000Z'),
+    }, tx, billingAsOf)).rejects.toMatchObject({ code: 'BILLING_HISTORY_UNAVAILABLE' });
+    expect(created.invoice).toBeUndefined();
+  });
+
 });
 
 
