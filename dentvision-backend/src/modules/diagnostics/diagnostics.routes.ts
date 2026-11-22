@@ -169,6 +169,12 @@ function parseDiagnosticAttachment(req: Request, res: Response, next: NextFuncti
   });
 }
 
+export function partnerReferralReadPermission(scope: { centerId?: string | null; labId?: string | null }): string | null {
+  if (scope.centerId) return 'diagnostics.read';
+  if (scope.labId) return 'lab.read';
+  return null;
+}
+
 export function partnerRoleKeysHavePermission(roleKeys: readonly string[], permission: string): boolean {
   const canonicalRoleAliases: Record<string, string> = {
     DIAGNOSTIC_RADIOLOGIST: 'RADIOLOGIST',
@@ -1012,8 +1018,14 @@ diagnosticsRouter.get('/referrals', async (req: AuthRequest, res) => {
     });
     const access = await authorizeReferralListScope(req.user, scope);
     if (access.ok === false) return res.status(access.status || 403).json({ ok: false, error: access.error || 'Нет доступа' });
-    if ((scope.centerId || scope.labId) && !(await hasPartnerScopedPermission(req.user, 'diagnostics.read'))) {
-      return res.status(403).json({ ok: false, error: 'Операционные направления доступны только сотрудникам с правом diagnostics.read.' } satisfies ApiResponse);
+    const referralReadPermission = partnerReferralReadPermission(scope);
+    if (referralReadPermission && !(await hasPartnerScopedPermission(req.user, referralReadPermission))) {
+      return res.status(403).json({
+        ok: false,
+        error: referralReadPermission === 'diagnostics.read'
+          ? 'Операционные направления центра доступны только сотрудникам с правом diagnostics.read.'
+          : 'Заказы лаборатории доступны только сотрудникам с правом lab.read.',
+      } satisfies ApiResponse);
     }
     const branchIds = await referralListBranchIds(req.user, scope.clinicId);
     if (scope.clinicId && branchIds && branchIds.length === 0) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалам клиники' });
