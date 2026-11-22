@@ -102,7 +102,7 @@ describe('diagnostics route contract', () => {
     const dashboardStart = source.indexOf("diagnosticsRouter.get('/dashboard'");
     const dashboardEnd = source.indexOf("diagnosticsRouter.post('/referrals/:id/ai-result'", dashboardStart);
     const dashboardRoute = source.slice(dashboardStart, dashboardEnd);
-    expect(dashboardRoute).toContain('partnerReferralReadPermission(scope)');
+    expect(dashboardRoute).toContain('partnerReferralReadPermission({ centerId: q.centerId, labId: q.labId })');
     expect(dashboardRoute).toContain('redactPartnerDashboardStats');
     expect(dashboardRoute).not.toContain("hasPartnerScopedPermission(req.user, 'billing.read')");
   });
