@@ -367,7 +367,8 @@ describe('diagnostics route contract', () => {
     expect(route).toContain("await hasPartnerScopedPermission(req.user, 'medical.read')");
     expect(route).toContain('redactDiagnosticCenterOperationalReferral(detail)');
     expect(route).toContain("canReadFiles: await hasPartnerScopedPermission(req.user, 'files.read')");
-    expect(source).toContain("'diagnostic_reception'");
+    expect(source).toContain("CENTER_RECEPTION: 'DIAGNOSTIC_RECEPTION'");
+    expect(source).toContain("RECEPTION: 'DIAGNOSTIC_RECEPTION'");
     expect(source).toContain("DIAGNOSTIC_RADIOLOGIST: 'RADIOLOGIST'");
   });
 
@@ -410,7 +411,7 @@ describe('diagnostics route contract', () => {
 
   it('parses DICOM Part 10 identifiers and indexes study, series and instances separately from stored pixel bytes', () => {
     expect(source).toContain("import { parseDicomPart10Metadata } from './dicomMetadata.js'");
-    expect(source).toContain('const dicomMetadata = parseDicomPart10Metadata(file.buffer)');
+    expect(source).toContain('dicomMetadata = parseDicomPart10Metadata(file.buffer)');
     expect(source).toContain('dicomMetadata ? { dicomMetadata }');
     expect(source).toContain('data.dicomIndex');
     expect(dicomParserSource).toContain('DICOM Part 10 preamble is missing');
