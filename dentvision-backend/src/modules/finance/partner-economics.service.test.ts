@@ -67,6 +67,26 @@ describe('partner economics calculator', () => {
     expect(result.commissionMinor).toBe(300_000n);
   });
 
+  it('never lets a minimum fee exceed gross or create negative partner revenue', () => {
+    const smallGross = 10_000n;
+    const cases = [
+      calculatePartnerEconomics({ ...base, vertical: 'DIAGNOSTIC_3D', grossMinor: smallGross }, diagnostic),
+      calculatePartnerEconomics({ ...base, vertical: 'MEDICAL_ANALYSIS', grossMinor: smallGross }, analysis),
+      calculatePartnerEconomics({ ...base, vertical: 'DENTAL_LAB', grossMinor: smallGross, monthlyGmvMinor: smallGross }, dentalLab),
+    ];
+
+    for (const result of cases) {
+      expect(result.commissionMinor).toBe(smallGross);
+      expect(result.partnerRevenueMinor).toBe(0n);
+      expect(result.partnerRevenueMinor).toBeGreaterThanOrEqual(0n);
+      expect(result.commissionMinor).toBeLessThanOrEqual(result.grossMinor);
+    }
+
+    const zero = calculatePartnerEconomics({ ...base, vertical: 'DIAGNOSTIC_3D', grossMinor: 0n }, diagnostic);
+    expect(zero.commissionMinor).toBe(0n);
+    expect(zero.partnerRevenueMinor).toBe(0n);
+  });
+
   it('applies medical analysis 6% with floor and cap', () => {
     const floor = calculatePartnerEconomics({ ...base, vertical: 'MEDICAL_ANALYSIS', grossMinor: 1_000n * 100n }, analysis);
     const normal = calculatePartnerEconomics({ ...base, vertical: 'MEDICAL_ANALYSIS', grossMinor: 10_000n * 100n }, analysis);
