@@ -59,7 +59,7 @@ function buildDicomPart10Fixture(ids: { study: string; series: string; sop: stri
     dicomExplicitElement(0x0028, 0x0010, 'US', Buffer.from([0x00, 0x02])),
     dicomExplicitElement(0x0028, 0x0011, 'US', Buffer.from([0x00, 0x02])),
     dicomExplicitElement(0x0028, 0x0100, 'US', Buffer.from([0x10, 0x00])),
-    dicomExplicitElement(0x7fe0, 0x0010, 'OB', Buffer.from([1, 2, 3, 4])),
+    dicomExplicitElement(0x7fe0, 0x0010, 'OW', Buffer.from([1, 2, 3, 4])),
   ];
   return { buffer: Buffer.concat([preamble, ...meta, ...dataset]), sopClass };
 }
