@@ -338,7 +338,7 @@ describe('payment creation server-side pricing and metadata protection', () => {
       refType: 'dental_lab_order',
       refId: 'lab-order-1',
       invoiceId: 'invoice-1',
-      domain: 'attacker-domain',
+      domain: 'crm', // Client cannot reroute a platform invoice to the clinic cashier.
       sellerType: 'PLATFORM',
       sellerId: 'attacker-seller',
       meta: { laboratoryId: 'attacker-lab', labOrderId: 'attacker-order', clinicId: 'attacker-clinic', branchId: 'attacker-branch' },
@@ -947,6 +947,7 @@ describe('partner branch subscription invoice payment', () => {
       amountMinor: 4_990_000n,
       refId: 'partner-invoice-1',
     });
+    expect(m.createClinicKaspiPayment).not.toHaveBeenCalled();
     const paymentData = m.paymentCreate.mock.calls[0][0].data;
     expect(paymentData).toMatchObject({
       amount: 4_990_000n,
