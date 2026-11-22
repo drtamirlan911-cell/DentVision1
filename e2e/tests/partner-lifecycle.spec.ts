@@ -693,6 +693,15 @@ test.describe('Partner operational lifecycle', () => {
         series: { seriesInstanceUid: dicomIds.series, modality: 'CT' },
         study: { studyInstanceUid: dicomIds.study, modality: 'CT' },
       });
+      const duplicateSopUpload = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/files/upload`, {
+        headers: { Authorization: `Bearer ${centerOwnerToken}` },
+        multipart: { file: { name: 'duplicate-sop.dcm', mimeType: 'application/dicom', buffer: dicomFixture.buffer } },
+      });
+      expect(duplicateSopUpload.status()).toBe(409);
+      expect((await duplicateSopUpload.json()).code).toBe('DICOM_INSTANCE_ALREADY_EXISTS');
+      expect(await prisma.referralFile.count({ where: { referralId: referral.id, fileName: 'diagnostic-e2e.dcm' } })).toBe(1);
+      expect(await prisma.diagnosticDicomInstance.count({ where: { sopInstanceUid: dicomIds.sop } })).toBe(1);
+
       const otherReferralResponse = await api.post(`${BASE}/api/diagnostics/referrals`, {
         headers: auth(ownerToken),
         data: {
