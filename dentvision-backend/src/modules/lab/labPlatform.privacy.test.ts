@@ -10,6 +10,7 @@ const routePaths = [
   'dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts',
   'dentvision-backend/src/modules/academy/academy.routes.ts',
   'dentvision-backend/src/modules/lab/lab.routes.ts',
+  'dentvision-backend/src/modules/public/publicDiagnosticsBooking.routes.ts',
 ];
 
 const routeSources = routePaths.map((path) => ({
@@ -35,18 +36,17 @@ describe('Partner workspace privacy logging', () => {
     expect(JSON.stringify(result)).not.toContain('+7 701 555 0101');
   });
 
-  it('does not log raw exceptions from partner workspaces', () => {
+  it('does not log raw exceptions from partner and patient-facing routes', () => {
     for (const { path, source } of routeSources) {
-      const logLines = source.split(String.fromCharCode(10)).filter((line) => line.includes('console.error('));
+      const logLines = source.split(String.fromCharCode(10)).filter((line) =>
+        line.includes('console.error(') || line.includes('console.warn('),
+      );
       expect(logLines.length, path).toBeGreaterThan(0);
       expect(source, path).toContain("import { safeErrorKind } from '../../lib/safeError.js';");
       for (const line of logLines) {
         expect(line, path).toContain('safeErrorKind(');
         const hasRawExceptionArgument = [
-          ', error);',
-          ', err);',
-          ', error));',
-          ', err));',
+          ', error);', ', err);', ', error));', ', err));',
         ].some((suffix) => line.includes(suffix));
         expect(hasRawExceptionArgument, path).toBe(false);
       }
