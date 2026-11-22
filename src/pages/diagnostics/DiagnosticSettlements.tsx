@@ -71,7 +71,8 @@ export default function DiagnosticSettlements() {
     queryKey: ['diagnostics', 'settlements'],
     queryFn: api.getDiagnosticsSettlements,
   });
-  const settlements = useMemo<DiagnosticSettlement[]>(() => query.data ?? [], [query.data]);
+  const settlements = useMemo<DiagnosticSettlement[]>(() => query.data?.items ?? [], [query.data?.items]);
+  const canRequestPayment = Boolean(query.data?.canRequestPayment);
 
   const totals = useMemo(() => ({
     due: sumMinor(settlements.filter((item) => item.status === 'open' || item.status === 'invoiced')),
@@ -158,7 +159,7 @@ export default function DiagnosticSettlements() {
           {settlements.map((settlement) => {
             const status = STATUS[settlement.status] || STATUS.open;
             const paymentUrl = paymentUrls[settlement.id];
-            const canRequestPayment = settlement.status === 'open' || settlement.status === 'invoiced';
+            const canPaySettlement = canRequestPayment && (settlement.status === 'open' || settlement.status === 'invoiced');
             return (
               <Card key={settlement.id} padding="md">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -181,7 +182,7 @@ export default function DiagnosticSettlements() {
                       <p className="text-xs text-txt-muted">Комиссия DentVision</p>
                       <p className="text-xl font-semibold tabular-nums text-txt-primary">{formatMinor(settlement.commissionMinor)}</p>
                     </div>
-                    {canRequestPayment && (
+                    {canPaySettlement && (
                       <Button
                         size="sm"
                         onClick={() => requestPayment(settlement.id)}
