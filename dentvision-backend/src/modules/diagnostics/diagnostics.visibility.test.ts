@@ -2,19 +2,50 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-describe('diagnostics public visibility boundary', () => {
-  it('requires explicit ecosystemVisible=true for center list/detail paths', () => {
-    const source = readFileSync(
-      resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnostics.service.ts'),
-      'utf8',
-    );
+import { canReadDiagnosticCenterCatalog, canReadPartnerCatalog } from './diagnostics.service.js';
 
-    expect(source).toContain('return (s as any).ecosystemVisible === true;');
-    expect(source).toContain('if (settings.ecosystemVisible !== true) return null;');
-    expect(source).not.toContain('ecosystemVisible !== false');
+describe('diagnostics public visibility boundary', () => {
+  it('requires an active center subscription for both private and public catalog access', () => {
+    expect(canReadDiagnosticCenterCatalog({
+      isPubliclyVisible: true,
+      subscriptionActive: false,
+      isActiveOrganizationMember: false,
+    })).toBe(false);
+    expect(canReadDiagnosticCenterCatalog({
+      isPubliclyVisible: true,
+      subscriptionActive: true,
+      isActiveOrganizationMember: false,
+    })).toBe(true);
+  });
+
+  it('allows private center catalogue access only to active organization members', () => {
+    expect(canReadDiagnosticCenterCatalog({
+      isPubliclyVisible: false,
+      subscriptionActive: true,
+      isActiveOrganizationMember: false,
+    })).toBe(false);
+    expect(canReadDiagnosticCenterCatalog({
+      isPubliclyVisible: false,
+      subscriptionActive: true,
+      isActiveOrganizationMember: true,
+    })).toBe(true);
+  });
+
+  it('keeps laboratory private catalogues restricted to active members while preserving public discovery', () => {
+    expect(canReadPartnerCatalog({
+      isPubliclyVisible: false,
+      isActiveOrganizationMember: false,
+    })).toBe(false);
+    expect(canReadPartnerCatalog({
+      isPubliclyVisible: false,
+      isActiveOrganizationMember: true,
+    })).toBe(true);
+    expect(canReadPartnerCatalog({
+      isPubliclyVisible: true,
+      isActiveOrganizationMember: false,
+    })).toBe(true);
   });
 });
-
 
 describe('diagnostic result signing role boundary', () => {
   it('does not grant result signing to partner owner/admin/manager/quality roles', () => {
