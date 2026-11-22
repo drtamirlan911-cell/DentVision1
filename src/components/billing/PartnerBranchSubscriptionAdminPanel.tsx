@@ -36,9 +36,12 @@ function rowsOf(value: any): OrganizationOption[] {
 function verticalOf(org: OrganizationOption): string {
   if (org.type === 'DIAGNOSTIC_CENTER') return 'DIAGNOSTIC_3D';
   const settings = org.settings && typeof org.settings === 'object' ? org.settings : {};
-  const value = String(settings.partnerVertical || settings.laboratoryType || settings.selfServiceType || '').toUpperCase();
-  if (value.includes('DENTAL')) return 'DENTAL_LAB';
-  if (value.includes('MEDICAL')) return 'MEDICAL_ANALYSIS';
+  const explicitType = String(settings.partnerVertical || settings.laboratoryType || settings.selfServiceType || '')
+    .trim()
+    .toUpperCase()
+    .replace(/-/g, '_');
+  if (['DENTAL_LAB', 'DENTAL_LABORATORY'].includes(explicitType)) return 'DENTAL_LAB';
+  if (['MEDICAL_ANALYSIS', 'MEDICAL_LAB', 'MEDICAL_LABORATORY'].includes(explicitType)) return 'MEDICAL_ANALYSIS';
   return 'LABORATORY';
 }
 
@@ -62,11 +65,14 @@ export function PartnerBranchSubscriptionAdminPanel() {
         getOrganizations({ type: 'DIAGNOSTIC_CENTER', search: search.trim() || undefined, page: 1, limit: 100 }),
         getOrganizations({ type: 'LABORATORY', search: search.trim() || undefined, page: 1, limit: 100 }),
       ]);
-      const candidates = [...rowsOf(centers), ...rowsOf(laboratories)].filter((org) =>
-        Boolean(org.id && org.originalId)
-        && ((org.type === 'DIAGNOSTIC_CENTER' && org.originalType === 'DiagnosticCenter')
-          || (org.type === 'LABORATORY' && org.originalType === 'Laboratory')),
-      );
+      const candidates = [...rowsOf(centers), ...rowsOf(laboratories)].filter((org) => {
+        const canonicalMapping = Boolean(org.id && org.originalId)
+          && ((org.type === 'DIAGNOSTIC_CENTER' && org.originalType === 'DiagnosticCenter')
+            || (org.type === 'LABORATORY' && org.originalType === 'Laboratory'));
+        const supportedVertical = org.type === 'DIAGNOSTIC_CENTER'
+          || ['DENTAL_LAB', 'MEDICAL_ANALYSIS'].includes(verticalOf(org));
+        return canonicalMapping && supportedVertical;
+      });
       return candidates.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
     },
     staleTime: 30_000,

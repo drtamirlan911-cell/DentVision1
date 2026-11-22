@@ -146,5 +146,17 @@ describe('partner branch invoice presentation', () => {
     expect(component).toContain("!paymentFailed && invoice.status !== 'paid'");
   });
 
+  it('offers only laboratory verticals covered by the partner branch economics policy', () => {
+    const adminPanel = readFileSync(
+      resolve(process.cwd(), 'src/components/billing/PartnerBranchSubscriptionAdminPanel.tsx'),
+      'utf8',
+    );
+    expect(adminPanel).toContain("['DENTAL_LAB', 'DENTAL_LABORATORY'].includes(explicitType)");
+    expect(adminPanel).toContain("['MEDICAL_ANALYSIS', 'MEDICAL_LAB', 'MEDICAL_LABORATORY'].includes(explicitType)");
+    expect(adminPanel).toContain("['DENTAL_LAB', 'MEDICAL_ANALYSIS'].includes(verticalOf(org))");
+    expect(adminPanel).toContain('return canonicalMapping && supportedVertical');
+    expect(adminPanel).toContain("return 'LABORATORY'");
+  });
+
 
 });
