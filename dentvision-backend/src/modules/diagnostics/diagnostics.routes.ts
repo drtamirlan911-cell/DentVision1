@@ -435,7 +435,7 @@ diagnosticsRouter.post('/settlements/:id/pay', async (req: AuthRequest, res) => 
     }
 
     const result = await paySettlement(settlement.id);
-    const qr = result.qr
+    const qr = (result.alreadyPaid ? null : result.qr)
       || (result.payment?.meta as any)?.qr
       || null;
     if (!result.alreadyPaid) {
