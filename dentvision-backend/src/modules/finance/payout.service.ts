@@ -96,23 +96,33 @@ async function resolvePayoutRequesterUserIds(
     return members.map((m) => m.userId);
   }
   if (ownerType === 'PARTNER') {
-    const legacyMembers = await db.laboratoryMember.findMany({
-      where: {
-        labId: ownerId,
-        role: { in: ['owner', 'admin', 'manager', 'director', 'lab_manager', 'lab_finance', 'finance', 'accountant'] },
-      },
-      select: { userId: true },
-    });
+    const [legacyLabMembers, legacyDiagnosticMembers] = await Promise.all([
+      db.laboratoryMember.findMany({
+        where: {
+          labId: ownerId,
+          role: { in: ['owner', 'admin', 'manager', 'director', 'lab_manager', 'lab_finance', 'finance', 'accountant'] },
+        },
+        select: { userId: true },
+      }),
+      db.diagnosticCenterMember.findMany({
+        where: {
+          centerId: ownerId,
+          role: { in: ['owner', 'admin', 'manager', 'director', 'finance', 'accountant'] },
+        },
+        select: { userId: true },
+      }),
+    ]);
 
     // New partner workspaces use organization-scoped PersonRole as the
     // authority. Resolve finance/management recipients through that contract
-    // as well as the legacy member table during migration.
+    // as well as legacy member tables during migration.
     const organization = await db.organization.findFirst({
-      where: { type: 'LABORATORY', originalType: 'Laboratory', originalId: ownerId },
+      where: { originalType: { in: ['Laboratory', 'DiagnosticCenter'] }, originalId: ownerId },
       select: { id: true },
     });
     const canonicalRoles = new Set([
-      'medical_lab_owner', 'medical_lab_admin', 'medical_lab_manager', 'medical_lab_finance',
+      'diagnostic_owner', 'diagnostic_admin', 'diagnostic_manager', 'diagnostic_finance', 'diagnostic_reception',
+      'medical_lab_owner', 'medical_lab_admin', 'medical_lab_manager', 'medical_lab_reception', 'medical_lab_finance',
       'dental_lab_owner', 'dental_lab_admin', 'dental_lab_manager', 'lab_finance',
     ]);
     const canonicalMembers = organization
@@ -129,7 +139,7 @@ async function resolvePayoutRequesterUserIds(
       .filter((member) => canonicalRoles.has(String(member.role.key || '').trim().toLowerCase()))
       .map((member) => member.person.userId)
       .filter((userId): userId is string => Boolean(userId));
-    return [...new Set([...legacyMembers.map((member) => member.userId), ...canonicalUserIds])];
+    return [...new Set([...legacyLabMembers, ...legacyDiagnosticMembers].map((member) => member.userId).concat(canonicalUserIds))];
   }
   return [];
 }
