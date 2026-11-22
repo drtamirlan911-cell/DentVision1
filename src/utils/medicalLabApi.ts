@@ -30,6 +30,50 @@ export interface MedicalLabDetail {
   isLaboratoryWorkspace?: boolean;
 }
 
+export interface MedicalLabCapabilities {
+  laboratoryId: string;
+  roles: string[];
+  capabilities: string[];
+}
+export interface MedicalLabFinance {
+  wallet: { id: string; ownerType: 'PARTNER'; ownerId: string; currency: string; balance: string };
+  availableBalanceMinor: string;
+  canRequestPayout: boolean;
+  payouts: Array<{ id: string; amount: string; status: 'requested' | 'approved' | 'paid' | 'rejected'; createdAt: string; updatedAt: string }>;
+  economics: {
+    period: { from: string | null; to: string | null };
+    totals: {
+      operations: number;
+      grossMinor: string;
+      commissionMinor: string;
+      partnerPayoutMinor: string;
+      costMinor: string;
+      contributionMarginMinor: string;
+      contributionMarginBps: number;
+    };
+    rows: Array<{
+      transactionId: string;
+      operationId: string;
+      grossMinor: string;
+      commissionMinor: string;
+      partnerPayoutMinor: string;
+      status: string;
+      economicsVersion: number;
+      payoutId: string | null;
+      payoutStatus: string | null;
+      payoutAmountMinor: string | null;
+    }>;
+    discrepancies: number;
+  };
+}
+export const getMedicalLabCapabilities = () => request<MedicalLabCapabilities>('/capabilities');
+export const getMedicalLabFinance = () => request<MedicalLabFinance>('/finance');
+export const requestMedicalLabPayout = (amount: string) =>
+  request<{ id: string; amount: string; status: 'requested' }>(
+    '/payouts',
+    { method: 'POST', body: JSON.stringify({ amount: amount.trim() }) },
+  );
+
 export const listMedicalLabOrders = (params: { patientId?: string; caseId?: string; status?: string } = {}) => {
   const q = new URLSearchParams();
   if (params.patientId) q.set('patientId', params.patientId);
