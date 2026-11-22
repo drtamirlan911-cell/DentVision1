@@ -1372,6 +1372,13 @@ paymentsRouter.post('/:id/refund', authenticate, async (req: AuthRequest, res) =
     if (!(await assertPaymentOwner(req, payment))) {
       return res.status(403).json({ ok: false, error: 'Нет доступа к платежу' } satisfies ApiResponse);
     }
+    if (payment.refType === 'partner_branch_subscription_invoice') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Возврат филиальной подписки ещё не подключён к процедуре кредит-ноты и перерасчёта периода',
+        code: 'PARTNER_BRANCH_REFUND_NOT_IMPLEMENTED',
+      } satisfies ApiResponse);
+    }
     const clinicId = clinicPaymentScope(payment);
     if (clinicId && !(await requireClinicPaymentWritable(req, res, clinicId))) return;
 
@@ -1659,7 +1666,7 @@ paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
       return res.json({ ok: true, data: { id: payment.id, status: payment.status, settled: false } } satisfies ApiResponse);
     }
 
-    const newStatus = status === 'paid' ? 'paid' : status === 'failed' ? 'failed' : 'pending';
+    const newStatus = status === 'paid' ? 'paid' : status === 'failed' ? 'failed' : status === 'expired' ? 'expired' : 'pending';
     let settled = false;
     if (newStatus === 'paid') {
       // Same atomic guard as /confirm: only the caller that actually flips
@@ -1674,9 +1681,22 @@ paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
     } else {
       // Non-paid callbacks may only transition a still-pending payment. A stale
       // failed/pending callback must never overwrite a paid or terminal state.
-      await prisma.payment.updateMany({
-        where: { id: payment.id, status: 'pending' },
-        data: { status: newStatus },
+      await prisma.$transaction(async (tx) => {
+        const changed = await tx.payment.updateMany({
+          where: { id: payment.id, status: 'pending' },
+          data: { status: newStatus },
+        });
+        if (
+          changed.count === 1
+          && (newStatus === 'failed' || newStatus === 'expired')
+          && payment.refType === 'partner_branch_subscription_invoice'
+          && payment.refId
+        ) {
+          await releasePartnerBranchSubscriptionInvoicePayment({
+            invoiceId: payment.refId,
+            paymentId: payment.id,
+          }, tx);
+        }
       });
     }
 
