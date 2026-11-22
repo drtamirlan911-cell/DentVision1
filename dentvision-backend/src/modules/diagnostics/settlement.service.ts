@@ -147,6 +147,15 @@ export async function userOwnsSettlement(userId: string, ownerType: string, owne
  * gateway payment. A winning request stores the durable Payment id; a request
  * that loses the reservation re-reads it and reuses the completed payment.
  */
+async function ensureSettlementInvoiced(settlement: NonNullable<Awaited<ReturnType<typeof prisma.settlement.findUnique>>>, payment: { id: string }) {
+  // Never downgrade a settlement that a webhook has already marked paid.
+  await prisma.settlement.updateMany({
+    where: { id: settlement.id, status: { not: 'paid' } },
+    data: { status: 'invoiced', paymentId: payment.id },
+  });
+  return (await prisma.settlement.findUnique({ where: { id: settlement.id } })) ?? settlement;
+}
+
 export async function paySettlement(settlementId: string) {
   const settlement = await prisma.settlement.findUnique({ where: { id: settlementId } });
   if (!settlement) { const err = new Error('Расчёт не найден'); (err as any).status = 404; throw err; }
@@ -158,10 +167,10 @@ export async function paySettlement(settlementId: string) {
   if (existing && existing.expiresAt > new Date()) {
     if (existing.paymentId) {
       const payment = await prisma.payment.findUnique({ where: { id: existing.paymentId } });
-      if (payment) return { settlement, payment, alreadyPaid: false as const, qr: (payment.meta as any)?.qr };
+      if (payment) return { settlement: await ensureSettlementInvoiced(settlement, payment), payment, alreadyPaid: false as const, qr: (payment.meta as any)?.qr };
     }
     const pending = await prisma.payment.findFirst({ where: { refType: 'settlement', refId: settlementId, status: 'pending' } });
-    if (pending) return { settlement, payment: pending, alreadyPaid: false as const, qr: (pending.meta as any)?.qr };
+    if (pending) return { settlement: await ensureSettlementInvoiced(settlement, pending), payment: pending, alreadyPaid: false as const, qr: (pending.meta as any)?.qr };
     const err = new Error('Платёж для расчёта уже создаётся');
     (err as any).status = 409;
     throw err;
@@ -175,7 +184,7 @@ export async function paySettlement(settlementId: string) {
   if (existing) {
     if (existing.paymentId) {
       const payment = await prisma.payment.findUnique({ where: { id: existing.paymentId } });
-      if (payment) return { settlement, payment, alreadyPaid: false as const, qr: (payment.meta as any)?.qr };
+      if (payment) return { settlement: await ensureSettlementInvoiced(settlement, payment), payment, alreadyPaid: false as const, qr: (payment.meta as any)?.qr };
     }
     await prisma.idempotencyRecord.deleteMany({ where: { id: existing.id, paymentId: null } });
   }
@@ -189,10 +198,10 @@ export async function paySettlement(settlementId: string) {
     const raced = await prisma.idempotencyRecord.findUnique({ where: { key: idempotencyKey } });
     if (raced?.paymentId) {
       const payment = await prisma.payment.findUnique({ where: { id: raced.paymentId } });
-      if (payment) return { settlement, payment, alreadyPaid: false as const, qr: (payment.meta as any)?.qr };
+      if (payment) return { settlement: await ensureSettlementInvoiced(settlement, payment), payment, alreadyPaid: false as const, qr: (payment.meta as any)?.qr };
     }
     const pending = await prisma.payment.findFirst({ where: { refType: 'settlement', refId: settlementId, status: 'pending' } });
-    if (pending) return { settlement, payment: pending, alreadyPaid: false as const, qr: (pending.meta as any)?.qr };
+    if (pending) return { settlement: await ensureSettlementInvoiced(settlement, pending), payment: pending, alreadyPaid: false as const, qr: (pending.meta as any)?.qr };
     const err = new Error('Платёж для расчёта уже создаётся');
     (err as any).status = 409;
     throw err;
@@ -208,9 +217,9 @@ export async function paySettlement(settlementId: string) {
         meta: { qr: created.qr, ownerType: settlement.ownerType, ownerId: settlement.ownerId, settlementId },
       },
     });
-    await prisma.settlement.update({ where: { id: settlementId }, data: { status: 'invoiced', paymentId: payment.id } });
+    const invoicedSettlement = await prisma.settlement.update({ where: { id: settlementId }, data: { status: 'invoiced', paymentId: payment.id } });
     await prisma.idempotencyRecord.update({ where: { id: reservation.id }, data: { paymentId: payment.id } });
-    return { settlement, payment, alreadyPaid: false as const, qr: created.qr };
+    return { settlement: invoicedSettlement, payment, alreadyPaid: false as const, qr: created.qr };
   } catch (error) {
     await prisma.idempotencyRecord.delete({ where: { id: reservation.id } }).catch(() => undefined);
     throw error;
