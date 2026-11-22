@@ -63,6 +63,7 @@ export function TeamTab({ config, orgId }: TabProps) {
   const queryClient = useQueryClient()
   const iam = useIam()
   const canManageBranches = iam.hasPermission('staff.write') || iam.hasPermission('staff.manage')
+  const canManageInvitations = canManageBranches
   const [role, setRole] = useState('operator')
   const [email, setEmail] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
@@ -71,7 +72,7 @@ export function TeamTab({ config, orgId }: TabProps) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['iam', 'invitations', orgId],
     queryFn: () => api.getOrganizationInvitations(orgId),
-    enabled: !!orgId,
+    enabled: Boolean(orgId && canManageInvitations),
     retry: false,
   })
   const invitations = data?.data || data || []
@@ -82,7 +83,8 @@ export function TeamTab({ config, orgId }: TabProps) {
     enabled: Boolean(orgId && !isDiagnosticCenter),
     retry: false,
   })
-  const laboratoryType = String(organizationQuery.data?.organization?.settings?.laboratoryType || '').toUpperCase()
+  const laboratorySettings = organizationQuery.data?.organization?.settings || {}
+  const laboratoryType = String(laboratorySettings.laboratoryType || laboratorySettings.selfServiceType || '').toUpperCase()
   const inviteRoleOptions = isDiagnosticCenter
     ? ROLES
     : laboratoryType === 'DENTAL_LAB' ? DENTAL_LAB_ROLES : MEDICAL_LAB_ROLES
@@ -196,21 +198,10 @@ export function TeamTab({ config, orgId }: TabProps) {
     }
   }
 
-  // The list endpoint answers 403 for anyone below admin, which is the honest
-  // answer to "may I manage the team" — show that rather than an empty table.
-  if (error) {
-    return (
-      <Card padding="lg">
-        <p className="text-sm text-txt-muted text-center py-6">
-          Приглашать сотрудников может владелец или администратор организации.
-        </p>
-      </Card>
-    )
-  }
-
   return (
     <div className="space-y-4">
-      <Card padding="md">
+      {canManageInvitations && (
+        <Card padding="md">
         <h3 className="text-sm font-semibold text-txt-primary mb-1">Пригласить сотрудника</h3>
         <p className="text-sm text-txt-muted mb-4">
           Код действует 7 дней и срабатывает один раз. Если указать почту, кодом сможет
@@ -253,6 +244,7 @@ export function TeamTab({ config, orgId }: TabProps) {
           </Button>
         </div>
       </Card>
+      )}
 
       {iam.hasPermission('staff.read') && (
         <Card padding="md">
@@ -340,9 +332,12 @@ export function TeamTab({ config, orgId }: TabProps) {
         </Card>
       )}
 
+      {canManageInvitations && (
       <Card padding="md">
         <h3 className="text-sm font-semibold text-txt-primary mb-3">Активные приглашения</h3>
-        {isLoading ? (
+        {error ? (
+          <p className="py-4 text-center text-sm text-error">Не удалось загрузить приглашения.</p>
+        ) : isLoading ? (
           <Skeleton className="h-24" />
         ) : invitations.length === 0 ? (
           <div className="flex h-24 items-center justify-center text-sm text-txt-muted">
@@ -379,6 +374,7 @@ export function TeamTab({ config, orgId }: TabProps) {
           </ul>
         )}
       </Card>
+      )}
     </div>
   )
 }
