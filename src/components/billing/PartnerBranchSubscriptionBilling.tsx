@@ -95,9 +95,12 @@ export function PartnerBranchSubscriptionBilling({
   const paymentQr = typeof payment?.qr === 'string' ? payment.qr : '';
   const paymentQrIsImage = paymentQr.startsWith('data:image/');
   const paymentQrIsLink = /^https?:\/\//i.test(paymentQr);
-  const providerPaid = payment?.status === 'paid' || payment?.providerStatus === 'paid';
-  const paymentTerminalStatus = String(payment?.status || payment?.providerStatus || '').toLowerCase();
-  const paymentFailed = ['failed', 'expired'].includes(paymentTerminalStatus);
+  const paymentStatus = String(payment?.status || '').toLowerCase();
+  const providerStatus = String(payment?.providerStatus || '').toLowerCase();
+  const providerPaid = paymentStatus === 'paid' || providerStatus === 'paid';
+  const providerFailed = ['failed', 'expired'].includes(providerStatus);
+  const paymentFailed = ['failed', 'expired'].includes(paymentStatus);
+  const paymentTerminalStatus = paymentFailed ? paymentStatus : providerStatus;
 
   useEffect(() => {
     if (paymentFailed) {
@@ -187,10 +190,11 @@ export function PartnerBranchSubscriptionBilling({
                 <div className="space-y-3 rounded-xl border border-bdr-subtle bg-surface-1 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-semibold text-txt-primary">Платёж {selectedPaymentId.slice(0, 12)}</p>
-                    <Badge variant={providerPaid ? 'success' : paymentFailed ? 'error' : 'warning'}>
+                    <Badge variant={providerPaid ? 'success' : (paymentFailed || providerFailed) ? 'error' : 'warning'}>
                       {providerPaid ? 'Оплата подтверждена провайдером'
                         : paymentFailed ? (paymentTerminalStatus === 'expired' ? 'Платёж истёк' : 'Платёж отклонён')
-                          : 'Ожидает подтверждения Kaspi'}
+                          : providerFailed ? 'Провайдер отказал — требуется синхронизация'
+                            : 'Ожидает подтверждения Kaspi'}
                     </Badge>
                   </div>
                   {paymentQuery.isLoading ? <Skeleton className="h-20" /> : paymentQuery.isError ? (
@@ -205,7 +209,7 @@ export function PartnerBranchSubscriptionBilling({
                   )}
                   {!paymentFailed && invoice.status !== 'paid' && invoice.status !== 'void' && (
                     <Button size="sm" variant="secondary" loading={confirmMutation.isPending} disabled={confirmMutation.isPending || paymentQuery.isLoading} onClick={() => confirmMutation.mutate()}>
-                      {providerPaid ? 'Завершить подтверждение оплаты' : 'Проверить оплату'}
+                      {providerPaid ? 'Завершить подтверждение оплаты' : providerFailed ? 'Обновить статус счёта' : 'Проверить оплату'}
                     </Button>
                   )}
                   {paymentFailed && <p role="status" className="text-xs text-error">Платёж не завершён. Счёт освобождён и доступен для повторной оплаты.</p>}

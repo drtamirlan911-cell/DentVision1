@@ -134,5 +134,17 @@ describe('partner branch invoice presentation', () => {
     expect(confirm).toContain("code: providerStatus === 'expired' ? 'PAYMENT_EXPIRED' : 'PAYMENT_FAILED'");
   });
 
+  it('distinguishes provider terminal status from the locally released invoice state', () => {
+    const component = readFileSync(
+      resolve(process.cwd(), 'src/components/billing/PartnerBranchSubscriptionBilling.tsx'),
+      'utf8',
+    );
+    expect(component).toContain("const providerFailed = ['failed', 'expired'].includes(providerStatus);");
+    expect(component).toContain("const paymentFailed = ['failed', 'expired'].includes(paymentStatus);");
+    expect(component).toContain("providerFailed ? 'Обновить статус счёта'");
+    expect(component).toContain("if (paymentFailed) {");
+    expect(component).toContain("!paymentFailed && invoice.status !== 'paid'");
+  });
+
 
 });
