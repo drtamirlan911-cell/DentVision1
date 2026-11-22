@@ -11,11 +11,12 @@ const state = vi.hoisted(() => ({
   paymentFindFirst: vi.fn(),
   paymentCreate: vi.fn(),
   settlementUpdate: vi.fn(),
+  settlementUpdateMany: vi.fn(),
   createPayment: vi.fn(),
 }));
 
 vi.mock('../../lib/prisma.js', () => ({ default: {
-  settlement: { findUnique: state.settlementFindUnique, update: state.settlementUpdate },
+  settlement: { findUnique: state.settlementFindUnique, update: state.settlementUpdate, updateMany: state.settlementUpdateMany },
   idempotencyRecord: {
     findUnique: state.idempotencyFindUnique,
     create: state.idempotencyCreate,
@@ -50,6 +51,7 @@ describe('paySettlement concurrency', () => {
     state.createPayment.mockResolvedValue({ externalId: 'kaspi-1', qr: 'qr-1' });
     state.paymentCreate.mockResolvedValue(payment);
     state.settlementUpdate.mockResolvedValue(settlement);
+    state.settlementUpdateMany.mockResolvedValue({ count: 1 });
     state.idempotencyUpdate.mockResolvedValue({ id: 'idem-1', paymentId: 'payment-1' });
     state.paymentFindUnique.mockResolvedValue(payment);
     state.paymentFindFirst.mockResolvedValue(null);
