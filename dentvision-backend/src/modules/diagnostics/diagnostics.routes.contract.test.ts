@@ -97,6 +97,15 @@ describe('diagnostics route contract', () => {
     expect(source).toContain('export function redactPartnerReferralFinancials');
   });
 
+  it('protects the operational dashboard by workspace read permission, not billing permission', () => {
+    const dashboardStart = source.indexOf("diagnosticsRouter.get('/dashboard'");
+    const dashboardEnd = source.indexOf("diagnosticsRouter.post('/referrals/:id/ai-result'", dashboardStart);
+    const dashboardRoute = source.slice(dashboardStart, dashboardEnd);
+    expect(dashboardRoute).toContain('partnerReferralReadPermission(scope)');
+    expect(dashboardRoute).toContain('redactPartnerDashboardStats');
+    expect(dashboardRoute).not.toContain("hasPartnerScopedPermission(req.user, 'billing.read')");
+  });
+
   it('exposes diagnostic partner settlements only inside the active organization context', () => {
     expect(source).toContain("diagnosticsRouter.get('/settlements'");
     expect(source).toContain("diagnosticsRouter.post('/settlements/:id/pay'");
