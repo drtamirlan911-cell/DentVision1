@@ -74,13 +74,19 @@ export async function getCenterSubscription(centerId: string) {
 
 // ─── Centers ───
 
+export function canReadPartnerCatalog(input: {
+  isPubliclyVisible: boolean;
+  isActiveOrganizationMember: boolean;
+}): boolean {
+  return input.isPubliclyVisible || input.isActiveOrganizationMember;
+}
+
 export function canReadDiagnosticCenterCatalog(input: {
   isPubliclyVisible: boolean;
   subscriptionActive: boolean;
   isActiveOrganizationMember: boolean;
 }): boolean {
-  return input.subscriptionActive
-    && (input.isPubliclyVisible || input.isActiveOrganizationMember);
+  return input.subscriptionActive && canReadPartnerCatalog(input);
 }
 
 export async function listCenters(search?: string, city?: string) {
@@ -203,7 +209,7 @@ export async function listLaboratories(search?: string) {
   return prisma.laboratory.findMany({ where, include: { _count: { select: { tests: true } } }, orderBy: { rating: 'desc' } });
 }
 
-export async function getLaboratory(id: string) {
+export async function getLaboratory(id: string, options: { includePrivate?: boolean } = {}) {
   try {
     const org = await prisma.organization.findFirst({
       where: { type: 'LABORATORY', originalType: 'Laboratory', originalId: id },
@@ -213,7 +219,10 @@ export async function getLaboratory(id: string) {
     const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings))
       ? org.settings as Record<string, unknown>
       : {};
-    if (settings.ecosystemVisible !== true) return null;
+    if (!canReadPartnerCatalog({
+      isPubliclyVisible: settings.ecosystemVisible === true,
+      isActiveOrganizationMember: options.includePrivate === true,
+    })) return null;
     return prisma.laboratory.findFirst({
       where: { id, active: true },
       include: { tests: { where: { active: true } } },
