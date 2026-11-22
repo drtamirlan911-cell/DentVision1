@@ -173,8 +173,12 @@ export function parseDicomPart10Metadata(buffer: Buffer): DicomPart10Metadata {
   let groupLengthEnd: number | undefined;
   let metaVersion: Buffer | undefined;
   while (offset + 8 <= buffer.length) {
+    // The file meta header is always Explicit-VR Little Endian, but the
+    // immediately following dataset may be Implicit-VR Little Endian.
+    // Inspect the group before decoding the VR or the first implicit dataset
+    // tag would be misread as an explicit-VR header.
+    if (readUInt16(buffer, offset, true) !== 0x0002) break;
     const header = readHeader(buffer, offset, true, true);
-    if (header.group !== 0x0002) break;
     if (header.length === 0xffffffff || header.valueOffset + header.length > buffer.length) {
       throw new Error('DICOM file meta information is malformed.');
     }
