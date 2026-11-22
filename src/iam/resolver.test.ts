@@ -18,10 +18,14 @@ describe('server-provided organization permissions', () => {
   it('preserves recognized partner billing and operational permissions from /me', () => {
     const iam = createIamResolver({
       role: 'user',
-      permissions: ['diagnostics.read', 'billing.read', 'billing.manage', 'staff.read'],
+      roleInfo: { pages: [] } as never,
+      permissions: ['diagnostics.read', 'lab.read', 'lab.write', 'lab.manage', 'billing.read', 'billing.manage', 'staff.read'],
       pages: ['diagnostics'],
     });
     expect(iam.hasPermission('diagnostics.read')).toBe(true);
+    expect(iam.hasPermission('lab.read')).toBe(true);
+    expect(iam.hasPermission('lab.write')).toBe(true);
+    expect(iam.hasPermission('lab.manage')).toBe(true);
     expect(iam.hasPermission('billing.read')).toBe(true);
     expect(iam.hasPermission('billing.manage')).toBe(true);
     expect(iam.hasPermission('staff.read')).toBe(true);
