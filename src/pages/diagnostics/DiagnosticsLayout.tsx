@@ -70,13 +70,14 @@ export default function DiagnosticsLayout() {
   }, [switching]);
 
   const isReceivingOrg = orgType === 'DIAGNOSTIC_CENTER' || orgType === 'LABORATORY';
+  const hasBillingReadPermission = iam.permissions.includes('billing.read');
   const visibleItems = useMemo(() => DIAG_SUBNAV.filter(item => {
     if (item.platformRole) return item.platformRole === platformRole;
-    if (item.orgType === 'PARTNER_FINANCE') return isReceivingOrg && iam.hasPermission('billing.read');
+    if (item.orgType === 'PARTNER_FINANCE') return isReceivingOrg && hasBillingReadPermission;
     if (item.orgType) return item.orgType === orgType;
     if (isReceivingOrg && CLINIC_ONLY_ITEMS.has(item.id)) return false;
     return true;
-  }), [platformRole, orgType, isReceivingOrg, iam.permissions]);
+  }), [platformRole, orgType, isReceivingOrg, hasBillingReadPermission]);
 
   if (authLoading) {
     return <div className="flex h-full min-h-64 items-center justify-center text-sm text-txt-muted">Загрузка рабочего контекста…</div>;
