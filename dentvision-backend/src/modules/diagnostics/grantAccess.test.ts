@@ -62,7 +62,10 @@ beforeEach(() => {
 
 describe('DIAGNOSTICS_ROLE_TO_ROLE_KEY', () => {
   it('maps seeded diagnostic roles and never grants an organization-admin fallback', () => {
-    expect(DIAGNOSTICS_ROLE_TO_ROLE_KEY.radiologist).toBe('diagnostic_radiologist');
+    expect(DIAGNOSTICS_ROLE_TO_ROLE_KEY.owner).toBe('diagnostic_owner');
+    expect(DIAGNOSTICS_ROLE_TO_ROLE_KEY.admin).toBe('diagnostic_admin');
+    expect(DIAGNOSTICS_ROLE_TO_ROLE_KEY.manager).toBe('diagnostic_manager');
+    expect(DIAGNOSTICS_ROLE_TO_ROLE_KEY.radiologist).toBe('radiologist');
     expect(DIAGNOSTICS_ROLE_TO_ROLE_KEY.operator).toBe('diagnostic_operator');
     expect(Object.values(DIAGNOSTICS_ROLE_TO_ROLE_KEY)).not.toContain('org_admin');
   });
@@ -76,14 +79,15 @@ describe('grantDiagnosticsAccess — unified role', () => {
   it('assigns the role the member actually has', async () => {
     await grantDiagnosticsAccess('DiagnosticCenter', CENTER_ID, USER_ID, 'manager');
 
-    expect(mocks.roleFindUnique).toHaveBeenCalledWith({ where: { key: 'manager' } });
+    expect(mocks.roleFindUnique).toHaveBeenCalledWith({ where: { key: 'diagnostic_manager' } });
     expect(mocks.personRoleUpsert).toHaveBeenCalledOnce();
+    expect(mocks.branchFindFirst).toHaveBeenCalledOnce();
   });
 
   it('is case-insensitive about the stored member role', async () => {
     await grantDiagnosticsAccess('DiagnosticCenter', CENTER_ID, USER_ID, 'OWNER');
 
-    expect(mocks.roleFindUnique).toHaveBeenCalledWith({ where: { key: 'owner' } });
+    expect(mocks.roleFindUnique).toHaveBeenCalledWith({ where: { key: 'diagnostic_owner' } });
   });
 
   it('assigns a branch-scoped diagnostic operator to only the active default branch', async () => {
