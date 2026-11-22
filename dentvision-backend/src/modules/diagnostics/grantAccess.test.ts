@@ -149,6 +149,7 @@ describe('grantDiagnosticsAccess — unified role', () => {
   });
 
   it('does not persist a legacy membership when a canonical DB role is missing', async () => {
+    mocks.labFindUnique.mockResolvedValue({ id: 'lab-missing-role', name: 'Lab', city: null, address: null, phone: null, email: null });
     mocks.roleFindUnique.mockResolvedValue(null);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
