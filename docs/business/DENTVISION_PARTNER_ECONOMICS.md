@@ -54,7 +54,7 @@ The vertical-specific defaults, minimums, caps, volume tiers and revenue splits 
 2. Transaction commissions apply to transactions generated or processed through DentVision.
 3. A commission is earned only on a commercial settlement event, not merely because an order, referral, lab case or diagnostic workflow exists.
 4. Payment-processing costs, refunds, chargebacks and taxes must be tracked separately from DentVision commission revenue.
-5. Every transactional vertical must have a minimum fee where a pure percentage would make the transaction unprofitable to operate.
+5. Every transactional vertical must have a minimum fee where a pure percentage would make the transaction unprofitable to operate; after applying the floor and cap, the final fee must never exceed the actual settled gross amount, so partner net cannot become negative.
 6. Every transactional vertical should have a reasonable cap for unusually large transactions where a percentage becomes economically punitive.
 7. Volume tiers reward partners who move more business through DentVision.
 8. Pricing must be transparent to partners and buyers before confirmation.
