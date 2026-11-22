@@ -792,6 +792,17 @@ export const createDiagnosticsLabTest = (labId: string, data: { name: string; ca
 export const collectDiagnosticsLabCashierPayment = (labId: string, payload: { referralId: string; cost: number }) => apiRequest(`/api/diagnostics/laboratories/${labId}/cashier/collect`, { method: 'POST', body: JSON.stringify(payload) });
 export async function getDiagnosticsLabDashboard(labId: string): Promise<any> { return getDiagnosticsDashboard({ labId }); }
 export const getDiagnosticsLabPayments = (labId: string) => getDiagnosticReferrals({ labId });
+export async function getDiagnosticsSettlements(): Promise<any[]> {
+  const response = await apiRequest('/api/diagnostics/settlements');
+  return response?.data?.items ?? [];
+}
+export async function requestDiagnosticsSettlementPayment(settlementId: string): Promise<any> {
+  const response = await apiRequest(`/api/diagnostics/settlements/${encodeURIComponent(settlementId)}/pay`, {
+    method: 'POST',
+    body: '{}',
+  });
+  return response?.data ?? response;
+}
 
 export async function getDiagnosticCenterWorklistStaff(centerId: string): Promise<any[]> {
   return apiRequest('/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/worklist/staff');
