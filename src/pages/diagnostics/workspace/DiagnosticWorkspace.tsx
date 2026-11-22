@@ -42,11 +42,6 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   const iam = useIam()
   const ecosystem = useEcosystemUrlContext()
   const isSuperadmin = user?.role === 'superadmin'
-  const canReadOperations = isSuperadmin || iam.hasPermission('diagnostics.read')
-  const canReadFinance = isSuperadmin || iam.hasPermission('billing.read')
-  const canManageBilling = isSuperadmin || iam.hasPermission('billing.manage')
-  const canManageCatalog = isSuperadmin || iam.hasPermission('diagnostics.manage')
-  const canReadTeam = isSuperadmin || iam.hasPermission('staff.read')
   const activeScopeType = String(activeWorkspace?.scopeType || user?.organizationType || '').toUpperCase()
 
   const claimedKind: OrgKind | undefined =
@@ -87,6 +82,11 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
     && (diagnosticContexts.length > 0 || Boolean(activeWorkspace))
 
   const config = WORKSPACES[kind]
+  const canReadOperations = isSuperadmin || iam.hasPermission(kind === 'CENTER' ? 'diagnostics.read' : 'lab.read')
+  const canReadFinance = isSuperadmin || iam.hasPermission('billing.read')
+  const canManageBilling = isSuperadmin || iam.hasPermission('billing.manage')
+  const canManageCatalog = isSuperadmin || iam.hasPermission(kind === 'CENTER' ? 'diagnostics.manage' : 'lab.manage')
+  const canReadTeam = isSuperadmin || iam.hasPermission('staff.read')
   const isOwnOrg = activeScopeType === config.organizationType
   const ownOrgId = activeWorkspace?.scopeType === config.organizationType
     ? activeWorkspace.scopeId
