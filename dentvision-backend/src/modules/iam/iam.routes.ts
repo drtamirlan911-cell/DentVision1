@@ -301,11 +301,17 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       `;
       const defaultBranchByOrg = new Map(branchRows.map((row) => [row.organizationId, row.branchId]));
       for (const context of contexts) {
+        if (!shouldAttachDefaultPartnerBranchHint(context.roleKey)) {
+          // An assigned-scope role must not inherit a stale/default branch claim
+          // from a previous workspace token; its access follows assigned work.
+          delete context.branchId;
+          continue;
+        }
         if (context.organizationId === req.user?.organizationId && req.user?.branchId) {
           context.branchId = String(req.user.branchId);
           continue;
         }
-        if (!context.branchId && context.organizationId && shouldAttachDefaultPartnerBranchHint(context.roleKey)) {
+        if (!context.branchId && context.organizationId) {
           const branchId = defaultBranchByOrg.get(context.organizationId);
           if (branchId) context.branchId = branchId;
         }
