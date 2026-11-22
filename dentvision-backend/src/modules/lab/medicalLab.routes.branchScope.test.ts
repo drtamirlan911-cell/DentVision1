@@ -38,6 +38,18 @@ describe('medical lab branch isolation contract', () => {
     expect(source).toContain('organizationOriginalId ||');
   });
 
+  it('exposes the team directory only through the active laboratory staff.read capability', () => {
+    expect(source).toContain("medicalLabLifecycleRouter.get('/team'");
+    expect(source).toContain("requireMedicalLabCapability(req.user, 'staff.read')");
+    expect(source).toContain('prisma.laboratoryMember.findMany');
+    expect(source).toContain('firstName: member.user.firstName');
+    expect(source).toContain('userId: member.userId');
+    const teamRoute = source.slice(source.indexOf("medicalLabLifecycleRouter.get('/team'"), source.indexOf("medicalLabLifecycleRouter.get('/finance'"));
+    expect(teamRoute).not.toContain('req.query.labId');
+    expect(teamRoute).not.toContain('req.body.labId');
+    expect(teamRoute).not.toContain('req.body.organizationId');
+  });
+
   it('exposes medical-lab finance only through the active laboratory role capabilities', () => {
     expect(source).toContain("medicalLabLifecycleRouter.get('/capabilities'");
     expect(source).toContain("medicalLabLifecycleRouter.get('/finance'");
