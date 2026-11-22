@@ -23,7 +23,7 @@ function makeDb(options: {
     type: 'DIAGNOSTIC_CENTER',
     originalType: 'DiagnosticCenter',
     originalId: 'center-1',
-    settings: {},
+    settings: { ecosystemVisible: true },
   };
   const active = options.active ?? true;
   const tx: any = {
@@ -143,7 +143,7 @@ describe('partner branch invoice issuance', () => {
       type: 'LABORATORY',
       originalType: 'Laboratory',
       originalId: 'dental-lab-1',
-      settings: { laboratoryType: 'DENTAL_LAB', selfServiceType: 'dental_lab' },
+      settings: { laboratoryType: 'DENTAL_LAB', selfServiceType: 'dental_lab', lifecycle: 'ACTIVE', verification: 'VERIFIED', ecosystemVisible: true, legal: { status: 'READY' } },
     };
     const { tx, created } = makeDb({ organization, branches: [{ id: 'lab-branch' }] });
     await issuePartnerBranchSubscriptionInvoice({
