@@ -25,6 +25,7 @@ const { tx, prismaMock } = vi.hoisted(() => {
     supplierMember: { findMany: vi.fn() },
     laboratoryMember: { findMany: vi.fn() },
     notification: { create: vi.fn() },
+    ledgerEntry: { findMany: vi.fn() },
     $executeRaw: vi.fn(),
   });
   const tx = delegate();
@@ -46,15 +47,21 @@ const {
 } = await import('./payout.service.js');
 
 /** A wallet holding `balance`, with `pending` already claimed against it. */
-function walletHolding(balance: bigint, pending: bigint[] = []) {
+function walletHolding(
+  balance: bigint,
+  pending: bigint[] = [],
+  ownerType: string = 'LECTURER',
+  partnerEconomicsCredits: bigint[] = [],
+) {
   tx.wallet.findUnique.mockResolvedValue({
     id: 'w1',
     balance,
     currency: 'KZT',
-    ownerType: 'LECTURER',
-    ownerId: 'lect-1',
+    ownerType,
+    ownerId: ownerType === 'PARTNER' ? 'lab-1' : 'lect-1',
   });
   tx.payout.findMany.mockResolvedValue(pending.map((amount) => ({ amount })));
+  tx.ledgerEntry.findMany.mockResolvedValue(partnerEconomicsCredits.map((amount) => ({ amount })));
 }
 
 beforeEach(() => {
@@ -62,6 +69,7 @@ beforeEach(() => {
   tx.payout.create.mockImplementation(async ({ data }: never) => ({ id: 'p1', ...(data as object) }));
   tx.payout.update.mockImplementation(async ({ data }: never) => ({ id: 'p1', ...(data as object) }));
   tx.wallet.create.mockResolvedValue({ id: 'w1', balance: 0n, currency: 'KZT' });
+  tx.ledgerEntry.findMany.mockResolvedValue([]);
   tx.transaction.create.mockResolvedValue({ id: 't1' });
   tx.wallet.update.mockResolvedValue({});
   tx.wallet.updateMany.mockResolvedValue({ count: 1 });
@@ -87,6 +95,26 @@ describe('available balance is the balance minus what is already claimed', () =>
     tx.wallet.findUnique.mockResolvedValue(null);
     tx.payout.findMany.mockResolvedValue([]);
     expect(await availableBalanceMinor('missing', tx as never)).toBe(0n);
+  });
+
+  it('does not treat diagnostic and medical-lab partner economics mirrors as withdrawable cash', async () => {
+    walletHolding(100_000n, [], 'PARTNER', [100_000n]);
+    expect(await availableBalanceMinor('w1', tx as never)).toBe(0n);
+    expect(tx.ledgerEntry.findMany).toHaveBeenCalledWith({
+      where: { walletId: 'w1', direction: 'credit', transaction: { type: 'partner_economics' } },
+      select: { amount: true },
+    });
+  });
+
+  it('subtracts mirrored partner revenue and pending payout holds from a partner wallet', async () => {
+    walletHolding(150_000n, [20_000n], 'PARTNER', [100_000n]);
+    expect(await availableBalanceMinor('w1', tx as never)).toBe(30_000n);
+  });
+
+  it('does not apply partner-economics exclusions to lecturer wallets', async () => {
+    walletHolding(100_000n, [], 'LECTURER', [75_000n]);
+    expect(await availableBalanceMinor('w1', tx as never)).toBe(100_000n);
+    expect(tx.ledgerEntry.findMany).not.toHaveBeenCalled();
   });
 });
 
