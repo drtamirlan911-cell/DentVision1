@@ -77,6 +77,16 @@ describe('diagnostics route contract', () => {
     expect(serviceSource).not.toContain('platformFee: updatedReferral.platformFee');
   });
 
+  it('exposes diagnostic partner settlements only inside the active organization context', () => {
+    expect(source).toContain("diagnosticsRouter.get('/settlements'");
+    expect(source).toContain("diagnosticsRouter.post('/settlements/:id/pay'");
+    expect(source).toContain('resolveActivePartnerSettlementScope(req.user)');
+    expect(source).toContain('settlementBelongsToActiveScope(activeScope, settlement)');
+    expect(source).toContain('canManagePartnerSettlement(req.user)');
+    expect(source).toContain("if (req.query.ownerType || req.query.ownerId)");
+    expect(source).toContain("commissionMinor: settlement.commissionMinor.toString()");
+  });
+
   it('keeps payment transition separate from referral status', () => {
     expect((source.match(/diagnosticsRouter\.post\('\/referrals\/:id\/mark-paid'/g) || [])).toHaveLength(1);
     expect(source).toContain("diagnosticsRouter.post('/referrals/:id/status'");
