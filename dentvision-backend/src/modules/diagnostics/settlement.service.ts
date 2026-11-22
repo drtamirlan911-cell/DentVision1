@@ -150,7 +150,7 @@ export async function userOwnsSettlement(userId: string, ownerType: string, owne
 async function ensureSettlementInvoiced(settlement: NonNullable<Awaited<ReturnType<typeof prisma.settlement.findUnique>>>, payment: { id: string }) {
   // Never downgrade a settlement that a webhook has already marked paid.
   await prisma.settlement.updateMany({
-    where: { id: settlement.id, status: { not: 'paid' } },
+    where: { id: settlement.id, status: { notIn: ['paid', 'void'] } },
     data: { status: 'invoiced', paymentId: payment.id },
   });
   return (await prisma.settlement.findUnique({ where: { id: settlement.id } })) ?? settlement;
@@ -160,6 +160,7 @@ export async function paySettlement(settlementId: string) {
   const settlement = await prisma.settlement.findUnique({ where: { id: settlementId } });
   if (!settlement) { const err = new Error('Расчёт не найден'); (err as any).status = 404; throw err; }
   if (settlement.status === 'paid') return { settlement, payment: null, alreadyPaid: true as const };
+  if (settlement.status === 'void') { const err = new Error('Аннулированный расчёт нельзя оплатить'); (err as any).status = 409; throw err; }
   if (settlement.commissionMinor <= 0n) { const err = new Error('Нулевая сумма расчёта'); (err as any).status = 400; throw err; }
 
   const idempotencyKey = `settlement-payment:${settlementId}`;
