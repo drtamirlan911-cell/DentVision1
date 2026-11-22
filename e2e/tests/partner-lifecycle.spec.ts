@@ -777,6 +777,19 @@ test.describe('Partner operational lifecycle', () => {
     const operatorContexts = (await operatorContextsRes.json()).data?.contexts || [];
     const operatorContext = operatorContexts.find((item: any) => item.scopeType === 'DIAGNOSTIC_CENTER' && item.organizationId === centerOrganization!.id);
     expect(operatorContext?.roleKey).toBe('diagnostic_operator');
+    expect(operatorContext?.branchId).toBeTruthy();
+    const operatorPerson = await prisma.person.findFirst({
+      where: { userId: operatorUser.id, organizationId: centerOrganization!.id },
+      select: { id: true },
+    });
+    expect(operatorPerson?.id).toBeTruthy();
+    // diagnostic_operator is BRANCH-scoped: organization invitation alone must
+    // not grant a branch. Simulate the manager's explicit branch assignment.
+    await prisma.branchMember.upsert({
+      where: { personId_branchId: { personId: operatorPerson!.id, branchId: operatorContext.branchId } },
+      update: { active: true },
+      create: { id: randomUUID(), personId: operatorPerson!.id, branchId: operatorContext.branchId, active: true },
+    });
     const switchedOperator = await api.post(`${BASE}/api/iam/switch-context`, {
       headers: auth(operatorBaseToken),
       data: { scopeType: operatorContext.scopeType, scopeId: operatorContext.scopeId, branchId: operatorContext.branchId },
