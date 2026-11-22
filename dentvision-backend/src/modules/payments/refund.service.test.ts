@@ -82,6 +82,29 @@ function paidDentalLabPayment() {
     }]);
 }
 
+function paidMedicalLabPayment() {
+  tx.payment.findUnique.mockResolvedValue({
+    id: 'p-medical-1',
+    amount: 10_000n,
+    currency: 'KZT',
+    status: 'paid',
+    refType: 'medical_lab_order',
+    refId: 'medical-order-1',
+    meta: { clinicId: 'clinic-1', laboratoryId: 'medical-lab-1' },
+  });
+  tx.transaction.findMany
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([{
+      id: 'medical-partner-economics-1',
+      amount: 10_000n,
+      ledgerEntries: [
+        { walletId: 'gateway', direction: 'debit', amount: 10_000n },
+        { walletId: 'medical-partner', direction: 'credit', amount: 9_400n },
+        { walletId: 'platform', direction: 'credit', amount: 600n },
+      ],
+    }]);
+}
+
 describe('refundPayment', () => {
 
   it('validates clinic-cash appointment and invoice references before creating a payment', () => {
@@ -183,6 +206,38 @@ describe('refundPayment', () => {
       .rejects.toMatchObject({ code: 'INSUFFICIENT_FUNDS' });
     expect(tx.transaction.create).not.toHaveBeenCalled();
     expect(tx.wallet.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('reverses the medical-analysis partner/platform ledger on a full refund', async () => {
+    paidMedicalLabPayment();
+    const result = await refundPayment('p-medical-1', 10_000n, 'medical-full', 'analysis refund');
+
+    expect(result.alreadyProcessed).toBe(false);
+    const args = tx.transaction.create.mock.calls[0][0].data;
+    expect(args.meta.originalTransactionIds).toEqual(['medical-partner-economics-1']);
+    expect(args.ledgerEntries.create).toEqual([
+      { walletId: 'gateway', direction: 'credit', amount: 10_000n },
+      { walletId: 'medical-partner', direction: 'debit', amount: 9_400n },
+      { walletId: 'platform', direction: 'debit', amount: 600n },
+    ]);
+    expect(tx.wallet.updateMany).toHaveBeenCalledTimes(2);
+    expect(tx.wallet.update).toHaveBeenCalledTimes(1);
+    expect(tx.payment.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'refunded' } }));
+    expect(tx.dentalLabInvoice.update).not.toHaveBeenCalled();
+  });
+
+  it('supports a partial medical-analysis refund with proportional platform commission reversal', async () => {
+    paidMedicalLabPayment();
+    const result = await refundPayment('p-medical-1', 5_000n, 'medical-partial', 'partial analysis refund');
+
+    expect(result.payment.status).toBe('paid');
+    const entries = tx.transaction.create.mock.calls[0][0].data.ledgerEntries.create;
+    expect(entries).toEqual([
+      { walletId: 'gateway', direction: 'credit', amount: 5_000n },
+      { walletId: 'medical-partner', direction: 'debit', amount: 4_700n },
+      { walletId: 'platform', direction: 'debit', amount: 300n },
+    ]);
+    expect(tx.dentalLabInvoice.update).not.toHaveBeenCalled();
   });
 
   it('reverses the original ledger with opposite directions', async () => {
