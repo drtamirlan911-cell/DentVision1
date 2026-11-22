@@ -803,6 +803,12 @@ export async function requestDiagnosticsSettlementPayment(settlementId: string):
   });
 }
 
+export async function getDentalLabTeam(): Promise<any[]> {
+  return apiRequest('/api/lab-orders/platform/team');
+}
+export async function getMedicalLabTeam(): Promise<any[]> {
+  return apiRequest('/api/lab-orders/medical-laboratory/team');
+}
 export async function getDiagnosticCenterWorklistStaff(centerId: string): Promise<any[]> {
   return apiRequest('/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/worklist/staff');
 }
