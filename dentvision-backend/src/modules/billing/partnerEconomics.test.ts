@@ -50,4 +50,18 @@ describe('canonical partner economics v1.2', () => {
     expect(snapshot.effectiveRateBps).toBe(1_500);
     expect(snapshot.partnerNetBeforeExternalDeductionsKzt).toBe(850);
   });
+
+  it('caps minimum fees at gross across diagnostic, medical-lab and dental-lab sales', () => {
+    const snapshots = [
+      calculatePartnerTransactionFee({ domain: 'DIAGNOSTIC_STUDY', grossAmountKzt: 100 }),
+      calculatePartnerTransactionFee({ domain: 'MEDICAL_ANALYSIS', grossAmountKzt: 100 }),
+      calculatePartnerTransactionFee({ domain: 'DENTAL_LAB_CASE', grossAmountKzt: 100, monthlyOrganizationGmvKzt: 0 }),
+    ];
+
+    for (const snapshot of snapshots) {
+      expect(snapshot.commissionKzt).toBe(100);
+      expect(snapshot.partnerNetBeforeExternalDeductionsKzt).toBe(0);
+      expect(snapshot.commissionKzt).toBeLessThanOrEqual(snapshot.grossAmountKzt);
+    }
+  });
 });
