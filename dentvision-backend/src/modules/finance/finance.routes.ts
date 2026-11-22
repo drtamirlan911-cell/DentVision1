@@ -18,6 +18,7 @@ import {
 } from './payout.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { auditFromReq } from '../compliance/audit.service.js';
+import { issuePartnerBranchSubscriptionInvoice, PartnerBranchBillingError } from '../billing/partnerBranchBilling.service.js';
 
 // Finance Core (Phase 4, DENTVISION_V2_INTEGRATION_PLAN.md §6). Wallets, ledger,
 // transactions and commission rules. Amounts are minor units (тиын) and returned
@@ -224,6 +225,125 @@ financeRouter.get('/ledger/health', requirePermission('finance.manage'), async (
   if (!requirePlatformFinance(req, res)) return;
   const net = await ledgerNetBalance();
   return res.json({ ok: true, data: { netBalance: net.toString(), balanced: net === 0n } } satisfies ApiResponse);
+});
+
+
+async function hasPartnerFinanceReadPermission(userId: string, organizationId: string): Promise<boolean> {
+  const memberships = await prisma.personRole.findMany({
+    where: {
+      scopeType: 'organization',
+      scopeId: organizationId,
+      person: { userId, organizationId },
+    },
+    select: {
+      role: {
+        select: {
+          permissions: { select: { permission: { select: { key: true } } } },
+        },
+      },
+    },
+  });
+  const allowed = new Set(['finance.read', 'finance.manage', 'billing.manage']);
+  return memberships.some((membership) =>
+    membership.role.permissions.some((item) => allowed.has(item.permission.key)),
+  );
+}
+
+/** Partner owners/finance roles can read only invoices for their active organization. */
+financeRouter.get('/partner-branch-billing/invoices', async (req: AuthRequest, res) => {
+  try {
+    const queryOrganizationId = typeof req.query.organizationId === 'string'
+      ? req.query.organizationId.trim()
+      : '';
+    let organizationId = '';
+
+    if (req.user?.role === 'SUPERADMIN') {
+      organizationId = queryOrganizationId;
+    } else {
+      const activeOrganizationId = String(req.user?.organizationId || '');
+      const activeOwnerId = String(req.user?.organizationOriginalId || '');
+      if (!activeOrganizationId || !activeOwnerId) {
+        return res.status(403).json({ ok: false, error: 'Нет активной организации партнёра' } satisfies ApiResponse);
+      }
+      if (queryOrganizationId && queryOrganizationId !== activeOrganizationId) {
+        return res.status(403).json({ ok: false, error: 'Нельзя просматривать счета другой организации' } satisfies ApiResponse);
+      }
+      const organization = await prisma.organization.findFirst({
+        where: { id: activeOrganizationId, originalId: activeOwnerId, archivedAt: null },
+        select: { id: true, type: true, originalType: true },
+      });
+      if (
+        !organization
+        || !(
+          (organization.type === 'DIAGNOSTIC_CENTER' && organization.originalType === 'DiagnosticCenter')
+          || (organization.type === 'LABORATORY' && organization.originalType === 'Laboratory')
+        )
+      ) {
+        return res.status(403).json({ ok: false, error: 'Активный контекст не является тарифицируемой организацией партнёра' } satisfies ApiResponse);
+      }
+      if (!(await hasPartnerFinanceReadPermission(req.user!.id, activeOrganizationId))) {
+        return res.status(403).json({ ok: false, error: 'Недостаточно прав для просмотра финансовых счетов партнёра' } satisfies ApiResponse);
+      }
+      organizationId = activeOrganizationId;
+    }
+
+    const takeRaw = Number(req.query.take ?? 50);
+    const take = Number.isSafeInteger(takeRaw) && takeRaw > 0 ? Math.min(takeRaw, 100) : 50;
+    const invoices = await prisma.partnerBranchSubscriptionInvoice.findMany({
+      where: organizationId ? { organizationId } : {},
+      orderBy: [{ periodStart: 'desc' }, { issuedAt: 'desc' }],
+      take,
+    });
+    return res.json({ ok: true, data: serializeBigInt(invoices) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[partner-branch-billing] invoice list failed:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить счета филиальной подписки' } satisfies ApiResponse);
+  }
+});
+
+/** Invoice issuance is a platform-finance operation; partners cannot set their own periods or prices. */
+financeRouter.post('/partner-branch-billing/invoices', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
+  const organizationId = String(req.body?.organizationId || '').trim();
+  const periodStart = typeof req.body?.periodStart === 'string' ? new Date(req.body.periodStart) : new Date(Number.NaN);
+  const periodEnd = typeof req.body?.periodEnd === 'string' ? new Date(req.body.periodEnd) : new Date(Number.NaN);
+  if (!organizationId || Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime()) || periodEnd <= periodStart) {
+    return res.status(400).json({ ok: false, error: 'organizationId, periodStart и корректный periodEnd обязательны' } satisfies ApiResponse);
+  }
+
+  try {
+    const result = await issuePartnerBranchSubscriptionInvoice({
+      organizationId,
+      periodStart,
+      periodEnd,
+      createdByUserId: req.user?.id ?? null,
+    });
+    await auditFromReq(req, {
+      action: 'partner_branch_subscription_invoice.issued',
+      entity: 'partner_branch_subscription_invoice',
+      entityId: result.invoice.id,
+      details: {
+        organizationId,
+        invoiceNumber: result.invoice.invoiceNumber,
+        vertical: result.invoice.vertical,
+        amountMinor: String(result.invoice.amountMinor),
+        periodStart: result.invoice.periodStart.toISOString(),
+        periodEnd: result.invoice.periodEnd.toISOString(),
+        idempotent: result.idempotent,
+      },
+    });
+    return res.status(result.idempotent ? 200 : 201).json({
+      ok: true,
+      data: serializeBigInt(result.invoice),
+      idempotent: result.idempotent,
+    } satisfies ApiResponse);
+  } catch (error: any) {
+    if (error instanceof PartnerBranchBillingError) {
+      return res.status(error.status).json({ ok: false, error: error.message, code: error.code } satisfies ApiResponse);
+    }
+    console.error('[partner-branch-billing] invoice issuance failed:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось выставить счёт филиальной подписки' } satisfies ApiResponse);
+  }
 });
 
 // Commission rules (platform).
