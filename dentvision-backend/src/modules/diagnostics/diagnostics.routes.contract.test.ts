@@ -87,8 +87,8 @@ describe('diagnostics route contract', () => {
     const referralsEnd = source.indexOf("diagnosticsRouter.post('/referrals'", referralsStart);
     const referralsRoute = source.slice(referralsStart, referralsEnd);
     expect(referralsRoute).toContain('partnerReferralReadPermission(scope)');
-    expect(source).toContain("if (scope.centerId) return 'diagnostics.read'");
-    expect(source).toContain("if (scope.labId) return 'lab.read'");
+    expect(source).toContain("partnerCatalogReadPermission('DiagnosticCenter')");
+    expect(source).toContain("partnerCatalogReadPermission('Laboratory')");
     expect(referralsRoute).toContain("hasPartnerScopedPermission(req.user, 'billing.read')");
     expect(referralsRoute).toContain('redactPartnerReferralFinancials');
 
