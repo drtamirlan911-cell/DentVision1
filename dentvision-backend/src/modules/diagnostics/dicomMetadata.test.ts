@@ -86,7 +86,7 @@ function part10Dataset(options: { transferSyntax?: string; includeSequence?: boo
     sequence.writeUInt32LE(0xffffffff, 8);
     common.unshift(sequence);
   }
-  const pixelData = explicitElement(0x7fe0, 0x0010, 'OB', Buffer.from([1, 2, 3, 4]));
+  const pixelData = explicitElement(0x7fe0, 0x0010, 'OW', Buffer.from([1, 2, 3, 4]));
   const bytes = Buffer.concat([preamble, meta, ...common, pixelData]);
   if (mediaUidMismatch) {
     const marker = Buffer.from(SOP_INSTANCE, 'ascii');
