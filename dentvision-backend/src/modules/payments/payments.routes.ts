@@ -893,6 +893,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     let trustedSellerId: string | null | undefined = sellerId;
     let trustedDomain: string | null | undefined = domain;
     let dentalLabInvoiceId: string | null = null;
+    let partnerBranchInvoiceId: string | null = null;
     let dentalLabExpectedAmountMinor: bigint | null = null;
 
     // P1-1 fix: never trust the client-submitted amount. For order/shop refTypes
@@ -978,6 +979,69 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       if (medicalOrder.amountMinor !== minor) return res.status(409).json({ ok: false, error: `Сумма не совпадает с медицинским заказом: ожидалось ${medicalOrder.amountMinor}, получено ${minor}` } satisfies ApiResponse);
     }
 
+
+    if (refType === 'partner_branch_subscription_invoice') {
+      if (!refId) return res.status(400).json({ ok: false, error: 'invoiceId обязателен для филиальной подписки' } satisfies ApiResponse);
+      const organizationId = String(req.user?.organizationId || '');
+      const ownerId = String(req.user?.organizationOriginalId || '');
+      if (!organizationId || !ownerId) {
+        return res.status(403).json({ ok: false, error: 'Платёж доступен только из активного кабинета партнёра' } satisfies ApiResponse);
+      }
+      const invoice = await prisma.partnerBranchSubscriptionInvoice.findFirst({
+        where: { id: String(refId), organizationId, ownerId },
+        select: {
+          id: true, organizationId: true, ownerId: true, vertical: true,
+          policyVersion: true, amountMinor: true, currency: true,
+          status: true, paymentId: true, periodStart: true, periodEnd: true,
+        },
+      });
+      if (!invoice) {
+        return res.status(404).json({ ok: false, error: 'Счёт не найден в активной организации партнёра' } satisfies ApiResponse);
+      }
+      const canManageBilling = await hasPartnerBranchBillingPermission({
+        userId: req.user!.id,
+        organizationId,
+        ownerId,
+        permissions: ['billing.manage', 'finance.manage'],
+      });
+      if (!canManageBilling) {
+        return res.status(403).json({ ok: false, error: 'Недостаточно прав для оплаты филиальной подписки' } satisfies ApiResponse);
+      }
+      if (invoice.status === 'payment_pending' && invoice.paymentId) {
+        const existingPayment = await prisma.payment.findUnique({ where: { id: invoice.paymentId } });
+        if (existingPayment && await assertPaymentOwner(req, existingPayment)) {
+          return res.status(200).json({
+            ok: true,
+            data: withPaymentQr(serializeBigInt(existingPayment) as Record<string, unknown>),
+          } satisfies ApiResponse);
+        }
+        return res.status(409).json({ ok: false, error: 'Платёж по этому счёту уже создаётся или требует сверки' } satisfies ApiResponse);
+      }
+      if (invoice.status !== 'issued' || invoice.paymentId) {
+        return res.status(409).json({ ok: false, error: 'Счёт уже оплачен или недоступен для оплаты' } satisfies ApiResponse);
+      }
+      if (invoice.currency !== 'KZT' || minor !== invoice.amountMinor) {
+        return res.status(409).json({ ok: false, error: 'Сумма или валюта не совпадает с неизменяемым снимком филиального счёта' } satisfies ApiResponse);
+      }
+
+      // One invoice has one idempotency key regardless of client retry headers.
+      idempotencyKey = `partner-branch-invoice:${invoice.id}`;
+      partnerBranchInvoiceId = invoice.id;
+      trustedMeta = {
+        ...trustedMeta,
+        partnerBranchSubscriptionInvoiceId: invoice.id,
+        organizationId: invoice.organizationId,
+        organizationOriginalId: invoice.ownerId,
+        vertical: invoice.vertical,
+        policyVersion: invoice.policyVersion,
+        periodStart: invoice.periodStart.toISOString(),
+        periodEnd: invoice.periodEnd.toISOString(),
+        userId: req.user!.id,
+      };
+      trustedSellerType = null;
+      trustedSellerId = null;
+      trustedDomain = 'partner_branch_subscription';
+    }
 
     // Payment amount, entitlement and seller details for billable platform
     // references are derived from canonical DB/config data before creating a QR.
