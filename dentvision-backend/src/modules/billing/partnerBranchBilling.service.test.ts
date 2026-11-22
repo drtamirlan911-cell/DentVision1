@@ -220,3 +220,168 @@ describe('partner branch invoice issuance', () => {
     }, tx)).rejects.toMatchObject({ code: 'INVALID_PERIOD' });
   });
 });
+
+
+describe('partner invoice payment settlement', () => {
+  function makeSettlementDb(options: {
+    invoiceStatus?: string;
+    linkedPaymentId?: string | null;
+    subscriptionPeriodEnd?: Date | null;
+  } = {}) {
+    const invoice = {
+      id: 'partner-invoice-1',
+      subscriptionId: 'subscription-1',
+      organizationId: 'org-center-1',
+      ownerId: 'center-1',
+      vertical: 'DIAGNOSTIC_3D',
+      amountMinor: 4_990_000n,
+      currency: 'KZT',
+      status: options.invoiceStatus ?? 'payment_pending',
+      paymentId: options.linkedPaymentId === undefined ? 'payment-1' : options.linkedPaymentId,
+      periodStart: new Date('2026-12-01T00:00:00.000Z'),
+      periodEnd: new Date('2027-01-01T00:00:00.000Z'),
+      subscription: {
+        id: 'subscription-1',
+        ownerType: 'PARTNER',
+        ownerId: 'center-1',
+        plan: 'partner_branch_diagnostic_3d',
+        status: 'pending_payment',
+        periodEnd: options.subscriptionPeriodEnd ?? null,
+      },
+    };
+    const calls: { invoiceUpdate?: any; subscriptionUpdate?: any; revenue?: any } = {};
+    const tx: any = {
+      $queryRaw: async () => [],
+      partnerBranchSubscriptionInvoice: {
+        findUnique: async () => invoice,
+        update: async ({ data }: any) => {
+          calls.invoiceUpdate = data;
+          Object.assign(invoice, data);
+          return invoice;
+        },
+      },
+      subscription: {
+        update: async ({ data }: any) => {
+          calls.subscriptionUpdate = data;
+          Object.assign(invoice.subscription, data);
+          return invoice.subscription;
+        },
+      },
+      revenue: {
+        create: async ({ data }: any) => {
+          calls.revenue = data;
+          return { id: 'revenue-1', ...data };
+        },
+      },
+    };
+    return { tx, invoice, calls };
+  }
+
+  it('marks the invoice paid, activates its scheduled subscription period and records distinct platform revenue', async () => {
+    const { tx, invoice, calls } = makeSettlementDb();
+    const { settlePartnerBranchSubscriptionInvoicePayment } = await import('./partnerBranchBilling.service.js');
+    const settled = await settlePartnerBranchSubscriptionInvoicePayment({
+      id: 'payment-1',
+      refId: invoice.id,
+      amount: 4_990_000n,
+      currency: 'KZT',
+    }, tx);
+
+    expect(settled).toBe(true);
+    expect(calls.invoiceUpdate).toMatchObject({
+      status: 'paid',
+      paymentId: 'payment-1',
+    });
+    expect(calls.invoiceUpdate.paidAt).toBeInstanceOf(Date);
+    expect(calls.subscriptionUpdate).toMatchObject({
+      plan: 'partner_branch_diagnostic_3d',
+      status: 'scheduled',
+      periodEnd: invoice.periodEnd,
+    });
+    expect(calls.revenue).toMatchObject({
+      data: {
+        tenantId: 'platform',
+        source: 'PARTNER_BRANCH_SUBSCRIPTION',
+        amount: 4_990_000n,
+        meta: {
+          refType: 'partner_branch_subscription_invoice',
+          refId: invoice.id,
+        },
+      },
+    });
+  });
+
+  it('keeps an existing active period when the next paid invoice is settled in advance', async () => {
+    const currentPeriodEnd = new Date('2027-01-01T00:00:00.000Z');
+    const nextPeriodEnd = new Date('2027-02-01T00:00:00.000Z');
+    const { tx, invoice, calls } = makeSettlementDb({ subscriptionPeriodEnd: currentPeriodEnd });
+    invoice.periodStart = currentPeriodEnd;
+    invoice.periodEnd = nextPeriodEnd;
+    const { settlePartnerBranchSubscriptionInvoicePayment } = await import('./partnerBranchBilling.service.js');
+    await settlePartnerBranchSubscriptionInvoicePayment({
+      id: 'payment-1',
+      refId: invoice.id,
+      amount: invoice.amountMinor,
+      currency: 'KZT',
+    }, tx);
+    expect(calls.subscriptionUpdate).toMatchObject({ status: 'active', periodEnd: nextPeriodEnd });
+  });
+
+  it('rejects amount tampering without changing invoice, subscription or revenue', async () => {
+    const { tx, calls } = makeSettlementDb();
+    const { settlePartnerBranchSubscriptionInvoicePayment } = await import('./partnerBranchBilling.service.js');
+    await expect(settlePartnerBranchSubscriptionInvoicePayment({
+      id: 'payment-1',
+      refId: 'partner-invoice-1',
+      amount: 4_989_999n,
+      currency: 'KZT',
+    }, tx)).rejects.toMatchObject({ code: 'INVALID_PERIOD' });
+    expect(calls.invoiceUpdate).toBeUndefined();
+    expect(calls.subscriptionUpdate).toBeUndefined();
+    expect(calls.revenue).toBeUndefined();
+  });
+
+  it('rejects a different payment from the one reserved on the invoice', async () => {
+    const { tx, calls } = makeSettlementDb({ linkedPaymentId: 'payment-expected' });
+    const { settlePartnerBranchSubscriptionInvoicePayment } = await import('./partnerBranchBilling.service.js');
+    await expect(settlePartnerBranchSubscriptionInvoicePayment({
+      id: 'payment-attacker',
+      refId: 'partner-invoice-1',
+      amount: 4_990_000n,
+      currency: 'KZT',
+    }, tx)).rejects.toMatchObject({ code: 'BILLING_PERIOD_OVERLAP' });
+    expect(calls.invoiceUpdate).toBeUndefined();
+    expect(calls.revenue).toBeUndefined();
+  });
+
+  it('is idempotent when the same payment already settled the invoice', async () => {
+    const { tx, calls } = makeSettlementDb({ invoiceStatus: 'paid', linkedPaymentId: 'payment-1' });
+    const { settlePartnerBranchSubscriptionInvoicePayment } = await import('./partnerBranchBilling.service.js');
+    const result = await settlePartnerBranchSubscriptionInvoicePayment({
+      id: 'payment-1',
+      refId: 'partner-invoice-1',
+      amount: 4_990_000n,
+      currency: 'KZT',
+    }, tx);
+    expect(result).toBe(true);
+    expect(calls.invoiceUpdate).toBeUndefined();
+    expect(calls.revenue).toBeUndefined();
+  });
+
+  it('reopens only the invoice linked to the exact failed or expired payment', async () => {
+    const { tx, invoice, calls } = makeSettlementDb();
+    const { releasePartnerBranchSubscriptionInvoicePayment } = await import('./partnerBranchBilling.service.js');
+    const released = await releasePartnerBranchSubscriptionInvoicePayment({
+      invoiceId: invoice.id, paymentId: 'payment-1',
+    }, tx);
+    expect(released).toBe(true);
+    expect(calls.invoiceUpdate).toEqual({ status: 'issued', paymentId: null });
+
+    invoice.status = 'payment_pending';
+    invoice.paymentId = 'payment-new';
+    const stale = await releasePartnerBranchSubscriptionInvoicePayment({
+      invoiceId: invoice.id, paymentId: 'payment-old',
+    }, tx);
+    expect(stale).toBe(false);
+  });
+});
