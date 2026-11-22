@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { findMany, findUnique, transaction, paymentUpdateMany, orderUpdateMany, providerStatus, compensate, claim, settle, releasePartnerInvoice } = vi.hoisted(() => ({
@@ -183,5 +185,20 @@ describe('partner branch invoice payment reconciliation', () => {
     const result = await reconcilePartnerBranchSubscriptionPayments(now);
     expect(result).toMatchObject({ inspected: 0, paid: 0, released: 0 });
     expect(providerStatus).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('payment reconciliation bootstrap registration', () => {
+  it('starts the reconciliation interval with the existing background jobs when cron is enabled', () => {
+    const bootstrap = readFileSync(
+      resolve(process.cwd(), 'dentvision-backend/src/index.ts'),
+      'utf8',
+    );
+    expect(bootstrap).toContain("import { startPaymentReconciliationInterval } from './jobs/paymentReconciliation.js';");
+    expect(bootstrap).toContain('startPaymentReconciliationInterval();');
+    const start = bootstrap.indexOf('startPaymentReconciliationInterval();');
+    const cronGate = bootstrap.lastIndexOf('if (env.REMINDER_CRON_MS > 0)', start);
+    expect(cronGate).toBeGreaterThanOrEqual(0);
   });
 });

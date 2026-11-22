@@ -14,6 +14,7 @@ import { startWorkflowRetryInterval } from './jobs/workflowRetry.js';
 import { startRecallAgentInterval } from './jobs/recallAgent.js';
 import { startPartnerEconomicsReconciliationCronInterval } from './jobs/partnerEconomicsReconciliationCron.js';
 import { startPayoutReadinessCronInterval } from './jobs/payoutReadinessCron.js';
+import { startPaymentReconciliationInterval } from './jobs/paymentReconciliation.js';
 import { startMessageWorker } from './modules/ai-admin/index.js';
 import { CLINICAL_CASES, LIBRARY_ITEMS } from './modules/school/academyContent.js';
 import { onboardPartner } from './modules/legal/legal.service.js';
@@ -2288,6 +2289,7 @@ async function main() {
       startRecallAgentInterval();
       startPartnerEconomicsReconciliationCronInterval();
       startPayoutReadinessCronInterval();
+      startPaymentReconciliationInterval();
     }
     void startMessageWorker().catch((err) => {
       console.warn('[AI_ADMIN] Worker start failed (non-fatal):', err);
