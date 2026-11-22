@@ -177,6 +177,9 @@ export function parseDicomPart10Metadata(buffer: Buffer): DicomPart10Metadata {
       throw new Error('DICOM file meta information is malformed.');
     }
     const key = tagKey(header.group, header.element);
+    if (offset === PREAMBLE_LENGTH + 4 && key !== 0x00020000) {
+      throw new Error('DICOM File Meta Information Group Length must be the first meta element.');
+    }
     if (key === 0x00020000) {
       if (header.vr !== 'UL' || header.length !== 4) throw new Error('DICOM File Meta Information Group Length is invalid.');
       groupLength = readUInt32(buffer, header.valueOffset, true);
