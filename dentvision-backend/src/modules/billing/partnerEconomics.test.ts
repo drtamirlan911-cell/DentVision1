@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculatePartnerTransactionFee, resolveAcademyRevenueSplit } from './partnerEconomics.js';
+import { calculatePartnerBranchSubscriptionQuote, calculatePartnerTransactionFee, resolveAcademyRevenueSplit } from './partnerEconomics.js';
 
 describe('canonical partner economics v1.2', () => {
   it.each([[5_000, 500], [10_000, 700], [50_000, 3_000]])('calculates diagnostic fee', (gross, expected) => {
