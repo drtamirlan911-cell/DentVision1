@@ -59,7 +59,8 @@ describe('Dental Laboratory Finance Hub and payout boundaries', () => {
     expect(resolver).toContain('db.personRole.findMany');
     expect(resolver).toContain("medical_lab_finance");
     expect(resolver).toContain("dental_lab_owner");
-    expect(resolver).toContain('new Set([...legacyMembers.map');
+    expect(resolver).toContain('new Set([...legacyLabMembers, ...legacyDiagnosticMembers]');
+    expect(resolver).toContain('.concat(canonicalUserIds)');
     expect(resolver).toContain('labId: ownerId');
     expect(resolver).toContain("role: { in: ['owner', 'admin', 'manager', 'director', 'lab_manager', 'lab_finance', 'finance', 'accountant'] }");
   });
