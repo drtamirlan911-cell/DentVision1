@@ -154,6 +154,21 @@ async function ensureClinicSubscriptionWritableIfClinicActor(req: AuthRequest, r
   }
 }
 
+medicalLabLifecycleRouter.get('/capabilities', async (req: AuthRequest, res) => {
+  try {
+    const labId = await resolveLaboratoryScopeId(req.user);
+    if (!labId) return res.status(403).json({ ok: false, error: 'Нет активного контекста медицинской лаборатории' } satisfies ApiResponse);
+    const roles = await resolveMedicalLabRoleKeys(req.user);
+    return res.json({
+      ok: true,
+      data: { laboratoryId: labId, roles, capabilities: medicalLabCapabilitiesForRoles(roles) },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[medical-lab] capabilities read failed', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить права медицинской лаборатории' } satisfies ApiResponse);
+  }
+});
+
 async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, write = false): Promise<boolean> {
   if (user?.role === 'SUPERADMIN') return true;
 
