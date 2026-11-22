@@ -19,6 +19,8 @@ import { DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS, LAB_RESULT_SIGNER_ROLE_KEYS, hasSco
 import { assertClinicDoctorSignoff, ClinicalSignoffAuthorizationError } from './clinicalSignoffAuthorization.js';
 import { authorizeDiagnosticCenterStatusTransition, canReadDiagnosticCenterClinicalDetail } from './diagnosticCenterWorkflow.js';
 import { parseDicomPart10Metadata } from './dicomMetadata.js';
+import { listSettlements, paySettlement, type SettlementOwnerType } from './settlement.service.js';
+import { resolveActivePartnerSettlementScope, settlementBelongsToActiveScope } from './settlementAccess.js';
 
 export async function claimReferralPaid(referralId: string, data: { paid: boolean; paidAt?: Date; cost?: number }): Promise<boolean> { const result = await (prisma as any).referral.updateMany({ where: { id: referralId, paid: false }, data }); return result.count === 1; }
 
@@ -79,6 +81,12 @@ async function canManagePartnerBilling(user: AuthRequest['user']): Promise<boole
   if (!user) return false;
   if (user.role === 'SUPERADMIN') return true;
   return hasPartnerManagementSuffix(await activePartnerRoleKeys(user), true);
+}
+async function canManagePartnerSettlement(user: AuthRequest['user']): Promise<boolean> {
+  if (!user) return false;
+  if (user.role === 'SUPERADMIN') return true;
+  // A cashier may collect a patient's payment, but cannot issue a platform-fee invoice.
+  return hasPartnerManagementSuffix(await activePartnerRoleKeys(user), false);
 }
 async function canManagePartnerCatalog(user: AuthRequest['user']): Promise<boolean> {
   if (!user) return false;
@@ -358,6 +366,123 @@ function redactDiagnosticCenterOperationalReferral(referral: any) {
 
 diagnosticsRouter.post('/register', optionalAuth, async (req: AuthRequest, res) => { try { const data = await svc.createRegistrationRequest({ ...req.body, userId: (req.user as any)?.id }); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.use(authenticate);
+
+
+diagnosticsRouter.get('/settlements', async (req: AuthRequest, res) => {
+  try {
+    const isSuperadmin = req.user?.role === 'SUPERADMIN';
+    const activeScope = resolveActivePartnerSettlementScope(req.user);
+    if (!isSuperadmin) {
+      if (!activeScope || !(await canManagePartnerSettlement(req.user))) {
+        return res.status(403).json({ ok: false, error: 'Расчёты доступны только финансовым и руководящим ролям активного партнёрского кабинета.' } satisfies ApiResponse);
+      }
+      // Partner users cannot widen their own scope with URL parameters.
+      if (req.query.ownerType || req.query.ownerId) {
+        return res.status(400).json({ ok: false, error: 'Область расчётов определяется активным рабочим пространством.' } satisfies ApiResponse);
+      }
+    }
+
+    const requestedOwnerType = typeof req.query.ownerType === 'string' ? req.query.ownerType : undefined;
+    const requestedOwnerId = typeof req.query.ownerId === 'string' ? req.query.ownerId : undefined;
+    if (requestedOwnerType && !['CENTER', 'LAB'].includes(requestedOwnerType)) {
+      return res.status(400).json({ ok: false, error: 'Недопустимый тип владельца расчётов.' } satisfies ApiResponse);
+    }
+    const requestedStatus = typeof req.query.status === 'string' ? req.query.status : undefined;
+    if (requestedStatus && !['open', 'invoiced', 'paid', 'void'].includes(requestedStatus)) {
+      return res.status(400).json({ ok: false, error: 'Недопустимый статус расчётов.' } satisfies ApiResponse);
+    }
+
+    const filter = isSuperadmin
+      ? {
+          ...(requestedOwnerType ? { ownerType: requestedOwnerType as SettlementOwnerType } : {}),
+          ...(requestedOwnerId ? { ownerId: requestedOwnerId } : {}),
+          ...(requestedStatus ? { status: requestedStatus } : {}),
+        }
+      : { ...activeScope!, ...(requestedStatus ? { status: requestedStatus } : {}) };
+    const settlements = await listSettlements(filter);
+    return res.json({
+      ok: true,
+      data: {
+        items: settlements.map((settlement) => ({
+          ...settlement,
+          commissionMinor: settlement.commissionMinor.toString(),
+        })),
+        count: settlements.length,
+      },
+    } satisfies ApiResponse);
+  } catch (error: any) {
+    console.error('[diagnostics] settlement list failed', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить расчёты.' } satisfies ApiResponse);
+  }
+});
+
+diagnosticsRouter.post('/settlements/:id/pay', async (req: AuthRequest, res) => {
+  try {
+    const isSuperadmin = req.user?.role === 'SUPERADMIN';
+    const activeScope = resolveActivePartnerSettlementScope(req.user);
+    if (!isSuperadmin && (!activeScope || !(await canManagePartnerSettlement(req.user)))) {
+      return res.status(403).json({ ok: false, error: 'Выставлять оплату по расчётам могут только финансовые и руководящие роли партнёра.' } satisfies ApiResponse);
+    }
+
+    const settlement = await prisma.settlement.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, ownerType: true, ownerId: true, status: true },
+    });
+    if (!settlement) return res.status(404).json({ ok: false, error: 'Расчёт не найден.' } satisfies ApiResponse);
+    if (!isSuperadmin && !settlementBelongsToActiveScope(activeScope, settlement)) {
+      // Conceal cross-organization identifiers rather than confirming their existence.
+      return res.status(404).json({ ok: false, error: 'Расчёт не найден.' } satisfies ApiResponse);
+    }
+
+    const result = await paySettlement(settlement.id);
+    const qr = result.qr
+      || (result.payment?.meta as any)?.qr
+      || null;
+    if (!result.alreadyPaid) {
+      await auditFromReq(req, {
+        action: 'diagnostics.settlement.payment.requested',
+        entity: 'settlement',
+        entityId: settlement.id,
+        details: { ownerType: settlement.ownerType, ownerId: settlement.ownerId },
+      });
+    }
+
+    return res.json({
+      ok: true,
+      data: {
+        alreadyPaid: result.alreadyPaid,
+        settlement: {
+          id: result.settlement.id,
+          ownerType: result.settlement.ownerType,
+          ownerId: result.settlement.ownerId,
+          status: result.settlement.status,
+          commissionMinor: result.settlement.commissionMinor.toString(),
+          periodStart: result.settlement.periodStart,
+          periodEnd: result.settlement.periodEnd,
+          referralCount: result.settlement.referralCount,
+          dueDate: result.settlement.dueDate,
+          paidAt: result.settlement.paidAt,
+        },
+        payment: result.payment ? {
+          id: result.payment.id,
+          externalId: result.payment.externalId,
+          status: result.payment.status,
+          amountMinor: result.payment.amount.toString(),
+          qr,
+        } : null,
+        qr,
+      },
+    } satisfies ApiResponse);
+  } catch (error: any) {
+    const status = Number(error?.status) || 500;
+    if (status >= 500) console.error('[diagnostics] settlement payment request failed', error);
+    return res.status(status).json({
+      ok: false,
+      error: error?.message || 'Не удалось создать ссылку оплаты расчёта.',
+    } satisfies ApiResponse);
+  }
+});
+
 
 diagnosticsRouter.get('/stats', requireSuperadmin, async (_req: AuthRequest, res) => {
   try {
