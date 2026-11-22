@@ -26,7 +26,7 @@ interface DiagnosticSettlement {
 
 const STATUS: Record<SettlementStatus, { label: string; variant: 'warning' | 'info' | 'success' | 'default' }> = {
   open: { label: 'К оплате', variant: 'warning' },
-  invoiced: { label: 'Счёт выставлен', variant: 'info' },
+  invoiced: { label: 'Ссылка на оплату создана', variant: 'info' },
   paid: { label: 'Оплачен', variant: 'success' },
   void: { label: 'Аннулирован', variant: 'default' },
 };
@@ -98,7 +98,7 @@ export default function DiagnosticSettlements() {
     <div className="max-w-full space-y-6 p-4 sm:p-6">
       <PageHeader
         title="Расчёты с DentVision"
-        subtitle="Ежемесячная комиссия по подтверждённым оплатам направлений. Подписка за филиалы рассчитывается отдельно."
+        subtitle="Комиссия по подтверждённым оплатам направлений. Здесь можно получить платёжную ссылку Kaspi QR; подписка за филиалы рассчитывается отдельно."
         icon={<Wallet size={22} />}
         actions={
           <Button variant="secondary" size="sm" onClick={() => query.refetch()} loading={query.isFetching} icon={<RefreshCw size={15} />}>
@@ -188,7 +188,7 @@ export default function DiagnosticSettlements() {
                         loading={submittingId === settlement.id}
                         variant="primary"
                       >
-                        {settlement.status === 'invoiced' ? 'Открыть счёт' : 'Создать счёт Kaspi QR'}
+                        {settlement.status === 'invoiced' ? 'Открыть оплату' : 'Создать ссылку Kaspi QR'}
                       </Button>
                     )}
                     {paymentUrl && settlement.status !== 'paid' && settlement.status !== 'void' && (
