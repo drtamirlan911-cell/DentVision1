@@ -1147,6 +1147,21 @@ diagnosticsRouter.post('/referrals/:id/files', requireReferralAccess(true), asyn
     if (!isAcceptedFilePayload({ originalname: fileName, mimetype: fileType, buffer })) {
       return res.status(400).json({ ok: false, error: 'Содержимое файла не соответствует расширению или MIME-типу.' });
     }
+    const extension = path.extname(fileName).toLowerCase();
+    const isDicom = ['.dcm', '.dicom'].includes(extension) || fileType.includes('dicom');
+    let dicomMetadata;
+    if (isDicom) {
+      try {
+        dicomMetadata = parseDicomPart10Metadata(buffer);
+      } catch (error: any) {
+        const code = String(error?.code || 'DICOM_METADATA_INVALID');
+        return res.status(code === 'DICOM_TRANSFER_SYNTAX_UNSUPPORTED' ? 415 : 400).json({
+          ok: false,
+          error: error?.message || 'Не удалось прочитать метаданные DICOM.',
+          code,
+        } satisfies ApiResponse);
+      }
+    }
     const data = await svc.uploadReferralFile({
       referralId,
       fileName,
@@ -1154,26 +1169,30 @@ diagnosticsRouter.post('/referrals/:id/files', requireReferralAccess(true), asyn
       fileType,
       fileSize: buffer.byteLength,
       uploadedBy: req.user!.id,
+      ...(dicomMetadata ? { dicomMetadata } : {}),
     });
     return res.status(201).json({
       ok: true,
       data: {
         id: data.id,
-        referralId: data.referralId,
+        referralId,
         fileName: data.fileName,
         fileType: data.fileType,
         fileSize: data.fileSize,
         createdAt: data.createdAt,
         downloadAvailable: true,
         unavailable: false,
+        ...(data.dicomIndex ? { dicom: data.dicomIndex } : {}),
       },
     } satisfies ApiResponse);
   } catch (error: any) {
-    const unavailable = error?.code === 'DIAGNOSTIC_STORAGE_UNAVAILABLE';
-    return res.status(unavailable ? 503 : 400).json({
+    const code = String(error?.code || '');
+    const unavailable = code === 'DIAGNOSTIC_STORAGE_UNAVAILABLE';
+    const conflict = ['DICOM_STUDY_LINK_CONFLICT', 'DICOM_MODALITY_LINK_CONFLICT', 'DICOM_INSTANCE_ALREADY_EXISTS'].includes(code);
+    return res.status(unavailable ? 503 : conflict ? 409 : 400).json({
       ok: false,
-      error: unavailable ? error.message : (error?.message || 'Не удалось сохранить файл исследования'),
-      ...(error?.code ? { code: error.code } : {}),
+      error: error?.message || 'Не удалось сохранить файл исследования',
+      ...(code ? { code } : {}),
     } satisfies ApiResponse);
   }
 });
