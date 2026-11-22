@@ -42,8 +42,13 @@ describe('Partner workspace privacy logging', () => {
       expect(source, path).toContain("import { safeErrorKind } from '../../lib/safeError.js';");
       for (const line of logLines) {
         expect(line, path).toContain('safeErrorKind(');
-        expect(line.includes(', error);') || line.includes(', err);')
-          || line.includes(', error));') || line.includes(', err));').toBe(false);
+        const hasRawExceptionArgument = [
+          ', error);',
+          ', err);',
+          ', error));',
+          ', err));',
+        ].some((suffix) => line.includes(suffix));
+        expect(hasRawExceptionArgument, path).toBe(false);
       }
     }
   });
