@@ -137,7 +137,10 @@ describe('dental lab partner finance workspace contract', () => {
   });
 
   it('uses the shared payout reservation and ledger transition rather than adding commission on delivery', () => {
-    expect(financeRoutes).toContain("requestPayout({ ownerType: 'PARTNER', ownerId: membership.labId, amountMinor })");
+    expect(financeRoutes).toContain("prisma.$transaction(async (tx) =>");
+    expect(financeRoutes).toContain("requestPayout({ ownerType: 'PARTNER', ownerId: membership.labId, amountMinor }, tx)");
+    expect(financeRoutes).toContain("action: 'DENTAL_LAB_PAYOUT_REQUESTED'");
+    expect(financeRoutes).toContain('}, tx);');
     expect(financeRoutes).toContain('availableBalanceMinor(wallet.id)');
     const deliveryStart = financeRoutes.indexOf("labPlatformRouter.post('/orders/:id/shipment/delivery-confirmation'");
     const technicianStart = financeRoutes.indexOf("labPlatformRouter.patch('/orders/:id/technician'", deliveryStart);
