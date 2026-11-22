@@ -50,6 +50,17 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
       data: { id: randomUUID(), name: 'E2E Cross-Module Center', city: 'Almaty', active: true },
     });
     centerId = center.id;
+    await prisma.diagnosticStudy.create({
+      data: {
+        id: randomUUID(),
+        centerId,
+        name: 'КТ верхней челюсти',
+        category: 'CBCT',
+        price: 25_000,
+        durationMin: 30,
+        active: true,
+      },
+    });
     await prisma.organization.create({
       data: {
         id: centerId,
@@ -150,13 +161,30 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
     expect(forbidden.status()).toBe(403);
   });
 
-  test('CROSS-003: center completes the performed study, then doctor signs the result → patient record', async () => {
-    const completeRes = await api.post(`${BASE_URL}/api/diagnostics/referrals/${referralId}/status`, {
+  test('CROSS-003: center follows the RIS sequence, then doctor signs the result → patient record', async () => {
+    const acceptRes = await api.post(`${BASE_URL}/api/diagnostics/referrals/${referralId}/status`, {
       headers: auth(centerToken),
-      data: { status: 'COMPLETED' },
+      data: { status: 'ACCEPTED' },
     });
-    expect(completeRes.status()).toBe(200);
-    expect((await completeRes.json()).data.status).toBe('COMPLETED');
+    expect(acceptRes.status(), await acceptRes.text()).toBe(200);
+
+    const scheduleRes = await api.post(`${BASE_URL}/api/diagnostics/referrals/${referralId}/status`, {
+      headers: auth(centerToken),
+      data: { status: 'SCHEDULED', scheduledDate: '2026-11-23', scheduledTime: '10:00' },
+    });
+    expect(scheduleRes.status(), await scheduleRes.text()).toBe(200);
+
+    const arrivalRes = await api.post(`${BASE_URL}/api/diagnostics/referrals/${referralId}/status`, {
+      headers: auth(centerToken),
+      data: { status: 'PATIENT_ARRIVED' },
+    });
+    expect(arrivalRes.status(), await arrivalRes.text()).toBe(200);
+
+    const acquisitionRes = await api.post(`${BASE_URL}/api/diagnostics/referrals/${referralId}/status`, {
+      headers: auth(centerToken),
+      data: { status: 'IN_PROGRESS' },
+    });
+    expect(acquisitionRes.status(), await acquisitionRes.text()).toBe(200);
 
     const signRes = await api.post(`${BASE_URL}/api/diagnostics/referrals/${referralId}/results/sign`, {
       headers: auth(doctorToken),
