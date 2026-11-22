@@ -36,10 +36,18 @@ function buildDicomPart10Fixture(ids: { study: string; series: string; sop: stri
   const sopClass = '1.2.840.10008.5.1.4.1.1.2';
   const preamble = Buffer.alloc(132);
   preamble.write('DICM', 128, 4, 'ascii');
-  const meta = [
+  const metaBody = Buffer.concat([
+    dicomExplicitElement(0x0002, 0x0001, 'OB', Buffer.from([0, 1])),
     dicomExplicitElement(0x0002, 0x0002, 'UI', dicomText(sopClass, 0)),
     dicomExplicitElement(0x0002, 0x0003, 'UI', dicomText(ids.sop, 0)),
     dicomExplicitElement(0x0002, 0x0010, 'UI', dicomText('1.2.840.10008.1.2.1', 0)),
+    dicomExplicitElement(0x0002, 0x0012, 'UI', dicomText('1.2.826.0.1.3680043.10.543', 0)),
+  ]);
+  const groupLength = Buffer.alloc(4);
+  groupLength.writeUInt32LE(metaBody.length, 0);
+  const meta = [
+    dicomExplicitElement(0x0002, 0x0000, 'UL', groupLength),
+    metaBody,
   ];
   const dataset = [
     dicomExplicitElement(0x0008, 0x0016, 'UI', dicomText(sopClass, 0)),
