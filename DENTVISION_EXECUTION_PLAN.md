@@ -1147,3 +1147,13 @@ Recognition is an outcome of independently verifiable product quality and adopti
 - The settlement UI reads `items`, count and `canRequestPayment` from the backend response. It never renders the invoice action for read-only roles; server authorization remains authoritative.
 - Backend unit tests now mock the interactive Prisma transaction used by `grantDiagnosticsAccess`. The diagnostic radiologist role contract now expects the canonical `radiologist` key while retaining the legacy seeded alias in migration/context compatibility checks.
 - **Verification boundary:** latest exact-head CI is being rerun after these changes. Do not mark this slice release-verified until backend/frontend lint, TypeScript, full unit suite, E2E, Quality Gate and RB-034 all complete successfully on the same final SHA.
+
+  
+## Partner branch subscription quote foundation — 2026-11-22
+
+- Centralized the approved monthly branch subscription price book in `dentvision-backend/src/modules/billing/partnerEconomics.ts`: Diagnostic Center ₸49,900, Medical Laboratory ₸19,900, Dental Laboratory ₸29,900 per billable branch.
+- Added a deterministic quote primitive that separates organization activation from active billable branch quantity. An activated branch-priced partner has a one-branch minimum; an inactive organization quotes zero; additional billable branches multiply the published unit price.
+- The quote validates branch counts as non-negative safe integers and rejects totals outside the safe KZT integer range. It reports policy version, currency, vertical, unit price, actual and billable branch counts, and monthly total.
+- The Finance partner-economics service now derives its persisted minor-unit subscription snapshots from the same KZT price book rather than duplicating numeric tariffs.
+- Added unit coverage for all three tariff values, inactive/zero-branch behavior, multi-branch totals, invalid counts and overflow, plus a finance-level assertion that the minor-unit snapshots remain aligned.
+- **Boundary:** this is quote/policy centralization only. It does not create invoices, collect payments, change entitlements, calculate proration, apply next-period deactivation/activation, execute refunds or prove bank settlement. The generic subscription/invoice/payment lifecycle must be audited and integrated before branch billing is marked complete. No production/staging database or payment provider was changed; partner cabinets remain subject to their existing PARTIAL release gates.
