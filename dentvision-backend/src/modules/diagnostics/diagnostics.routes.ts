@@ -169,9 +169,13 @@ function parseDiagnosticAttachment(req: Request, res: Response, next: NextFuncti
   });
 }
 
+export function partnerCatalogReadPermission(type: 'DiagnosticCenter' | 'Laboratory'): string {
+  return type === 'DiagnosticCenter' ? 'diagnostics.read' : 'lab.read';
+}
+
 export function partnerReferralReadPermission(scope: { centerId?: string | null; labId?: string | null }): string | null {
-  if (scope.centerId) return 'diagnostics.read';
-  if (scope.labId) return 'lab.read';
+  if (scope.centerId) return partnerCatalogReadPermission('DiagnosticCenter');
+  if (scope.labId) return partnerCatalogReadPermission('Laboratory');
   return null;
 }
 
@@ -622,6 +626,9 @@ diagnosticsRouter.get('/centers/:id', async (req: AuthRequest, res) => {
   try {
     const centerId = String(req.params.id);
     const isActiveCenterMember = sameOrgContext(req.user, 'DiagnosticCenter', centerId);
+    if (isActiveCenterMember && !(await hasPartnerScopedPermission(req.user, partnerCatalogReadPermission('DiagnosticCenter')))) {
+      return res.status(403).json({ ok: false, error: 'Каталог центра доступен сотрудникам с правом diagnostics.read' } satisfies ApiResponse);
+    }
     const data = await svc.getCenter(centerId, { includePrivate: isActiveCenterMember });
     if (!data) return res.status(404).json({ ok: false, error: 'Center not found' } satisfies ApiResponse);
     return res.json({ ok: true, data } satisfies ApiResponse);
@@ -636,6 +643,9 @@ diagnosticsRouter.get('/laboratories/:id', async (req: AuthRequest, res) => {
   try {
     const laboratoryId = String(req.params.id);
     const isActiveLabMember = sameOrgContext(req.user, 'Laboratory', laboratoryId);
+    if (isActiveLabMember && !(await hasPartnerScopedPermission(req.user, partnerCatalogReadPermission('Laboratory')))) {
+      return res.status(403).json({ ok: false, error: 'Каталог лаборатории доступен сотрудникам с правом lab.read' } satisfies ApiResponse);
+    }
     const data = await svc.getLaboratory(laboratoryId, { includePrivate: isActiveLabMember });
     if (!data) return res.status(404).json({ ok: false, error: 'Laboratory not found' } satisfies ApiResponse);
     return res.json({ ok: true, data } satisfies ApiResponse);
@@ -655,6 +665,9 @@ diagnosticsRouter.get('/studies', async (req: AuthRequest, res) => {
     if (centerId) {
       const centerIdValue = String(centerId);
       const isActiveCenterMember = sameOrgContext(req.user, 'DiagnosticCenter', centerIdValue);
+      if (isActiveCenterMember && !(await hasPartnerScopedPermission(req.user, partnerCatalogReadPermission('DiagnosticCenter')))) {
+        return res.status(403).json({ ok: false, error: 'Исследования доступны сотрудникам центра с правом diagnostics.read' } satisfies ApiResponse);
+      }
       const center = await svc.getCenter(centerIdValue, { includePrivate: isActiveCenterMember });
       if (!center) return res.status(404).json({ ok: false, error: 'Diagnostic center not found' } satisfies ApiResponse);
       if (!isActiveCenterMember) {
@@ -671,6 +684,9 @@ diagnosticsRouter.get('/lab-tests', async (req: AuthRequest, res) => {
     if (labId) {
       const labIdValue = String(labId);
       const isActiveLabMember = sameOrgContext(req.user, 'Laboratory', labIdValue);
+      if (isActiveLabMember && !(await hasPartnerScopedPermission(req.user, partnerCatalogReadPermission('Laboratory')))) {
+        return res.status(403).json({ ok: false, error: 'Анализы доступны сотрудникам лаборатории с правом lab.read' } satisfies ApiResponse);
+      }
       const lab = await svc.getLaboratory(labIdValue, { includePrivate: isActiveLabMember });
       if (!lab) return res.status(404).json({ ok: false, error: 'Laboratory not found' } satisfies ApiResponse);
       if (!isActiveLabMember) {
