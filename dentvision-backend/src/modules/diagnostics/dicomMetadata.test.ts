@@ -70,8 +70,8 @@ function part10Dataset(options: { transferSyntax?: string; includeSequence?: boo
     explicitElement(0x0020, 0x000e, 'UI', padded(SERIES, 0)),
     explicitElement(0x0020, 0x0011, 'IS', padded('1', 0x20)),
     explicitElement(0x0020, 0x0013, 'IS', padded('3', 0x20)),
-    explicitElement(0x0028, 0x0010, 'US', Buffer.from([0x00, 0x02])),
-    explicitElement(0x0028, 0x0011, 'US', Buffer.from([0x00, 0x02])),
+    explicitElement(0x0028, 0x0010, 'US', Buffer.from([0x02, 0x00])),
+    explicitElement(0x0028, 0x0011, 'US', Buffer.from([0x02, 0x00])),
     explicitElement(0x0028, 0x0100, 'US', Buffer.from([0x10, 0x00])),
   ];
   if (includeSequence) {
@@ -86,7 +86,7 @@ function part10Dataset(options: { transferSyntax?: string; includeSequence?: boo
     sequence.writeUInt32LE(0xffffffff, 8);
     common.unshift(sequence);
   }
-  const pixelData = explicitElement(0x7fe0, 0x0010, 'OW', Buffer.from([1, 2, 3, 4]));
+  const pixelData = explicitElement(0x7fe0, 0x0010, 'OW', Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]));
   const bytes = Buffer.concat([preamble, meta, ...common, pixelData]);
   if (mediaUidMismatch) {
     const marker = Buffer.from(SOP_INSTANCE, 'ascii');
@@ -111,8 +111,8 @@ describe('DICOM Part 10 metadata parser', () => {
       accessionNumber: 'ACC-1001',
       seriesNumber: '1',
       instanceNumber: '3',
-      rows: 512,
-      columns: 512,
+      rows: 2,
+      columns: 2,
       bitsAllocated: 16,
     });
     expect(metadata).not.toHaveProperty('patientName');
