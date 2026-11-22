@@ -17,6 +17,7 @@ import { assertValidIinFormat, checkIinCrossFields } from '../../lib/patientIin.
 import { resolveImageUrl } from '../../lib/imageUrl.js';
 import { checkImageAnalysisConsent, isImageConsentDenied, IMAGE_CONSENT_MESSAGE } from '../ai/os/imageConsent.js';
 import type { ReferralStatus, DiagnosticCategory, ReferralPriority } from '@prisma/client';
+import type { DicomPart10Metadata } from './dicomMetadata.js';
 
 // ─── Center Subscription ───
 
@@ -456,7 +457,27 @@ export async function getReferral(id: string) {
         },
       },
       files: {
-        select: { id: true, fileName: true, fileType: true, fileSize: true, fileUrl: true, createdAt: true },
+        select: {
+          id: true, fileName: true, fileType: true, fileSize: true, fileUrl: true, createdAt: true,
+          dicomInstance: {
+            select: {
+              sopInstanceUid: true, sopClassUid: true, transferSyntaxUid: true,
+              rows: true, columns: true, numberOfFrames: true, bitsAllocated: true,
+              photometricInterpretation: true,
+              series: {
+                select: {
+                  seriesInstanceUid: true, modality: true, seriesNumber: true,
+                  study: {
+                    select: {
+                      studyInstanceUid: true, accessionNumber: true, modality: true,
+                      studyDate: true, studyTime: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         orderBy: { createdAt: 'asc' },
       },
       comments: {
@@ -470,10 +491,36 @@ export async function getReferral(id: string) {
   // authenticated download-url endpoint issues a fresh short-lived URL on an
   // explicit click after re-checking tenant, referral and clinical-role scope.
   const files = referral.files.map((file) => ({
-    ...file,
+    id: file.id,
+    fileName: file.fileName,
+    fileType: file.fileType,
+    fileSize: file.fileSize,
+    createdAt: file.createdAt,
     fileUrl: null,
     downloadAvailable: isStorageKey(file.fileUrl || '') && storageConfigured(),
     unavailable: !isStorageKey(file.fileUrl || '') || !storageConfigured(),
+    dicom: file.dicomInstance ? {
+      sopInstanceUid: file.dicomInstance.sopInstanceUid,
+      sopClassUid: file.dicomInstance.sopClassUid,
+      transferSyntaxUid: file.dicomInstance.transferSyntaxUid,
+      rows: file.dicomInstance.rows,
+      columns: file.dicomInstance.columns,
+      numberOfFrames: file.dicomInstance.numberOfFrames,
+      bitsAllocated: file.dicomInstance.bitsAllocated,
+      photometricInterpretation: file.dicomInstance.photometricInterpretation,
+      series: {
+        seriesInstanceUid: file.dicomInstance.series.seriesInstanceUid,
+        modality: file.dicomInstance.series.modality,
+        seriesNumber: file.dicomInstance.series.seriesNumber,
+      },
+      study: {
+        studyInstanceUid: file.dicomInstance.series.study.studyInstanceUid,
+        accessionNumber: file.dicomInstance.series.study.accessionNumber,
+        modality: file.dicomInstance.series.study.modality,
+        studyDate: file.dicomInstance.series.study.studyDate,
+        studyTime: file.dicomInstance.series.study.studyTime,
+      },
+    } : null,
   }));
   if (!referral.result) return { ...referral, files };
   const signerIds = [...new Set([
@@ -689,16 +736,27 @@ export async function uploadReferralFile(data: {
   fileType: string;
   fileSize?: number;
   uploadedBy: string;
+  dicomMetadata?: DicomPart10Metadata;
 }) {
   if (!storageConfigured()) {
     throw Object.assign(new Error('Файловое хранилище не настроено. Обратитесь к администратору.'), { code: 'DIAGNOSTIC_STORAGE_UNAVAILABLE' });
   }
   const referral = await prisma.referral.findUnique({
     where: { id: data.referralId },
-    select: { id: true, clinicId: true },
+    select: { id: true, clinicId: true, centerId: true, modalityId: true },
   });
   if (!referral) throw new Error('Referral not found');
   if (!referral.clinicId) throw new Error('Для файла направления не определена клиника-владелец.');
+  if (data.dicomMetadata && !referral.centerId) {
+    throw Object.assign(new Error('DICOM-исследование можно привязать только к направлению диагностического центра.'), { code: 'DICOM_CENTER_REQUIRED' });
+  }
+  if (data.dicomMetadata && referral.modalityId) {
+    const modality = await prisma.diagnosticModality.findFirst({
+      where: { id: referral.modalityId, centerId: referral.centerId! },
+      select: { id: true },
+    });
+    if (!modality) throw Object.assign(new Error('Оборудование направления не принадлежит выбранному диагностическому центру.'), { code: 'DICOM_MODALITY_SCOPE_INVALID' });
+  }
 
   const originalName = String(data.fileName || 'study-file').trim().replace(/[\/\\\u0000-\u001f<>:"|?*]/g, '_').slice(0, 180) || 'study-file';
   const extension = originalName.match(/\.[A-Za-z0-9]{1,12}$/)?.[0].toLowerCase() || '';
@@ -720,15 +778,97 @@ export async function uploadReferralFile(data: {
         },
         select: { id: true, referralId: true, fileName: true, fileType: true, fileSize: true, createdAt: true },
       });
+      let dicomIndex: null | { studyId: string; seriesId: string; sopInstanceUid: string; modality?: string } = null;
+      if (data.dicomMetadata) {
+        const metadata = data.dicomMetadata;
+        const centerId = referral.centerId!;
+        let study = await tx.diagnosticDicomStudy.findUnique({
+          where: { centerId_studyInstanceUid: { centerId, studyInstanceUid: metadata.studyInstanceUid } },
+        });
+        if (study && study.referralId !== referral.id) {
+          throw Object.assign(new Error('Этот DICOM Study UID уже связан с другим направлением центра.'), { code: 'DICOM_STUDY_LINK_CONFLICT' });
+        }
+        if (!study) {
+          study = await tx.diagnosticDicomStudy.create({
+            data: {
+              id: uid(),
+              referralId: referral.id,
+              centerId,
+              modalityId: referral.modalityId,
+              studyInstanceUid: metadata.studyInstanceUid,
+              accessionNumber: metadata.accessionNumber || null,
+              modality: metadata.modality || null,
+              studyDate: metadata.studyDate || null,
+              studyTime: metadata.studyTime || null,
+            },
+          });
+        } else if (referral.modalityId && study.modalityId && study.modalityId !== referral.modalityId) {
+          throw Object.assign(new Error('DICOM Study уже связан с другим оборудованием центра.'), { code: 'DICOM_MODALITY_LINK_CONFLICT' });
+        } else if (referral.modalityId && !study.modalityId) {
+          study = await tx.diagnosticDicomStudy.update({
+            where: { id: study.id },
+            data: { modalityId: referral.modalityId },
+          });
+        }
+
+        const series = await tx.diagnosticDicomSeries.upsert({
+          where: {
+            dicomStudyId_seriesInstanceUid: {
+              dicomStudyId: study.id,
+              seriesInstanceUid: metadata.seriesInstanceUid,
+            },
+          },
+          update: {
+            modality: metadata.modality || undefined,
+            seriesNumber: metadata.seriesNumber || undefined,
+          },
+          create: {
+            id: uid(),
+            dicomStudyId: study.id,
+            seriesInstanceUid: metadata.seriesInstanceUid,
+            modality: metadata.modality || null,
+            seriesNumber: metadata.seriesNumber || null,
+          },
+        });
+        await tx.diagnosticDicomInstance.create({
+          data: {
+            id: uid(),
+            seriesId: series.id,
+            referralFileId: file.id,
+            sopInstanceUid: metadata.sopInstanceUid,
+            sopClassUid: metadata.sopClassUid,
+            transferSyntaxUid: metadata.transferSyntaxUid,
+            fileName: originalName,
+            fileSize: data.fileSize ?? data.buffer.byteLength,
+            rows: metadata.rows,
+            columns: metadata.columns,
+            numberOfFrames: metadata.numberOfFrames,
+            bitsAllocated: metadata.bitsAllocated,
+            photometricInterpretation: metadata.photometricInterpretation,
+          },
+        });
+        dicomIndex = {
+          studyId: study.id,
+          seriesId: series.id,
+          sopInstanceUid: metadata.sopInstanceUid,
+          ...(metadata.modality ? { modality: metadata.modality } : {}),
+        };
+      }
       await writeAuditLog({
         action: 'FILE_UPLOADED',
         entity: 'referral',
         entityId: referral.id,
-        details: { fileId, fileType: data.fileType, fileSize: data.fileSize ?? data.buffer.byteLength, storage: 's3' },
+        details: {
+          fileId,
+          fileType: data.fileType,
+          fileSize: data.fileSize ?? data.buffer.byteLength,
+          storage: 's3',
+          ...(dicomIndex ? { dicomStudyId: dicomIndex.studyId, dicomSeriesId: dicomIndex.seriesId, sopInstanceUid: dicomIndex.sopInstanceUid } : {}),
+        },
         userId: data.uploadedBy,
         clinicId: referral.clinicId,
       }, tx);
-      return file;
+      return { ...file, dicomIndex };
     });
   } catch (error) {
     await deleteObject(storageKey).catch((cleanupError) => {
