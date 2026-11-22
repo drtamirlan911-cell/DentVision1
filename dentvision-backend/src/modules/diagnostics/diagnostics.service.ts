@@ -293,6 +293,15 @@ export async function grantDiagnosticsAccess(type: 'DiagnosticCenter' | 'Laborat
     const roleKey = canonicalLaboratoryRole
       ? normalizedRole
       : DIAGNOSTICS_ROLE_TO_ROLE_KEY[normalizedRole];
+    if (!roleKey) {
+      console.warn(`[Diagnostics] No unified role for ${type} member role '${role}' (user ${userId})`);
+      return false;
+    }
+    const dbRole = await prisma.role.findUnique({ where: { key: roleKey } });
+    if (!dbRole) {
+      console.warn(`[Diagnostics] Canonical role '${roleKey}' is not seeded for ${type} (user ${userId})`);
+      return false;
+    }
     const legacyMemberRole = type === 'Laboratory'
       ? (LABORATORY_LEGACY_MEMBER_ROLE[normalizedRole] || normalizedRole)
       : normalizedRole;
@@ -312,13 +321,7 @@ export async function grantDiagnosticsAccess(type: 'DiagnosticCenter' | 'Laborat
     } else {
       person = await prisma.person.create({ data: { id: uid(), fullName, personType, organizationId: org.id, userId: user.id, originalType, originalId: `${entityId}:${userId}` } });
     }
-    const roleKey = DIAGNOSTICS_ROLE_TO_ROLE_KEY[String(role).toLowerCase()];
-    if (!roleKey) {
-      console.warn(`[Diagnostics] No unified role for ${type} member role '${role}' (user ${userId}) — PersonRole not assigned`);
-      return true;
-    }
-    const dbRole = await prisma.role.findUnique({ where: { key: roleKey } });
-    if (dbRole) {
+    {
       const scopeKey = `organization:${org.id}`;
       await prisma.personRole.upsert({
         where: { personId_roleId_scopeKey: { personId: person.id, roleId: dbRole.id, scopeKey } },
