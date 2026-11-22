@@ -782,29 +782,28 @@ export async function uploadReferralFile(data: {
       if (data.dicomMetadata) {
         const metadata = data.dicomMetadata;
         const centerId = referral.centerId!;
-        let study = await tx.diagnosticDicomStudy.findUnique({
+        let study = await tx.diagnosticDicomStudy.upsert({
           where: { centerId_studyInstanceUid: { centerId, studyInstanceUid: metadata.studyInstanceUid } },
+          update: {},
+          create: {
+            id: uid(),
+            referralId: referral.id,
+            centerId,
+            modalityId: referral.modalityId,
+            studyInstanceUid: metadata.studyInstanceUid,
+            accessionNumber: metadata.accessionNumber || null,
+            modality: metadata.modality || null,
+            studyDate: metadata.studyDate || null,
+            studyTime: metadata.studyTime || null,
+          },
         });
-        if (study && study.referralId !== referral.id) {
+        if (study.referralId !== referral.id) {
           throw Object.assign(new Error('Этот DICOM Study UID уже связан с другим направлением центра.'), { code: 'DICOM_STUDY_LINK_CONFLICT' });
         }
-        if (!study) {
-          study = await tx.diagnosticDicomStudy.create({
-            data: {
-              id: uid(),
-              referralId: referral.id,
-              centerId,
-              modalityId: referral.modalityId,
-              studyInstanceUid: metadata.studyInstanceUid,
-              accessionNumber: metadata.accessionNumber || null,
-              modality: metadata.modality || null,
-              studyDate: metadata.studyDate || null,
-              studyTime: metadata.studyTime || null,
-            },
-          });
-        } else if (referral.modalityId && study.modalityId && study.modalityId !== referral.modalityId) {
+        if (referral.modalityId && study.modalityId && study.modalityId !== referral.modalityId) {
           throw Object.assign(new Error('DICOM Study уже связан с другим оборудованием центра.'), { code: 'DICOM_MODALITY_LINK_CONFLICT' });
-        } else if (referral.modalityId && !study.modalityId) {
+        }
+        if (referral.modalityId && !study.modalityId) {
           study = await tx.diagnosticDicomStudy.update({
             where: { id: study.id },
             data: { modalityId: referral.modalityId },
