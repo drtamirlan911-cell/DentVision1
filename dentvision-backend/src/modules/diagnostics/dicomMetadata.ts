@@ -167,6 +167,9 @@ export function parseDicomPart10Metadata(buffer: Buffer): DicomPart10Metadata {
 
   let offset = PREAMBLE_LENGTH + 4;
   const fileMeta = new Map<number, string>();
+  let groupLength: number | undefined;
+  let groupLengthEnd: number | undefined;
+  let metaVersion: Buffer | undefined;
   while (offset + 8 <= buffer.length) {
     const header = readHeader(buffer, offset, true, true);
     if (header.group !== 0x0002) break;
@@ -174,12 +177,31 @@ export function parseDicomPart10Metadata(buffer: Buffer): DicomPart10Metadata {
       throw new Error('DICOM file meta information is malformed.');
     }
     const key = tagKey(header.group, header.element);
-    if (key === TAG.mediaStorageSopClassUid || key === TAG.mediaStorageSopInstanceUid || key === TAG.transferSyntaxUid) {
+    if (key === 0x00020000) {
+      if (header.vr !== 'UL' || header.length !== 4) throw new Error('DICOM File Meta Information Group Length is invalid.');
+      groupLength = readUInt32(buffer, header.valueOffset, true);
+      groupLengthEnd = header.valueOffset + header.length + groupLength;
+    } else if (key === 0x00020001) {
+      if (header.vr !== 'OB' || header.length !== 2) throw new Error('DICOM File Meta Information Version is invalid.');
+      metaVersion = buffer.subarray(header.valueOffset, header.valueOffset + header.length);
+    } else if (key === TAG.mediaStorageSopClassUid || key === TAG.mediaStorageSopInstanceUid || key === TAG.transferSyntaxUid || key === 0x00020012) {
       fileMeta.set(key, decodeText(buffer, header.valueOffset, header.length));
     }
     offset = header.valueOffset + header.length;
   }
+  if (groupLength === undefined || groupLengthEnd !== offset) {
+    throw new Error('DICOM File Meta Information Group Length does not match the meta header.');
+  }
+  if (!metaVersion || metaVersion.length !== 2 || metaVersion[0] !== 0 || metaVersion[1] !== 1) {
+    throw new Error('DICOM File Meta Information Version is missing or invalid.');
+  }
 
+  const mediaStorageSopClassUid = fileMeta.get(TAG.mediaStorageSopClassUid) || '';
+  const mediaStorageSopInstanceUid = fileMeta.get(TAG.mediaStorageSopInstanceUid) || '';
+  const implementationClassUid = fileMeta.get(0x00020012) || '';
+  if (!validUid(mediaStorageSopClassUid) || !validUid(mediaStorageSopInstanceUid) || !validUid(implementationClassUid)) {
+    throw new Error('DICOM File Meta Information is missing required SOP or implementation identifiers.');
+  }
   const transferSyntaxUid = fileMeta.get(TAG.transferSyntaxUid) || '';
   const implicitVr = transferSyntaxUid === '1.2.840.10008.1.2';
   const explicitBigEndian = transferSyntaxUid === '1.2.840.10008.1.2.2';
@@ -231,9 +253,7 @@ export function parseDicomPart10Metadata(buffer: Buffer): DicomPart10Metadata {
   }
   const sopClassUid = String(values.get(TAG.sopClassUid));
   const sopInstanceUid = String(values.get(TAG.sopInstanceUid));
-  const mediaClass = fileMeta.get(TAG.mediaStorageSopClassUid);
-  const mediaInstance = fileMeta.get(TAG.mediaStorageSopInstanceUid);
-  if ((mediaClass && mediaClass !== sopClassUid) || (mediaInstance && mediaInstance !== sopInstanceUid)) {
+  if (mediaStorageSopClassUid !== sopClassUid || mediaStorageSopInstanceUid !== sopInstanceUid) {
     throw new Error('DICOM file meta SOP identifiers do not match the dataset.');
   }
 
