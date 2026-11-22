@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canLabManageFinance, canLabManageShipment, canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, isLabTechnicianRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeRequestReason, validateLabRemakeDecision } from './labPlatform.authorization.js';
+import { canLabManageFinance, canLabManageShipment, canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, isLabQualityRole, isLabTechnicianRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeRequestReason, validateLabRemakeDecision } from './labPlatform.authorization.js';
 
 describe('Dental Lab role boundaries', () => {
   it('allows logistics to read only through the dedicated delivery queue, not the production-assignment scope', () => {
@@ -65,6 +65,34 @@ describe('Dental Lab role boundaries', () => {
       ],
     });
     expect(labMemberOrderReadScope({ role: 'viewer', userId: 'viewer-1', labId: 'lab-1' })).toBeNull();
+  });
+
+  it('limits coordinators to assigned branches and allows operational coordination only', () => {
+    expect(canLabMemberReadOrders('lab_coordinator')).toBe(true);
+    expect(labMemberOrderReadScope({ role: 'lab_coordinator', userId: 'coord-1', labId: 'lab-1' })).toBeNull();
+    expect(labMemberOrderReadScope({ role: 'lab_coordinator', userId: 'coord-1', labId: 'lab-1', branchIds: ['branch-1', 'branch-2'] })).toEqual({
+      AND: [
+        { files: { path: ['meta', 'laboratoryId'], equals: 'lab-1' } },
+        { patient: { branchId: { in: ['branch-1', 'branch-2'] } } },
+      ],
+    });
+    expect(canLabMemberChangeStatus({ role: 'lab_coordinator', userId: 'coord-1', nextStatus: 'in_progress' })).toBe(true);
+    expect(canLabMemberChangeStatus({ role: 'lab_coordinator', userId: 'coord-1', nextStatus: 'delayed' })).toBe(true);
+    expect(canLabMemberChangeStatus({ role: 'lab_coordinator', userId: 'coord-1', nextStatus: 'ready' })).toBe(false);
+    expect(canLabManageShipment('lab_coordinator')).toBe(false);
+    expect(canLabManageFinance('lab_coordinator')).toBe(false);
+  });
+
+  it('grants QC specialists full order visibility and the QC capability without manager, shipment or finance powers', () => {
+    expect(isLabQualityRole('qc_specialist')).toBe(true);
+    expect(canLabMemberReadOrders('qc_specialist')).toBe(true);
+    expect(labMemberOrderReadScope({ role: 'qc_specialist', userId: 'qc-1', labId: 'lab-1' })).toEqual({
+      files: { path: ['meta', 'laboratoryId'], equals: 'lab-1' },
+    });
+    expect(isLabManagerRole('qc_specialist')).toBe(false);
+    expect(canLabMemberChangeStatus({ role: 'qc_specialist', userId: 'qc-1', nextStatus: 'ready' })).toBe(false);
+    expect(canLabManageShipment('qc_specialist')).toBe(false);
+    expect(canLabManageFinance('qc_specialist')).toBe(false);
   });
 
   it('recognizes production-specialist role keys as assigned-work roles', () => {
