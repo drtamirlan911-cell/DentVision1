@@ -55,7 +55,8 @@ describe('partner branch invoice presentation', () => {
     expect(component).toContain("invoice.status === 'issued' && canManageBilling");
     expect(api).toContain('/api/finance/partner-branch-billing/invoices?');
     expect(diagnosticWorkspace).toContain('activeWorkspace?.organizationId || user?.organizationId');
-    expect(dentalLabWorkspace).toContain("activeOrganizationType === 'LABORATORY'");
+    expect(dentalLabWorkspace).toContain('activeWorkspace?.organizationId || user?.organizationId');
+    expect(dentalLabWorkspace).toContain('canReadBilling={canManageFinance}');
     expect(component).not.toContain("status: 'paid'");
   });
 

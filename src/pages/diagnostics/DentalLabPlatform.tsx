@@ -309,10 +309,9 @@ export default function DentalLabPlatform() {
   const qc = useQueryClient();
   const context = useEcosystemUrlContext();
   const { user, activeWorkspace } = useAuth();
-  const activeOrganizationType = String(activeWorkspace?.scopeType || user?.organizationType || '').toUpperCase();
-  const billingOrganizationId = activeOrganizationType === 'LABORATORY'
-    ? String(activeWorkspace?.organizationId || user?.organizationId || '')
-    : '';
+  // The backend validates this ID against the signed active organization context;
+  // the client value is used only to key the query and is never authorization proof.
+  const billingOrganizationId = String(activeWorkspace?.organizationId || user?.organizationId || '');
   const dashboard = useQuery({ queryKey: ['lab-platform', 'dashboard'], queryFn: getLabPlatformDashboard, refetchInterval: 30_000 });
   const memberRole = String(dashboard.data?.membershipRole || '').toLowerCase();
   const canManageQc = ['owner', 'admin', 'manager', 'director', 'lab_manager'].includes(memberRole);
