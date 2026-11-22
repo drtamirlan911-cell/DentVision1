@@ -15,7 +15,7 @@ import { uid } from '../../lib/helpers.js';
 import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js';
 import { createNotificationForClinic } from '../../services/notification.service.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
-import { canLabManageFinance, canLabManageShipment, canLabMemberChangeStatus, canLabMemberReadOrders, isLabLogisticsRole, isLabManagerRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeDecision } from './labPlatform.authorization.js';
+import { canLabManageFinance, canLabManageShipment, canLabMemberChangeStatus, canLabMemberReadOrders, isLabLogisticsRole, isLabManagerRole, isLabQualityRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeDecision } from './labPlatform.authorization.js';
 
 export const labPlatformRouter = Router();
 labPlatformRouter.use(authenticate);
@@ -169,11 +169,11 @@ async function caseIdOf(orderId: string): Promise<string | null> {
   return rows[0]?.treatmentCaseId ?? null;
 }
 
-async function ordersForLab(labId: string, role: string, userId: string, status?: string) {
+async function ordersForLab(labId: string, role: string, userId: string, status?: string, branchIds: readonly string[] = []) {
   const logisticsOnly = isLabLogisticsRole(role);
   const readScope = logisticsOnly
     ? { files: { path: ['meta', 'laboratoryId'], equals: labId } }
-    : labMemberOrderReadScope({ role, userId, labId });
+    : labMemberOrderReadScope({ role, userId, labId, branchIds });
   if (!readScope) return null;
   const logisticsStatuses = ['ready', 'delivered'];
   if (logisticsOnly && status && !logisticsStatuses.includes(status)) return [];
@@ -376,7 +376,7 @@ labPlatformRouter.get('/dashboard', async (req: AuthRequest, res) => {
     if (!canLabMemberReadOrders(membership.role)) {
       return res.json({ ok: true, data: { lab: membership.lab, membershipRole: membership.role, totals: { all: 0, active: 0, dueSoon: 0, overdue: 0 }, byStatus: {}, priority: [] } } satisfies ApiResponse);
     }
-    const orders = await ordersForLab(membership.labId, membership.role, req.user!.id);
+    const orders = await ordersForLab(membership.labId, membership.role, req.user!.id, undefined, req.user?.branchIds || []);
     if (!orders) return res.status(403).json({ ok: false, error: 'Нет доступа к производственной очереди' } satisfies ApiResponse);
     const now = Date.now();
     const active = orders.filter((o) => !['delivered', 'cancelled'].includes(o.status));
@@ -470,7 +470,7 @@ labPlatformRouter.get('/orders', async (req: AuthRequest, res) => {
     const membership = await resolveLab(req);
     if (!membership || !canLabMemberReadOrders(membership.role)) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
     const status = req.query.status ? String(req.query.status) : undefined;
-    const orders = await ordersForLab(membership.labId, membership.role, req.user!.id, status);
+    const orders = await ordersForLab(membership.labId, membership.role, req.user!.id, status, req.user?.branchIds || []);
     if (!orders) return res.status(403).json({ ok: false, error: 'Нет доступа к производственной очереди' } satisfies ApiResponse);
     return res.json({ ok: true, data: orders } satisfies ApiResponse);
   } catch (error) { console.error('[LabPlatform] orders error:', error); return res.status(500).json({ ok: false, error: 'Не удалось загрузить заказы лаборатории' } satisfies ApiResponse); }
@@ -480,7 +480,7 @@ labPlatformRouter.get('/orders/:id/lifecycle', async (req: AuthRequest, res) => 
   try {
     const membership = await resolveLab(req);
     if (!membership || !canLabMemberReadOrders(membership.role)) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
-    const readScope = labMemberOrderReadScope({ role: membership.role, userId: req.user!.id, labId: membership.labId });
+    const readScope = labMemberOrderReadScope({ role: membership.role, userId: req.user!.id, labId: membership.labId, branchIds: req.user?.branchIds || [] });
     if (!readScope) return res.status(403).json({ ok: false, error: 'Нет доступа к истории производственных работ' } satisfies ApiResponse);
     const existing = await prisma.labOrder.findFirst({
       where: { id: req.params.id, ...readScope },
@@ -752,7 +752,7 @@ labPlatformRouter.patch('/orders/:id/qc', async (req: AuthRequest, res) => {
   try {
     const membership = await resolveLab(req);
     if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
-    if (!isLabManagerRole(membership.role)) return res.status(403).json({ ok: false, error: 'Подтверждать QC может только владелец или менеджер лаборатории' } satisfies ApiResponse);
+    if (!isLabManagerRole(membership.role) && !isLabQualityRole(membership.role)) return res.status(403).json({ ok: false, error: 'Подтверждать QC может только владелец, менеджер или специалист качества лаборатории' } satisfies ApiResponse);
     const submission = validateLabQualityControl(req.body?.checks, req.body?.note);
     if (!submission) return res.status(400).json({ ok: false, error: 'Заполните все пункты QC; при несоответствии укажите замечание' } satisfies ApiResponse);
     const nextStatus = submission.passed ? 'ready' : 'remake';
