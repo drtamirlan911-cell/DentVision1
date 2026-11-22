@@ -226,15 +226,15 @@ describe('concurrent payout protection', () => {
     walletHolding(100_000n);
     await requestPayout({ ownerType: 'LECTURER', ownerId: 'lect-1', amountMinor: 50_000n });
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
-    expect(String(tx.$executeRaw.mock.calls[0][0])).toContain('wallet-funds:');
+    expect(String(tx.$executeRaw.mock.calls[0][1])).toContain('wallet-funds:');
   });
 
   it('locks the payout before reading its current status', async () => {
     payoutAtForConcurrency('approved');
     await transitionPayout('p1', 'paid');
     expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
-    expect(String(tx.$executeRaw.mock.calls[0][0])).toContain('payout-transition:');
-    expect(String(tx.$executeRaw.mock.calls[1][0])).toContain('wallet-funds:');
+    expect(String(tx.$executeRaw.mock.calls[0][1])).toContain('payout-transition:');
+    expect(String(tx.$executeRaw.mock.calls[1][1])).toContain('wallet-funds:');
   });
 
   function payoutAtForConcurrency(status: string) {
