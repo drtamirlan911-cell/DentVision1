@@ -51,7 +51,7 @@ function walletHolding(
   balance: bigint,
   pending: bigint[] = [],
   ownerType: string = 'LECTURER',
-  partnerEconomicsCredits: bigint[] = [],
+  partnerEconomicsCredits: Array<{ amount: bigint; paymentId?: string | null }> = [],
 ) {
   tx.wallet.findUnique.mockResolvedValue({
     id: 'w1',
@@ -61,7 +61,10 @@ function walletHolding(
     ownerId: ownerType === 'PARTNER' ? 'lab-1' : 'lect-1',
   });
   tx.payout.findMany.mockResolvedValue(pending.map((amount) => ({ amount })));
-  tx.ledgerEntry.findMany.mockResolvedValue(partnerEconomicsCredits.map((amount) => ({ amount })));
+  tx.ledgerEntry.findMany.mockResolvedValue(partnerEconomicsCredits.map(({ amount, paymentId }) => ({
+    amount,
+    transaction: { meta: paymentId ? { paymentId } : {} },
+  })));
 }
 
 beforeEach(() => {
@@ -98,21 +101,26 @@ describe('available balance is the balance minus what is already claimed', () =>
   });
 
   it('does not treat diagnostic and medical-lab partner economics mirrors as withdrawable cash', async () => {
-    walletHolding(100_000n, [], 'PARTNER', [100_000n]);
+    walletHolding(100_000n, [], 'PARTNER', [{ amount: 100_000n }]);
     expect(await availableBalanceMinor('w1', tx as never)).toBe(0n);
     expect(tx.ledgerEntry.findMany).toHaveBeenCalledWith({
       where: { walletId: 'w1', direction: 'credit', transaction: { type: 'partner_economics' } },
-      select: { amount: true },
+      select: { amount: true, transaction: { select: { meta: true } } },
     });
   });
 
   it('subtracts mirrored partner revenue and pending payout holds from a partner wallet', async () => {
-    walletHolding(150_000n, [20_000n], 'PARTNER', [100_000n]);
+    walletHolding(150_000n, [20_000n], 'PARTNER', [{ amount: 100_000n }, { amount: 50_000n, paymentId: 'platform-payment-1' }]);
     expect(await availableBalanceMinor('w1', tx as never)).toBe(30_000n);
   });
 
+  it('keeps proceeds paid through the DentVision gateway available for partner payout', async () => {
+    walletHolding(100_000n, [], 'PARTNER', [{ amount: 100_000n, paymentId: 'platform-payment-1' }]);
+    expect(await availableBalanceMinor('w1', tx as never)).toBe(100_000n);
+  });
+
   it('does not apply partner-economics exclusions to lecturer wallets', async () => {
-    walletHolding(100_000n, [], 'LECTURER', [75_000n]);
+    walletHolding(100_000n, [], 'LECTURER', [{ amount: 75_000n }]);
     expect(await availableBalanceMinor('w1', tx as never)).toBe(100_000n);
     expect(tx.ledgerEntry.findMany).not.toHaveBeenCalled();
   });
@@ -127,11 +135,18 @@ describe('the same money cannot be requested twice', () => {
   });
 
   it('rejects payout requests funded only by partner-collected diagnostic revenue', async () => {
-    walletHolding(100_000n, [], 'PARTNER', [100_000n]);
+    walletHolding(100_000n, [], 'PARTNER', [{ amount: 100_000n }]);
     await expect(
       requestPayout({ ownerType: 'PARTNER', ownerId: 'lab-1', amountMinor: 1n }),
     ).rejects.toMatchObject({ code: 'INSUFFICIENT_FUNDS' });
     expect(tx.payout.create).not.toHaveBeenCalled();
+  });
+
+  it('allows partner payout requests against proceeds confirmed by a platform payment', async () => {
+    walletHolding(100_000n, [], 'PARTNER', [{ amount: 100_000n, paymentId: 'platform-payment-1' }]);
+    await expect(
+      requestPayout({ ownerType: 'PARTNER', ownerId: 'lab-1', amountMinor: 100_000n }),
+    ).resolves.toMatchObject({ status: 'requested', amount: 100_000n });
   });
 
   it('refuses a second request for money already asked for', async () => {
