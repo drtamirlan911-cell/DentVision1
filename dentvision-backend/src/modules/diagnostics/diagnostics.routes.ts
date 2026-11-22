@@ -765,6 +765,9 @@ diagnosticsRouter.get('/centers/:id/worklist', async (req: AuthRequest, res) => 
   try {
     const centerId = String(req.params.id);
     if (!sameOrgContext(req.user, 'DiagnosticCenter', centerId)) return res.status(403).json({ ok: false, error: 'Нет доступа к рабочей очереди центра' });
+    if (!(await hasPartnerScopedPermission(req.user, 'diagnostics.read'))) {
+      return res.status(403).json({ ok: false, error: 'Рабочая очередь доступна только сотрудникам с правом diagnostics.read.' } satisfies ApiResponse);
+    }
     const status = req.query.status ? String(req.query.status).toUpperCase() : undefined;
     const priority = req.query.priority ? String(req.query.priority).toUpperCase() : undefined;
     const allowedStatuses = new Set(['SENT', 'ACCEPTED', 'SCHEDULED', 'PATIENT_ARRIVED', 'IN_PROGRESS', 'COMPLETED', 'REVIEWED', 'DELIVERED']);
@@ -1009,6 +1012,9 @@ diagnosticsRouter.get('/referrals', async (req: AuthRequest, res) => {
     });
     const access = await authorizeReferralListScope(req.user, scope);
     if (access.ok === false) return res.status(access.status || 403).json({ ok: false, error: access.error || 'Нет доступа' });
+    if ((scope.centerId || scope.labId) && !(await hasPartnerScopedPermission(req.user, 'diagnostics.read'))) {
+      return res.status(403).json({ ok: false, error: 'Операционные направления доступны только сотрудникам с правом diagnostics.read.' } satisfies ApiResponse);
+    }
     const branchIds = await referralListBranchIds(req.user, scope.clinicId);
     if (scope.clinicId && branchIds && branchIds.length === 0) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалам клиники' });
     const data = await svc.listReferrals({
