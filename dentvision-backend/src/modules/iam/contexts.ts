@@ -1,5 +1,6 @@
 import { installContentCatalogJsonGuard } from '../../iam/contentCatalogMiddleware.js';
 import type { UserRole } from '@prisma/client';
+import { PARTNER_ROLE_BY_KEY } from '../../lib/roleAccessRegistry.js';
 
 installContentCatalogJsonGuard();
 
@@ -21,6 +22,22 @@ export type ScopeType =
   | 'ACADEMY'
   | 'PARTNER'
   | 'EMPLOYER';
+
+/**
+ * A workspace branch hint is useful only when at least one active partner role
+ * is organization- or branch-scoped. ASSIGNED/OWN roles select individual work
+ * items and must not inherit an arbitrary default branch from the organization.
+ */
+export function shouldAttachDefaultPartnerBranchHint(roleKey: string): boolean {
+  const aliases: Record<string, string> = {
+    DIAGNOSTIC_RADIOLOGIST: 'RADIOLOGIST',
+  };
+  const roleKeys = String(roleKey || '').split(',').map((key) => key.trim().toUpperCase()).filter(Boolean);
+  const scopes = roleKeys
+    .map((key) => PARTNER_ROLE_BY_KEY[aliases[key] || key]?.defaultScope)
+    .filter((scope): scope is 'ORGANIZATION' | 'BRANCH' | 'ASSIGNED' | 'OWN' => Boolean(scope));
+  return scopes.length === 0 || scopes.some((scope) => scope === 'ORGANIZATION' || scope === 'BRANCH');
+}
 
 export interface WorkspaceContext {
   id: string;
