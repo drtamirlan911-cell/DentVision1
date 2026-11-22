@@ -249,10 +249,12 @@ export function TeamTab({ config, orgId }: TabProps) {
                   {canManageBranches && (
                     <div className="w-full space-y-2 rounded-lg bg-surface-1 p-3 sm:max-w-[420px]">
                       <p className="text-xs font-medium text-txt-secondary">Доступ к филиалам</p>
-                      {branchMembershipsQuery.isPending || branchesQuery.isPending ? (
+                      {branchesQuery.isPending || (activeBranches.length > 0 && branchMembershipsQuery.isPending) ? (
                         <Skeleton className="h-8" />
-                      ) : branchMembershipsQuery.isError || branchesQuery.isError ? (
+                      ) : branchesQuery.isError || (activeBranches.length > 0 && branchMembershipsQuery.isError) ? (
                         <p className="text-xs text-txt-muted">Не удалось загрузить закрепления филиалов.</p>
+                      ) : activeBranches.length === 0 ? (
+                        <p className="text-xs text-txt-muted">У организации пока нет активных филиалов.</p>
                       ) : (
                         <>
                           <div className="flex flex-wrap gap-1.5">
