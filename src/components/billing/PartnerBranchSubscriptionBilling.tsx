@@ -90,10 +90,6 @@ export function PartnerBranchSubscriptionBilling({
     },
   });
 
-  if (!canReadBilling || !organizationId) return null;
-  if (invoicesQuery.isLoading) return <Card padding="md"><Skeleton className="h-36" /></Card>;
-  if (invoicesQuery.isError) return <QueryError what="счета филиальной подписки" onRetry={() => invoicesQuery.refetch()} />;
-
   const invoices = invoicesQuery.data || [];
   const payment = paymentQuery.data;
   const paymentQr = typeof payment?.qr === 'string' ? payment.qr : '';
@@ -108,6 +104,10 @@ export function PartnerBranchSubscriptionBilling({
       void queryClient.invalidateQueries({ queryKey: ['partner-branch-billing', 'invoices', organizationId] });
     }
   }, [paymentFailed, organizationId, queryClient]);
+
+  if (!canReadBilling || !organizationId) return null;
+  if (invoicesQuery.isLoading) return <Card padding="md"><Skeleton className="h-36" /></Card>;
+  if (invoicesQuery.isError) return <QueryError what="счета филиальной подписки" onRetry={() => invoicesQuery.refetch()} />;
 
   return (
     <section className="space-y-3" aria-labelledby="partner-branch-billing-title">
