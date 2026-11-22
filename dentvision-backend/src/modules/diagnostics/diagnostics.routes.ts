@@ -618,11 +618,31 @@ diagnosticsRouter.post('/commission-rules', requireSuperadmin, async (req: AuthR
   }
 });
 diagnosticsRouter.get('/centers', async (req: AuthRequest, res) => { try { const { search, city } = req.query as any; return res.json({ ok: true, data: await svc.listCenters(search, city) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
-diagnosticsRouter.get('/centers/:id', async (req: AuthRequest, res) => { try { const data = await svc.getCenter(req.params.id as string); if (!data) return res.status(404).json({ ok: false, error: 'Center not found' } satisfies ApiResponse); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.get('/centers/:id', async (req: AuthRequest, res) => {
+  try {
+    const centerId = String(req.params.id);
+    const isActiveCenterMember = sameOrgContext(req.user, 'DiagnosticCenter', centerId);
+    const data = await svc.getCenter(centerId, { includePrivate: isActiveCenterMember });
+    if (!data) return res.status(404).json({ ok: false, error: 'Center not found' } satisfies ApiResponse);
+    return res.json({ ok: true, data } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
 diagnosticsRouter.post('/centers', requireSuperadmin, async (req: AuthRequest, res) => { try { const { name, city, address, phone, email } = req.body as any; const normalizedName = String(name || '').trim(); if (!normalizedName) return res.status(400).json({ ok: false, error: 'Название диагностического центра обязательно' }); const data = await svc.createCenter({ name: normalizedName, city: city ? String(city).trim() : undefined, address: address ? String(address).trim() : undefined, phone: phone ? String(phone).trim() : undefined, email: email ? String(email).trim().toLowerCase() : undefined }); const ownerGranted = await svc.grantDiagnosticsAccess('DiagnosticCenter', data.id, req.user!.id, 'owner'); if (!ownerGranted) return res.status(500).json({ ok: false, error: 'Не удалось назначить владельца центра' }); return res.status(201).json({ ok: true, data: { entity: data, organizationType: 'DIAGNOSTIC_CENTER', organizationId: data.id, role: 'owner', verification: 'PENDING' } } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.patch('/centers/:id', requireSuperadmin, async (req: AuthRequest, res) => { try { return res.json({ ok: true, data: await svc.updateCenter(req.params.id as string, req.body) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.get('/laboratories', async (req: AuthRequest, res) => { try { const { search } = req.query as any; return res.json({ ok: true, data: await svc.listLaboratories(search) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
-diagnosticsRouter.get('/laboratories/:id', async (req: AuthRequest, res) => { try { const data = await svc.getLaboratory(req.params.id as string); if (!data) return res.status(404).json({ ok: false, error: 'Laboratory not found' } satisfies ApiResponse); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.get('/laboratories/:id', async (req: AuthRequest, res) => {
+  try {
+    const laboratoryId = String(req.params.id);
+    const isActiveLabMember = sameOrgContext(req.user, 'Laboratory', laboratoryId);
+    const data = await svc.getLaboratory(laboratoryId, { includePrivate: isActiveLabMember });
+    if (!data) return res.status(404).json({ ok: false, error: 'Laboratory not found' } satisfies ApiResponse);
+    return res.json({ ok: true, data } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
 diagnosticsRouter.post('/laboratories', requireSuperadmin, async (req: AuthRequest, res) => { try { const { name, city, address, phone, email } = req.body as any; const normalizedName = String(name || '').trim(); if (!normalizedName) return res.status(400).json({ ok: false, error: 'Название лаборатории обязательно' }); const data = await svc.createLaboratory({ name: normalizedName, city: city ? String(city).trim() : undefined, address: address ? String(address).trim() : undefined, phone: phone ? String(phone).trim() : undefined, email: email ? String(email).trim().toLowerCase() : undefined }); const ownerGranted = await svc.grantDiagnosticsAccess('Laboratory', data.id, req.user!.id, 'owner'); if (!ownerGranted) return res.status(500).json({ ok: false, error: 'Не удалось назначить владельца лаборатории' }); return res.status(201).json({ ok: true, data: { entity: data, organizationType: 'LABORATORY', organizationId: data.id, role: 'owner', verification: 'PENDING' } } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.patch('/laboratories/:id', requireSuperadmin, async (req: AuthRequest, res) => { try { return res.json({ ok: true, data: await svc.updateLaboratory(req.params.id as string, req.body) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.get('/registrations', requireSuperadmin, async (req: AuthRequest, res) => { try { return res.json({ ok: true, data: await svc.listRegistrationRequests(req.query.status as string) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
@@ -650,9 +670,10 @@ diagnosticsRouter.get('/lab-tests', async (req: AuthRequest, res) => {
     const { labId, category } = req.query as any;
     if (labId) {
       const labIdValue = String(labId);
-      const lab = await svc.getLaboratory(labIdValue);
+      const isActiveLabMember = sameOrgContext(req.user, 'Laboratory', labIdValue);
+      const lab = await svc.getLaboratory(labIdValue, { includePrivate: isActiveLabMember });
       if (!lab) return res.status(404).json({ ok: false, error: 'Laboratory not found' } satisfies ApiResponse);
-      if (!sameOrgContext(req.user, 'Laboratory', labIdValue)) {
+      if (!isActiveLabMember) {
         const clinicAccess = await assertOrgAccess(req.user!, labIdValue).catch(() => false);
         if (!clinicAccess) return res.status(403).json({ ok: false, error: 'Нет доступа к лаборатории' } satisfies ApiResponse);
       }
