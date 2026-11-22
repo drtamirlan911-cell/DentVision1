@@ -2,6 +2,9 @@ const LAB_MANAGER_ROLES = new Set(['owner', 'admin', 'manager', 'director', 'lab
 const LAB_TECHNICIAN_ROLES = new Set(['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician']);
 const LAB_LOGISTICS_ROLES = new Set(['courier', 'logistics', 'delivery_operator', 'dispatcher']);
 const LAB_FINANCE_ROLES = new Set(['lab_finance', 'finance', 'accountant']);
+const LAB_COORDINATOR_ROLES = new Set(['lab_coordinator']);
+const LAB_QUALITY_ROLES = new Set(['qc_specialist']);
+const COORDINATOR_STATUS_SET = new Set(['in_progress', 'delayed']);
 const TECHNICIAN_PROGRESS_STATUSES = new Set(['in_progress', 'try_in', 'adjustment', 'qc', 'delayed']);
 export const LAB_QC_CHECK_KEYS = ['fit', 'margins', 'shade', 'occlusion', 'surface', 'documentation'] as const;
 
@@ -15,6 +18,14 @@ export function isLabTechnicianRole(role: unknown): boolean {
 
 export function isLabLogisticsRole(role: unknown): boolean {
   return LAB_LOGISTICS_ROLES.has(String(role || '').trim().toLowerCase());
+}
+
+export function isLabCoordinatorRole(role: unknown): boolean {
+  return LAB_COORDINATOR_ROLES.has(String(role || '').trim().toLowerCase());
+}
+
+export function isLabQualityRole(role: unknown): boolean {
+  return LAB_QUALITY_ROLES.has(String(role || '').trim().toLowerCase());
 }
 
 /** Delivery staff may record dispatch and proof-of-delivery, but cannot manage QC or pricing. */
@@ -31,13 +42,27 @@ export function canLabManageFinance(role: unknown): boolean {
 
 /** Managers read the organization queue; production roles read assigned work only. */
 export function canLabMemberReadOrders(role: unknown): boolean {
-  return isLabManagerRole(role) || isLabTechnicianRole(role) || isLabLogisticsRole(role);
+  return isLabManagerRole(role)
+    || isLabCoordinatorRole(role)
+    || isLabQualityRole(role)
+    || isLabTechnicianRole(role)
+    || isLabLogisticsRole(role);
 }
 
 /** A technician's order queries include both the lab and assigned-user scope. */
-export function labMemberOrderReadScope(input: { role: unknown; userId: string; labId: string }): Record<string, unknown> | null {
+export function labMemberOrderReadScope(input: { role: unknown; userId: string; labId: string; branchIds?: readonly string[] }): Record<string, unknown> | null {
   const labOrder = { path: ['meta', 'laboratoryId'], equals: input.labId };
-  if (isLabManagerRole(input.role)) return { files: labOrder };
+  if (isLabManagerRole(input.role) || isLabQualityRole(input.role)) return { files: labOrder };
+  if (isLabCoordinatorRole(input.role)) {
+    const branchIds = (input.branchIds || []).filter(Boolean);
+    if (branchIds.length === 0) return null;
+    return {
+      AND: [
+        { files: labOrder },
+        { patient: { branchId: { in: [...branchIds] } } },
+      ],
+    };
+  }
   if (isLabTechnicianRole(input.role) && input.userId) {
     return {
       AND: [
@@ -52,6 +77,7 @@ export function labMemberOrderReadScope(input: { role: unknown; userId: string; 
 export function canLabMemberChangeStatus(input: { role: unknown; userId: string; assignedTechnicianId?: string | null; nextStatus: string }): boolean {
   if (isLabManagerRole(input.role)) return true;
   const role = String(input.role || '').trim().toLowerCase();
+  if (LAB_COORDINATOR_ROLES.has(role)) return COORDINATOR_STATUS_SET.has(input.nextStatus);
   return LAB_TECHNICIAN_ROLES.has(role) && Boolean(input.userId) && input.assignedTechnicianId === input.userId && TECHNICIAN_PROGRESS_STATUSES.has(input.nextStatus);
 }
 
