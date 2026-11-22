@@ -6,6 +6,67 @@
  */
 export const PARTNER_ECONOMICS_POLICY_VERSION = '1.2';
 
+export type PartnerBranchSubscriptionVertical = 'DIAGNOSTIC_3D' | 'MEDICAL_ANALYSIS' | 'DENTAL_LAB';
+
+export interface PartnerBranchSubscriptionQuote {
+  policyVersion: string;
+  vertical: PartnerBranchSubscriptionVertical;
+  currency: 'KZT';
+  organizationActivated: boolean;
+  activeBillableBranchCount: number;
+  billableBranchCount: number;
+  unitPriceKzt: number;
+  monthlyTotalKzt: number;
+}
+
+const PARTNER_BRANCH_MONTHLY_PRICE_KZT: Record<PartnerBranchSubscriptionVertical, number> = {
+  DIAGNOSTIC_3D: 49_900,
+  MEDICAL_ANALYSIS: 19_900,
+  DENTAL_LAB: 29_900,
+};
+
+/**
+ * Quotes only the approved branch subscription layer. Transaction commission
+ * is calculated and settled separately. An activated branch-priced partner
+ * has a one-branch minimum; an inactive organization has no billable branches.
+ * This is a quote primitive, not an invoice, proration or payment operation.
+ */
+export function calculatePartnerBranchSubscriptionQuote(input: {
+  vertical: PartnerBranchSubscriptionVertical;
+  organizationActivated: boolean;
+  activeBillableBranchCount: number;
+}): PartnerBranchSubscriptionQuote {
+  const { vertical, organizationActivated, activeBillableBranchCount } = input;
+  if (typeof organizationActivated !== 'boolean') {
+    throw new Error('organizationActivated must be a boolean');
+  }
+  if (!Number.isSafeInteger(activeBillableBranchCount) || activeBillableBranchCount < 0) {
+    throw new Error('activeBillableBranchCount must be a non-negative safe integer');
+  }
+
+  const unitPriceKzt = PARTNER_BRANCH_MONTHLY_PRICE_KZT[vertical];
+  if (!Number.isSafeInteger(unitPriceKzt) || unitPriceKzt <= 0) {
+    throw new Error('Unsupported branch subscription vertical');
+  }
+
+  const billableBranchCount = organizationActivated ? Math.max(1, activeBillableBranchCount) : 0;
+  const monthlyTotal = BigInt(unitPriceKzt) * BigInt(billableBranchCount);
+  if (monthlyTotal > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error('Branch subscription quote exceeds the safe KZT amount range');
+  }
+
+  return {
+    policyVersion: PARTNER_ECONOMICS_POLICY_VERSION,
+    vertical,
+    currency: 'KZT',
+    organizationActivated,
+    activeBillableBranchCount,
+    billableBranchCount,
+    unitPriceKzt,
+    monthlyTotalKzt: Number(monthlyTotal),
+  };
+}
+
 export type PartnerTransactionDomain = 'DIAGNOSTIC_STUDY' | 'MEDICAL_ANALYSIS' | 'DENTAL_LAB_CASE' | 'MARKETPLACE_SALE';
 export type SupplierTier = 'STANDARD' | 'HIGH_VOLUME' | 'STRATEGIC';
 export type AcademyAcquisitionSource = 'LECTURER_OWN_AUDIENCE' | 'DENTVISION_ACQUISITION' | 'DENTVISION_FULL_SERVICE';
