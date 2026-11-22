@@ -170,6 +170,8 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
     ] : []),
     ...(canReadFinance ? [
       { id: 'finance', label: 'Финансы', icon: <TrendingUp size={14} /> },
+    ] : []),
+    ...(canReadFinance && canReadOperations ? [
       { id: 'payments', label: 'Оплаты', icon: <DollarSign size={14} /> },
     ] : []),
     ...(canManageCatalog ? [
