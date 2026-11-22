@@ -429,6 +429,9 @@ diagnosticsRouter.post('/settlements/:id/pay', async (req: AuthRequest, res) => 
       select: { id: true, ownerType: true, ownerId: true, status: true },
     });
     if (!settlement) return res.status(404).json({ ok: false, error: 'Расчёт не найден.' } satisfies ApiResponse);
+    if (settlement.status === 'void' || !['open', 'invoiced', 'paid'].includes(settlement.status)) {
+      return res.status(409).json({ ok: false, error: 'Этот расчёт сейчас нельзя оплачивать.' } satisfies ApiResponse);
+    }
     if (!isSuperadmin && !settlementBelongsToActiveScope(activeScope, settlement)) {
       // Conceal cross-organization identifiers rather than confirming their existence.
       return res.status(404).json({ ok: false, error: 'Расчёт не найден.' } satisfies ApiResponse);
