@@ -200,7 +200,7 @@ describe('refundPayment', () => {
     expect(tx.payment.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'refunded' } }));
     expect(tx.wallet.updateMany).toHaveBeenCalledTimes(2);
     expect(tx.wallet.update).toHaveBeenCalledTimes(1);
-    expect(tx.$executeRaw).toHaveBeenCalledWith(expect.stringContaining('wallet-funds:'));
+    expect(tx.$executeRaw.mock.calls.some((call: unknown[]) => String(call[1]).includes('wallet-funds:'))).toBe(true);
     expect(tx.transaction.create.mock.calls[0][0].data.meta.originalTransactionIds).toEqual(['sale-1']);
   });
 
@@ -248,9 +248,9 @@ describe('refundPayment', () => {
     paidPayment();
     await refundPayment('p1', 10_000n, 'locked');
     expect(tx.$executeRaw).toHaveBeenCalledTimes(4);
-    expect(String(tx.$executeRaw.mock.calls[0][0])).toContain('payment-refund:');
+    expect(String(tx.$executeRaw.mock.calls[0][1])).toContain('payment-refund:');
     for (const call of tx.$executeRaw.mock.calls.slice(1)) {
-      expect(String(call[0])).toContain('wallet-funds:');
+      expect(String(call[1])).toContain('wallet-funds:');
     }
   });
 
