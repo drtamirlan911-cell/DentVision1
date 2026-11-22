@@ -14,6 +14,21 @@ function resolver(pages: string[] | null | undefined, legacyPages: string[] = LE
   })
 }
 
+describe('server-provided organization permissions', () => {
+  it('preserves recognized partner billing and operational permissions from /me', () => {
+    const iam = createIamResolver({
+      role: 'user',
+      permissions: ['diagnostics.read', 'billing.read', 'billing.manage', 'staff.read'],
+      pages: ['diagnostics'],
+    });
+    expect(iam.hasPermission('diagnostics.read')).toBe(true);
+    expect(iam.hasPermission('billing.read')).toBe(true);
+    expect(iam.hasPermission('billing.manage')).toBe(true);
+    expect(iam.hasPermission('staff.read')).toBe(true);
+    expect(iam.hasPermission('patient.delete')).toBe(false);
+  });
+});
+
 describe('canAccessPage — server page policy is authoritative when present', () => {
   it('revokes legacy pages when the server sends a narrower list', () => {
     const iam = resolver(['inventory', 'profile'])
