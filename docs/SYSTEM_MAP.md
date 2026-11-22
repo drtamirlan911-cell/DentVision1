@@ -5,9 +5,9 @@
 ## Summary
 
 - Mounted routers: **69**
-- Unique route handlers: **750**
-- Registered HTTP routes after mount: **694**
-- Routes without detected web/mobile consumer: **107**
+- Unique route handlers: **752**
+- Registered HTTP routes after mount: **696**
+- Routes without detected web/mobile consumer: **109**
 - Prisma models: **169**
 - Background jobs: **12**
 - Permission roles: **11**
@@ -72,7 +72,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/diagnostics | diagnosticsRouter | 51 | 10 |
 | /api/legal | legalRouter | 33 | 8 |
 | /api/partner/legal | legalPartnerRouter | 0 | 0 |
-| /api/finance | financeRouter | 16 | 6 |
+| /api/finance | financeRouter | 18 | 8 |
 | /api/disputes | disputesRouter | 3 | 0 |
 | /api/ai-admin/webhook | webhookGatewayRouter | 0 | 0 |
 | /api/ai-governance | aiGovernanceRouter | 3 | 1 |
