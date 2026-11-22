@@ -42,9 +42,11 @@ function feeSnapshot(input: {
     throw new Error('rateBps must be an integer between 0 and 10000');
   }
   const percentageFee = Number((BigInt(input.grossAmountKzt) * BigInt(input.rateBps)) / 10_000n);
-  const commissionKzt = input.maximumFeeKzt === null
+  const calculatedCommissionKzt = input.maximumFeeKzt === null
     ? Math.max(input.minimumFeeKzt, percentageFee)
     : Math.min(input.maximumFeeKzt, Math.max(input.minimumFeeKzt, percentageFee));
+  // A minimum fee cannot exceed the actual sale amount; partner net stays non-negative.
+  const commissionKzt = Math.min(input.grossAmountKzt, calculatedCommissionKzt);
 
   return {
     policyVersion: PARTNER_ECONOMICS_POLICY_VERSION,
