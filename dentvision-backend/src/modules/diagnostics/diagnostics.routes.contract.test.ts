@@ -36,6 +36,18 @@ const signedHistoryMigration = readFileSync(
   resolve(process.cwd(), 'dentvision-backend/prisma/migrations/20261122020000_diagnostic_signed_result_history/migration.sql'),
   'utf8',
 );
+const dicomParserSource = readFileSync(
+  resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/dicomMetadata.ts'),
+  'utf8',
+);
+const dicomParserTests = readFileSync(
+  resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/dicomMetadata.test.ts'),
+  'utf8',
+);
+const dicomMigration = readFileSync(
+  resolve(process.cwd(), 'dentvision-backend/prisma/migrations/20261122030000_diagnostic_dicom_metadata_index/migration.sql'),
+  'utf8',
+);
 const worklistUi = readFileSync(
   resolve(process.cwd(), 'src/pages/diagnostics/workspace/WorklistTab.tsx'),
   'utf8',
@@ -384,6 +396,39 @@ describe('diagnostics route contract', () => {
     expect(serviceSource.slice(detailStart, detailEnd)).not.toContain('signedDownloadUrl(');
     expect(worklistUi).toContain('getDiagnosticReferralFileDownloadUrl');
     expect(worklistUi).toContain('window.location.assign(target)');
+  });
+
+  it('parses DICOM Part 10 identifiers and indexes study, series and instances separately from stored pixel bytes', () => {
+    expect(source).toContain("import { parseDicomPart10Metadata } from './dicomMetadata.js'");
+    expect(source).toContain('const dicomMetadata = parseDicomPart10Metadata(file.buffer)');
+    expect(source).toContain('dicomMetadata ? { dicomMetadata }');
+    expect(source).toContain('data.dicomIndex');
+    expect(dicomParserSource).toContain('DICOM Part 10 preamble is missing');
+    expect(dicomParserSource).toContain('DICOM file meta SOP identifiers do not match the dataset');
+    expect(dicomParserSource).toContain('DICOM_TRANSFER_SYNTAX_UNSUPPORTED');
+    expect(dicomParserSource).toContain('TAG.pixelData');
+    expect(dicomParserTests).toContain('skips undefined-length metadata sequences');
+    expect(dicomParserTests).toContain('supports the standard implicit-VR little-endian');
+    expect(dicomParserTests).toContain('rejects media-storage identifiers that disagree with the dataset');
+  });
+
+  it('stores PHI-minimized DICOM study/series/SOP metadata against the exact referral file and center', () => {
+    expect(schemaSource).toContain('model DiagnosticDicomStudy');
+    expect(schemaSource).toContain('model DiagnosticDicomSeries');
+    expect(schemaSource).toContain('model DiagnosticDicomInstance');
+    expect(schemaSource).toContain('@@unique([centerId, studyInstanceUid])');
+    expect(schemaSource).toContain('@@unique([dicomStudyId, seriesInstanceUid])');
+    expect(schemaSource).toContain('sopInstanceUid           String   @unique');
+    expect(schemaSource).toContain('referralFileId           String   @unique');
+    expect(dicomMigration).toContain('CREATE TABLE IF NOT EXISTS "diagnostic_dicom_studies"');
+    expect(dicomMigration).toContain('CREATE TABLE IF NOT EXISTS "diagnostic_dicom_series"');
+    expect(dicomMigration).toContain('CREATE TABLE IF NOT EXISTS "diagnostic_dicom_instances"');
+    expect(serviceSource).toContain('DICOM_STUDY_LINK_CONFLICT');
+    expect(serviceSource).toContain('tx.diagnosticDicomSeries.upsert');
+    expect(serviceSource).toContain('tx.diagnosticDicomInstance.create');
+    expect(serviceSource).toContain('file.dicomInstance ?');
+    expect(serviceSource).not.toContain('patientName: metadata.patientName');
+    expect(serviceSource).not.toContain('patientId: metadata.patientId');
   });
 
   it('deletes referral-file metadata and audit before best-effort object cleanup', () => {
