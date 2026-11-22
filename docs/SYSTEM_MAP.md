@@ -8,7 +8,7 @@
 - Unique route handlers: **744**
 - Registered HTTP routes after mount: **692**
 - Routes without detected web/mobile consumer: **107**
-- Prisma models: **166**
+- Prisma models: **169**
 - Background jobs: **12**
 - Permission roles: **11**
 
