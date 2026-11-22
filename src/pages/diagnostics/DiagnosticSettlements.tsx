@@ -140,7 +140,12 @@ export default function DiagnosticSettlements() {
             <div className="h-10 w-full rounded bg-surface-2" />
           </div>
         </Card>
-      ) : !query.isError && settlements.length === 0 ? (
+      ) : query.isError && settlements.length === 0 ? (
+        <Card padding="lg" className="text-center">
+          <h2 className="text-base font-semibold text-txt-primary">Расчёты временно недоступны</h2>
+          <p className="mt-1 text-sm text-txt-muted">Обновите страницу после восстановления соединения.</p>
+        </Card>
+      ) : settlements.length === 0 ? (
         <Card padding="lg" className="text-center">
           <Wallet className="mx-auto mb-3 text-txt-muted" size={28} />
           <h2 className="text-base font-semibold text-txt-primary">Расчётов пока нет</h2>
@@ -186,7 +191,7 @@ export default function DiagnosticSettlements() {
                         {settlement.status === 'invoiced' ? 'Открыть счёт' : 'Создать счёт Kaspi QR'}
                       </Button>
                     )}
-                    {paymentUrl && (
+                    {paymentUrl && settlement.status !== 'paid' && (
                       <a
                         href={paymentUrl}
                         target="_blank"
