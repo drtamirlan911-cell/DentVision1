@@ -1139,3 +1139,11 @@ Recognition is an outcome of independently verifiable product quality and adopti
 - Medical-laboratory payment settlement now persists paymentId in the partner-economics snapshot. The Dental Lab Finance surface labels the total ledger value as Учётный баланс and explicitly distinguishes it from the Доступно к выплате amount.
 - Regression coverage distinguishes direct referral collection, DentVision-gateway proceeds, legacy paid medical-lab payments, pending payout holds and non-partner wallets. Route/finance contract and exact-head CI remain the verification gate.
 - **Open / not certified:** this does not complete bank payout execution/evidence, tax invoice requirements, partner refunds/chargebacks, branch-subscription billing or full vertical lifecycle reconciliation. Keep diagnostic, medical-lab and dental-lab cabinets **PARTIAL** until exact-head CI/E2E, operator, mobile and external payment/bank evidence are accepted. No staging/production migration or financial movement was performed.
+
+### Settlement read / payment action and partner finance UI — 2026-11-22
+
+- Partner settlement listing now authorizes by the active organization's `billing.read` capability; the route returns `canRequestPayment` for presentation only. Creating or reusing a Kaspi invoice requires the separate `billing.manage` capability.
+- Diagnostic center/laboratory workspace Finance tabs now use the actual settlement ledger screen rather than the old `FinanceTab` projection that expected `revenue`, `commissions` and `netRevenue` fields not returned by `getDashboardStats()`.
+- The settlement UI reads `items`, count and `canRequestPayment` from the backend response. It never renders the invoice action for read-only roles; server authorization remains authoritative.
+- Backend unit tests now mock the interactive Prisma transaction used by `grantDiagnosticsAccess`. The diagnostic radiologist role contract now expects the canonical `radiologist` key while retaining the legacy seeded alias in migration/context compatibility checks.
+- **Verification boundary:** latest exact-head CI is being rerun after these changes. Do not mark this slice release-verified until backend/frontend lint, TypeScript, full unit suite, E2E, Quality Gate and RB-034 all complete successfully on the same final SHA.
