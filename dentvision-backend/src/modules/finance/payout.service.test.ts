@@ -25,6 +25,7 @@ const { tx, prismaMock } = vi.hoisted(() => {
     lecturer: { findUnique: vi.fn() },
     supplierMember: { findMany: vi.fn() },
     laboratoryMember: { findMany: vi.fn() },
+    diagnosticCenterMember: { findMany: vi.fn() },
     organization: { findFirst: vi.fn() },
     personRole: { findMany: vi.fn() },
     notification: { create: vi.fn() },
@@ -80,6 +81,8 @@ beforeEach(() => {
   tx.payout.update.mockImplementation(async ({ data }: never) => ({ id: 'p1', ...(data as object) }));
   tx.wallet.create.mockResolvedValue({ id: 'w1', balance: 0n, currency: 'KZT' });
   tx.ledgerEntry.findMany.mockResolvedValue([]);
+  tx.laboratoryMember.findMany.mockResolvedValue([]);
+  tx.diagnosticCenterMember.findMany.mockResolvedValue([]);
   tx.payment.findMany.mockResolvedValue([]);
   tx.organization.findFirst.mockResolvedValue({ id: 'org-1' });
   tx.personRole.findMany.mockResolvedValue([]);
@@ -453,7 +456,7 @@ describe('notifies the requester on every transition', () => {
     await transitionPayout('p1', 'approved');
 
     expect(tx.organization.findFirst).toHaveBeenCalledWith({
-      where: { type: 'LABORATORY', originalType: 'Laboratory', originalId: 'lab-1' },
+      where: { originalType: { in: ['Laboratory', 'DiagnosticCenter'] }, originalId: 'lab-1' },
       select: { id: true },
     });
     expect(tx.personRole.findMany).toHaveBeenCalledWith({
@@ -469,6 +472,36 @@ describe('notifies the requester on every transition', () => {
     expect(new Set(notifiedIds).size).toBe(notifiedIds.length);
     expect(notifiedIds).not.toContain('bench-user');
     expect(notifiedIds).not.toContain('quality-user');
+  });
+
+  it('notifies canonical diagnostic-center owner/finance roles and excludes clinical operators', async () => {
+    payoutAt('requested', 'PARTNER', 'center-1');
+    tx.diagnosticCenterMember.findMany.mockResolvedValue([{ userId: 'legacy-center-manager' }]);
+    tx.organization.findFirst.mockResolvedValue({ id: 'center-org-1' });
+    tx.personRole.findMany.mockResolvedValue([
+      { role: { key: 'DIAGNOSTIC_OWNER' }, person: { userId: 'center-owner' } },
+      { role: { key: 'diagnostic_finance' }, person: { userId: 'center-finance' } },
+      { role: { key: 'diagnostic_radiologist' }, person: { userId: 'radiologist' } },
+      { role: { key: 'diagnostic_operator' }, person: { userId: 'operator' } },
+    ]);
+
+    await transitionPayout('p1', 'approved');
+
+    expect(tx.diagnosticCenterMember.findMany).toHaveBeenCalledWith({
+      where: {
+        centerId: 'center-1',
+        role: { in: ['owner', 'admin', 'manager', 'director', 'finance', 'accountant'] },
+      },
+      select: { userId: true },
+    });
+    expect(tx.organization.findFirst).toHaveBeenCalledWith({
+      where: { originalType: { in: ['Laboratory', 'DiagnosticCenter'] }, originalId: 'center-1' },
+      select: { id: true },
+    });
+    const notifiedIds = tx.notification.create.mock.calls.map((call: any) => call[0].data.userId);
+    expect(notifiedIds).toEqual(expect.arrayContaining(['legacy-center-manager', 'center-owner', 'center-finance']));
+    expect(notifiedIds).not.toContain('radiologist');
+    expect(notifiedIds).not.toContain('operator');
   });
 
   it('sends the paid-out message when money actually leaves', async () => {
