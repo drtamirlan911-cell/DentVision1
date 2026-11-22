@@ -154,4 +154,29 @@ describe('DICOM Part 10 metadata parser', () => {
   it('rejects media-storage identifiers that disagree with the dataset', () => {
     expect(() => parseDicomPart10Metadata(part10Dataset({ mediaUidMismatch: true }))).toThrow(/do not match/i);
   });
+
+  it('rejects truncated uncompressed Pixel Data and validates encapsulated sequence delimiters', () => {
+    const uncompressed = part10Dataset();
+    const pixelTag = Buffer.from([0xe0, 0x7f, 0x10, 0x00]);
+    const pixelOffset = uncompressed.indexOf(pixelTag);
+    expect(pixelOffset).toBeGreaterThan(0);
+    expect(() => parseDicomPart10Metadata(uncompressed.subarray(0, uncompressed.length - 2))).toThrow(/Pixel Data is truncated/i);
+
+    const pixelHeader = Buffer.alloc(12);
+    pixelHeader.writeUInt16LE(0x7fe0, 0);
+    pixelHeader.writeUInt16LE(0x0010, 2);
+    pixelHeader.write('OB', 4, 2, 'ascii');
+    pixelHeader.writeUInt32LE(0xffffffff, 8);
+    const item = elementTag(0xfffe, 0xe000, 4);
+    const delimiter = elementTag(0xfffe, 0xe0dd, 0);
+    const encapsulated = Buffer.concat([
+      uncompressed.subarray(0, pixelOffset),
+      pixelHeader,
+      item,
+      Buffer.from([1, 2, 3, 4]),
+      delimiter,
+    ]);
+    expect(parseDicomPart10Metadata(encapsulated).sopInstanceUid).toBe(SOP_INSTANCE);
+    expect(() => parseDicomPart10Metadata(encapsulated.subarray(0, encapsulated.length - 8))).toThrow(/closing delimiter/i);
+  });
 });
