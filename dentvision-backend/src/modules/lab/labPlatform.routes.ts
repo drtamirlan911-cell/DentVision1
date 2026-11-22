@@ -15,6 +15,7 @@ import { uid } from '../../lib/helpers.js';
 import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js';
 import { createNotificationForClinic } from '../../services/notification.service.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
+import { safeErrorKind } from '../../lib/safeError.js';
 import { canLabManageFinance, canLabManageShipment, canLabMemberChangeStatus, canLabMemberReadOrders, isLabLogisticsRole, isLabManagerRole, isLabQualityRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeDecision } from './labPlatform.authorization.js';
 
 export const labPlatformRouter = Router();
@@ -72,7 +73,7 @@ async function requireClinicAssignmentWritable(req: AuthRequest, res: any, clini
     }
     return true;
   } catch (error) {
-    console.error('[LabPlatform] clinic assignment subscription guard failed:', error);
+    console.error('[LabPlatform] clinic assignment subscription guard failed:', safeErrorKind(error));
     res.status(503).json({
       ok: false,
       error: 'Не удалось проверить подписку клиники',
@@ -233,7 +234,7 @@ labPlatformRouter.get('/available-laboratories', requirePermission('appointment.
     });
     return res.json({ ok: true, data: laboratories } satisfies ApiResponse);
   } catch (error) {
-    console.error('[LabPlatform] available laboratories error:', error);
+    console.error('[LabPlatform] available laboratories error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить список зуботехнических лабораторий' } satisfies ApiResponse);
   }
 });
@@ -384,7 +385,7 @@ labPlatformRouter.get('/dashboard', async (req: AuthRequest, res) => {
     const overdue = active.filter((o) => o.deadline && new Date(o.deadline).getTime() < now);
     const byStatus = orders.reduce<Record<string, number>>((acc, o) => { acc[o.status] = (acc[o.status] || 0) + 1; return acc; }, {});
     return res.json({ ok: true, data: { lab: membership.lab, membershipRole: membership.role, totals: { all: orders.length, active: active.length, dueSoon: dueSoon.length, overdue: overdue.length }, byStatus, priority: [...overdue, ...dueSoon.filter((o) => !overdue.includes(o))].slice(0, 8) } } satisfies ApiResponse);
-  } catch (error) { console.error('[LabPlatform] dashboard error:', error); return res.status(500).json({ ok: false, error: 'Не удалось загрузить кабинет лаборатории' } satisfies ApiResponse); }
+  } catch (error) { console.error('[LabPlatform] dashboard error:', safeErrorKind(error)); return res.status(500).json({ ok: false, error: 'Не удалось загрузить кабинет лаборатории' } satisfies ApiResponse); }
 });
 
 labPlatformRouter.get('/finance', async (req: AuthRequest, res) => {
@@ -419,7 +420,7 @@ labPlatformRouter.get('/finance', async (req: AuthRequest, res) => {
       }),
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('[LabPlatform] finance read error:', error);
+    console.error('[LabPlatform] finance read error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить финансы лаборатории' } satisfies ApiResponse);
   }
 });
@@ -460,7 +461,7 @@ labPlatformRouter.post('/payouts', async (req: AuthRequest, res) => {
       throw error;
     }
   } catch (error) {
-    console.error('[LabPlatform] payout request error:', error);
+    console.error('[LabPlatform] payout request error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось создать запрос на выплату' } satisfies ApiResponse);
   }
 });
@@ -473,7 +474,7 @@ labPlatformRouter.get('/orders', async (req: AuthRequest, res) => {
     const orders = await ordersForLab(membership.labId, membership.role, req.user!.id, status, req.user?.branchIds || []);
     if (!orders) return res.status(403).json({ ok: false, error: 'Нет доступа к производственной очереди' } satisfies ApiResponse);
     return res.json({ ok: true, data: orders } satisfies ApiResponse);
-  } catch (error) { console.error('[LabPlatform] orders error:', error); return res.status(500).json({ ok: false, error: 'Не удалось загрузить заказы лаборатории' } satisfies ApiResponse); }
+  } catch (error) { console.error('[LabPlatform] orders error:', safeErrorKind(error)); return res.status(500).json({ ok: false, error: 'Не удалось загрузить заказы лаборатории' } satisfies ApiResponse); }
 });
 
 labPlatformRouter.get('/orders/:id/lifecycle', async (req: AuthRequest, res) => {
@@ -493,7 +494,7 @@ labPlatformRouter.get('/orders/:id/lifecycle', async (req: AuthRequest, res) => 
     const shipmentEvents = existing.dentalLabShipments.flatMap((shipment) => shipment.events);
     const latestFirst = [...existing.dentalLabShipments].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     return res.json({ ok: true, data: { order: serialize({ ...existing, dentalLabShipments: latestFirst, treatmentCaseId: await caseIdOf(existing.id) }), events, shipments: existing.dentalLabShipments, shipmentEvents } } satisfies ApiResponse);
-  } catch (error) { console.error('[LabPlatform] lifecycle error:', error); return res.status(500).json({ ok: false, error: 'Не удалось загрузить историю заказа' } satisfies ApiResponse); }
+  } catch (error) { console.error('[LabPlatform] lifecycle error:', safeErrorKind(error)); return res.status(500).json({ ok: false, error: 'Не удалось загрузить историю заказа' } satisfies ApiResponse); }
 });
 
 labPlatformRouter.patch('/orders/:id/status', async (req: AuthRequest, res) => {
@@ -529,7 +530,7 @@ labPlatformRouter.patch('/orders/:id/status', async (req: AuthRequest, res) => {
     const treatmentCaseId = await caseIdOf(order.id) || undefined;
     publish('labOrder.status_changed', { clinicId: order.clinicId, labOrderId: order.id, patientId: order.patientId || undefined, doctorId: order.doctorId || undefined, treatmentCaseId, status: order.status, previousStatus: outcome.previousStatus, userId: req.user?.id });
     return res.json({ ok: true, data: serialize({ ...order, treatmentCaseId }) } satisfies ApiResponse);
-  } catch (error) { console.error('[LabPlatform] status error:', error); return res.status(500).json({ ok: false, error: 'Не удалось изменить статус заказа' } satisfies ApiResponse); }
+  } catch (error) { console.error('[LabPlatform] status error:', safeErrorKind(error)); return res.status(500).json({ ok: false, error: 'Не удалось изменить статус заказа' } satisfies ApiResponse); }
 });
 
 function isSecureLabEvidenceUrl(value: unknown): boolean {
@@ -627,7 +628,7 @@ labPlatformRouter.post('/orders/:id/shipment', async (req: AuthRequest, res) => 
     } satisfies ApiResponse);
   } catch (error: any) {
     if (String(error?.code || '') === 'P2002') return res.status(409).json({ ok: false, error: 'Отгрузка для этого заказа уже зарегистрирована', code: 'LAB_SHIPMENT_ALREADY_EXISTS' } satisfies ApiResponse);
-    console.error('[LabPlatform] shipment create error:', error);
+    console.error('[LabPlatform] shipment create error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось зарегистрировать отгрузку' } satisfies ApiResponse);
   }
 });
@@ -707,7 +708,7 @@ labPlatformRouter.post('/orders/:id/shipment/delivery-confirmation', async (req:
     }
     return res.json({ ok: true, data: { order: serialize({ ...outcome.order, dentalLabShipments: [outcome.shipment] }), shipment: outcome.shipment, idempotent: true } } satisfies ApiResponse);
   } catch (error) {
-    console.error('[LabPlatform] delivery confirmation error:', error);
+    console.error('[LabPlatform] delivery confirmation error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось подтвердить вручение заказа' } satisfies ApiResponse);
   }
 });
@@ -745,7 +746,7 @@ labPlatformRouter.patch('/orders/:id/technician', async (req: AuthRequest, res) 
     if (outcome.kind === 'invalid_technician') return res.status(400).json({ ok: false, error: 'Сотрудник не состоит в этой лаборатории' } satisfies ApiResponse);
     const order = outcome.order;
     return res.json({ ok: true, data: serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) }) } satisfies ApiResponse);
-  } catch (error) { console.error('[LabPlatform] technician error:', error); return res.status(500).json({ ok: false, error: 'Не удалось назначить техника' } satisfies ApiResponse); }
+  } catch (error) { console.error('[LabPlatform] technician error:', safeErrorKind(error)); return res.status(500).json({ ok: false, error: 'Не удалось назначить техника' } satisfies ApiResponse); }
 });
 
 labPlatformRouter.patch('/orders/:id/qc', async (req: AuthRequest, res) => {
@@ -798,7 +799,7 @@ labPlatformRouter.patch('/orders/:id/qc', async (req: AuthRequest, res) => {
       previousStatus: outcome.previousStatus, userId: req.user?.id, laboratoryId: membership.labId,
     });
     return res.json({ ok: true, data: serialize({ ...order, treatmentCaseId }) } satisfies ApiResponse);
-  } catch (error) { console.error('[LabPlatform] QC error:', error); return res.status(500).json({ ok: false, error: 'Не удалось сохранить результат контроля качества' } satisfies ApiResponse); }
+  } catch (error) { console.error('[LabPlatform] QC error:', safeErrorKind(error)); return res.status(500).json({ ok: false, error: 'Не удалось сохранить результат контроля качества' } satisfies ApiResponse); }
 });
 
 labPlatformRouter.patch('/orders/:id/remake-request', async (req: AuthRequest, res) => {
@@ -875,7 +876,7 @@ labPlatformRouter.patch('/orders/:id/remake-request', async (req: AuthRequest, r
     const treatmentCaseId = await caseIdOf(outcome.order.id) || undefined;
     return res.json({ ok: true, data: serialize({ ...outcome.order, treatmentCaseId }) } satisfies ApiResponse);
   } catch (error) {
-    console.error('[LabPlatform] remake response error:', error);
+    console.error('[LabPlatform] remake response error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось сохранить решение по переделке' } satisfies ApiResponse);
   }
 });
@@ -954,7 +955,7 @@ labPlatformRouter.post('/orders/:id/invoice', async (req: AuthRequest, res) => {
       idempotent: outcome.kind === 'existing',
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('[LabPlatform] invoice issue error:', error);
+    console.error('[LabPlatform] invoice issue error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось выставить счёт лаборатории' } satisfies ApiResponse);
   }
 });
@@ -965,7 +966,7 @@ labPlatformRouter.get('/team', async (req: AuthRequest, res) => {
     if (!membership || !isLabManagerRole(membership.role)) return res.status(403).json({ ok: false, error: 'Список сотрудников доступен только владельцу или менеджеру лаборатории' } satisfies ApiResponse);
     const members = await prisma.laboratoryMember.findMany({ where: { labId: membership.labId }, include: { user: true } });
     return res.json({ ok: true, data: members.map((m: any) => ({ id: m.userId, role: m.role, firstName: m.user.firstName, lastName: m.user.lastName, email: m.user.email, avatar: m.user.avatar })) } satisfies ApiResponse);
-  } catch (error) { console.error('[LabPlatform] team error:', error); return res.status(500).json({ ok: false, error: 'Не удалось загрузить команду' } satisfies ApiResponse); }
+  } catch (error) { console.error('[LabPlatform] team error:', safeErrorKind(error)); return res.status(500).json({ ok: false, error: 'Не удалось загрузить команду' } satisfies ApiResponse); }
 });
 
 labPlatformRouter.post('/assign', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
@@ -1030,5 +1031,5 @@ labPlatformRouter.post('/assign', requirePermission('appointment.write'), async 
       publish('labOrder.assigned', { clinicId, labOrderId: order.id, laboratoryId: lab.id, laboratoryName: lab.name, patientId: order.patientId || undefined, doctorId: order.doctorId || undefined, treatmentCaseId: await caseIdOf(order.id) || undefined, userId: req.user?.id });
     }
     return res.json({ ok: true, data: { ...serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) }), assignmentIdempotent: outcome.kind === 'idempotent' } } satisfies ApiResponse);
-  } catch (error) { console.error('[LabPlatform] assign error:', error); return res.status(500).json({ ok: false, error: 'Не удалось передать заказ лаборатории' } satisfies ApiResponse); }
+  } catch (error) { console.error('[LabPlatform] assign error:', safeErrorKind(error)); return res.status(500).json({ ok: false, error: 'Не удалось передать заказ лаборатории' } satisfies ApiResponse); }
 });
