@@ -17,7 +17,7 @@ import { dispatchNotifications } from '../notifications/dispatch.service.js';
 import { assertValidIinFormat, checkIinCrossFields } from '../../lib/patientIin.js';
 import { resolveImageUrl } from '../../lib/imageUrl.js';
 import { checkImageAnalysisConsent, isImageConsentDenied, IMAGE_CONSENT_MESSAGE } from '../ai/os/imageConsent.js';
-import type { ReferralStatus, DiagnosticCategory, ReferralPriority } from '@prisma/client';
+import type { Prisma, ReferralStatus, DiagnosticCategory, ReferralPriority } from '@prisma/client';
 import type { DicomPart10Metadata } from './dicomMetadata.js';
 
 // ─── Center Subscription ───
@@ -163,9 +163,10 @@ async function syncOrgFromEntity(
   type: 'DiagnosticCenter' | 'Laboratory',
   id: string,
   data: { name: string; city?: string | null; address?: string | null; phone?: string | null; email?: string | null },
+  db: Prisma.TransactionClient | typeof prisma = prisma,
 ) {
   try {
-    await prisma.organization.upsert({
+    await db.organization.upsert({
       where: { originalType_originalId: { originalType: type, originalId: id } },
       update: { name: data.name, address: data.address || null, phone: data.phone || null, email: data.email || null, contacts: data.city ? { city: data.city } : undefined },
       create: {
@@ -277,115 +278,170 @@ const LABORATORY_LEGACY_MEMBER_ROLE: Readonly<Record<string, string>> = {
   lab_finance: 'lab_finance',
 };
 
-export async function grantDiagnosticsAccess(type: 'DiagnosticCenter' | 'Laboratory', entityId: string, userId: string, role: string) {
-  try {
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, firstName: true, lastName: true, email: true, phone: true } });
-    if (!user) return false;
-    const entity = type === 'DiagnosticCenter'
-      ? await prisma.diagnosticCenter.findUnique({ where: { id: entityId } })
-      : await prisma.laboratory.findUnique({ where: { id: entityId } });
-    if (!entity) return false;
-    await syncOrgFromEntity(type, entityId, { name: entity.name, city: entity.city, address: entity.address, phone: entity.phone, email: entity.email });
-    const org = await prisma.organization.findFirst({ where: { originalType: type, originalId: entityId } });
-    if (!org) return false;
-    const normalizedRole = String(role || '').trim().toLowerCase();
-    const organizationSettings = org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)
-      ? org.settings as Record<string, unknown>
-      : {};
-    const laboratoryFamily = String(organizationSettings.laboratoryType || '').toUpperCase() === 'DENTAL_LAB'
-      ? 'DENTAL_LAB'
-      : 'MEDICAL_LAB';
-    const canonicalLaboratoryRole = type === 'Laboratory' && Boolean(PARTNER_ROLE_BY_KEY[normalizedRole.toUpperCase()]);
-    const legacyLaboratoryRoleKeys: Record<string, Record<string, string>> = {
-      MEDICAL_LAB: {
-        owner: 'medical_lab_owner',
-        admin: 'medical_lab_admin',
-        manager: 'medical_lab_manager',
-        technician: 'medical_lab_technician',
-        reception: 'medical_lab_reception',
-        doctor: 'medical_lab_doctor',
-        validator: 'medical_lab_validator',
-        quality: 'medical_lab_quality',
-        finance: 'medical_lab_finance',
-      },
-      DENTAL_LAB: {
-        owner: 'dental_lab_owner',
-        admin: 'dental_lab_admin',
-        manager: 'dental_lab_manager',
-        technician: 'dental_technician',
-        coordinator: 'lab_coordinator',
-        quality: 'qc_specialist',
-        finance: 'lab_finance',
-      },
-    };
-    const roleKey = type === 'Laboratory'
-      ? (canonicalLaboratoryRole
-          ? normalizedRole
-          : legacyLaboratoryRoleKeys[laboratoryFamily][normalizedRole])
-      : DIAGNOSTICS_ROLE_TO_ROLE_KEY[normalizedRole];
-    if (!roleKey) {
-      console.warn(`[Diagnostics] No unified role for ${type} member role '${role}' (user ${userId})`);
-      return false;
-    }
-    const dbRole = await prisma.role.findUnique({ where: { key: roleKey } });
-    if (!dbRole) {
-      console.warn(`[Diagnostics] Canonical role '${roleKey}' is not seeded for ${type} (user ${userId})`);
-      return false;
-    }
-    const legacyMemberRole = type === 'Laboratory'
-      ? (LABORATORY_LEGACY_MEMBER_ROLE[normalizedRole] || normalizedRole)
-      : normalizedRole;
-    if (type === 'DiagnosticCenter') {
-      await prisma.diagnosticCenterMember.upsert({ where: { centerId_userId: { centerId: entityId, userId } }, update: { role: normalizedRole }, create: { id: uid(), centerId: entityId, userId, role: normalizedRole } });
-    } else {
-      await prisma.laboratoryMember.upsert({ where: { labId_userId: { labId: entityId, userId } }, update: { role: legacyMemberRole }, create: { id: uid(), labId: entityId, userId, role: legacyMemberRole } });
-    }
-    const fullName = `${user.firstName} ${user.lastName}`.trim() || user.email || 'Участник';
-    const personType = type === 'DiagnosticCenter' && normalizedRole === 'radiologist' ? 'RADIOLOGIST'
-      : type === 'DiagnosticCenter' && normalizedRole === 'operator' ? 'OPERATOR'
-      : 'STAFF';
-    const originalType = type === 'DiagnosticCenter' ? 'DiagnosticCenterMember' : 'LaboratoryMember';
-    let person = await prisma.person.findFirst({ where: { originalType, originalId: `${entityId}:${userId}` } });
-    if (person) {
-      person = await prisma.person.update({ where: { id: person.id }, data: { fullName, personType, organizationId: org.id, originalType, originalId: `${entityId}:${userId}` } });
-    } else {
-      person = await prisma.person.create({ data: { id: uid(), fullName, personType, organizationId: org.id, userId: user.id, originalType, originalId: `${entityId}:${userId}` } });
-    }
-    {
-      const scopeKey = `organization:${org.id}`;
-      await prisma.personRole.upsert({
-        where: { personId_roleId_scopeKey: { personId: person.id, roleId: dbRole.id, scopeKey } },
-        update: { scopeType: 'organization', scopeId: org.id },
-        create: { personId: person.id, roleId: dbRole.id, scopeType: 'organization', scopeId: org.id, scopeKey },
-      });
+async function grantDiagnosticsAccessInTransaction(
+  type: 'DiagnosticCenter' | 'Laboratory',
+  entityId: string,
+  userId: string,
+  role: string,
+  db: Prisma.TransactionClient,
+): Promise<boolean> {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+  });
+  if (!user) return false;
 
-      const normalizedRoleKey = roleKey.toUpperCase();
-      const partnerRoleKey = normalizedRoleKey === 'DIAGNOSTIC_RADIOLOGIST'
-        ? 'RADIOLOGIST'
-        : normalizedRoleKey;
-      const roleDefinition = PARTNER_ROLE_BY_KEY[partnerRoleKey];
-      if (roleDefinition?.defaultScope === 'BRANCH') {
-        // Branch-scoped staff start in the active default branch only. The
-        // organization PersonRole grants workspace membership; BranchMember
-        // separately grants branch access. Never fan an invitation out to
-        // every branch in the organization.
-        const defaultBranch = await prisma.branch.findFirst({
-          where: { organizationId: org.id, active: true },
-          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-          select: { id: true },
-        });
-        if (defaultBranch) {
-          await prisma.branchMember.upsert({
-            where: { personId_branchId: { personId: person.id, branchId: defaultBranch.id } },
-            update: { active: true },
-            create: { id: uid(), personId: person.id, branchId: defaultBranch.id, active: true },
-          });
-        }
-      }
+  const entity = type === 'DiagnosticCenter'
+    ? await db.diagnosticCenter.findUnique({ where: { id: entityId } })
+    : await db.laboratory.findUnique({ where: { id: entityId } });
+  if (!entity) return false;
+
+  await syncOrgFromEntity(type, entityId, {
+    name: entity.name,
+    city: entity.city,
+    address: entity.address,
+    phone: entity.phone,
+    email: entity.email,
+  }, db);
+  const org = await db.organization.findFirst({
+    where: { originalType: type, originalId: entityId },
+  });
+  if (!org) return false;
+
+  const normalizedRole = String(role || '').trim().toLowerCase();
+  const organizationSettings = org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)
+    ? org.settings as Record<string, unknown>
+    : {};
+  const laboratoryFamily = String(organizationSettings.laboratoryType || organizationSettings.selfServiceType || '').toUpperCase() === 'DENTAL_LAB'
+    ? 'DENTAL_LAB'
+    : 'MEDICAL_LAB';
+  const canonicalLaboratoryRole = type === 'Laboratory'
+    && Boolean(PARTNER_ROLE_BY_KEY[normalizedRole.toUpperCase()]);
+  const legacyLaboratoryRoleKeys: Record<string, Record<string, string>> = {
+    MEDICAL_LAB: {
+      owner: 'medical_lab_owner',
+      admin: 'medical_lab_admin',
+      manager: 'medical_lab_manager',
+      technician: 'medical_lab_technician',
+      reception: 'medical_lab_reception',
+      doctor: 'medical_lab_doctor',
+      validator: 'medical_lab_validator',
+      quality: 'medical_lab_quality',
+      finance: 'medical_lab_finance',
+    },
+    DENTAL_LAB: {
+      owner: 'dental_lab_owner',
+      admin: 'dental_lab_admin',
+      manager: 'dental_lab_manager',
+      technician: 'dental_technician',
+      coordinator: 'lab_coordinator',
+      quality: 'qc_specialist',
+      finance: 'lab_finance',
+    },
+  };
+  const roleKey = type === 'Laboratory'
+    ? (canonicalLaboratoryRole
+        ? normalizedRole
+        : legacyLaboratoryRoleKeys[laboratoryFamily][normalizedRole])
+    : DIAGNOSTICS_ROLE_TO_ROLE_KEY[normalizedRole];
+  if (!roleKey) {
+    throw new Error(`No canonical role mapping for ${type} member role '${role}'`);
+  }
+
+  const dbRole = await db.role.findUnique({ where: { key: roleKey } });
+  if (!dbRole) {
+    throw new Error(`Canonical role '${roleKey}' is not seeded for ${type}`);
+  }
+
+  const legacyMemberRole = type === 'Laboratory'
+    ? (LABORATORY_LEGACY_MEMBER_ROLE[normalizedRole] || normalizedRole)
+    : normalizedRole;
+  if (type === 'DiagnosticCenter') {
+    await db.diagnosticCenterMember.upsert({
+      where: { centerId_userId: { centerId: entityId, userId } },
+      update: { role: normalizedRole },
+      create: { id: uid(), centerId: entityId, userId, role: normalizedRole },
+    });
+  } else {
+    await db.laboratoryMember.upsert({
+      where: { labId_userId: { labId: entityId, userId } },
+      update: { role: legacyMemberRole },
+      create: { id: uid(), labId: entityId, userId, role: legacyMemberRole },
+    });
+  }
+
+  const fullName = `${user.firstName} ${user.lastName}`.trim() || user.email || 'Участник';
+  const personType = type === 'DiagnosticCenter' && normalizedRole === 'radiologist' ? 'RADIOLOGIST'
+    : type === 'DiagnosticCenter' && normalizedRole === 'operator' ? 'OPERATOR'
+      : 'STAFF';
+  const originalType = type === 'DiagnosticCenter' ? 'DiagnosticCenterMember' : 'LaboratoryMember';
+  let person = await db.person.findFirst({
+    where: { originalType, originalId: `${entityId}:${userId}` },
+  });
+  if (person) {
+    person = await db.person.update({
+      where: { id: person.id },
+      data: { fullName, personType, organizationId: org.id, originalType, originalId: `${entityId}:${userId}` },
+    });
+  } else {
+    person = await db.person.create({
+      data: {
+        id: uid(),
+        fullName,
+        personType,
+        organizationId: org.id,
+        userId: user.id,
+        originalType,
+        originalId: `${entityId}:${userId}`,
+      },
+    });
+  }
+
+  const scopeKey = `organization:${org.id}`;
+  await db.personRole.upsert({
+    where: { personId_roleId_scopeKey: { personId: person.id, roleId: dbRole.id, scopeKey } },
+    update: { scopeType: 'organization', scopeId: org.id },
+    create: { id: uid(), personId: person.id, roleId: dbRole.id, scopeType: 'organization', scopeId: org.id, scopeKey },
+  });
+
+  const normalizedRoleKey = roleKey.toUpperCase();
+  const partnerRoleKey = normalizedRoleKey === 'DIAGNOSTIC_RADIOLOGIST'
+    ? 'RADIOLOGIST'
+    : normalizedRoleKey;
+  const roleDefinition = PARTNER_ROLE_BY_KEY[partnerRoleKey];
+  if (roleDefinition?.defaultScope === 'BRANCH') {
+    // Branch-scoped staff start in the active default branch only.
+    const defaultBranch = await db.branch.findFirst({
+      where: { organizationId: org.id, active: true },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    });
+    if (!defaultBranch) {
+      throw new Error(`No active default branch exists for branch-scoped role '${roleKey}'`);
     }
-    return true;
-  } catch (e) {
-    console.warn(`[Diagnostics] grantDiagnosticsAccess failed (${type} ${entityId}):`, (e as Error).message);
+    await db.branchMember.upsert({
+      where: { personId_branchId: { personId: person.id, branchId: defaultBranch.id } },
+      update: { active: true },
+      create: { id: uid(), personId: person.id, branchId: defaultBranch.id, active: true },
+    });
+  }
+  return true;
+}
+
+export async function grantDiagnosticsAccess(
+  type: 'DiagnosticCenter' | 'Laboratory',
+  entityId: string,
+  userId: string,
+  role: string,
+  db?: Prisma.TransactionClient,
+): Promise<boolean> {
+  if (db) return grantDiagnosticsAccessInTransaction(type, entityId, userId, role, db);
+  try {
+    return await prisma.$transaction((tx) =>
+      grantDiagnosticsAccessInTransaction(type, entityId, userId, role, tx),
+    );
+  } catch (error) {
+    console.warn(`[Diagnostics] grantDiagnosticsAccess failed (${type} ${entityId}):`, (error as Error).message);
     return false;
   }
 }
