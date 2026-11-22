@@ -140,10 +140,14 @@ export class PayoutError extends Error {
 type Db = Prisma.TransactionClient | typeof prisma;
 
 /**
- * What this wallet may still ask for: balance minus everything already asked
- * for and not yet resolved.
+ * What this wallet may still ask for:
+ * - subtract pending payout holds;
+ * - subtract partner-economics credits for direct collections already received by
+ *   the partner, because those funds are not held by DentVision;
+ * - retain gateway-backed partner proceeds proven by paymentId or a legacy paid
+ *   Payment reference.
  *
- * Checking the raw balance is what let the same funds be requested repeatedly.
+ * Checking the raw balance alone lets mirrored partner revenue be withdrawn twice.
  */
 export async function availableBalanceMinor(walletId: string, db: Db = prisma): Promise<bigint> {
   const [wallet, pending] = await Promise.all([
