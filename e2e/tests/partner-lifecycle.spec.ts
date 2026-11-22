@@ -278,6 +278,24 @@ test.describe('Partner operational lifecycle', () => {
           scopeType: 'organization', scopeId: fixtureLabOrganizationId, scopeKey,
         },
       });
+      let assignedBranchId: string | undefined;
+      if (roleKey === 'medical_lab_technician') {
+        // This role is branch-scoped. An organization-level PersonRole is not
+        // enough to enter the workspace; the member must be assigned to a real,
+        // active branch in this exact organization.
+        const defaultBranch = await prisma.branch.findFirst({
+          where: { organizationId: fixtureLabOrganizationId, active: true },
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+          select: { id: true },
+        });
+        expect(defaultBranch?.id, 'active default branch for medical_lab_technician').toBeTruthy();
+        assignedBranchId = defaultBranch!.id;
+        await prisma.branchMember.upsert({
+          where: { personId_branchId: { personId: person.id, branchId: assignedBranchId } },
+          update: { active: true },
+          create: { id: randomUUID(), personId: person.id, branchId: assignedBranchId, active: true },
+        });
+      }
       await prisma.laboratoryMember.upsert({
         where: { labId_userId: { labId: fixtureLabId, userId: user.id } },
         update: { role: 'technician' },
@@ -293,9 +311,13 @@ test.describe('Partner operational lifecycle', () => {
         headers: auth(baseToken),
         data: { scopeType: 'LABORATORY', scopeId: fixtureLabId },
       });
-      expect(switched.status()).toBe(200);
+      expect(switched.status(), await switched.text()).toBe(200);
       const token = (await switched.json()).data.accessToken as string;
       expect(token).toBeTruthy();
+      if (roleKey === 'medical_lab_technician') {
+        const claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')) as { branchId?: string };
+        expect(claims.branchId).toBe(assignedBranchId);
+      }
       return { id: user.id, token };
     };
 
