@@ -472,7 +472,15 @@ export async function getReferral(id: string) {
     include: {
       ...referralInclude,
       result: {
-        include: {
+        select: {
+          id: true,
+          aiGenerated: true,
+          createdAt: true,
+          reportText: true,
+          conclusion: true,
+          pdfUrl: true,
+          signedBy: true,
+          signedAt: true,
           signer: { select: { id: true, firstName: true, lastName: true } },
           versions: { orderBy: { version: 'asc' } },
         },
