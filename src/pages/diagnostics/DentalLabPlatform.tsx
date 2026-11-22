@@ -426,7 +426,7 @@ export default function DentalLabPlatform() {
             ? <QueryError what="финансы лаборатории" onRetry={() => finance.refetch()} />
             : finance.data && <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <Card padding="md"><p className="text-xs text-txt-muted">Баланс партнёра</p><p className="mt-2 text-xl font-semibold text-txt-primary">{formatMinor(finance.data.wallet.balance)}</p></Card>
+                <Card padding="md"><p className="text-xs text-txt-muted">Учётный баланс</p><p className="mt-2 text-xl font-semibold text-txt-primary">{formatMinor(finance.data.wallet.balance)}</p><p className="mt-1 text-[11px] leading-snug text-txt-muted">Включает расчётные записи по прямым оплатам заказчиков</p></Card>
                 <Card padding="md"><p className="text-xs text-txt-muted">Доступно к выплате</p><p className="mt-2 text-xl font-semibold text-txt-primary">{formatMinor(finance.data.availableBalanceMinor)}</p></Card>
                 <Card padding="md"><p className="text-xs text-txt-muted">Оплаченный оборот</p><p className="mt-2 text-xl font-semibold text-txt-primary">{formatMinor(finance.data.economics.totals.grossMinor)}</p></Card>
                 <Card padding="md"><p className="text-xs text-txt-muted">Комиссия DentVision</p><p className="mt-2 text-xl font-semibold text-txt-primary">{formatMinor(finance.data.economics.totals.commissionMinor)}</p></Card>
