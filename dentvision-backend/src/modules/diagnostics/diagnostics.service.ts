@@ -257,6 +257,26 @@ export async function createRegistrationRequest(data: {
 
 export const DIAGNOSTICS_ROLE_TO_ROLE_KEY: Record<string, string> = { owner: 'owner', admin: 'admin', manager: 'manager', operator: 'diagnostic_operator', radiologist: 'diagnostic_radiologist' };
 
+const LABORATORY_LEGACY_MEMBER_ROLE: Readonly<Record<string, string>> = {
+  medical_lab_admin: 'admin',
+  medical_lab_manager: 'medical_lab_manager',
+  medical_lab_reception: 'medical_lab_reception',
+  medical_lab_technician: 'medical_lab_technician',
+  medical_lab_validator: 'medical_lab_validator',
+  medical_lab_doctor: 'medical_lab_doctor',
+  medical_lab_finance: 'medical_lab_finance',
+  medical_lab_quality: 'medical_lab_quality',
+  dental_lab_admin: 'admin',
+  dental_lab_manager: 'manager',
+  lab_coordinator: 'lab_coordinator',
+  dental_technician: 'dental_technician',
+  cad_designer: 'cad_designer',
+  ceramist: 'ceramist',
+  orthodontic_technician: 'orthodontic_technician',
+  qc_specialist: 'qc_specialist',
+  lab_finance: 'lab_finance',
+};
+
 export async function grantDiagnosticsAccess(type: 'DiagnosticCenter' | 'Laboratory', entityId: string, userId: string, role: string) {
   try {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, firstName: true, lastName: true, email: true, phone: true } });
@@ -268,13 +288,20 @@ export async function grantDiagnosticsAccess(type: 'DiagnosticCenter' | 'Laborat
     await syncOrgFromEntity(type, entityId, { name: entity.name, city: entity.city, address: entity.address, phone: entity.phone, email: entity.email });
     const org = await prisma.organization.findFirst({ where: { originalType: type, originalId: entityId } });
     if (!org) return false;
+    const normalizedRole = String(role || '').trim().toLowerCase();
+    const canonicalLaboratoryRole = type === 'Laboratory' && Boolean(PARTNER_ROLE_BY_KEY[normalizedRole.toUpperCase()]);
+    const roleKey = canonicalLaboratoryRole
+      ? normalizedRole
+      : DIAGNOSTICS_ROLE_TO_ROLE_KEY[normalizedRole];
+    const legacyMemberRole = type === 'Laboratory'
+      ? (LABORATORY_LEGACY_MEMBER_ROLE[normalizedRole] || normalizedRole)
+      : normalizedRole;
     if (type === 'DiagnosticCenter') {
-      await prisma.diagnosticCenterMember.upsert({ where: { centerId_userId: { centerId: entityId, userId } }, update: { role }, create: { id: uid(), centerId: entityId, userId, role } });
+      await prisma.diagnosticCenterMember.upsert({ where: { centerId_userId: { centerId: entityId, userId } }, update: { role: normalizedRole }, create: { id: uid(), centerId: entityId, userId, role: normalizedRole } });
     } else {
-      await prisma.laboratoryMember.upsert({ where: { labId_userId: { labId: entityId, userId } }, update: { role }, create: { id: uid(), labId: entityId, userId, role } });
+      await prisma.laboratoryMember.upsert({ where: { labId_userId: { labId: entityId, userId } }, update: { role: legacyMemberRole }, create: { id: uid(), labId: entityId, userId, role: legacyMemberRole } });
     }
     const fullName = `${user.firstName} ${user.lastName}`.trim() || user.email || 'Участник';
-    const normalizedRole = String(role || '').toLowerCase();
     const personType = type === 'DiagnosticCenter' && normalizedRole === 'radiologist' ? 'RADIOLOGIST'
       : type === 'DiagnosticCenter' && normalizedRole === 'operator' ? 'OPERATOR'
       : 'STAFF';
