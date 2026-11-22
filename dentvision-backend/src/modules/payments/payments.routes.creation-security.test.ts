@@ -12,6 +12,12 @@ const m = vi.hoisted(() => ({
   paymentFindUniqueOrThrow: vi.fn(),
   appointmentFindFirst: vi.fn(),
   invoiceFindFirst: vi.fn(),
+  organizationFindFirst: vi.fn(),
+  personRoleFindMany: vi.fn(),
+  partnerBranchInvoiceFindFirst: vi.fn(),
+  partnerBranchInvoiceFindUnique: vi.fn(),
+  partnerBranchInvoiceUpdate: vi.fn(),
+  paymentFindFirst: vi.fn(),
   transaction: vi.fn(),
   orderFindUnique: vi.fn(),
   labOrderFindUnique: vi.fn(),
@@ -43,6 +49,13 @@ vi.mock('../../lib/prisma.js', () => ({
     course: { findUnique: m.courseFindUnique },
     appointment: { findFirst: m.appointmentFindFirst },
     invoice: { findFirst: m.invoiceFindFirst },
+    organization: { findFirst: m.organizationFindFirst },
+    personRole: { findMany: m.personRoleFindMany },
+    partnerBranchSubscriptionInvoice: {
+      findFirst: m.partnerBranchInvoiceFindFirst,
+      findUnique: m.partnerBranchInvoiceFindUnique,
+      update: m.partnerBranchInvoiceUpdate,
+    },
     $transaction: m.transaction,
   },
 }));
@@ -144,6 +157,14 @@ beforeEach(() => {
   m.resolveClinicMemberAccess.mockResolvedValue({ role: 'OWNER' });
   m.appointmentFindFirst.mockResolvedValue({ id: 'appointment-1', clinicId: 'clinic-owned' });
   m.invoiceFindFirst.mockResolvedValue({ id: 'invoice-1', clinicId: 'clinic-owned', amount: 1000, paidAmount: 0, status: 'unpaid' });
+  m.organizationFindFirst.mockResolvedValue({
+    id: 'org-center-1', type: 'DIAGNOSTIC_CENTER', originalType: 'DiagnosticCenter',
+  });
+  m.personRoleFindMany.mockResolvedValue([]);
+  m.partnerBranchInvoiceFindFirst.mockResolvedValue(null);
+  m.partnerBranchInvoiceFindUnique.mockResolvedValue(null);
+  m.partnerBranchInvoiceUpdate.mockResolvedValue({});
+  m.paymentFindFirst.mockResolvedValue(null);
   m.orderFindUnique.mockResolvedValue(null);
   m.labOrderFindUnique.mockResolvedValue({
     id: 'lab-order-1',
@@ -175,14 +196,19 @@ beforeEach(() => {
     payment: {
       updateMany: m.paymentUpdateMany,
       findUniqueOrThrow: m.paymentFindUniqueOrThrow,
-      findFirst: vi.fn().mockResolvedValue(null),
+      findFirst: m.paymentFindFirst,
       create: m.paymentCreate,
+    },
+    partnerBranchSubscriptionInvoice: {
+      findUnique: m.partnerBranchInvoiceFindUnique,
+      update: m.partnerBranchInvoiceUpdate,
     },
     labOrder: {
       findUnique: m.labOrderFindUnique,
       update: m.labOrderUpdate,
     },
     $queryRawUnsafe: vi.fn(async () => []),
+    $queryRaw: vi.fn(async () => []),
   }));
   m.paymentCreate.mockImplementation(async ({ data }: any) => ({
     id: 'payment-created-1',
@@ -858,6 +884,132 @@ describe('server-owned payment references', () => {
     expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
     expect(m.providerCreate).not.toHaveBeenCalled();
     expect(m.createClinicKaspiPayment).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('partner branch subscription invoice payment', () => {
+  const invoice = {
+    id: 'partner-invoice-1',
+    organizationId: 'org-center-1',
+    ownerId: 'center-1',
+    vertical: 'DIAGNOSTIC_3D',
+    policyVersion: '1.2',
+    amountMinor: 4_990_000n,
+    currency: 'KZT',
+    status: 'issued',
+    paymentId: null,
+    periodStart: new Date('2026-12-01T00:00:00.000Z'),
+    periodEnd: new Date('2027-01-01T00:00:00.000Z'),
+  };
+
+  beforeEach(() => {
+    m.user = {
+      id: 'authenticated-user',
+      role: 'DOCTOR',
+      organizationId: 'org-center-1',
+      organizationOriginalId: 'center-1',
+      organizationType: 'DIAGNOSTIC_CENTER',
+    };
+    m.organizationFindFirst.mockResolvedValue({
+      id: 'org-center-1',
+      type: 'DIAGNOSTIC_CENTER',
+      originalType: 'DiagnosticCenter',
+    });
+    m.personRoleFindMany.mockResolvedValue([{
+      role: { permissions: [{ permission: { key: 'billing.manage' } }] },
+    }]);
+    m.partnerBranchInvoiceFindFirst.mockResolvedValue(invoice);
+    m.partnerBranchInvoiceFindUnique.mockResolvedValue(invoice);
+  });
+
+  it('creates a platform QR from the immutable invoice and marks the invoice payment-pending atomically', async () => {
+    const { response, body } = await postPayment({
+      amountMinor: '4990000',
+      refType: 'partner_branch_subscription_invoice',
+      refId: invoice.id,
+      domain: 'attacker-domain',
+      sellerType: 'PLATFORM',
+      sellerId: 'attacker-seller',
+      meta: {
+        organizationId: 'foreign-org',
+        organizationOriginalId: 'foreign-owner',
+        partnerBranchSubscriptionInvoiceId: 'foreign-invoice',
+        userId: 'attacker',
+      },
+    });
+
+    expect(response.status).toBe(201);
+    expect(body.ok).toBe(true);
+    expect(m.reserveIdempotencyKey).toHaveBeenCalledWith('partner-branch-invoice:partner-invoice-1');
+    expect(m.providerCreate).toHaveBeenCalledWith({
+      amountMinor: 4_990_000n,
+      refId: 'partner-invoice-1',
+    });
+    const paymentData = m.paymentCreate.mock.calls[0][0].data;
+    expect(paymentData).toMatchObject({
+      amount: 4_990_000n,
+      refType: 'partner_branch_subscription_invoice',
+      refId: 'partner-invoice-1',
+      domain: 'partner_branch_subscription',
+      sellerType: null,
+      sellerId: null,
+      meta: {
+        userId: 'authenticated-user',
+        organizationId: 'org-center-1',
+        organizationOriginalId: 'center-1',
+        partnerBranchSubscriptionInvoiceId: 'partner-invoice-1',
+        vertical: 'DIAGNOSTIC_3D',
+        policyVersion: '1.2',
+        merchantScope: 'platform',
+      },
+    });
+    expect(m.partnerBranchInvoiceUpdate).toHaveBeenCalledWith({
+      where: { id: 'partner-invoice-1' },
+      data: { status: 'payment_pending', paymentId: 'payment-created-1' },
+    });
+  });
+
+  it('rejects a client amount that differs from the immutable invoice amount before provider access', async () => {
+    const { response } = await postPayment({
+      amountMinor: '4989999',
+      refType: 'partner_branch_subscription_invoice',
+      refId: invoice.id,
+      meta: {},
+    });
+    expect(response.status).toBe(409);
+    expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
+    expect(m.providerCreate).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it('conceals an invoice belonging to another active partner organization', async () => {
+    m.partnerBranchInvoiceFindFirst.mockResolvedValueOnce(null);
+    const { response } = await postPayment({
+      amountMinor: '4990000',
+      refType: 'partner_branch_subscription_invoice',
+      refId: 'foreign-invoice',
+      meta: {},
+    });
+    expect(response.status).toBe(404);
+    expect(m.personRoleFindMany).not.toHaveBeenCalled();
+    expect(m.providerCreate).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it('requires billing.manage in the exact active organization', async () => {
+    m.personRoleFindMany.mockResolvedValueOnce([{
+      role: { permissions: [{ permission: { key: 'billing.read' } }] },
+    }]);
+    const { response } = await postPayment({
+      amountMinor: '4990000',
+      refType: 'partner_branch_subscription_invoice',
+      refId: invoice.id,
+      meta: {},
+    });
+    expect(response.status).toBe(403);
+    expect(m.providerCreate).not.toHaveBeenCalled();
     expect(m.paymentCreate).not.toHaveBeenCalled();
   });
 });
