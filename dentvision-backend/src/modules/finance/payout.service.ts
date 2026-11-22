@@ -165,15 +165,45 @@ export async function availableBalanceMinor(walletId: string, db: Db = prisma): 
   if (wallet.ownerType === 'PARTNER') {
     const mirroredCredits = await db.ledgerEntry.findMany({
       where: { walletId, direction: 'credit', transaction: { type: 'partner_economics' } },
-      select: { amount: true, transaction: { select: { meta: true } } },
+      select: { amount: true, transaction: { select: { meta: true, refType: true, refId: true } } },
     });
+    // Older medical-lab platform payments predate paymentId snapshots in
+    // partner_economics metadata. Recover their cash-backed state from the
+    // immutable Payment reference rather than freezing valid historic proceeds.
+    const legacyPlatformPaymentRefs = mirroredCredits.flatMap((entry) => {
+      const meta = entry.transaction?.meta as Record<string, unknown> | null;
+      if (meta?.paymentId || !entry.transaction?.refId) return [];
+      if (entry.transaction.refType === 'DENTAL_LAB') {
+        return [{ refType: 'dental_lab_order', refId: entry.transaction.refId }];
+      }
+      if (entry.transaction.refType === 'MEDICAL_ANALYSIS') {
+        return [{ refType: 'medical_lab_order', refId: entry.transaction.refId }];
+      }
+      return [];
+    });
+    const confirmedLegacyPayments = legacyPlatformPaymentRefs.length
+      ? await db.payment.findMany({
+          where: {
+            status: 'paid',
+            OR: legacyPlatformPaymentRefs.map((ref) => ({ refType: ref.refType, refId: ref.refId })),
+          },
+          select: { refType: true, refId: true },
+        })
+      : [];
+    const confirmedLegacyPaymentKeys = new Set(
+      confirmedLegacyPayments.map((payment) => `${payment.refType}:${payment.refId}`),
+    );
     externallyCollectedPartnerRevenue = mirroredCredits.reduce((sum, entry) => {
       const meta = entry.transaction?.meta as Record<string, unknown> | null;
-      // A durable paymentId means the customer paid through DentVision's
-      // platform gateway; those net proceeds are genuinely held for payout.
-      // Without one, the partner collected directly and the wallet credit is
-      // only an accounting mirror, not withdrawable cash.
-      return meta?.paymentId ? sum : sum + entry.amount;
+      if (meta?.paymentId) return sum;
+      const refType = entry.transaction?.refType === 'DENTAL_LAB' ? 'dental_lab_order'
+        : entry.transaction?.refType === 'MEDICAL_ANALYSIS' ? 'medical_lab_order'
+          : null;
+      const refId = entry.transaction?.refId;
+      // A verified legacy platform Payment also proves that the funds are
+      // held by DentVision. All other entries are direct partner collections.
+      if (refType && refId && confirmedLegacyPaymentKeys.has(`${refType}:${refId}`)) return sum;
+      return sum + entry.amount;
     }, 0n);
   }
 
