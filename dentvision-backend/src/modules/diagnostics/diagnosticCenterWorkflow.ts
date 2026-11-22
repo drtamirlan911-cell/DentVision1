@@ -12,7 +12,10 @@ export type DiagnosticCenterTransitionDecision =
   | { allowed: true; nextStatus: DiagnosticCenterStatus }
   | { allowed: false; status: 403 | 409; code: string; reason: string };
 
-const MANAGER_ROLE_KEYS = new Set(['owner', 'admin', 'manager', 'director']);
+const MANAGER_ROLE_KEYS = new Set([
+  'owner', 'admin', 'manager', 'director',
+  'diagnostic_owner', 'diagnostic_admin', 'diagnostic_manager',
+]);
 const SCHEDULING_ROLE_KEYS = new Set([
   'diagnostic_operator', 'operator', 'diagnostic_reception', 'reception', 'receptionist', 'registrar', 'center_reception',
 ]);
@@ -28,10 +31,11 @@ function roleMatches(roleKeys: readonly string[], allowed: ReadonlySet<string>):
 }
 
 function isManager(roleKeys: readonly string[]): boolean {
-  return roleKeys.some((role) => {
-    const key = String(role || '').trim().toLowerCase();
-    return MANAGER_ROLE_KEYS.has(key) || /_(owner|admin|manager|director)$/.test(key);
-  });
+  // Do not infer manager authority from a generic suffix such as "org_admin".
+  // Partner workspaces require their canonical scoped role or an explicit
+  // legacy center member role; similarly named roles from another domain do
+  // not inherit diagnostic workflow or clinical-detail access.
+  return roleKeys.some((role) => MANAGER_ROLE_KEYS.has(String(role || '').trim().toLowerCase()));
 }
 
 /** Clinical referral details contain identifiers and must not be exposed to cashier-only or finance-only memberships. */
