@@ -190,6 +190,12 @@ export function partnerRoleKeysHavePermission(roleKeys: readonly string[], permi
   return roleKeys.some((key) => {
     const roleKey = String(key).trim().toUpperCase();
     const canonicalRoleKey = canonicalRoleAliases[roleKey] || roleKey;
+    // Older partner memberships may still carry the shared org_owner/org_admin
+    // key. Preserve read-only access to their own workspace during migration,
+    // without inheriting billing, clinical, file-write or management powers.
+    if (canonicalRoleKey === 'ORG_OWNER' || canonicalRoleKey === 'ORG_ADMIN') {
+      return permission === 'diagnostics.read' || permission === 'lab.read';
+    }
     return Boolean(PARTNER_ROLE_BY_KEY[canonicalRoleKey]?.permissions.includes(permission));
   });
 }
@@ -1505,8 +1511,14 @@ diagnosticsRouter.get('/dashboard', async (req: AuthRequest, res) => {
     const q = req.query as Record<string, string | undefined>;
     const scope = await authorizeReferralListScope(req.user, { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId });
     if (scope.ok === false) return res.status(scope.status || 403).json({ ok: false, error: scope.error || 'Нет доступа' });
-    if ((q.centerId || q.labId) && !(await hasPartnerScopedPermission(req.user, 'billing.read'))) {
-      return res.status(403).json({ ok: false, error: 'Финансовая сводка доступна только сотрудникам с правом billing.read.' } satisfies ApiResponse);
+    const dashboardReadPermission = partnerReferralReadPermission({ centerId: q.centerId, labId: q.labId });
+    if (dashboardReadPermission && !(await hasPartnerScopedPermission(req.user, dashboardReadPermission))) {
+      return res.status(403).json({
+        ok: false,
+        error: dashboardReadPermission === 'diagnostics.read'
+          ? 'Рабочая сводка центра доступна сотрудникам с правом diagnostics.read.'
+          : 'Рабочая сводка лаборатории доступна сотрудникам с правом lab.read.',
+      } satisfies ApiResponse);
     }
     const stats = await svc.getDashboardStats({ clinicId: q.clinicId, centerId: q.centerId, labId: q.labId });
     const isPartnerScope = Boolean(q.centerId || q.labId);
