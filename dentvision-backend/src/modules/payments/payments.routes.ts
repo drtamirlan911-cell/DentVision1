@@ -1449,10 +1449,26 @@ paymentsRouter.get('/:id', authenticate, async (req: AuthRequest, res) => {
   if (payment.status === 'pending') {
     const age = Date.now() - payment.createdAt.getTime();
     if (age > 86_400_000) {
-      payment = await prisma.payment.update({
-        where: { id: payment.id },
-        data: { status: 'expired' },
-      });
+      if (payment.refType === 'partner_branch_subscription_invoice' && payment.refId) {
+        payment = await prisma.$transaction(async (tx) => {
+          const expired = await tx.payment.updateMany({
+            where: { id: payment!.id, status: 'pending' },
+            data: { status: 'expired' },
+          });
+          if (expired.count === 1) {
+            await releasePartnerBranchSubscriptionInvoicePayment({
+              invoiceId: payment!.refId!,
+              paymentId: payment!.id,
+            }, tx);
+          }
+          return tx.payment.findUniqueOrThrow({ where: { id: payment!.id } });
+        });
+      } else {
+        payment = await prisma.payment.update({
+          where: { id: payment.id },
+          data: { status: 'expired' },
+        });
+      }
     }
   }
 
