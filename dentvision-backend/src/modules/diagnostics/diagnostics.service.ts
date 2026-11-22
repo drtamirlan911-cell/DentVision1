@@ -869,10 +869,16 @@ export async function uploadReferralFile(data: {
       }, tx);
       return { ...file, dicomIndex };
     });
-  } catch (error) {
+  } catch (error: any) {
     await deleteObject(storageKey).catch((cleanupError) => {
       console.error('[diagnostics] orphaned S3 object after failed metadata commit', { referralId: referral.id, storageKey, cleanupError });
     });
+    if (data.dicomMetadata && String(error?.code || '') === 'P2002') {
+      throw Object.assign(
+        new Error('DICOM SOP Instance UID уже загружен. Повторный экземпляр не сохранён.'),
+        { code: 'DICOM_INSTANCE_ALREADY_EXISTS' },
+      );
+    }
     throw error;
   }
 }
