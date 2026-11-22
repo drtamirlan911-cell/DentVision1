@@ -218,7 +218,15 @@ export function parseDicomPart10Metadata(buffer: Buffer): DicomPart10Metadata {
   while (offset + 8 <= buffer.length) {
     const header = readHeader(buffer, offset, explicitVr, littleEndian);
     const key = tagKey(header.group, header.element);
-    if (key === TAG.pixelData) break;
+    if (key === TAG.pixelData) {
+      if (header.length === 0xffffffff) {
+        // Encapsulated/compressed Pixel Data ends with a Sequence Delimitation Item.
+        skipUndefinedContainer(buffer, header.valueOffset, 0xe0dd, explicitVr, littleEndian);
+      } else if (header.valueOffset + header.length > buffer.length) {
+        throw new Error('DICOM Pixel Data is truncated.');
+      }
+      break;
+    }
     if (header.length === 0xffffffff) {
       if (header.vr !== 'SQ') throw new Error('Unexpected undefined-length DICOM element before Pixel Data.');
       offset = skipUndefinedContainer(buffer, header.valueOffset, 0xe0dd, explicitVr, littleEndian);
