@@ -18,6 +18,7 @@ import { auditFromReq } from '../compliance/audit.service.js';
 import { DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS, LAB_RESULT_SIGNER_ROLE_KEYS, hasScopedPartnerSignerRole } from './signingAuthorization.js';
 import { assertClinicDoctorSignoff, ClinicalSignoffAuthorizationError } from './clinicalSignoffAuthorization.js';
 import { authorizeDiagnosticCenterStatusTransition, canReadDiagnosticCenterClinicalDetail } from './diagnosticCenterWorkflow.js';
+import { parseDicomPart10Metadata } from './dicomMetadata.js';
 
 export async function claimReferralPaid(referralId: string, data: { paid: boolean; paidAt?: Date; cost?: number }): Promise<boolean> { const result = await (prisma as any).referral.updateMany({ where: { id: referralId, paid: false }, data }); return result.count === 1; }
 
@@ -1067,6 +1068,22 @@ diagnosticsRouter.post('/referrals/:id/files/upload', requireReferralAccess(true
     if (!isAcceptedFilePayload(file)) {
       return res.status(400).json({ ok: false, error: 'Содержимое файла не соответствует расширению или MIME-типу.' });
     }
+    const extension = path.extname(file.originalname).toLowerCase();
+    const isDicom = ['.dcm', '.dicom'].includes(extension) || String(file.mimetype).toLowerCase().includes('dicom');
+    let dicomMetadata;
+    if (isDicom) {
+      try {
+        dicomMetadata = parseDicomPart10Metadata(file.buffer);
+      } catch (error: any) {
+        const code = String(error?.code || 'DICOM_METADATA_INVALID');
+        const unsupported = code === 'DICOM_TRANSFER_SYNTAX_UNSUPPORTED';
+        return res.status(unsupported ? 415 : 400).json({
+          ok: false,
+          error: error?.message || 'Не удалось прочитать метаданные DICOM.',
+          code,
+        } satisfies ApiResponse);
+      }
+    }
     const data = await svc.uploadReferralFile({
       referralId,
       fileName: file.originalname,
@@ -1074,6 +1091,7 @@ diagnosticsRouter.post('/referrals/:id/files/upload', requireReferralAccess(true
       fileType: file.mimetype,
       fileSize: file.size,
       uploadedBy: req.user!.id,
+      ...(dicomMetadata ? { dicomMetadata } : {}),
     });
     return res.status(201).json({
       ok: true,
@@ -1086,6 +1104,7 @@ diagnosticsRouter.post('/referrals/:id/files/upload', requireReferralAccess(true
         createdAt: data.createdAt,
         downloadAvailable: true,
         unavailable: false,
+        ...(data.dicomIndex ? { dicom: data.dicomIndex } : {}),
       },
     } satisfies ApiResponse);
   } catch (error: any) {
