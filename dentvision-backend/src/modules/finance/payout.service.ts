@@ -165,9 +165,16 @@ export async function availableBalanceMinor(walletId: string, db: Db = prisma): 
   if (wallet.ownerType === 'PARTNER') {
     const mirroredCredits = await db.ledgerEntry.findMany({
       where: { walletId, direction: 'credit', transaction: { type: 'partner_economics' } },
-      select: { amount: true },
+      select: { amount: true, transaction: { select: { meta: true } } },
     });
-    externallyCollectedPartnerRevenue = mirroredCredits.reduce((sum, entry) => sum + entry.amount, 0n);
+    externallyCollectedPartnerRevenue = mirroredCredits.reduce((sum, entry) => {
+      const meta = entry.transaction?.meta as Record<string, unknown> | null;
+      // A durable paymentId means the customer paid through DentVision's
+      // platform gateway; those net proceeds are genuinely held for payout.
+      // Without one, the partner collected directly and the wallet credit is
+      // only an accounting mirror, not withdrawable cash.
+      return meta?.paymentId ? sum : sum + entry.amount;
+    }, 0n);
   }
 
   return wallet.balance - held - externallyCollectedPartnerRevenue;
