@@ -28,7 +28,9 @@ export type ScopeType =
  * is organization- or branch-scoped. ASSIGNED/OWN roles select individual work
  * items and must not inherit an arbitrary default branch from the organization.
  */
-export function shouldAttachDefaultPartnerBranchHint(roleKey: string): boolean {
+type PartnerBranchHintMode = 'DEFAULT' | 'MEMBERSHIP' | 'NONE';
+
+function partnerBranchHintMode(roleKey: string): PartnerBranchHintMode {
   const aliases: Record<string, string> = {
     DIAGNOSTIC_RADIOLOGIST: 'RADIOLOGIST',
   };
@@ -36,7 +38,19 @@ export function shouldAttachDefaultPartnerBranchHint(roleKey: string): boolean {
   const scopes = roleKeys
     .map((key) => PARTNER_ROLE_BY_KEY[aliases[key] || key]?.defaultScope)
     .filter((scope): scope is 'ORGANIZATION' | 'BRANCH' | 'ASSIGNED' | 'OWN' => Boolean(scope));
-  return scopes.length === 0 || scopes.some((scope) => scope === 'ORGANIZATION' || scope === 'BRANCH');
+  // Existing clinic and non-partner role keys have no entry in the partner
+  // registry; preserve their organization default-branch hint behavior.
+  if (scopes.length === 0 || scopes.includes('ORGANIZATION')) return 'DEFAULT';
+  if (scopes.includes('BRANCH')) return 'MEMBERSHIP';
+  return 'NONE';
+}
+
+export function shouldAttachDefaultPartnerBranchHint(roleKey: string): boolean {
+  return partnerBranchHintMode(roleKey) === 'DEFAULT';
+}
+
+export function shouldAttachMemberPartnerBranchHint(roleKey: string): boolean {
+  return partnerBranchHintMode(roleKey) === 'MEMBERSHIP';
 }
 
 export interface WorkspaceContext {
@@ -209,6 +223,10 @@ export interface UnifiedPersonRow {
     scopeId: string | null;
     role: { key: string };
   }>;
+  branchMemberships?: Array<{
+    branchId: string;
+    branch?: { organizationId?: string | null; active?: boolean };
+  }>;
 }
 
 export interface ContextSources {
@@ -351,11 +369,19 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
       .map((pr) => pr.role.key)
       .join(',') || p.personType.toLowerCase();
 
+    const memberBranchId = shouldAttachMemberPartnerBranchHint(roleKey)
+      ? (p.branchMemberships || []).find((membership) =>
+          membership.branch?.active !== false &&
+          membership.branch?.organizationId === org.id,
+        )?.branchId
+      : undefined;
+
     putCanonical({
       id: `${scopeType}:${entityId}`,
       scopeType,
       scopeId: entityId,
       organizationId: org.id,
+      ...(memberBranchId ? { branchId: memberBranchId } : {}),
       name: org.name,
       roleKey,
       roleLabel: roleLabelFor(roleKey),
