@@ -299,14 +299,12 @@ describe('partner invoice payment settlement', () => {
       periodEnd: invoice.periodEnd,
     });
     expect(calls.revenue).toMatchObject({
-      data: {
-        tenantId: 'platform',
-        source: 'PARTNER_BRANCH_SUBSCRIPTION',
-        amount: 4_990_000n,
-        meta: {
-          refType: 'partner_branch_subscription_invoice',
-          refId: invoice.id,
-        },
+      tenantId: 'platform',
+      source: 'PARTNER_BRANCH_SUBSCRIPTION',
+      amount: 4_990_000n,
+      meta: {
+        refType: 'partner_branch_subscription_invoice',
+        refId: invoice.id,
       },
     });
   });
