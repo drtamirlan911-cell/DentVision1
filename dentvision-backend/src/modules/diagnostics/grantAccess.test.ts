@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   personUpdate: vi.fn(),
   roleFindUnique: vi.fn(),
   personRoleUpsert: vi.fn(),
+  branchFindFirst: vi.fn(),
+  branchMemberUpsert: vi.fn(),
 }));
 
 vi.mock('../../lib/prisma.js', () => ({
@@ -32,6 +34,8 @@ vi.mock('../../lib/prisma.js', () => ({
     },
     role: { findUnique: mocks.roleFindUnique },
     personRole: { upsert: mocks.personRoleUpsert },
+    branch: { findFirst: mocks.branchFindFirst },
+    branchMember: { upsert: mocks.branchMemberUpsert },
   },
 }));
 
@@ -52,6 +56,8 @@ beforeEach(() => {
   mocks.personCreate.mockResolvedValue({ id: 'person-1' });
   mocks.personUpdate.mockResolvedValue({ id: 'person-1' });
   mocks.roleFindUnique.mockResolvedValue({ id: 'role-1' });
+  mocks.branchFindFirst.mockResolvedValue({ id: 'branch-default' });
+  mocks.branchMemberUpsert.mockResolvedValue({ id: 'branch-member-1' });
 });
 
 describe('DIAGNOSTICS_ROLE_TO_ROLE_KEY', () => {
@@ -78,6 +84,28 @@ describe('grantDiagnosticsAccess — unified role', () => {
     await grantDiagnosticsAccess('DiagnosticCenter', CENTER_ID, USER_ID, 'OWNER');
 
     expect(mocks.roleFindUnique).toHaveBeenCalledWith({ where: { key: 'owner' } });
+  });
+
+  it('assigns a branch-scoped diagnostic operator to only the active default branch', async () => {
+    await grantDiagnosticsAccess('DiagnosticCenter', CENTER_ID, USER_ID, 'operator');
+
+    expect(mocks.branchFindFirst).toHaveBeenCalledWith({
+      where: { organizationId: 'org-center', active: true },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    });
+    expect(mocks.branchMemberUpsert).toHaveBeenCalledWith({
+      where: { personId_branchId: { personId: 'person-1', branchId: 'branch-default' } },
+      update: { active: true },
+      create: { id: expect.any(String), personId: 'person-1', branchId: 'branch-default', active: true },
+    });
+  });
+
+  it('does not assign an assigned-work radiologist to an arbitrary default branch', async () => {
+    await grantDiagnosticsAccess('DiagnosticCenter', CENTER_ID, USER_ID, 'radiologist');
+
+    expect(mocks.branchFindFirst).not.toHaveBeenCalled();
+    expect(mocks.branchMemberUpsert).not.toHaveBeenCalled();
   });
 
   it('fails closed for a role with no unified counterpart', async () => {
