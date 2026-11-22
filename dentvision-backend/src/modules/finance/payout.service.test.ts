@@ -126,6 +126,14 @@ describe('the same money cannot be requested twice', () => {
     ).resolves.toMatchObject({ status: 'requested', amount: 100_000n });
   });
 
+  it('rejects payout requests funded only by partner-collected diagnostic revenue', async () => {
+    walletHolding(100_000n, [], 'PARTNER', [100_000n]);
+    await expect(
+      requestPayout({ ownerType: 'PARTNER', ownerId: 'lab-1', amountMinor: 1n }),
+    ).rejects.toMatchObject({ code: 'INSUFFICIENT_FUNDS' });
+    expect(tx.payout.create).not.toHaveBeenCalled();
+  });
+
   it('refuses a second request for money already asked for', async () => {
     // This is the exact case that used to succeed: the balance still reads
     // 100 000 because nothing debits it until the payout is paid.
