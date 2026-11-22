@@ -4,6 +4,7 @@ import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
 import { writeRevenue } from '../finance/revenue.service.js';
 import { calculatePartnerBranchSubscriptionQuote, type PartnerBranchSubscriptionVertical } from './partnerEconomics.js';
+import { BranchStatusHistoryUnavailableError, getActiveBranchIdsAt } from '../branches/branchStatusHistory.js';
 
 export type PartnerBranchBillingErrorCode =
   | 'INVALID_PERIOD'
@@ -11,7 +12,8 @@ export type PartnerBranchBillingErrorCode =
   | 'PARTNER_VERTICAL_NOT_CONFIGURED'
   | 'PARTNER_NOT_ACTIVE'
   | 'SUBSCRIPTION_PLAN_CONFLICT'
-  | 'BILLING_PERIOD_OVERLAP';
+  | 'BILLING_PERIOD_OVERLAP'
+  | 'BILLING_HISTORY_UNAVAILABLE';
 
 export class PartnerBranchBillingError extends Error {
   constructor(
@@ -96,6 +98,7 @@ async function issueInTransaction(
     periodStart: Date;
     periodEnd: Date;
     createdByUserId?: string | null;
+    asOf: Date;
   },
 ) {
   const organizationId = String(input.organizationId || '').trim();
@@ -227,12 +230,15 @@ async function issueInTransaction(
     );
   }
 
-  const branches = await tx.branch.findMany({
-    where: { organizationId: organization.id, active: true },
-    select: { id: true },
-    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-  });
-  const branchIds = branches.map((branch) => branch.id);
+  let branchIds: string[];
+  try {
+    branchIds = await getActiveBranchIdsAt(tx, organization.id, input.periodStart, input.asOf);
+  } catch (error) {
+    if (error instanceof BranchStatusHistoryUnavailableError) {
+      throw new PartnerBranchBillingError('BILLING_HISTORY_UNAVAILABLE', error.message, 409);
+    }
+    throw error;
+  }
   const quote = calculatePartnerBranchSubscriptionQuote({
     vertical,
     organizationActivated: true,
@@ -281,9 +287,11 @@ export async function issuePartnerBranchSubscriptionInvoice(
     createdByUserId?: string | null;
   },
   db?: Prisma.TransactionClient,
+  asOf = new Date(),
 ) {
-  if (db) return issueInTransaction(db, input);
-  return prisma.$transaction((tx) => issueInTransaction(tx, input));
+  const boundedInput = { ...input, asOf };
+  if (db) return issueInTransaction(db, boundedInput);
+  return prisma.$transaction((tx) => issueInTransaction(tx, boundedInput));
 }
 
 
