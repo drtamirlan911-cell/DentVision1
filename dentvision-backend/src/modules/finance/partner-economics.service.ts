@@ -92,7 +92,10 @@ export function calculatePartnerEconomics(input: PartnerEconomicsInput, rule: Pa
   const monthlyGmvMinor = input.monthlyGmvMinor ?? input.grossMinor;
   const bps = selectBps(rule, monthlyGmvMinor);
   const percentageFee = (input.grossMinor * BigInt(bps)) / 10_000n;
-  const commissionMinor = rule.maxFeeMinor == null ? (percentageFee < rule.minFeeMinor ? rule.minFeeMinor : percentageFee) : percentageFee < rule.minFeeMinor ? rule.minFeeMinor : percentageFee > rule.maxFeeMinor ? rule.maxFeeMinor : percentageFee;
+  const calculatedCommissionMinor = rule.maxFeeMinor == null ? (percentageFee < rule.minFeeMinor ? rule.minFeeMinor : percentageFee) : percentageFee < rule.minFeeMinor ? rule.minFeeMinor : percentageFee > rule.maxFeeMinor ? rule.maxFeeMinor : percentageFee;
+  // A minimum is a floor, not a surcharge: it must never exceed the settled
+  // gross amount or create a negative partner net / fee on a zero-value case.
+  const commissionMinor = calculatedCommissionMinor > input.grossMinor ? input.grossMinor : calculatedCommissionMinor;
   const partnerRevenueMinor = input.grossMinor - commissionMinor;
   const paymentCostMinor = input.paymentCostMinor ?? 0n, aiCostMinor = input.aiCostMinor ?? 0n, storageCostMinor = input.storageCostMinor ?? 0n;
   const supportCostMinor = input.supportCostMinor ?? 0n, refundReserveMinor = input.refundReserveMinor ?? 0n, taxMinor = input.taxMinor ?? 0n;
