@@ -1283,7 +1283,49 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
           }
           return tx.payment.create({ data: paymentData });
         })
-      : await prisma.payment.create({ data: paymentData });
+      : refType === 'partner_branch_subscription_invoice' && partnerBranchInvoiceId
+        ? await prisma.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT "id" FROM "partner_branch_subscription_invoices" WHERE "id" = ${partnerBranchInvoiceId} FOR UPDATE`;
+            const currentInvoice = await tx.partnerBranchSubscriptionInvoice.findUnique({
+              where: { id: partnerBranchInvoiceId },
+            });
+            if (!currentInvoice || currentInvoice.status !== 'issued' || currentInvoice.paymentId) {
+              throw new PartnerBranchBillingError(
+                'BILLING_PERIOD_OVERLAP',
+                'Счёт уже изменился или по нему создан платёж',
+                409,
+              );
+            }
+            if (currentInvoice.amountMinor !== minor || currentInvoice.currency !== 'KZT') {
+              throw new PartnerBranchBillingError(
+                'INVALID_PERIOD',
+                'Сумма счёта изменилась до создания платежа',
+                409,
+              );
+            }
+            const existingPayment = await tx.payment.findFirst({
+              where: {
+                refType: 'partner_branch_subscription_invoice',
+                refId: partnerBranchInvoiceId,
+                status: { in: ['pending', 'paid'] },
+              },
+              select: { id: true },
+            });
+            if (existingPayment) {
+              throw new PartnerBranchBillingError(
+                'BILLING_PERIOD_OVERLAP',
+                'Для этого счёта уже существует платёж. Повторите запрос с исходным ключом идемпотентности.',
+                409,
+              );
+            }
+            const createdPayment = await tx.payment.create({ data: paymentData });
+            await tx.partnerBranchSubscriptionInvoice.update({
+              where: { id: currentInvoice.id },
+              data: { status: 'payment_pending', paymentId: createdPayment.id },
+            });
+            return createdPayment;
+          })
+        : await prisma.payment.create({ data: paymentData });
 
     await completeIdempotencyKey(idempotencyKey, payment.id);
     keyCompleted = true;
@@ -1307,6 +1349,9 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     }
     if (error instanceof DentalLabPaymentStateError) {
       return res.status(409).json({ ok: false, error: error.message, code: error.code } satisfies ApiResponse);
+    }
+    if (error instanceof PartnerBranchBillingError) {
+      return res.status(error.status).json({ ok: false, error: error.message, code: error.code } satisfies ApiResponse);
     }
     if (error instanceof ClinicPaymentsError) {
       return res.status(error.status).json({
