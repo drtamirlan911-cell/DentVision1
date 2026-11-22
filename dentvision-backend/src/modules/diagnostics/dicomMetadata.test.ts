@@ -12,19 +12,14 @@ function padded(value: string, pad: number): Buffer {
 }
 
 function explicitElement(group: number, element: number, vr: string, value: Buffer): Buffer {
-  const header = Buffer.alloc(vr === 'UI' || vr === 'CS' || vr === 'DA' || vr === 'TM' || vr === 'IS' ? 8 : 12);
+  const longVr = ['OB', 'OD', 'OF', 'OL', 'OV', 'OW', 'SQ', 'UC', 'UR', 'UT', 'UN'].includes(vr);
+  const header = Buffer.alloc(longVr ? 12 : 8);
   header.writeUInt16LE(group, 0);
   header.writeUInt16LE(element, 2);
   header.write(vr, 4, 2, 'ascii');
-  let body: Buffer;
-  if (['OB', 'OD', 'OF', 'OL', 'OV', 'OW', 'SQ', 'UC', 'UR', 'UT', 'UN'].includes(vr)) {
-    header.writeUInt32LE(value.length, 8);
-    body = header;
-  } else {
-    header.writeUInt16LE(value.length, 6);
-    body = header;
-  }
-  return Buffer.concat([body, value]);
+  if (longVr) header.writeUInt32LE(value.length, 8);
+  else header.writeUInt16LE(value.length, 6);
+  return Buffer.concat([header, value]);
 }
 
 function implicitElement(group: number, element: number, value: Buffer): Buffer {
@@ -140,7 +135,11 @@ describe('DICOM Part 10 metadata parser', () => {
   it('rejects non-Part-10 payloads, unsupported syntax and truncated element values', () => {
     expect(() => parseDicomPart10Metadata(Buffer.from('not a dicom file'))).toThrow(/Part 10/i);
     expect(() => parseDicomPart10Metadata(part10Dataset({ transferSyntax: '1.2.840.10008.1.2.1.99' }))).toThrow(/Unsupported/i);
-    const truncated = part10Dataset().subarray(0, part10Dataset().length - 2);
+    const source = part10Dataset();
+    const studyUid = Buffer.from(STUDY, 'ascii');
+    const studyOffset = source.indexOf(studyUid);
+    expect(studyOffset).toBeGreaterThan(0);
+    const truncated = source.subarray(0, studyOffset + studyUid.length - 2);
     expect(() => parseDicomPart10Metadata(truncated)).toThrow();
   });
 
