@@ -147,17 +147,17 @@ export default function MedicalLabWorkspace() {
     <div className="space-y-6">
       <PageHeader title="Медицинская лаборатория" subtitle="Направление → биоматериал → исследование → результат → верификация → клиническая интерпретация" />
       {isLaboratoryWorkspace && canReadFinance && (
-        <div role="tablist" aria-label="Разделы медицинской лаборатории" className="flex flex-wrap gap-2 border-b border-bdr-subtle pb-3">
-          <Button role="tab" id="medical-lab-operations-tab" aria-controls="medical-lab-operations-panel" aria-selected={activeSection === 'operations'} variant={activeSection === 'operations' ? 'primary' : 'secondary'} size="sm" onClick={() => selectSection('operations')}>
+        <div role="group" aria-label="Разделы медицинской лаборатории" className="flex flex-wrap gap-2 border-b border-bdr-subtle pb-3">
+          <Button id="medical-lab-operations-tab" aria-pressed={activeSection === 'operations'} variant={activeSection === 'operations' ? 'primary' : 'secondary'} size="sm" onClick={() => selectSection('operations')}>
             Операции и образцы
           </Button>
-          <Button role="tab" id="medical-lab-finance-tab" aria-controls="medical-lab-finance-panel" aria-selected={activeSection === 'finance'} variant={activeSection === 'finance' ? 'primary' : 'secondary'} size="sm" onClick={() => selectSection('finance')}>
+          <Button id="medical-lab-finance-tab" aria-pressed={activeSection === 'finance'} variant={activeSection === 'finance' ? 'primary' : 'secondary'} size="sm" onClick={() => selectSection('finance')}>
             Финансы
           </Button>
         </div>
       )}
       {(!isLaboratoryWorkspace || !canReadFinance || activeSection === 'operations') && (
-        <section role="tabpanel" id="medical-lab-operations-panel" aria-labelledby="medical-lab-operations-tab" tabIndex={0} className="space-y-6">
+        <section id="medical-lab-operations-panel" aria-labelledby="medical-lab-operations-tab" tabIndex={0} className="space-y-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
         {[['ordered', 'Направлено', Activity], ['sample_collected', 'Материал', TestTube2], ['processing', 'В работе', FlaskConical], ['result_ready', 'Результаты', Clock3], ['verified', 'Проверено', ShieldCheck], ['cancelled', 'Отменено', XCircle]].map(([id, label, Icon]) => (
           <Card key={id as string} className="border-bdr-subtle bg-surface-1 p-4"><div className="flex items-center justify-between"><Icon className="h-4 w-4 text-dv-gold" /><span className="text-xl font-semibold text-txt-primary">{counts[id as string] || 0}</span></div><div className="mt-2 text-xs text-txt-muted">{label as string}</div></Card>
@@ -274,7 +274,7 @@ export default function MedicalLabWorkspace() {
       )}
 
       {isLaboratoryWorkspace && canReadFinance && activeSection === 'finance' && (
-        <section role="tabpanel" id="medical-lab-finance-panel" aria-labelledby="medical-lab-finance-tab" tabIndex={0} className="space-y-4">
+        <section id="medical-lab-finance-panel" aria-labelledby="medical-lab-finance-tab" tabIndex={0} className="space-y-4">
           <PageHeader
             title="Финансы медицинской лаборатории"
             subtitle="Оборот по подтверждённым оплатам, комиссия DentVision и средства, фактически доступные к выплате."
