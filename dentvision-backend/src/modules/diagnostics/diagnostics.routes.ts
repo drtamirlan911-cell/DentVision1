@@ -603,9 +603,10 @@ diagnosticsRouter.get('/studies', async (req: AuthRequest, res) => {
     const { centerId, category } = req.query as any;
     if (centerId) {
       const centerIdValue = String(centerId);
-      const center = await svc.getCenter(centerIdValue);
+      const isActiveCenterMember = sameOrgContext(req.user, 'DiagnosticCenter', centerIdValue);
+      const center = await svc.getCenter(centerIdValue, { includePrivate: isActiveCenterMember });
       if (!center) return res.status(404).json({ ok: false, error: 'Diagnostic center not found' } satisfies ApiResponse);
-      if (!sameOrgContext(req.user, 'DiagnosticCenter', centerIdValue)) {
+      if (!isActiveCenterMember) {
         const clinicAccess = await assertOrgAccess(req.user!, centerIdValue).catch(() => false);
         if (!clinicAccess) return res.status(403).json({ ok: false, error: 'Нет доступа к диагностическому центру' } satisfies ApiResponse);
       }
@@ -797,6 +798,37 @@ diagnosticsRouter.get('/centers/:id/worklist', async (req: AuthRequest, res) => 
   }
 });
 
+diagnosticsRouter.get('/centers/:id/worklist/staff', async (req: AuthRequest, res) => {
+  try {
+    const centerId = String(req.params.id);
+    if (!sameOrgContext(req.user, 'DiagnosticCenter', centerId)) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к команде диагностического центра' });
+    }
+    if (!(await canManageDiagnosticCenterTeam(req.user))) {
+      return res.status(403).json({ ok: false, error: 'Состав команды доступен только владельцу и менеджерам центра' });
+    }
+    const members = await prisma.diagnosticCenterMember.findMany({
+      where: { centerId, role: { in: ['operator', 'radiologist', 'manager', 'admin'] } },
+      include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
+      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+    });
+    return res.json({
+      ok: true,
+      data: members.map((member) => ({
+        id: member.id,
+        userId: member.userId,
+        role: member.role,
+        firstName: member.user.firstName,
+        lastName: member.user.lastName,
+        email: member.user.email,
+      })),
+    } satisfies ApiResponse);
+  } catch {
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить команду диагностического центра' } satisfies ApiResponse);
+  }
+});
+
+
 diagnosticsRouter.get('/centers/:centerId/worklist/:referralId', async (req: AuthRequest, res) => {
   try {
     const centerId = String(req.params.centerId);
@@ -843,36 +875,6 @@ diagnosticsRouter.get('/centers/:centerId/worklist/:referralId', async (req: Aut
     } satisfies ApiResponse);
   } catch {
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить карточку исследования' } satisfies ApiResponse);
-  }
-});
-
-diagnosticsRouter.get('/centers/:id/worklist/staff', async (req: AuthRequest, res) => {
-  try {
-    const centerId = String(req.params.id);
-    if (!sameOrgContext(req.user, 'DiagnosticCenter', centerId)) {
-      return res.status(403).json({ ok: false, error: 'Нет доступа к команде диагностического центра' });
-    }
-    if (!(await canManageDiagnosticCenterTeam(req.user))) {
-      return res.status(403).json({ ok: false, error: 'Состав команды доступен только владельцу и менеджерам центра' });
-    }
-    const members = await prisma.diagnosticCenterMember.findMany({
-      where: { centerId, role: { in: ['operator', 'radiologist', 'manager', 'admin'] } },
-      include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
-      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
-    });
-    return res.json({
-      ok: true,
-      data: members.map((member) => ({
-        id: member.id,
-        userId: member.userId,
-        role: member.role,
-        firstName: member.user.firstName,
-        lastName: member.user.lastName,
-        email: member.user.email,
-      })),
-    } satisfies ApiResponse);
-  } catch {
-    return res.status(500).json({ ok: false, error: 'Не удалось загрузить команду диагностического центра' } satisfies ApiResponse);
   }
 });
 
