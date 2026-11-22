@@ -685,8 +685,22 @@ test.describe('Partner operational lifecycle', () => {
         series: { seriesInstanceUid: dicomIds.series, modality: 'CT' },
         study: { studyInstanceUid: dicomIds.study, modality: 'CT' },
       });
+      const otherReferralResponse = await api.post(`${BASE}/api/diagnostics/referrals`, {
+        headers: auth(ownerToken),
+        data: {
+          clinicId,
+          branchId,
+          doctorId,
+          patientName: 'Different DICOM referral',
+          category: 'CBCT',
+          studyType: 'Конусно-лучевая КТ (КЛКТ)',
+          centerId,
+        },
+      });
+      expect(otherReferralResponse.status()).toBe(201);
+      const otherReferral = (await otherReferralResponse.json()).data;
       const crossReferralDownload = await api.get(
-        `${BASE}/api/diagnostics/referrals/${unrelatedReferralId}/files/${uploadedDicom.id}/download-url`,
+        `${BASE}/api/diagnostics/referrals/${otherReferral.id}/files/${uploadedDicom.id}/download-url`,
         { headers: auth(centerOwnerToken) },
       );
       expect(crossReferralDownload.status()).toBe(404);
