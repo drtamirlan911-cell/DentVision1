@@ -15,6 +15,47 @@ async function login(api: APIRequestContext, email: string) {
 }
 function auth(token: string) { return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }; }
 
+function dicomUid(): string {
+  return `2.25.${BigInt(`0x${randomUUID().replace(/-/g, '')}`).toString(10)}`;
+}
+function dicomText(value: string, padding: number): Buffer {
+  const raw = Buffer.from(value, 'ascii');
+  return raw.length % 2 ? Buffer.concat([raw, Buffer.from([padding])]) : raw;
+}
+function dicomExplicitElement(group: number, element: number, vr: string, value: Buffer): Buffer {
+  const longVr = ['OB', 'OD', 'OF', 'OL', 'OV', 'OW', 'SQ', 'UC', 'UR', 'UT', 'UN'].includes(vr);
+  const header = Buffer.alloc(longVr ? 12 : 8);
+  header.writeUInt16LE(group, 0);
+  header.writeUInt16LE(element, 2);
+  header.write(vr, 4, 2, 'ascii');
+  if (longVr) header.writeUInt32LE(value.length, 8);
+  else header.writeUInt16LE(value.length, 6);
+  return Buffer.concat([header, value]);
+}
+function buildDicomPart10Fixture(ids: { study: string; series: string; sop: string }) {
+  const sopClass = '1.2.840.10008.5.1.4.1.1.2';
+  const preamble = Buffer.alloc(132);
+  preamble.write('DICM', 128, 4, 'ascii');
+  const meta = [
+    dicomExplicitElement(0x0002, 0x0002, 'UI', dicomText(sopClass, 0)),
+    dicomExplicitElement(0x0002, 0x0003, 'UI', dicomText(ids.sop, 0)),
+    dicomExplicitElement(0x0002, 0x0010, 'UI', dicomText('1.2.840.10008.1.2.1', 0)),
+  ];
+  const dataset = [
+    dicomExplicitElement(0x0008, 0x0016, 'UI', dicomText(sopClass, 0)),
+    dicomExplicitElement(0x0008, 0x0018, 'UI', dicomText(ids.sop, 0)),
+    dicomExplicitElement(0x0008, 0x0020, 'DA', dicomText('20261122', 0x20)),
+    dicomExplicitElement(0x0008, 0x0060, 'CS', dicomText('CT', 0x20)),
+    dicomExplicitElement(0x0020, 0x000d, 'UI', dicomText(ids.study, 0)),
+    dicomExplicitElement(0x0020, 0x000e, 'UI', dicomText(ids.series, 0)),
+    dicomExplicitElement(0x0028, 0x0010, 'US', Buffer.from([0x00, 0x02])),
+    dicomExplicitElement(0x0028, 0x0011, 'US', Buffer.from([0x00, 0x02])),
+    dicomExplicitElement(0x0028, 0x0100, 'US', Buffer.from([0x10, 0x00])),
+    dicomExplicitElement(0x7fe0, 0x0010, 'OB', Buffer.from([1, 2, 3, 4])),
+  ];
+  return { buffer: Buffer.concat([preamble, ...meta, ...dataset]), sopClass };
+}
+
 test.describe('Partner operational lifecycle', () => {
   let api: APIRequestContext;
   let ownerToken = '';
