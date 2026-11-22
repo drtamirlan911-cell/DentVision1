@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Activity, CheckCircle2, Clock3, FlaskConical, Plus, ShieldCheck, Sparkles, TestTube2, XCircle } from 'lucide-react';
+import { Activity, CheckCircle2, Clock3, FlaskConical, Plus, ShieldCheck, Sparkles, TestTube2, Wallet, XCircle } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { EmptyState } from '@/components/ui/ds/EmptyState';
 import { Badge } from '@/components/ui/ds/Badge';
@@ -10,13 +10,27 @@ import { QueryError } from '@/components/ui/ds/QueryError';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 import { useAuth } from '@/store/auth.store';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
-import { createMedicalLabAliquot, createMedicalLabOrder, createMedicalLabSpecimen, getMedicalLabOrder, listMedicalLabOrders, performMedicalLabQualityControl, saveMedicalLabInterpretation, saveMedicalLabResults, scanMedicalLabSpecimen, updateMedicalLabStatus, verifyMedicalLabOrder, type MedicalLabOrder, type MedicalLabStatus } from '@/utils/medicalLabApi';
+import { createMedicalLabAliquot, createMedicalLabOrder, createMedicalLabSpecimen, getMedicalLabCapabilities, getMedicalLabFinance, getMedicalLabOrder, listMedicalLabOrders, performMedicalLabQualityControl, requestMedicalLabPayout, saveMedicalLabInterpretation, saveMedicalLabResults, scanMedicalLabSpecimen, updateMedicalLabStatus, verifyMedicalLabOrder, type MedicalLabOrder, type MedicalLabStatus } from '@/utils/medicalLabApi';
 
 const STAGES: Array<{ id: MedicalLabStatus; label: string }> = [
   { id: 'ordered', label: 'Направлено' }, { id: 'sample_collected', label: 'Материал взят' }, { id: 'received', label: 'Принято' }, { id: 'processing', label: 'Исследование' }, { id: 'result_ready', label: 'Результат' }, { id: 'verified', label: 'Проверено' },
 ];
 const NEXT: Partial<Record<MedicalLabStatus, MedicalLabStatus>> = { ordered: 'sample_collected', sample_collected: 'received', received: 'processing' };
 const EMPTY_ORDERS: MedicalLabOrder[] = [];
+
+function formatMinor(value: string | number | bigint): string {
+  let minor: bigint;
+  try { minor = BigInt(String(value ?? '0')); } catch { minor = 0n; }
+  const whole = (minor / 100n).toLocaleString('ru-RU');
+  const fraction = String(minor % 100n).padStart(2, '0').replace(/0+$/, '');
+  return `${whole}${fraction ? `,${fraction}` : ''} ₸`;
+}
+
+function parsePayoutAmountMinor(value: string): bigint | null {
+  const match = /^(0|[1-9]\d*)(?:[.,](\d{1,2}))?$/.exec(value.trim());
+  if (!match) return null;
+  return BigInt(match[1]) * 100n + BigInt((match[2] || '').padEnd(2, '0'));
+}
 const statusLabel: Record<string, string> = { ordered: 'Направлено', sample_collected: 'Материал взят', received: 'Принято', processing: 'В работе', result_ready: 'Результат готов', verified: 'Проверено', cancelled: 'Отменено', draft: 'Черновик' };
 
 export default function MedicalLabWorkspace() {
@@ -24,6 +38,28 @@ export default function MedicalLabWorkspace() {
   const { user } = useAuth();
   const isLaboratoryWorkspace = String(user?.organizationType || '').toUpperCase() === 'LABORATORY';
   const queryClient = useQueryClient();
+  const capabilitiesQuery = useQuery({
+    queryKey: ['medical-lab-capabilities'],
+    queryFn: getMedicalLabCapabilities,
+    enabled: isLaboratoryWorkspace,
+  });
+  const medicalLabCapabilities = capabilitiesQuery.data?.capabilities ?? [];
+  const canReadFinance = medicalLabCapabilities.includes('finance.read');
+  const canManageFinance = medicalLabCapabilities.includes('finance.manage');
+  const financeQuery = useQuery({
+    queryKey: ['medical-lab-finance'],
+    queryFn: getMedicalLabFinance,
+    enabled: isLaboratoryWorkspace && canReadFinance,
+  });
+  const [payoutAmount, setPayoutAmount] = useState('');
+  const payoutAmountMinor = parsePayoutAmountMinor(payoutAmount);
+  const payoutMutation = useMutation({
+    mutationFn: () => requestMedicalLabPayout(payoutAmount.trim()),
+    onSuccess: () => {
+      setPayoutAmount('');
+      queryClient.invalidateQueries({ queryKey: ['medical-lab-finance'] });
+    },
+  });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [testName, setTestName] = useState('');
   const [specimenType, setSpecimenType] = useState('');
@@ -83,6 +119,7 @@ export default function MedicalLabWorkspace() {
     setInterpretation(selected.order.interpretation || '');
   }, [selected]);
   const counts = useMemo(() => orders.reduce<Record<string, number>>((acc, item) => { acc[item.status] = (acc[item.status] || 0) + 1; return acc; }, {}), [orders]);
+  const availableBalanceMinor = financeQuery.data ? BigInt(financeQuery.data.availableBalanceMinor || '0') : 0n;
   const currentNext = selected?.order.status
     ? (selected.order.accessionRequired && (selected.order.status === 'ordered' || selected.order.status === 'sample_collected')
       ? undefined
@@ -209,6 +246,126 @@ export default function MedicalLabWorkspace() {
           </> : <Card className="border-bdr-subtle bg-surface-1 p-8 text-sm text-txt-muted">Выберите направление, чтобы открыть полный lifecycle.</Card>}
         </div>
       </div>
+
+      {isLaboratoryWorkspace && canReadFinance && (
+        <section className="space-y-4">
+          <PageHeader
+            title="Финансы медицинской лаборатории"
+            subtitle="Оборот по подтверждённым оплатам, комиссия DentVision и средства, фактически доступные к выплате."
+            icon={<Wallet size={20} />}
+          />
+          {financeQuery.isError ? (
+            <QueryError what="финансы медицинской лаборатории" onRetry={() => financeQuery.refetch()} />
+          ) : financeQuery.isPending ? (
+            <Card padding="lg"><div className="h-24 animate-pulse rounded-xl bg-surface-2" /></Card>
+          ) : financeQuery.data ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+                <Card className="p-4">
+                  <p className="text-xs text-txt-muted">Учётный баланс</p>
+                  <p className="mt-2 text-xl font-semibold tabular-nums text-txt-primary">{formatMinor(financeQuery.data.wallet.balance)}</p>
+                  <p className="mt-1 text-[11px] text-txt-muted">Включает расчётные записи</p>
+                </Card>
+                <Card className="p-4">
+                  <p className="text-xs text-txt-muted">Доступно к выплате</p>
+                  <p className="mt-2 text-xl font-semibold tabular-nums text-txt-primary">{formatMinor(financeQuery.data.availableBalanceMinor)}</p>
+                  <p className="mt-1 text-[11px] text-txt-muted">После резервов и прямых сборов</p>
+                </Card>
+                <Card className="p-4">
+                  <p className="text-xs text-txt-muted">Оплаченный оборот</p>
+                  <p className="mt-2 text-xl font-semibold tabular-nums text-txt-primary">{formatMinor(financeQuery.data.economics.totals.grossMinor)}</p>
+                  <p className="mt-1 text-[11px] text-txt-muted">{financeQuery.data.economics.totals.operations} операций</p>
+                </Card>
+                <Card className="p-4">
+                  <p className="text-xs text-txt-muted">Комиссия DentVision</p>
+                  <p className="mt-2 text-xl font-semibold tabular-nums text-txt-primary">{formatMinor(financeQuery.data.economics.totals.commissionMinor)}</p>
+                  <p className="mt-1 text-[11px] text-txt-muted">По правилам медицинской лаборатории</p>
+                </Card>
+                <Card className="p-4">
+                  <p className="text-xs text-txt-muted">Доля лаборатории</p>
+                  <p className="mt-2 text-xl font-semibold tabular-nums text-txt-primary">{formatMinor(financeQuery.data.economics.totals.partnerPayoutMinor)}</p>
+                  <p className="mt-1 text-[11px] text-txt-muted">До внешних удержаний</p>
+                </Card>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+                {canManageFinance && (
+                  <Card className="space-y-3 p-5">
+                    <div>
+                      <h3 className="text-sm font-semibold text-txt-primary">Запрос выплаты</h3>
+                      <p className="mt-1 text-xs text-txt-muted">Платформенные поступления доступны после подтверждения платежа. Прямые оплаты лаборатории не считаются средствами DentVision к выплате.</p>
+                    </div>
+                    <label className="block space-y-1 text-xs text-txt-secondary">
+                      <span>Сумма, ₸</span>
+                      <input
+                        inputMode="decimal"
+                        value={payoutAmount}
+                        onChange={(event) => setPayoutAmount(event.target.value)}
+                        placeholder="Например, 25000.00"
+                        className="min-h-11 w-full rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary"
+                      />
+                    </label>
+                    {payoutMutation.isError && (
+                      <p role="alert" className="text-xs text-error">{payoutMutation.error instanceof Error ? payoutMutation.error.message : 'Не удалось создать запрос выплаты'}</p>
+                    )}
+                    <Button
+                      className="w-full"
+                      disabled={!payoutAmountMinor || payoutAmountMinor <= 0n || payoutAmountMinor > availableBalanceMinor || payoutMutation.isPending}
+                      loading={payoutMutation.isPending}
+                      onClick={() => payoutMutation.mutate()}
+                    >
+                      Запросить выплату
+                    </Button>
+                    <p className="text-[11px] text-txt-muted">Заявленная сумма резервируется до решения финансовой службы.</p>
+                  </Card>
+                )}
+
+                <Card className="space-y-3 p-5">
+                  <h3 className="text-sm font-semibold text-txt-primary">История выплат</h3>
+                  <div className="divide-y divide-bdr-subtle">
+                    {financeQuery.data.payouts.map((payout) => (
+                      <div key={payout.id} className="flex items-center justify-between gap-3 py-3">
+                        <div>
+                          <p className="text-sm font-medium text-txt-primary">{formatMinor(payout.amount)}</p>
+                          <p className="text-xs text-txt-muted">{new Date(payout.createdAt).toLocaleString('ru-RU')}</p>
+                        </div>
+                        <Badge variant={payout.status === 'paid' ? 'success' : payout.status === 'rejected' ? 'error' : 'outline'}>
+                          {({ requested: 'Заявлена', approved: 'Одобрена', paid: 'Выплачена', rejected: 'Отклонена' } as Record<string, string>)[payout.status]}
+                        </Badge>
+                      </div>
+                    ))}
+                    {financeQuery.data.payouts.length === 0 && <p className="py-5 text-center text-xs text-txt-muted">Запросов на выплату пока нет.</p>}
+                  </div>
+                </Card>
+              </div>
+
+              <Card className="space-y-3 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-txt-primary">Расчёты по анализам</h3>
+                  <Badge variant="outline">{financeQuery.data.economics.totals.operations} операций</Badge>
+                </div>
+                {financeQuery.data.economics.rows.length ? (
+                  <div className="divide-y divide-bdr-subtle">
+                    {financeQuery.data.economics.rows.slice(0, 12).map((row) => (
+                      <div key={row.transactionId} className="grid grid-cols-2 gap-2 py-3 text-xs sm:grid-cols-4">
+                        <div><p className="text-txt-muted">Заказ</p><p className="mt-1 truncate font-medium text-txt-primary">{row.operationId.slice(0, 12)}</p></div>
+                        <div><p className="text-txt-muted">Оплачено</p><p className="mt-1 font-medium text-txt-primary">{formatMinor(row.grossMinor)}</p></div>
+                        <div><p className="text-txt-muted">Комиссия</p><p className="mt-1 font-medium text-txt-primary">{formatMinor(row.commissionMinor)}</p></div>
+                        <div><p className="text-txt-muted">Доля лаборатории</p><p className="mt-1 font-medium text-txt-primary">{formatMinor(row.partnerPayoutMinor)}</p></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="py-5 text-center text-xs text-txt-muted">Подтверждённых оплат пока нет.</p>
+                )}
+                {financeQuery.data.economics.discrepancies > 0 && (
+                  <p className="text-xs text-error">Обнаружены расхождения в финансовых записях: {financeQuery.data.economics.discrepancies}.</p>
+                )}
+              </Card>
+            </div>
+          ) : null}
+        </section>
+      )}
     </div>
   );
 }
