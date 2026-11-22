@@ -124,6 +124,9 @@ jobs:
       - name: Apply partner branch subscription invoice constraints
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261123090000_partner_branch_subscription_invoices/migration.sql
         working-directory: dentvision-backend
+      - name: Apply partner branch subscription revenue enum
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261123100000_partner_branch_subscription_revenue_type/migration.sql
+        working-directory: dentvision-backend
       - name: Apply raw lifecycle tables required by E2E
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260917_medical_lab_and_dental_lifecycle/migration.sql
         working-directory: dentvision-backend
