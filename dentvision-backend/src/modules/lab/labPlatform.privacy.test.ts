@@ -37,12 +37,13 @@ describe('Partner workspace privacy logging', () => {
 
   it('does not log raw exceptions from partner workspaces', () => {
     for (const { path, source } of routeSources) {
-      const logLines = source.split('\\n').filter((line) => line.includes('console.error('));
+      const logLines = source.split(String.fromCharCode(10)).filter((line) => line.includes('console.error('));
       expect(logLines.length, path).toBeGreaterThan(0);
       expect(source, path).toContain("import { safeErrorKind } from '../../lib/safeError.js';");
       for (const line of logLines) {
         expect(line, path).toContain('safeErrorKind(');
-        expect(line, path).not.toMatch(/,\\s*(?:error|err)\\s*\\)/);
+        expect(line.includes(', error);') || line.includes(', err);')
+          || line.includes(', error));') || line.includes(', err));').toBe(false);
       }
     }
   });
