@@ -1,3 +1,11 @@
+## Government partnership strategy alignment — 2026-11-20
+
+- Approved strategic direction: state-private partnership-oriented national dental digital infrastructure, with all eligible support routes evaluated (innovation grants, Astana Hub eligibility, regional pilot support, public procurement and formal PPP where legally justified).
+- Canonical strategy: [`docs/strategy/DENTVISION_GOVERNMENT_PARTNERSHIP_STRATEGY.md`](docs/strategy/DENTVISION_GOVERNMENT_PARTNERSHIP_STRATEGY.md).
+- This is a subordinate strategy document. Master Spec 5.0, Product DNA, this Execution Plan and Release Blockers remain controlling; this strategy does not waive release gates or authorize PHI access, government integration, public claims or production operations.
+- The strategy does not change the existing technical execution order: P0 privacy/security and IAM evidence remain first. Build only a synthetic-data pilot pack until legal, security, clinical and operator readiness gates are signed.
+- Government pilot readiness is a separate gate from source CI and general product release readiness. No state partnership, endorsement, grant award or PPP contract is implied.
+
 ## Current execution checkpoint — 2026-11-20 (AI / Jarvis advanced routing, Master Spec v5.0)
 
 Canonical repo: drtamirlan911-cell/DentVision1
