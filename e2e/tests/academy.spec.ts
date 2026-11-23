@@ -525,17 +525,19 @@ test.describe('Academy / Course Workflow', () => {
     expect(archived.status(), archivedText).toBe(200);
     expect(JSON.parse(archivedText).data?.publicationStatus).toBe('archived');
 
+    const publicContext = await apiRequest.newContext();
     const [catalog, managedCatalog, managedLearners, learnerDetail, publicDetail, newSale] = await Promise.all([
       api.get(`${BASE_URL}/api/school/courses`, { headers: auth(ownerToken) }),
       api.get(`${BASE_URL}/api/school/courses/managed`, { headers: auth(fixture.academyToken) }),
       api.get(`${BASE_URL}/api/school/enrollments/managed`, { headers: auth(fixture.academyToken) }),
       api.get(`${BASE_URL}/api/school/courses/${fixture.courseId}`, { headers: auth(ownerToken) }),
-      api.get(`${BASE_URL}/api/school/courses/${fixture.courseId}`),
+      publicContext.get(`${BASE_URL}/api/school/courses/${fixture.courseId}`),
       api.post(`${BASE_URL}/api/school/commerce/register`, {
         headers: auth(ownerToken),
         data: { productId: fixture.courseId, format: 'course' },
       }),
     ]);
+    await publicContext.dispose();
     const catalogBody = await catalog.json();
     const catalogRows = catalogBody.data || catalogBody;
     expect(Array.isArray(catalogRows)).toBe(true);
