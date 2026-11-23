@@ -39,7 +39,11 @@ describe('partner branch status history billing boundary', () => {
     expect(startup).toContain("runOnceMigration('branch_status_history'");
     expect(startup).toContain('CREATE TABLE IF NOT EXISTS "branch_status_history_baselines"');
     expect(startup).toContain('CREATE TABLE IF NOT EXISTS "branch_status_events"');
+    expect(startup).toContain('branch_status_events_organization_id_fkey');
     expect(startup).toContain('branch_status_events_baseline_unique_idx');
+    expect(startup).not.toContain('DO $');
+    expect(startup).not.toContain('DO $ BEGIN');
+    expect(migration).not.toContain('DO $');
     expect(migration).toContain('branch_status_events_baseline_unique_idx');
     expect(migration).toContain('ON CONFLICT DO NOTHING');
     expect(startup.indexOf("runOnceMigration('branch_status_history'"))

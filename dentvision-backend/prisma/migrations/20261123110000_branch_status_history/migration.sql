@@ -2,14 +2,11 @@
 CREATE TABLE IF NOT EXISTS "branch_status_history_baselines" (
   "organization_id" TEXT NOT NULL,
   "initialized_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "branch_status_history_baselines_pkey" PRIMARY KEY ("organization_id")
-);
-DO $$ BEGIN
-  ALTER TABLE "branch_status_history_baselines"
-    ADD CONSTRAINT "branch_status_history_baselines_organization_id_fkey"
+  CONSTRAINT "branch_status_history_baselines_pkey" PRIMARY KEY ("organization_id"),
+  CONSTRAINT "branch_status_history_baselines_organization_id_fkey"
     FOREIGN KEY ("organization_id") REFERENCES "organizations"("id")
-    ON DELETE CASCADE ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    ON DELETE CASCADE ON UPDATE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS "branch_status_events" (
   "id" BIGSERIAL NOT NULL,
@@ -20,24 +17,17 @@ CREATE TABLE IF NOT EXISTS "branch_status_events" (
   "source" TEXT NOT NULL,
   "actor_user_id" TEXT,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "branch_status_events_pkey" PRIMARY KEY ("id")
-);
-DO $$ BEGIN
-  ALTER TABLE "branch_status_events"
-    ADD CONSTRAINT "branch_status_events_branch_id_fkey"
+  CONSTRAINT "branch_status_events_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "branch_status_events_branch_id_fkey"
     FOREIGN KEY ("branch_id") REFERENCES "branches"("id")
-    ON DELETE CASCADE ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE "branch_status_events"
-    ADD CONSTRAINT "branch_status_events_organization_id_fkey"
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT "branch_status_events_organization_id_fkey"
     FOREIGN KEY ("organization_id") REFERENCES "organizations"("id")
-    ON DELETE CASCADE ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    ON DELETE CASCADE ON UPDATE CASCADE
+);
 
 CREATE UNIQUE INDEX IF NOT EXISTS "branch_status_events_baseline_unique_idx"
   ON "branch_status_events"("branch_id") WHERE "source" = 'baseline';
-
 CREATE INDEX IF NOT EXISTS "branch_status_events_branch_effective_idx"
   ON "branch_status_events"("branch_id", "effective_at" DESC, "id" DESC);
 CREATE INDEX IF NOT EXISTS "branch_status_events_organization_effective_idx"

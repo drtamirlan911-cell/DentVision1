@@ -2276,21 +2276,19 @@ async function main() {
   // the invoice period start. Mirror the canonical SQL migration below so
   // fresh and existing deployments create these raw tables before accepting
   // branch mutations or invoice requests.
+  // Partner branch billing must use the historical active-branch roster at
+  // the invoice period start. Keep this bootstrap idempotent and run it before
+  // accepting branch mutations or partner invoice requests.
   await runOnceMigration('branch_status_history', 'Partner branch status history and billing baseline', async (tx) => {
     await tx.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "branch_status_history_baselines" (
         "organization_id" TEXT NOT NULL,
         "initialized_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "branch_status_history_baselines_pkey" PRIMARY KEY ("organization_id")
-      )
-    `);
-    await tx.$executeRawUnsafe(`
-      DO $ BEGIN
-        ALTER TABLE "branch_status_history_baselines"
-          ADD CONSTRAINT "branch_status_history_baselines_organization_id_fkey"
+        CONSTRAINT "branch_status_history_baselines_pkey" PRIMARY KEY ("organization_id"),
+        CONSTRAINT "branch_status_history_baselines_organization_id_fkey"
           FOREIGN KEY ("organization_id") REFERENCES "organizations"("id")
-          ON DELETE CASCADE ON UPDATE CASCADE;
-      EXCEPTION WHEN duplicate_object THEN NULL; END $
+          ON DELETE CASCADE ON UPDATE CASCADE
+      )
     `);
     await tx.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "branch_status_events" (
@@ -2302,24 +2300,14 @@ async function main() {
         "source" TEXT NOT NULL,
         "actor_user_id" TEXT,
         "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "branch_status_events_pkey" PRIMARY KEY ("id")
-      )
-    `);
-    await tx.$executeRawUnsafe(`
-      DO $ BEGIN
-        ALTER TABLE "branch_status_events"
-          ADD CONSTRAINT "branch_status_events_branch_id_fkey"
+        CONSTRAINT "branch_status_events_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "branch_status_events_branch_id_fkey"
           FOREIGN KEY ("branch_id") REFERENCES "branches"("id")
-          ON DELETE CASCADE ON UPDATE CASCADE;
-      EXCEPTION WHEN duplicate_object THEN NULL; END $
-    `);
-    await tx.$executeRawUnsafe(`
-      DO $ BEGIN
-        ALTER TABLE "branch_status_events"
-          ADD CONSTRAINT "branch_status_events_organization_id_fkey"
+          ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT "branch_status_events_organization_id_fkey"
           FOREIGN KEY ("organization_id") REFERENCES "organizations"("id")
-          ON DELETE CASCADE ON UPDATE CASCADE;
-      EXCEPTION WHEN duplicate_object THEN NULL; END $
+          ON DELETE CASCADE ON UPDATE CASCADE
+      )
     `);
     await tx.$executeRawUnsafe(`
       CREATE UNIQUE INDEX IF NOT EXISTS "branch_status_events_baseline_unique_idx"
