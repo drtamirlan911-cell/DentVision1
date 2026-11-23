@@ -25,12 +25,13 @@ import type {
 } from '../types';
 import { normalizeAlertTone } from './alertTone';
 import { API_URL } from './apiOrigin';
-import { getActiveWorkspaceContext, setActiveWorkspaceContext } from '@/lib/workspaceContext';
+import { beginWorkspaceRequest, getActiveWorkspaceContext, isWorkspaceRequestCurrent, setActiveWorkspaceContext } from '@/lib/workspaceContext';
 
 // ─── Token Management ───
 let _accessToken: string | null = null;
 let _refreshToken: string | null = null;
 let _refreshPromise: Promise<string> | null = null;
+const workspaceSwitchGenerationRef = { current: 0 };
 /** Set the canonical active context used by context-aware API/AI requests. */
 export function setWorkspaceContext(context: Parameters<typeof setActiveWorkspaceContext>[0]): void { setActiveWorkspaceContext(context); }
 export function getWorkspaceContext(): ReturnType<typeof getActiveWorkspaceContext> { return getActiveWorkspaceContext(); }
@@ -237,14 +238,17 @@ export async function getBranchMembers(id: string): Promise<any[]> { const res =
 export async function assignBranchMember(branchId: string, userId: string): Promise<any> { return apiRequest(`/api/branches/${encodeURIComponent(branchId)}/members/${encodeURIComponent(userId)}`, { method: 'POST', body: JSON.stringify({}) }); }
 export async function unassignBranchMember(branchId: string, userId: string): Promise<any> { return apiRequest(`/api/branches/${encodeURIComponent(branchId)}/members/${encodeURIComponent(userId)}`, { method: 'DELETE' }); }
 export async function switchContext(scopeType: string, scopeId?: string, branchId?: string): Promise<any> {
+  // Last-started workspace switch wins. An older network response must never
+  // overwrite the newer workspace's credentials merely because it completed later.
+  const generation = beginWorkspaceRequest(workspaceSwitchGenerationRef);
   const result = await apiRequest('/api/iam/switch-context', {
     method: 'POST',
     body: JSON.stringify({ scopeType, scopeId, branchId }),
   });
   // Context switching is a credential mutation, not just a data request.
-  // Persist the scoped token centrally so every workspace (including the
-  // supplier and diagnostics cabinets) survives navigation and hard reload.
-  if (result?.accessToken) {
+  // Persist only the latest scoped token centrally so every workspace (including
+  // supplier and diagnostics cabinets) survives navigation and hard reload safely.
+  if (result?.accessToken && isWorkspaceRequestCurrent(workspaceSwitchGenerationRef, generation)) {
     setTokens(result.accessToken, result.refreshToken ?? null);
   }
   return result;
