@@ -102,6 +102,7 @@ const MyLearning = lazyWithRetry(() => import('./pages/school/MyLearning'));
 const CertificateVerification = lazyWithRetry(() => import('./pages/school/CertificateVerification'));
 const SchoolCourse = lazyWithRetry(() => import('./pages/school/SchoolCourse'));
 const SchoolWorkspace = lazyWithRetry(() => import('./pages/school/SchoolWorkspace'));
+const AcademyOwnerWorkspace = lazyWithRetry(() => import('./pages/school/AcademyOwnerWorkspace'));
 
 const ShopAdmin = lazyWithRetry(() => import('./pages/admin/ShopAdmin'));
 const SchoolAdmin = lazyWithRetry(() => import('./pages/admin/SchoolAdmin'));
@@ -276,17 +277,17 @@ if (container) {
                 <Route path="business/team" element={<Navigate to="/supplier" replace />} />
                 <Route path="business/settings" element={<Navigate to="/settings" replace />} />
 
-                <Route path="academy/workspace" element={<Navigate to="/school/workspace" replace />} />
+                <Route path="academy/workspace" element={<Suspense fallback={<PageLoader />}><AcademyOwnerWorkspace /></Suspense>} />
                 <Route path="academy/courses" element={<Navigate to="/school" replace />} />
                 <Route path="academy/courses/:courseId" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
-                <Route path="academy/students" element={<Navigate to="/school/workspace" replace />} />
-                <Route path="academy/content" element={<Navigate to="/school/workspace" replace />} />
-                <Route path="academy/assessments" element={<Navigate to="/school/workspace" replace />} />
-                <Route path="academy/certificates" element={<Navigate to="/school/workspace" replace />} />
-                <Route path="academy/schedule" element={<Navigate to="/school/workspace" replace />} />
-                <Route path="academy/finance" element={<Navigate to="/school/workspace" replace />} />
-                <Route path="academy/analytics" element={<Navigate to="/school/workspace" replace />} />
-                <Route path="academy/team" element={<Navigate to="/school/workspace" replace />} />
+                <Route path="academy/students" element={<Navigate to="/academy/workspace?tab=students" replace />} />
+                <Route path="academy/content" element={<Navigate to="/academy/workspace?section=content" replace />} />
+                <Route path="academy/assessments" element={<Navigate to="/academy/workspace?section=assessments" replace />} />
+                <Route path="academy/certificates" element={<Navigate to="/academy/workspace?section=certificates" replace />} />
+                <Route path="academy/schedule" element={<Navigate to="/academy/workspace?section=schedule" replace />} />
+                <Route path="academy/finance" element={<Navigate to="/academy/workspace?section=finance" replace />} />
+                <Route path="academy/analytics" element={<Navigate to="/academy/workspace?section=analytics" replace />} />
+                <Route path="academy/team" element={<Navigate to="/academy/workspace?section=team" replace />} />
                 <Route path="academy/settings" element={<Navigate to="/settings" replace />} />
 
                 <Route path="professional/profile" element={<Navigate to="/profile" replace />} />
