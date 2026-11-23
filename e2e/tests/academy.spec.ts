@@ -342,6 +342,22 @@ test.describe('Academy / Course Workflow', () => {
     const organizationId = registrationBody.data?.organizationId;
     expect(organizationId).toBeTruthy();
 
+    // Each Academy organization owns its own legal package, even when the
+    // same platform user owns several academies.
+    const legalContext = await prisma.legalPartnerContext.findUnique({
+      where: { organizationId },
+      select: {
+        organizationId: true,
+        partnerId: true,
+        partner: { select: { type: true, userId: true } },
+      },
+    });
+    expect(legalContext).toMatchObject({
+      organizationId,
+      partner: { type: 'ACADEMY' },
+    });
+    expect(legalContext?.partnerId).toBeTruthy();
+
     const contextResponse = await api.get(`${BASE_URL}/api/iam/me/contexts`, {
       headers: auth(ownerToken),
     });
