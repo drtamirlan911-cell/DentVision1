@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { BriefcaseBusiness, Users, Plus, ArrowLeft, RefreshCw, CalendarClock, Pencil, PauseCircle, PlayCircle } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
@@ -80,7 +80,14 @@ const EMPTY_FORM = {
 export default function JobsEmployerWorkspace() {
   const navigate = useNavigate();
   const toast = useToast();
-  const { isAuthenticated, loading: authLoading, user } = useAuth();
+  const { isAuthenticated, loading: authLoading, user, activeWorkspace } = useAuth();
+  const workspaceContextKey = JSON.stringify([
+    String(activeWorkspace?.scopeType || user?.organizationType || ''),
+    String(activeWorkspace?.scopeId || user?.organizationOriginalId || ''),
+    String(activeWorkspace?.organizationId || user?.organizationId || ''),
+    String(activeWorkspace?.branchId || ''),
+  ]);
+  const requestGenerationRef = useRef(0);
   const [vacancies, setVacancies] = useState<EmployerVacancy[]>([]);
   const [workspaceStatus, setWorkspaceStatus] = useState<EmployerStatus | null>(null);
   const [applications, setApplications] = useState<EmployerApplication[]>([]);
@@ -124,25 +131,29 @@ export default function JobsEmployerWorkspace() {
   }, [resumes, resumeQuery]);
 
   const loadVacancies = useCallback(async () => {
+    const generation = requestGenerationRef.current;
     setLoading(true);
     try {
       const [list, status] = await Promise.all([getEmployerVacancies(), getEmployerStatus()]);
+      if (generation !== requestGenerationRef.current) return;
       setVacancies(list as EmployerVacancy[]);
       setWorkspaceStatus(status);
       setSelectedVacancyId((current) => current && list.some((item: EmployerVacancy) => item.id === current)
         ? current
         : (list[0]?.id || ''));
     } catch (error: any) {
+      if (generation !== requestGenerationRef.current) return;
       setVacancies([]);
       setWorkspaceStatus(null);
       setApplications([]);
       toast.error(error?.message || 'Нет доступа к кабинету работодателя');
     } finally {
-      setLoading(false);
+      if (generation === requestGenerationRef.current) setLoading(false);
     }
-  }, [toast]);
+  }, [toast, workspaceContextKey]);
 
   const loadApplications = useCallback(async (vacancyId: string) => {
+    const generation = requestGenerationRef.current;
     if (!vacancyId) {
       setApplications([]);
       return;
@@ -150,16 +161,19 @@ export default function JobsEmployerWorkspace() {
     setAppsLoading(true);
     try {
       const list = await getEmployerVacancyApplications(vacancyId);
+      if (generation !== requestGenerationRef.current) return;
       setApplications(list as EmployerApplication[]);
     } catch (error: any) {
+      if (generation !== requestGenerationRef.current) return;
       setApplications([]);
       toast.error(error?.message || 'Не удалось загрузить отклики');
     } finally {
-      setAppsLoading(false);
+      if (generation === requestGenerationRef.current) setAppsLoading(false);
     }
-  }, [toast]);
+  }, [toast, workspaceContextKey]);
 
   const loadResumes = useCallback(async () => {
+    const generation = requestGenerationRef.current;
     if (workspaceStatus?.canPublish !== true) {
       setResumes([]);
       return;
@@ -167,18 +181,42 @@ export default function JobsEmployerWorkspace() {
     setResumesLoading(true);
     try {
       const list = await getEmployerResumes();
+      if (generation !== requestGenerationRef.current) return;
       setResumes(list as EmployerResume[]);
     } catch (error: any) {
+      if (generation !== requestGenerationRef.current) return;
       setResumes([]);
       toast.error(error?.message || 'Не удалось загрузить резюме специалистов');
     } finally {
-      setResumesLoading(false);
+      if (generation === requestGenerationRef.current) setResumesLoading(false);
     }
-  }, [toast, workspaceStatus?.canPublish]);
+  }, [toast, workspaceStatus?.canPublish, workspaceContextKey]);
 
   useEffect(() => {
+    requestGenerationRef.current += 1;
+    setLoading(isAuthenticated);
+    setVacancies([]);
+    setWorkspaceStatus(null);
+    setApplications([]);
+    setResumes([]);
+    setSelectedVacancyId('');
+    setResumeQuery('');
+    setShowForm(false);
+    setEditingVacancyId(null);
+    setForm(EMPTY_FORM);
+    setInterviewDraftId(null);
+    setOfferDraftId(null);
+    setInterviewDateTime('');
+    setInterviewMeetingUrl('');
+    setInterviewAgenda('');
+    setOfferSalary('');
+    setOfferStartAt('');
     if (isAuthenticated) void loadVacancies();
-  }, [isAuthenticated, loadVacancies]);
+    else setLoading(false);
+    return () => {
+      requestGenerationRef.current += 1;
+    };
+  }, [isAuthenticated, workspaceContextKey, loadVacancies]);
 
   useEffect(() => {
     if (selectedVacancyId) void loadApplications(selectedVacancyId);
