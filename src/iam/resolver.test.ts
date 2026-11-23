@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest'
 
 import { createIamResolver } from './resolver'
+import { permissionsForRole } from './roleMatrix'
 
 const LEGACY_PAGES = ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'profile']
+
+describe('frontend role permission fallback', () => {
+  it('does not grant platform Academy governance to clinic owners or admins', () => {
+    for (const role of ['OWNER', 'DIRECTOR', 'ADMIN']) {
+      const permissions = permissionsForRole(role)
+      expect(permissions).toContain('academy.read')
+      expect(permissions).not.toContain('academy.manage')
+    }
+  })
+})
 
 function resolver(pages: string[] | null | undefined, legacyPages: string[] = LEGACY_PAGES) {
   return createIamResolver({
