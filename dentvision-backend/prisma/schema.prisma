@@ -231,7 +231,7 @@ model User {
   legalTemplateVersionsApproved LegalTemplateVersion[]       @relation("VersionApprover")
   legalBlocksCreated            LegalBlock[]                 @relation("BlockCreator")
   legalPartnersCreated          LegalPartner[]               @relation("PartnerCreator")
-  legalPartnerUser              LegalPartner?                @relation
+  legalPartnerUser              LegalPartner[]               @relation
   legalDocumentsCreated         LegalDocument[]              @relation("DocCreator")
   legalDocumentsApproved        LegalDocument[]              @relation("DocApprover")
   legalDocumentVersionsCreated  LegalDocumentVersion[]       @relation("DocVersionCreator")
@@ -3914,7 +3914,7 @@ model LegalBlock {
 
 model LegalPartner {
   id             String      @id @default(uuid())
-  userId         String?     @unique
+  userId         String?
   user           User?       @relation(fields: [userId], references: [id])
   type           PartnerType
   legalName      String
@@ -3937,6 +3937,7 @@ model LegalPartner {
   createdBy String
   creator   User     @relation("PartnerCreator", fields: [createdBy], references: [id])
 
+  @@index([userId])
   @@map("legal_partners")
 }
 
