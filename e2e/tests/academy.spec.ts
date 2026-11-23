@@ -465,9 +465,10 @@ test.describe('Academy / Course Workflow', () => {
     expect(archived.status(), archivedText).toBe(200);
     expect(JSON.parse(archivedText).data?.publicationStatus).toBe('archived');
 
-    const [catalog, learnerDetail, newSale] = await Promise.all([
+    const [catalog, learnerDetail, publicDetail, newSale] = await Promise.all([
       api.get(`${BASE_URL}/api/school/courses`, { headers: auth(ownerToken) }),
       api.get(`${BASE_URL}/api/school/courses/${fixture.courseId}`, { headers: auth(ownerToken) }),
+      api.get(`${BASE_URL}/api/school/courses/${fixture.courseId}`),
       api.post(`${BASE_URL}/api/school/commerce/register`, {
         headers: auth(ownerToken),
         data: { productId: fixture.courseId, format: 'course' },
@@ -483,7 +484,11 @@ test.describe('Academy / Course Workflow', () => {
     const detail = detailBody.data || detailBody;
     expect(detail.lessons).toHaveLength(1);
     expect(detail.lessons[0].title).toBe('Урок с сохранённой историей');
+    expect(publicDetail.status()).toBe(404);
+
     expect(newSale.status()).toBe(409);
+    const newSaleBody = await newSale.json();
+    expect(newSaleBody.code).toBe('ACADEMY_COURSE_ARCHIVED');
 
     const republished = await api.patch(`${BASE_URL}/api/school/courses/${fixture.courseId}/publication`, {
       headers: auth(fixture.academyToken),
