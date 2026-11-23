@@ -1071,10 +1071,13 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
       return;
     }
     if (dbProduct?.publicationStatus !== 'published') {
+      const isArchived = dbProduct?.publicationStatus === 'archived';
       return res.status(409).json({
         ok: false,
-        error: 'Продажа закрыта: продукт находится в архиве',
-        code: 'ACADEMY_COURSE_ARCHIVED',
+        error: isArchived
+          ? 'Продажа закрыта: продукт находится в архиве'
+          : 'Продажа ещё не открыта: продукт не опубликован',
+        code: isArchived ? 'ACADEMY_COURSE_ARCHIVED' : 'ACADEMY_COURSE_NOT_PUBLISHED',
       });
     }
 
