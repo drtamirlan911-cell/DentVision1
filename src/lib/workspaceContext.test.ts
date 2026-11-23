@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { beginWorkspaceRequest, contextRequestHeaders, isWorkspaceRequestCurrent, selectWorkspaceContext, workflowContext, workspaceContextFrom } from './workspaceContext'
+import { beginWorkspaceRequest, contextRequestHeaders, isWorkspaceRequestCurrent, resolveGlobalRoleLabel, selectWorkspaceContext, workflowContext, workspaceContextFrom } from './workspaceContext'
 
 describe('workspace context contract', () => {
   const source = {
@@ -86,5 +86,28 @@ describe('workspace context contract', () => {
     expect(isWorkspaceRequestCurrent(generationRef, second)).toBe(true);
     beginWorkspaceRequest(generationRef);
     expect(isWorkspaceRequestCurrent(generationRef, second)).toBe(false);
+  })
+})
+
+describe('global participant role label', () => {
+  const getRoleDisplayLabel = (role: string) => ({
+    student: 'Студент',
+    superadmin: 'Super Admin',
+    support: 'Поддержка',
+    user: 'Участник',
+  }[role.toLowerCase()] || role)
+
+  it('renders canonical labels for global users without organization workspaces', () => {
+    expect(resolveGlobalRoleLabel(['student'], getRoleDisplayLabel)).toBe('Студент')
+    expect(resolveGlobalRoleLabel(['superadmin'], getRoleDisplayLabel)).toBe('Super Admin')
+    expect(resolveGlobalRoleLabel(['support'], getRoleDisplayLabel)).toBe('Поддержка')
+  })
+
+  it('uses the resolved global role when the token role is generic', () => {
+    expect(resolveGlobalRoleLabel(['user'], getRoleDisplayLabel, 'Поддержка')).toBe('Поддержка')
+  })
+
+  it('does not display an unresolved internal role key or a generic fallback', () => {
+    expect(resolveGlobalRoleLabel(['unmapped_role'], getRoleDisplayLabel, 'Пользователь')).toBe('Участник экосистемы')
   })
 })
