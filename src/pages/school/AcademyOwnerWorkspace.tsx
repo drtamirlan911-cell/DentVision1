@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import {
   Archive,
   ArchiveRestore,
@@ -165,7 +165,19 @@ export default function AcademyOwnerWorkspace() {
 
 function AcademyManagement() {
   const { activeWorkspace } = useAuth();
-  const [tab, setTab] = useState<AcademyTab>('courses');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab') === 'students' ? 'students' : 'courses';
+  const [tab, setTab] = useState<AcademyTab>(requestedTab);
+  const requestedSection = searchParams.get('section');
+  const sectionTitles: Record<string, string> = {
+    content: 'Редактор учебных материалов',
+    assessments: 'Оценивание и тесты',
+    certificates: 'Сертификаты',
+    schedule: 'Расписание занятий',
+    finance: 'Финансы академии',
+    analytics: 'Аналитика обучения',
+    team: 'Команда академии',
+  };
   const [courses, setCourses] = useState<AcademyCourse[]>([]);
   const [enrollments, setEnrollments] = useState<AcademyEnrollment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -237,6 +249,12 @@ function AcademyManagement() {
         .some((value) => String(value || '').toLocaleLowerCase('ru-RU').includes(normalized)),
     );
   }, [enrollments, query]);
+
+  function selectTab(nextTab: AcademyTab) {
+    setTab(nextTab);
+    setQuery('');
+    setSearchParams({ tab: nextTab }, { replace: true });
+  }
 
   function openCreate() {
     setEditingCourse(null);
@@ -356,12 +374,25 @@ function AcademyManagement() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
         <StatCard label="Всего курсов" value={courses.length} icon={<BookOpen size={18} />} />
         <StatCard label="Опубликовано" value={publishedCount} icon={<BookOpen size={18} />} tone="success" />
         <StatCard label="Действующие учащиеся" value={activeLearners} icon={<Users size={18} />} tone="info" />
         <StatCard label="Завершили обучение" value={completedLearners} icon={<GraduationCap size={18} />} tone="success" />
+        <StatCard label="В архиве" value={archivedCount} icon={<Archive size={18} />} tone="warning" />
       </div>
+
+      {requestedSection && sectionTitles[requestedSection] && (
+        <div className="rounded-xl border border-bdr-subtle bg-surface-raised px-4 py-3">
+          <p className="text-sm font-medium text-txt-primary">{sectionTitles[requestedSection]}</p>
+          <p className="mt-1 text-sm leading-5 text-txt-secondary">
+            Этот процесс ещё не подключён к рабочему кабинету полностью. Сейчас доступны управление карточками курсов, безопасная публикация и архивирование, а также реестр зачислений и прогресса учащихся. Неисполненные действия здесь не имитируются.
+          </p>
+          <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => setSearchParams({ tab: 'courses' }, { replace: true })}>
+            Открыть управление курсами
+          </Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -372,7 +403,7 @@ function AcademyManagement() {
               variant={tab === 'courses' ? 'primary' : 'ghost'}
               role="tab"
               aria-selected={tab === 'courses'}
-              onClick={() => { setTab('courses'); setQuery(''); }}
+              onClick={() => selectTab('courses')}
             >
               <BookOpen size={15} /> Курсы <span className="tabular-nums">{courses.length}</span>
             </Button>
@@ -382,7 +413,7 @@ function AcademyManagement() {
               variant={tab === 'students' ? 'primary' : 'ghost'}
               role="tab"
               aria-selected={tab === 'students'}
-              onClick={() => { setTab('students'); setQuery(''); }}
+              onClick={() => selectTab('students')}
             >
               <Users size={15} /> Учащиеся <span className="tabular-nums">{enrollments.length}</span>
             </Button>
