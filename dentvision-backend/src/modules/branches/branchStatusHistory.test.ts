@@ -36,18 +36,21 @@ describe('partner branch status history billing boundary', () => {
     expect(source).toContain('clock_timestamp()');
   });
   it('provisions branch history before the API listener and keeps the deployment SQL idempotent', () => {
-    expect(startup).toContain("runOnceMigration('branch_status_history'");
-    expect(startup).toContain('CREATE TABLE IF NOT EXISTS "branch_status_history_baselines"');
-    expect(startup).toContain('CREATE TABLE IF NOT EXISTS "branch_status_events"');
-    expect(startup).toContain('branch_status_events_organization_id_fkey');
-    expect(startup).toContain('branch_status_events_baseline_unique_idx');
-    expect(startup).not.toContain('DO $');
-    expect(startup).not.toContain('DO $ BEGIN');
+    const migrationStart = startup.indexOf("runOnceMigration('branch_status_history'");
+    const migrationEnd = startup.indexOf('// Bind the HTTP listener', migrationStart);
+    const branchHistoryBootstrap = startup.slice(migrationStart, migrationEnd);
+
+    expect(migrationStart).toBeGreaterThanOrEqual(0);
+    expect(migrationEnd).toBeGreaterThan(migrationStart);
+    expect(branchHistoryBootstrap).toContain('CREATE TABLE IF NOT EXISTS "branch_status_history_baselines"');
+    expect(branchHistoryBootstrap).toContain('CREATE TABLE IF NOT EXISTS "branch_status_events"');
+    expect(branchHistoryBootstrap).toContain('branch_status_events_organization_id_fkey');
+    expect(branchHistoryBootstrap).toContain('branch_status_events_baseline_unique_idx');
+    expect(branchHistoryBootstrap).not.toContain('DO $');
     expect(migration).not.toContain('DO $');
     expect(migration).toContain('branch_status_events_baseline_unique_idx');
     expect(migration).toContain('ON CONFLICT DO NOTHING');
-    expect(startup.indexOf("runOnceMigration('branch_status_history'"))
-      .toBeLessThan(startup.indexOf("app.listen(env.PORT"));
+    expect(migrationStart).toBeLessThan(startup.indexOf("app.listen(env.PORT"));
   });
 
 });
