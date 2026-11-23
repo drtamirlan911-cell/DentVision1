@@ -553,8 +553,23 @@ test.describe('Academy / Course Workflow', () => {
     expect(learnerDetail.status()).toBe(200);
     const detailBody = await learnerDetail.json();
     const detail = detailBody.data || detailBody;
-    expect(detail.lessons).toHaveLength(1);
-    expect(detail.lessons[0].title).toBe('Урок с сохранённой историей');
+    const learnerLessons = detail.lessons.filter((lesson: any) =>
+      !['exam', 'test'].includes(String(lesson.type || '').toLowerCase()),
+    );
+    expect(learnerLessons).toHaveLength(1);
+    expect(learnerLessons[0]).toMatchObject({
+      title: 'Урок с сохранённой историей',
+      content: 'Исходное содержание урока',
+    });
+    // Academy adds a platform certification exam when a course has no
+    // authored exam. It is not an extra authored lesson and must remain
+    // available to an already-enrolled learner after the course is archived.
+    expect(detail.lessons).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'exam',
+        title: 'Итоговый экзамен · сертификация',
+      }),
+    ]));
     expect(publicDetail.status()).toBe(404);
 
     expect(newSale.status()).toBe(409);
