@@ -349,6 +349,15 @@ jobsRouter.patch('/employer/vacancies/:id', authenticate, requirePermission('job
 
     const contentFields = ['title', 'city', 'salary', 'employmentType', 'description', 'tags'];
     const changesContent = contentFields.some((field) => Object.prototype.hasOwnProperty.call(body, field));
+
+    // Resolve tenant ownership before returning verification/entitlement state.
+    // A foreign employer must receive the same 404 as a nonexistent vacancy.
+    const targetVacancy = await prisma.jobVacancy.findFirst({
+      where: { id: String(req.params.id), ...ownedVacancyWhere(scope), kind: 'vacancy' },
+      select: { id: true },
+    });
+    if (!targetVacancy) return res.status(404).json({ ok: false, error: 'Вакансия не найдена в активной организации' } satisfies ApiResponse);
+
     if (scope.employerOrganizationId && !scope.canPublish
       && (changesContent || body.status === 'open')) {
       return res.status(409).json({
