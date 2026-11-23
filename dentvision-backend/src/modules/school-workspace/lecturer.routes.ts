@@ -9,6 +9,7 @@ import { requestPayout, PayoutError } from '../finance/payout.service.js';
 import { syncPersonFromLecturer } from '../../lib/syncMembership.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { normalizeSchoolFormat, formatLabel } from '../school/schoolFormats.js';
+import { writeAuditLog } from '../compliance/audit.service.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // School Workspace — Lecturer cabinet (self-service). All routes operate on the
@@ -183,6 +184,23 @@ lecturerRouter.patch('/courses/:id', async (req: AuthRequest, res) => {
     return res.status(404).json({ ok: false, error: 'Продукт не найден' } satisfies ApiResponse);
   }
   const b = req.body || {};
+  if (b.publicationStatus !== undefined && b.publicationStatus !== 'published' && b.publicationStatus !== 'archived') {
+    return res.status(400).json({ ok: false, error: 'publicationStatus должен быть published или archived' } satisfies ApiResponse);
+  }
+  if (b.publicationStatus === 'published') {
+    const lecturer = await prisma.lecturer.findUnique({
+      where: { id: req.user!.lecturerId },
+      select: { level: true },
+    });
+    if (!lecturer || !['verified', 'expert', 'international_speaker'].includes(lecturer.level)) {
+      return res.status(403).json({
+        ok: false,
+        error: 'Публикация доступна после проверки профиля лектора',
+        code: 'LECTURER_VERIFICATION_REQUIRED',
+      } satisfies ApiResponse);
+    }
+  }
+
   const nextMeta = {
     ...((existing.meta && typeof existing.meta === 'object' ? existing.meta : {}) as Record<string, unknown>),
   };
@@ -191,25 +209,38 @@ lecturerRouter.patch('/courses/:id', async (req: AuthRequest, res) => {
   if (b.venue !== undefined) nextMeta.venue = b.venue || null;
   if (b.certificate != null) nextMeta.certificate = Boolean(b.certificate);
 
-  const course = await prisma.course.update({
-    where: { id: existing.id },
-    data: {
-      ...(b.title !== undefined && { title: b.title }),
-      ...(b.description !== undefined && { description: b.description || null }),
-      ...(b.category !== undefined && { category: b.category || null }),
-      ...(b.price !== undefined && { price: Number(b.price) }),
-      ...(b.duration !== undefined && { duration: b.duration || null }),
-      ...(b.imageUrl !== undefined && {
-        imageUrl: typeof b.imageUrl === 'string' && b.imageUrl.trim() ? b.imageUrl.trim() : null,
-      }),
-      ...(b.format !== undefined && { format: normalizeSchoolFormat(b.format) }),
-      ...(b.startsAt !== undefined && { startsAt: b.startsAt ? new Date(b.startsAt) : null }),
-      ...(b.seats !== undefined && { seats: b.seats === '' || b.seats == null ? null : Number(b.seats) }),
-      ...(b.fileUrl !== undefined && {
-        fileUrl: typeof b.fileUrl === 'string' && b.fileUrl.trim() ? b.fileUrl.trim() : null,
-      }),
-      meta: nextMeta as object,
-    },
+  const course = await prisma.$transaction(async (tx) => {
+    const updated = await tx.course.update({
+      where: { id: existing.id },
+      data: {
+        ...(b.title !== undefined && { title: b.title }),
+        ...(b.description !== undefined && { description: b.description || null }),
+        ...(b.category !== undefined && { category: b.category || null }),
+        ...(b.price !== undefined && { price: Number(b.price) }),
+        ...(b.duration !== undefined && { duration: b.duration || null }),
+        ...(b.imageUrl !== undefined && {
+          imageUrl: typeof b.imageUrl === 'string' && b.imageUrl.trim() ? b.imageUrl.trim() : null,
+        }),
+        ...(b.format !== undefined && { format: normalizeSchoolFormat(b.format) }),
+        ...(b.startsAt !== undefined && { startsAt: b.startsAt ? new Date(b.startsAt) : null }),
+        ...(b.seats !== undefined && { seats: b.seats === '' || b.seats == null ? null : Number(b.seats) }),
+        ...(b.fileUrl !== undefined && {
+          fileUrl: typeof b.fileUrl === 'string' && b.fileUrl.trim() ? b.fileUrl.trim() : null,
+        }),
+        ...(b.publicationStatus !== undefined && { publicationStatus: b.publicationStatus }),
+        meta: nextMeta as object,
+      },
+    });
+    if (b.publicationStatus !== undefined && b.publicationStatus !== existing.publicationStatus) {
+      await writeAuditLog({
+        action: b.publicationStatus === 'archived' ? 'LECTURER_COURSE_ARCHIVED' : 'LECTURER_COURSE_PUBLISHED',
+        entity: 'course',
+        entityId: existing.id,
+        details: { publicationStatus: b.publicationStatus },
+        userId: req.user!.id,
+      }, tx);
+    }
+    return updated;
   });
   return res.json({
     ok: true,
