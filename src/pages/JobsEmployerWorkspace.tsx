@@ -155,7 +155,7 @@ export default function JobsEmployerWorkspace() {
     } finally {
       if (generation === requestGenerationRef.current) setLoading(false);
     }
-  }, [toast, workspaceContextKey]);
+  }, [toast]);
 
   const loadApplications = useCallback(async (vacancyId: string) => {
     const generation = requestGenerationRef.current;
@@ -175,7 +175,7 @@ export default function JobsEmployerWorkspace() {
     } finally {
       if (generation === requestGenerationRef.current) setAppsLoading(false);
     }
-  }, [toast, workspaceContextKey]);
+  }, [toast]);
 
   const loadResumes = useCallback(async () => {
     const generation = requestGenerationRef.current;
@@ -195,7 +195,7 @@ export default function JobsEmployerWorkspace() {
     } finally {
       if (generation === requestGenerationRef.current) setResumesLoading(false);
     }
-  }, [toast, workspaceStatus?.canPublish, workspaceContextKey]);
+  }, [toast, workspaceStatus?.canPublish]);
 
   useEffect(() => {
     requestGenerationRef.current += 1;
