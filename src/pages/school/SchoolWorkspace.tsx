@@ -78,6 +78,7 @@ export default function SchoolWorkspace() {
   const [addOpen, setAddOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [publicationUpdatingId, setPublicationUpdatingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [listFilter, setListFilter] = useState<'all' | OfferFormat>('all');
   const [saving, setSaving] = useState(false);
@@ -222,6 +223,21 @@ export default function SchoolWorkspace() {
       toast.error(e?.message || 'Не удалось удалить продукт');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const togglePublication = async (course: any) => {
+    if (!token || publicationUpdatingId) return;
+    const publicationStatus = course.publicationStatus === 'archived' ? 'published' : 'archived';
+    setPublicationUpdatingId(course.id);
+    try {
+      await api.lecturerWs.updateCourse(token, course.id, { publicationStatus });
+      toast.success(publicationStatus === 'archived' ? 'Продукт убран из публичного каталога. Доступ учащихся сохранён.' : 'Продукт снова опубликован в каталоге.');
+      await loadAll(token);
+    } catch (e: any) {
+      toast.error(e?.message || 'Не удалось изменить публикацию продукта');
+    } finally {
+      setPublicationUpdatingId(null);
     }
   };
 
@@ -388,6 +404,11 @@ export default function SchoolWorkspace() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {filteredProducts.map((c, i) => {
                 const fmt = String(c.format || 'course');
+                const isArchived = c.publicationStatus === 'archived';
+                const hasLearningHistory =
+                  Number(c._count?.enrollments || 0)
+                  + Number(c._count?.assessmentAttempts || 0)
+                  + Number(c._count?.certificates || 0) > 0;
                 return (
                   <motion.div key={c.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
                     <Card>
@@ -408,6 +429,7 @@ export default function SchoolWorkspace() {
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <Badge variant="gold" size="xs">{FORMAT_LABEL[fmt] || fmt}</Badge>
+                                {isArchived && <Badge variant="default" size="xs">В архиве</Badge>}
                                 {c.category && <span className="text-[10px] text-txt-muted">{c.category}</span>}
                               </div>
                               <p className="text-sm font-bold text-txt-primary truncate mt-1">{c.title}</p>
@@ -417,7 +439,7 @@ export default function SchoolWorkspace() {
                                 {c.startsAt ? ` · ${String(c.startsAt).slice(0, 16).replace('T', ' ')}` : ''}
                               </p>
                               <p className="text-sm text-dv-gold font-semibold mt-1.5">{c.price ? Number(c.price).toLocaleString('ru-RU') + ' ₸' : 'Бесплатно'}</p>
-                              {Number(c._count?.enrollments || 0) + Number(c._count?.assessmentAttempts || 0) + Number(c._count?.certificates || 0) > 0 && (
+                              {hasLearningHistory && (
                                 <p className="text-xs text-txt-muted mt-2">
                                   Учебная история сохранена — удаление заблокировано
                                 </p>
@@ -426,14 +448,26 @@ export default function SchoolWorkspace() {
                           </div>
                           <button
                             type="button"
-                            disabled={Number(c._count?.enrollments || 0) + Number(c._count?.assessmentAttempts || 0) + Number(c._count?.certificates || 0) > 0}
+                            disabled={hasLearningHistory}
                             onClick={() => setDeleteTarget({ id: c.id, title: c.title })}
                             className="p-1.5 rounded-lg text-error hover:bg-error/10 transition-colors shrink-0 min-h-11 min-w-11 inline-flex items-center justify-center disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
-                            aria-label={Number(c._count?.enrollments || 0) + Number(c._count?.assessmentAttempts || 0) + Number(c._count?.certificates || 0) > 0 ? 'Удаление заблокировано: есть учебная история' : 'Удалить продукт'}
-                            title={Number(c._count?.enrollments || 0) + Number(c._count?.assessmentAttempts || 0) + Number(c._count?.certificates || 0) > 0 ? 'Есть история обучения' : 'Удалить продукт'}
+                            aria-label={hasLearningHistory ? 'Удаление заблокировано: есть учебная история' : 'Удалить продукт'}
+                            title={hasLearningHistory ? 'Есть история обучения' : 'Удалить продукт'}
                           >
                             <Trash2 size={15} />
                           </button>
+                        </div>
+                        <div className="mt-3 flex justify-end">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="min-h-11"
+                            disabled={publicationUpdatingId === c.id}
+                            loading={publicationUpdatingId === c.id}
+                            onClick={() => togglePublication(c)}
+                          >
+                            {isArchived ? 'Вернуть в каталог' : 'Убрать в архив'}
+                          </Button>
                         </div>
                       </CardContent>
                     </Card>
