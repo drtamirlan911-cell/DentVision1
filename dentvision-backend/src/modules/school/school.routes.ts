@@ -25,6 +25,21 @@ import {
 
 const schoolRouter = Router();
 
+// Test-only route provenance: keeps a failing API contract traceable without
+// changing authorization or error semantics. Enabled only by isolated E2E CI.
+function academyCourseMutationTrace(method: 'PUT' | 'DELETE') {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (process.env.SEED_E2E_FIXTURES === 'true') {
+      res.setHeader('X-DV-Academy-Mutation-Route', method);
+      console.info('[E2E_ACADEMY_MUTATION_ROUTE]', method, req.originalUrl, {
+        organizationId: req.user?.organizationId || null,
+        academyId: req.user?.organizationOriginalId || null,
+      });
+    }
+    next();
+  };
+}
+
 async function activeAcademyScope(req: AuthRequest): Promise<{ academyId: string; lecturerId?: string } | null> {
   const user = req.user;
   const organizationType = String(user?.organizationType || '').toUpperCase();
@@ -523,7 +538,7 @@ schoolRouter.post('/courses', authenticate, requireAcademyOwner, async (req: Aut
   } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to create course' }); }
 });
 
-schoolRouter.put('/courses/:id', authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
+schoolRouter.put('/courses/:id', academyCourseMutationTrace('PUT'), authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
   try {
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
@@ -689,7 +704,7 @@ schoolRouter.patch('/courses/:id/publication', authenticate, requireAcademyOwner
   }
 });
 
-schoolRouter.delete('/courses/:id', authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
+schoolRouter.delete('/courses/:id', academyCourseMutationTrace('DELETE'), authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
   try {
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
