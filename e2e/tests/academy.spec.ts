@@ -412,6 +412,11 @@ test.describe('Academy / Course Workflow', () => {
 
     const publicDetail = await api.get(`${BASE_URL}/api/school/courses/${course.id}`);
     expect(publicDetail.status()).toBe(200);
+    const publicDetailBody = await publicDetail.json();
+    const detail = publicDetailBody.data || publicDetailBody;
+    const firstLesson = detail.lessons?.find((lesson: any) => lesson.title === 'Урок с сохранённой историей');
+    expect(firstLesson?.type).toBe('text');
+    expect(firstLesson?.content).toBe('Исходное содержание урока');
 
     const learner = await prisma.user.findUniqueOrThrow({
       where: { email: OWNER.email },
