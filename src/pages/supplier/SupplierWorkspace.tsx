@@ -246,14 +246,18 @@ export default function SupplierWorkspace() {
   }, [clearWorkspaceData, enterSupplier])
 
   const reloadContexts = async () => {
+    const generation = requestGenerationRef.current
     const res = await api.getMyContexts()
+    if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return
     const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER') as SupplierCtx[]
     setContexts(sup)
     const preferred = selectWorkspaceContext(sup, {
-          scopeId: activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.scopeId : null,
-          organizationId: activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.organizationId : null,
-        })
-    if (preferred) await enterSupplier(preferred.scopeId)
+      scopeId: activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.scopeId : null,
+      organizationId: activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.organizationId : null,
+    })
+    if (preferred && isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+      await enterSupplier(preferred.scopeId)
+    }
   }
 
   const handleRegister = async () => {
@@ -284,17 +288,23 @@ export default function SupplierWorkspace() {
   const insights = dash?.insights || []
 
   const handlePhotoFile = async (file: File | null) => {
+    const supplierToken = token
+    if (!supplierToken) return
+    const generation = requestGenerationRef.current
     try {
       setPhotoUploading(true)
-      const generation = requestGenerationRef.current
       const dataUrl = await readImageAsDataUrl(file)
-      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation) || !isSupplierTokenCurrent(token || '')) return
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation) || !isSupplierTokenCurrent(supplierToken)) return
       setForm((f) => ({ ...f, imageUrl: dataUrl }))
       toast.success('Фото загружено')
     } catch (e: any) {
-      toast.error(e?.message || 'Не удалось загрузить фото')
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation) && isSupplierTokenCurrent(supplierToken)) {
+        toast.error(e?.message || 'Не удалось загрузить фото')
+      }
     } finally {
-      setPhotoUploading(false)
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation) && isSupplierTokenCurrent(supplierToken)) {
+        setPhotoUploading(false)
+      }
     }
   }
 
