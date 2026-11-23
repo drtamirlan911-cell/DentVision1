@@ -10,6 +10,8 @@ let testCourseId = '';
 let testEnrollmentId = '';
 let protectedCourseId = '';
 let protectedEnrollmentId = '';
+let academyHistoryCourseIds: string[] = [];
+let academyHistoryEnrollmentIds: string[] = [];
 
 async function loginOwner(api: APIRequestContext) {
   if (ownerToken) return ownerToken;
@@ -57,6 +59,12 @@ test.describe('Academy / Course Workflow', () => {
     }
     if (protectedCourseId) {
       await prisma.course.deleteMany({ where: { id: protectedCourseId } }).catch(() => {});
+    }
+    if (academyHistoryEnrollmentIds.length) {
+      await prisma.schoolEnrollment.deleteMany({ where: { id: { in: academyHistoryEnrollmentIds } } }).catch(() => {});
+    }
+    if (academyHistoryCourseIds.length) {
+      await prisma.course.deleteMany({ where: { id: { in: academyHistoryCourseIds } } }).catch(() => {});
     }
   });
 
@@ -322,4 +330,126 @@ test.describe('Academy / Course Workflow', () => {
       expect([200, 201, 409]).toContain(res2.status());
     }
   });
+
+  async function createAcademyHistoryFixture(courseTitle: string) {
+    const registration = await api.post(`${BASE_URL}/api/academies/register`, {
+      headers: auth(ownerToken),
+      data: { name: `E2E Academy ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, city: 'Taraz' },
+    });
+    const registrationText = await registration.text();
+    expect(registration.status(), registrationText).toBe(201);
+    const registrationBody = JSON.parse(registrationText);
+    const organizationId = registrationBody.data?.organizationId;
+    expect(organizationId).toBeTruthy();
+
+    const switched = await api.post(`${BASE_URL}/api/iam/switch-context`, {
+      headers: auth(ownerToken),
+      data: { scopeType: 'ACADEMY', scopeId: organizationId },
+    });
+    const switchedText = await switched.text();
+    expect(switched.status(), switchedText).toBe(200);
+    const academyToken = JSON.parse(switchedText).data?.accessToken;
+    expect(academyToken).toBeTruthy();
+
+    const created = await api.post(`${BASE_URL}/api/school/courses`, {
+      headers: auth(academyToken),
+      data: {
+        title: courseTitle,
+        price: 0,
+        modules: [{
+          title: 'Основной модуль',
+          lessons: [{
+            title: 'Урок с сохранённой историей',
+            content: 'Исходное содержание урока',
+            duration: 10,
+            order: 0,
+          }],
+        }],
+      },
+    });
+    const createdText = await created.text();
+    expect(created.status(), createdText).toBe(201);
+    const course = JSON.parse(createdText).data;
+    expect(course?.id).toBeTruthy();
+    academyHistoryCourseIds.push(course.id);
+
+    const learner = await prisma.user.findUniqueOrThrow({
+      where: { email: OWNER.email },
+      select: { id: true },
+    });
+    const enrollment = await prisma.schoolEnrollment.create({
+      data: {
+        userId: learner.id,
+        courseId: course.id,
+        acquisitionType: 'free',
+        accessStatus: 'active',
+      },
+    });
+    academyHistoryEnrollmentIds.push(enrollment.id);
+    return { academyToken, courseId: course.id, enrollmentId: enrollment.id };
+  }
+
+  test('ACADEMY-010: academy owner cannot replace lesson history for enrolled learners', async () => {
+    const fixture = await createAcademyHistoryFixture('Immutable learning history update');
+    const beforeLessons = await prisma.lesson.findMany({
+      where: { courseId: fixture.courseId },
+      orderBy: { order: 'asc' },
+    });
+    expect(beforeLessons).toHaveLength(1);
+
+    const update = await api.put(`${BASE_URL}/api/school/courses/${fixture.courseId}`, {
+      headers: auth(fixture.academyToken),
+      data: {
+        title: 'Attempted destructive content replacement',
+        modules: [{
+          title: 'Изменённый модуль',
+          lessons: [{
+            title: 'Новая версия урока',
+            content: 'Новое содержание не должно подменять историю',
+            duration: 15,
+            order: 0,
+          }],
+        }],
+      },
+    });
+    const updateText = await update.text();
+    expect(update.status(), updateText).toBe(409);
+
+    const [course, afterLessons, enrollment] = await Promise.all([
+      prisma.course.findUnique({ where: { id: fixture.courseId }, select: { title: true } }),
+      prisma.lesson.findMany({ where: { courseId: fixture.courseId }, orderBy: { order: 'asc' } }),
+      prisma.schoolEnrollment.findUnique({ where: { id: fixture.enrollmentId }, select: { id: true } }),
+    ]);
+    expect(course?.title).toBe('Immutable learning history update');
+    expect(afterLessons.map((lesson) => lesson.id)).toEqual(beforeLessons.map((lesson) => lesson.id));
+    expect(afterLessons[0]).toMatchObject({
+      title: 'Урок с сохранённой историей',
+      content: 'Исходное содержание урока',
+    });
+    expect(enrollment).not.toBeNull();
+  });
+
+  test('ACADEMY-011: academy owner cannot delete a course with learner history', async () => {
+    const fixture = await createAcademyHistoryFixture('Protected academy owner course');
+    const lessonBefore = await prisma.lesson.findFirstOrThrow({
+      where: { courseId: fixture.courseId },
+      select: { id: true },
+    });
+
+    const deletion = await api.delete(`${BASE_URL}/api/school/courses/${fixture.courseId}`, {
+      headers: auth(fixture.academyToken),
+    });
+    const deletionText = await deletion.text();
+    expect(deletion.status(), deletionText).toBe(409);
+
+    const [course, enrollment, lesson] = await Promise.all([
+      prisma.course.findUnique({ where: { id: fixture.courseId }, select: { id: true } }),
+      prisma.schoolEnrollment.findUnique({ where: { id: fixture.enrollmentId }, select: { id: true } }),
+      prisma.lesson.findUnique({ where: { id: lessonBefore.id }, select: { id: true } }),
+    ]);
+    expect(course).not.toBeNull();
+    expect(enrollment).not.toBeNull();
+    expect(lesson).not.toBeNull();
+  });
+
 });
