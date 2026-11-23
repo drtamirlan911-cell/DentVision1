@@ -799,7 +799,7 @@ schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) =>
   }
 });
 
-schoolRouter.get('/enrollments/managed', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
+schoolRouter.get('/enrollments/managed', authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
   try {
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
