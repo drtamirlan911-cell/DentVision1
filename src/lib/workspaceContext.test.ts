@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { contextRequestHeaders, selectWorkspaceContext, workflowContext, workspaceContextFrom } from './workspaceContext'
+import { beginWorkspaceRequest, contextRequestHeaders, isWorkspaceRequestCurrent, selectWorkspaceContext, workflowContext, workspaceContextFrom } from './workspaceContext'
 
 describe('workspace context contract', () => {
   const source = {
@@ -75,5 +75,16 @@ describe('workspace context contract', () => {
     expect(selectWorkspaceContext(single)?.scopeId).toBe('supplier-a')
     expect(selectWorkspaceContext(multiple)).toBeNull()
     expect(selectWorkspaceContext([])).toBeNull()
+  })
+  
+  it('invalidates stale workspace responses after a newer switch starts', () => {
+    const generationRef = { current: 0 };
+    const first = beginWorkspaceRequest(generationRef);
+    const second = beginWorkspaceRequest(generationRef);
+
+    expect(isWorkspaceRequestCurrent(generationRef, first)).toBe(false);
+    expect(isWorkspaceRequestCurrent(generationRef, second)).toBe(true);
+    beginWorkspaceRequest(generationRef);
+    expect(isWorkspaceRequestCurrent(generationRef, second)).toBe(false);
   })
 })
