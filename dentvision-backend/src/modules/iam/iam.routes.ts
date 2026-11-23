@@ -258,6 +258,58 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       }
     }
 
+    // Academy owners are a first-class organization participant, but unlike
+    // lecturers they do not have a Lecturer row. Discover only academies whose
+    // immutable ownerId matches the authenticated user and whose canonical
+    // Organization is still active. This is a read-model entry, not an access
+    // grant: /switch-context and every owner endpoint re-check the scoped role
+    // and the academy ownership relation.
+    const ownedAcademies = await prisma.academy.findMany({
+      where: { ownerId: userId },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    }).catch((error) => {
+      console.error('IAM contexts: owned Academy lookup failed', error);
+      return [];
+    });
+    if (ownedAcademies.length > 0) {
+      const academyIds = ownedAcademies.map((academy) => academy.id);
+      const academyOrganizations = await prisma.organization.findMany({
+        where: {
+          type: 'ACADEMY',
+          originalType: 'Academy',
+          originalId: { in: academyIds },
+          archivedAt: null,
+        },
+        select: { id: true, name: true, originalId: true, logo: true },
+      }).catch((error) => {
+        console.error('IAM contexts: Academy owner organizations lookup failed', error);
+        return [];
+      });
+      const organizationByAcademyId = new Map(
+        academyOrganizations
+          .filter((organization) => organization.originalId)
+          .map((organization) => [organization.originalId as string, organization]),
+      );
+      for (const academy of ownedAcademies) {
+        const organization = organizationByAcademyId.get(academy.id);
+        if (!organization) continue;
+        const id = 'ACADEMY:' + academy.id;
+        if (contexts.some((context) => context.id === id)) continue;
+        contexts.push({
+          id,
+          scopeType: 'ACADEMY',
+          scopeId: academy.id,
+          organizationId: organization.id,
+          name: organization.name || academy.name,
+          roleKey: 'academy_owner',
+          roleLabel: 'Владелец академии',
+          personType: 'ACADEMY_OWNER',
+          logo: organization.logo ?? null,
+        });
+      }
+    }
+
     // The active JWT already proves the user's canonical organization context.
     // Keep that context visible even if a legacy partner membership is missing
     // or was created after the Person graph. This is a read-model repair path,
