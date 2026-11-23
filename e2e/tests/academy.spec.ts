@@ -360,7 +360,8 @@ test.describe('Academy / Course Workflow', () => {
           title: 'Основной модуль',
           lessons: [{
             title: 'Урок с сохранённой историей',
-            content: 'Исходное содержание урока',
+            type: 'text',
+            contentUrl: 'Исходное содержание урока',
             duration: 10,
             order: 0,
           }],
@@ -405,7 +406,8 @@ test.describe('Academy / Course Workflow', () => {
           title: 'Изменённый модуль',
           lessons: [{
             title: 'Новая версия урока',
-            content: 'Новое содержание не должно подменять историю',
+            type: 'text',
+            contentUrl: 'Новое содержание не должно подменять историю',
             duration: 15,
             order: 0,
           }],
