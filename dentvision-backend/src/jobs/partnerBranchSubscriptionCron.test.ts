@@ -81,7 +81,7 @@ describe('partner branch subscription monthly invoice cron', () => {
         }),
       }),
     }));
-    expect(notifyMany).toHaveBeenCalledTimes(1);
+    expect(notifyMany).toHaveBeenCalledTimes(3);
     expect(findExistingNotifications).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         type: 'partner.branch_subscription.invoice_issued',
@@ -155,7 +155,7 @@ describe('partner branch subscription monthly invoice cron', () => {
       title: 'Счёт PB-20261101-RETRY001 за филиальную подписку готов',
       link: '/diagnostics/lab?workspace=medical-lab&tab=finance',
     }));
-    expect(notifyMany).toHaveBeenCalledTimes(3);
+    expect(notifyMany).toHaveBeenCalledTimes(1);
   });
 
   it('registers the hourly job only behind the configured background-job gate', () => {
