@@ -587,21 +587,39 @@ schoolRouter.patch('/courses/:id/publication', authenticate, requirePermission('
     }
 
     const id = String(req.params.id);
-    const updated = await prisma.course.updateMany({
-      where: { id, academyId: academyScope.academyId },
-      data: { publicationStatus },
-    });
-    if (updated.count === 0) return res.status(404).json({ ok: false, error: 'Курс не найден в активной академии' });
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.course.findFirst({
+        where: { id, academyId: academyScope.academyId },
+        select: { id: true, publicationStatus: true },
+      });
+      if (!existing) return { kind: 'not-found' as const };
 
-    await writeAuditLog({
-      action: publicationStatus === 'archived' ? 'ACADEMY_COURSE_ARCHIVED' : 'ACADEMY_COURSE_PUBLISHED',
-      entity: 'course',
-      entityId: id,
-      details: { publicationStatus, academyId: academyScope.academyId },
-      userId: req.user!.id,
-    });
+      if (existing.publicationStatus === publicationStatus) {
+        return { kind: 'unchanged' as const };
+      }
+
+      await tx.course.update({
+        where: { id: existing.id },
+        data: { publicationStatus },
+      });
+      await writeAuditLog({
+        action: publicationStatus === 'archived' ? 'ACADEMY_COURSE_ARCHIVED' : 'ACADEMY_COURSE_PUBLISHED',
+        entity: 'course',
+        entityId: id,
+        details: { publicationStatus, academyId: academyScope.academyId },
+        userId: req.user!.id,
+      }, tx);
+      return { kind: 'updated' as const };
+    }, { isolationLevel: 'Serializable' });
+
+    if (result.kind === 'not-found') {
+      return res.status(404).json({ ok: false, error: 'Курс не найден в активной академии' });
+    }
     return res.json({ ok: true, data: { id, publicationStatus } });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === 'P2034') {
+      return res.status(409).json({ ok: false, error: 'Курс одновременно изменяется. Обновите страницу и повторите действие.' });
+    }
     return res.status(500).json({ ok: false, error: 'Не удалось изменить публикацию курса' });
   }
 });
