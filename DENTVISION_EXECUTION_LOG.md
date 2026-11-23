@@ -2995,3 +2995,12 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Reconciled old branches: PR #328/#329 work was merged into PR #330 via #331/#332, then #330 was merged; PR #333 itself was not merged, but its provider-polish implementation and focused tests exist on main. Do not merge the stale PR #333 branch wholesale.
 - RB-029 audit found a raw exception logger in AI Admin `book_appointment.tool.ts`. Candidate removes raw error details and adds an E2E-independent unit regression proving patient name/phone are absent from logs. Branch `security/rb029-ai-admin-booking-log-redaction-20261118`; exact-head CI pending.
 - No staging/production DB, PHI, secret/key, payment provider, legal signature, backup/restore or production deployment was accessed or changed.
+
+
+## 2026-11-23 — Academy lecturer course deletion protects learner history (PR #352)
+
+- Confirmed `Course` has cascading relations to `SchoolEnrollment`, `SchoolAssessmentAttempt` and `SchoolCertificate`. The lecturer DELETE handler previously removed the course without checking these records.
+- Added a serializable pre-delete guard for all three history relations. Any existing enrollment, assessment attempt or certificate produces HTTP 409; Prisma serialization conflict `P2034` also fails closed with HTTP 409.
+- Lecturer course list now returns history counts. The UI displays the enrollment count, explains when learning history is protected, disables delete for courses with history and asks for confirmation before deleting a course without history.
+- `ACADEMY-009` E2E was added in commit `3cc9e29f1a6fa493d9095ac856bfa17b896e1cd7` and remains on this branch. The first E2E run was automatically cancelled when the safety implementation was pushed; it did not provide a red/green test result. The current resulting HEAD must pass full CI, Quality Gate and RB-034 before this slice is considered verified.
+- Archive/close/reopen, cohorts, attendance, assignments/grading, learner refunds and complete mobile acceptance remain open. No production/staging data, migration, provider payment, deployment or `main` merge was performed.
