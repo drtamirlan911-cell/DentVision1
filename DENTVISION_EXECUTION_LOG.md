@@ -3012,3 +3012,17 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - CRM stock replenishment calculates the clinic's requested quantity against both seller catalog stock and the same product's quantity already in the shared cart. The shared cart store accepts a quantity increment in one state update rather than repeated writes in a loop.
 - Partial seller availability is shown to the user; no available stock opens the product card instead of sending an impossible quantity to checkout. Added unit tests for stock caps, existing cart quantity and sold-out products.
 - Checkout remains the server-authoritative stock and price gate because catalog availability may change after the client read. Exact-head CI and visual/mobile acceptance are pending. No production order, payment, wallet movement, deployment or main merge was performed.
+
+
+
+## 2026-11-23 — Academy learner-history protection and course publication lifecycle (PR #352)
+
+- Extended the lecturer-side course deletion protection to the Academy owner routes. Owner updates no longer delete/recreate lesson rows when learner history exists: changed lesson structures are rejected with HTTP 409, while safe metadata/title edits preserve lesson IDs and existing enrollment progress.
+- Academy owner course deletion now uses a serializable transaction and refuses to cascade-delete enrollments, assessment attempts or certificates. Cross-academy course IDs remain out of scope for the active Academy context.
+- Added `Course.publicationStatus` with a backwards-compatible `published` default and idempotent migration `20261123120000_school_course_publication_lifecycle`.
+- Added owner-scoped, audited publish/archive action and lecturer-scoped publish/archive through the existing course update endpoint. Republish requires a verified lecturer level.
+- Public course discovery, Academy hub cards, webinars, office courses and textbooks now include published items only. Archived products reject new enrollment and commerce registration; a learner with an active entitlement retains the existing course detail and lessons.
+- Lecturer workspace exposes a reversible “Убрать в архив” / “Вернуть в каталог” control and marks archived products. Existing delete protection remains in place for courses with student history.
+- Added E2E coverage ACADEMY-010/011 for Academy owner update/delete safety and ACADEMY-012 for archive/discovery/sale/learner-access behavior, alongside ACADEMY-009 for lecturer deletion protection.
+- The code and regression tests are pushed on PR #352. Exact-head CI, Prisma generation/build, Quality Gate and RB-034 are not yet certified; do not close the Academy lifecycle item or merge until those checks pass. Cohorts, attendance, assignments/grading, refunds/payout and full Android acceptance remain separate unfinished workflows.
+- No staging/production database, PHI, payment provider, deployment or main-branch merge was used.
