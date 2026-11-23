@@ -496,9 +496,10 @@ test.describe('Academy / Course Workflow', () => {
     expect(archived.status(), archivedText).toBe(200);
     expect(JSON.parse(archivedText).data?.publicationStatus).toBe('archived');
 
-    const [catalog, managedCatalog, learnerDetail, publicDetail, newSale] = await Promise.all([
+    const [catalog, managedCatalog, managedLearners, learnerDetail, publicDetail, newSale] = await Promise.all([
       api.get(`${BASE_URL}/api/school/courses`, { headers: auth(ownerToken) }),
       api.get(`${BASE_URL}/api/school/courses/managed`, { headers: auth(fixture.academyToken) }),
+      api.get(`${BASE_URL}/api/school/enrollments/managed`, { headers: auth(fixture.academyToken) }),
       api.get(`${BASE_URL}/api/school/courses/${fixture.courseId}`, { headers: auth(ownerToken) }),
       api.get(`${BASE_URL}/api/school/courses/${fixture.courseId}`),
       api.post(`${BASE_URL}/api/school/commerce/register`, {
@@ -515,6 +516,10 @@ test.describe('Academy / Course Workflow', () => {
     const managedRows = managedBody.data || managedBody;
     const managedCourse = managedRows.find((course: any) => course.id === fixture.courseId);
     expect(managedCourse?.publicationStatus).toBe('archived');
+
+    const managedLearnerBody = await managedLearners.json();
+    const managedLearnerRows = managedLearnerBody.data || managedLearnerBody;
+    expect(managedLearnerRows.some((row: any) => row.id === fixture.enrollmentId)).toBe(true);
 
     expect(learnerDetail.status()).toBe(200);
     const detailBody = await learnerDetail.json();
