@@ -471,6 +471,7 @@ export const createManualTransaction = (data: { walletId: string; type: 'CREDIT'
 export async function getAcademyHub(): Promise<any> { return apiRequest('/api/school/hub'); }
 export async function getSchoolCourses(params: Record<string, string> = {}): Promise<any> { const q = new URLSearchParams(); Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); }); const qs = q.toString(); return collection(await apiRequest(`/api/school/courses${qs ? `?${qs}` : ''}`)); }
 export async function getManagedSchoolCourses(): Promise<any> { return collection(await apiRequest('/api/school/courses/managed')); }
+export async function getManagedSchoolEnrollments(): Promise<any> { return collection(await apiRequest('/api/school/enrollments/managed')); }
 export async function updateSchoolCoursePublication(id: string, publicationStatus: 'published' | 'archived'): Promise<any> {
   return apiRequest(`/api/school/courses/${id}/publication`, {
     method: 'PATCH',
