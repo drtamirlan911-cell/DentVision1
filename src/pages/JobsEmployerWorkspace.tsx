@@ -198,8 +198,13 @@ export default function JobsEmployerWorkspace() {
     setVacancies([]);
     setWorkspaceStatus(null);
     setApplications([]);
+    setAppsLoading(false);
     setResumes([]);
+    setResumesLoading(false);
     setSelectedVacancyId('');
+    setStatusBusyId(null);
+    setActionBusyId(null);
+    setVacancyBusyId(null);
     setResumeQuery('');
     setShowForm(false);
     setEditingVacancyId(null);
