@@ -152,11 +152,15 @@ function CoursesManager({ activeWorkspace }: { activeWorkspace?: { scopeType?: s
 
   async function togglePublication(course: any) {
     if (!hasAcademyContext || publicationUpdatingId) return
-    const publicationStatus = course.publicationStatus === 'archived' ? 'published' : 'archived'
+    const publicationStatus = course.publicationStatus === 'published' ? 'archived' : 'published'
     setPublicationUpdatingId(course.id)
     try {
       await updateSchoolCoursePublication(course.id, publicationStatus)
-      toast.success(publicationStatus === 'archived' ? 'Курс скрыт из каталога. Доступ учащихся сохранён.' : 'Курс снова опубликован.')
+      toast.success(
+        publicationStatus === 'archived'
+          ? 'Курс скрыт из каталога. Доступ учащихся сохранён.'
+          : 'Курс опубликован и доступен в каталоге.',
+      )
       await load()
     } catch (error: any) {
       toast.error(error?.message || 'Не удалось изменить публикацию курса')
@@ -202,6 +206,8 @@ function CoursesManager({ activeWorkspace }: { activeWorkspace?: { scopeType?: s
                     </div>
                     <div className="flex flex-wrap gap-2 mt-2 text-xs text-txt-muted">
                       <Badge variant="default">{c.difficulty}</Badge>
+                      {c.publicationStatus === 'draft' && <Badge variant="warning">Черновик · не опубликован</Badge>}
+                      {c.publicationStatus === 'published' && <Badge variant="success">Опубликован</Badge>}
                       {c.publicationStatus === 'archived' && <Badge variant="default">В архиве</Badge>}
                       <span>{c.durationHours} ч</span>
                       <span>· {c.lessonCount} ур.</span>
@@ -219,7 +225,11 @@ function CoursesManager({ activeWorkspace }: { activeWorkspace?: { scopeType?: s
                         loading={publicationUpdatingId === c.id}
                         onClick={() => togglePublication(c)}
                       >
-                        {c.publicationStatus === 'archived' ? 'Вернуть в каталог' : 'Убрать в архив'}
+                        {c.publicationStatus === 'draft'
+                          ? 'Опубликовать'
+                          : c.publicationStatus === 'archived'
+                            ? 'Вернуть в каталог'
+                            : 'Убрать в архив'}
                       </Button>
                     )}
                   </div>
