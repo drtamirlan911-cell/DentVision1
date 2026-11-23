@@ -466,6 +466,13 @@ export async function quoteDentCash(body: { lines: Array<Record<string, unknown>
 export const createManualTransaction = (data: { walletId: string; type: 'CREDIT' | 'DEBIT'; amount: number; description: string; refType?: string; refId?: string }) => apiRequest('/api/finance/transactions/manual', { method: 'POST', body: JSON.stringify(data) });
 export async function getAcademyHub(): Promise<any> { return apiRequest('/api/school/hub'); }
 export async function getSchoolCourses(params: Record<string, string> = {}): Promise<any> { const q = new URLSearchParams(); Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); }); const qs = q.toString(); return collection(await apiRequest(`/api/school/courses${qs ? `?${qs}` : ''}`)); }
+export async function getManagedSchoolCourses(): Promise<any> { return collection(await apiRequest('/api/school/courses/managed')); }
+export async function updateSchoolCoursePublication(id: string, publicationStatus: 'published' | 'archived'): Promise<any> {
+  return apiRequest(`/api/school/courses/${id}/publication`, {
+    method: 'PATCH',
+    body: JSON.stringify({ publicationStatus }),
+  });
+}
 export async function getSchoolCourse(id: string): Promise<any> { return apiRequest(`/api/school/courses/${id}`); }
 export async function enrollCourse(data: any): Promise<any> { return apiRequest('/api/school/enrollments', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getEnrollments(userId: string): Promise<any> { return apiRequest('/api/school/enrollments'); }
