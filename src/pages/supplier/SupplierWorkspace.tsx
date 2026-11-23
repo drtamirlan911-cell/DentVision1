@@ -175,7 +175,7 @@ export default function SupplierWorkspace() {
     const rules = Array.isArray(rulesRes?.rules) ? rulesRes.rules : []
     setCashbackRules(rules)
     const allRule = rules.find((r: any) => r.scope === 'ALL' && r.active)
-    if (allRule) setDefaultCb(String((allRule.rateBps / 100).toFixed(1)).replace(/\\.0$/, ''))
+    if (allRule) setDefaultCb(String((allRule.rateBps / 100).toFixed(1)).replace(/\.0$/, ''))
   }, [isSupplierTokenCurrent])
 
   const enterSupplier = useCallback(async (scopeId: string) => {
@@ -286,7 +286,9 @@ export default function SupplierWorkspace() {
   const handlePhotoFile = async (file: File | null) => {
     try {
       setPhotoUploading(true)
+      const generation = requestGenerationRef.current
       const dataUrl = await readImageAsDataUrl(file)
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation) || !isSupplierTokenCurrent(token || '')) return
       setForm((f) => ({ ...f, imageUrl: dataUrl }))
       toast.success('Фото загружено')
     } catch (e: any) {
@@ -309,6 +311,7 @@ export default function SupplierWorkspace() {
         description: form.description || undefined,
         imageUrl: form.imageUrl || undefined,
       })
+      if (!isSupplierTokenCurrent(token)) return
       toast.success('Товар добавлен')
       setAddOpen(false)
       setForm({ name: '', price: '', stock: '', category: '', description: '', imageUrl: '' })
@@ -324,6 +327,7 @@ export default function SupplierWorkspace() {
     if (!token) return
     try {
       await api.supplierWs.deleteProduct(token, id)
+      if (!isSupplierTokenCurrent(token)) return
       toast.success('Товар удалён')
       await loadAll(token)
     } catch (e: any) {
@@ -348,6 +352,7 @@ export default function SupplierWorkspace() {
     setQuickAdding(preset.id)
     try {
       await api.quickAddPreset(preset.id, Number(price), Number(quickStock[preset.id]) || 10)
+      if (!isSupplierTokenCurrent(token)) return
       toast.success(`${preset.name} — добавлен в каталог`)
       setQuickPrice((p) => { const n = { ...p }; delete n[preset.id]; return n })
       setQuickStock((s) => { const n = { ...s }; delete n[preset.id]; return n })
@@ -363,6 +368,7 @@ export default function SupplierWorkspace() {
     if (!token) return
     try {
       await api.supplierWs.updateProduct(token, id, { stock })
+      if (!isSupplierTokenCurrent(token)) return
       await loadAll(token)
       toast.success('Остаток обновлён')
     } catch (e: any) {
@@ -374,6 +380,7 @@ export default function SupplierWorkspace() {
     if (!token) return
     try {
       await api.supplierWs.updateOrderStatus(token, id, status)
+      if (!isSupplierTokenCurrent(token)) return
       toast.success('Статус заказа обновлён')
       await loadAll(token)
     } catch (e: any) {
@@ -391,6 +398,7 @@ export default function SupplierWorkspace() {
     setShipmentSaving(true)
     try {
       await api.supplierWs.createShipment(token, shipmentOrder.id, shipmentForm)
+      if (!isSupplierTokenCurrent(token)) return
       toast.success('Отгрузка зарегистрирована')
       setShipmentOrder(null)
       setShipmentForm({ carrier: '', trackingNumber: '', trackingUrl: '' })
@@ -411,6 +419,7 @@ export default function SupplierWorkspace() {
     setDeliverySaving(true)
     try {
       await api.supplierWs.confirmDelivery(token, deliveryOrder.id, deliveryForm)
+      if (!isSupplierTokenCurrent(token)) return
       toast.success('Вручение подтверждено')
       setDeliveryOrder(null)
       setDeliveryForm({ proofUrl: '', recipientName: '', note: '' })
@@ -429,6 +438,7 @@ export default function SupplierWorkspace() {
     setReturnResponseSaving(true)
     try {
       await api.supplierWs.respondToReturn(token, returnResponseDispute.id, { responseType, note })
+      if (!isSupplierTokenCurrent(token)) return
       toast.success('Позиция поставщика зарегистрирована')
       setReturnResponseDispute(null)
       setReturnResponseNote('')
@@ -450,6 +460,7 @@ export default function SupplierWorkspace() {
         discountPercent: Number(promoForm.discountPercent) || 10,
         cashbackPercent: Number(promoForm.cashbackPercent) || 10,
       })
+      if (!isSupplierTokenCurrent(token)) return
       toast.success('Акция и правило кэшбэка созданы')
       setPromoOpen(false)
       setPromoForm({ productId: '', title: '', discountPercent: '10', cashbackPercent: '10' })
@@ -471,6 +482,7 @@ export default function SupplierWorkspace() {
         rateBps: Math.round(pct * 100),
         active: true,
       })
+      if (!isSupplierTokenCurrent(token)) return
       toast.success('Базовый кэшбэк сохранён')
       await loadAll(token)
     } catch (e: any) {
@@ -484,6 +496,7 @@ export default function SupplierWorkspace() {
     if (!token) return
     try {
       await api.supplierWs.updateProduct(token, productId, { ownBrand })
+      if (!isSupplierTokenCurrent(token)) return
       toast.success(ownBrand ? 'Свой бренд' : 'Обычный товар')
       await loadAll(token)
     } catch (e: any) {
@@ -501,6 +514,7 @@ export default function SupplierWorkspace() {
         rateBps: Math.round(pct * 100),
         active: pct > 0,
       })
+      if (!isSupplierTokenCurrent(token)) return
       toast.success('Кэшбэк товара обновлён')
       await loadAll(token)
     } catch (e: any) {
@@ -514,6 +528,7 @@ export default function SupplierWorkspace() {
     if (!isPositiveMinor(balanceMinor)) { toast.error('Нет доступных средств для вывода'); return }
     try {
       await api.supplierWs.requestPayout(token, { amountMinor: balanceMinor })
+      if (!isSupplierTokenCurrent(token)) return
       toast.success('Заявка на выплату создана')
       await loadAll(token)
     } catch (e: any) {
