@@ -226,8 +226,6 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
       expect(reopenVacancy.status(), 'verified owner can republish a closed vacancy').toBe(200);
       expect((await reopenVacancy.json()).data.status).toBe('open');
 
-      const legacyCreate = await api.post(API + '/api/jobs', {
-
       const legacyCreate = await api.post(`${API}/api/jobs`, {
         headers: auth(ownerToken),
         data: { title: 'Unscoped vacancy', city: 'Тараз', kind: 'vacancy' },
