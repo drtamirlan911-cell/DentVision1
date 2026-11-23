@@ -17,12 +17,12 @@ const CATEGORIES = [
 type Draft = { code: string; name: string; category: string; description: string; material: string; defaultPrice: string; turnaroundDays: string };
 const EMPTY: Draft = { code: '', name: '', category: 'crown', description: '', material: '', defaultPrice: '', turnaroundDays: '7' };
 
-export function DentalLabServicesTab({ canManage }: { canManage: boolean }) {
+export function DentalLabServicesTab({ canManage, cacheScope }: { canManage: boolean; cacheScope: string }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [editing, setEditing] = useState<string | null>(null);
-  const query = useQuery({ queryKey: ['lab-platform', 'services'], queryFn: getDentalLabServices });
+  const query = useQuery({ queryKey: ['lab-platform', cacheScope, 'services'], queryFn: getDentalLabServices });
   const services = query.data || [];
 
   const saveMutation = useMutation({
@@ -35,7 +35,7 @@ export function DentalLabServicesTab({ canManage }: { canManage: boolean }) {
       return editing ? updateDentalLabService(editing, body) : createDentalLabService(body);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['lab-platform', 'services'] });
+      qc.invalidateQueries({ queryKey: ['lab-platform', cacheScope, 'services'] });
       setDraft(EMPTY); setEditing(null);
       toast.success(editing ? 'Услуга обновлена' : 'Услуга добавлена');
     },
@@ -43,7 +43,7 @@ export function DentalLabServicesTab({ canManage }: { canManage: boolean }) {
   });
   const toggleMutation = useMutation({
     mutationFn: ({ id, active }: { id: string; active: boolean }) => updateDentalLabService(id, { active }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['lab-platform', 'services'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['lab-platform', cacheScope, 'services'] }),
     onError: (error: Error) => toast.error(error.message || 'Не удалось изменить публикацию услуги'),
   });
   const beginEdit = (item: DentalLabService) => {
