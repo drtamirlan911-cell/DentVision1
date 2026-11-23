@@ -108,7 +108,7 @@ lecturerRouter.get('/courses', async (req: AuthRequest, res) => {
       ...(format ? { format } : {}),
     },
     orderBy: { createdAt: 'desc' },
-    include: { _count: { select: { enrollments: true, lessons: true } } },
+    include: { _count: { select: { enrollments: true, lessons: true, assessmentAttempts: true, certificates: true } } },
   });
   return res.json({
     ok: true,
