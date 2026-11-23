@@ -466,8 +466,8 @@ schoolRouter.get('/courses/:id', optionalAuth, async (req, res) => {
       && (!enrollment.accessExpiresAt || enrollment.accessExpiresAt > new Date()),
     );
 
-    if (course.publicationStatus === 'archived' && !hasActiveEntitlement) {
-      return res.status(404).json({ ok: false, error: 'Курс больше не доступен для новых учащихся' });
+    if (course.publicationStatus !== 'published' && !hasActiveEntitlement) {
+      return res.status(404).json({ ok: false, error: 'Курс пока не опубликован или больше не доступен для новых учащихся' });
     }
     if (Number(course.price || 0) > 0 && !hasActiveEntitlement) {
       return res.json({ ok: true, data: mapCourse(course) });
@@ -498,6 +498,7 @@ schoolRouter.post('/courses', authenticate, requireAcademyOwner, async (req: Aut
         category: b.category || null,
         duration: b.durationHours ? `${Number(b.durationHours) || 0} ч` : null,
         format: 'course',
+        publicationStatus: 'draft',
         lecturerId: academyScope.lecturerId || null,
         academyId: academyScope.academyId,
         meta: {
@@ -625,8 +626,8 @@ schoolRouter.patch('/courses/:id/publication', authenticate, requireAcademyOwner
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
     const publicationStatus = req.body?.publicationStatus;
-    if (publicationStatus !== 'published' && publicationStatus !== 'archived') {
-      return res.status(400).json({ ok: false, error: 'publicationStatus должен быть published или archived' });
+    if (!['draft', 'published', 'archived'].includes(publicationStatus)) {
+      return res.status(400).json({ ok: false, error: 'publicationStatus должен быть draft, published или archived' });
     }
 
     const id = String(req.params.id);
@@ -639,6 +640,16 @@ schoolRouter.patch('/courses/:id/publication', authenticate, requireAcademyOwner
 
       if (existing.publicationStatus === publicationStatus) {
         return { kind: 'unchanged' as const };
+      }
+
+      if (publicationStatus === 'published') {
+        const courseForReview = await tx.course.findFirst({
+          where: { id: existing.id, academyId: academyScope.academyId },
+          select: { title: true, description: true, _count: { select: { lessons: true } } },
+        });
+        if (!courseForReview?.title.trim() || !courseForReview.description?.trim() || courseForReview._count.lessons < 1) {
+          return { kind: 'not-ready' as const };
+        }
       }
 
       await tx.course.update({
@@ -657,6 +668,13 @@ schoolRouter.patch('/courses/:id/publication', authenticate, requireAcademyOwner
 
     if (result.kind === 'not-found') {
       return res.status(404).json({ ok: false, error: 'Курс не найден в активной академии' });
+    }
+    if (result.kind === 'not-ready') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Для публикации добавьте описание и хотя бы один урок.',
+        code: 'ACADEMY_COURSE_NOT_READY',
+      });
     }
     return res.json({ ok: true, data: { id, publicationStatus } });
   } catch (error: any) {
@@ -733,10 +751,11 @@ schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) =>
       return;
     }
     if (course.publicationStatus !== 'published') {
+      const isArchived = course.publicationStatus === 'archived';
       return res.status(409).json({
         ok: false,
-        error: 'Запись закрыта: курс находится в архиве',
-        code: 'ACADEMY_COURSE_ARCHIVED',
+        error: isArchived ? 'Запись закрыта: курс находится в архиве' : 'Запись откроется после публикации курса',
+        code: isArchived ? 'ACADEMY_COURSE_ARCHIVED' : 'ACADEMY_COURSE_NOT_PUBLISHED',
       });
     }
 
