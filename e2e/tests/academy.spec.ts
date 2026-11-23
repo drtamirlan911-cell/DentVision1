@@ -475,6 +475,7 @@ test.describe('Academy / Course Workflow', () => {
       },
     });
     const updateText = await update.text();
+    expect(update.headers()['x-dv-academy-mutation-route']).toBe('PUT');
     expect(update.status(), updateText).toBe(409);
 
     const [course, afterLessons, enrollment] = await Promise.all([
@@ -502,6 +503,7 @@ test.describe('Academy / Course Workflow', () => {
       headers: auth(fixture.academyToken),
     });
     const deletionText = await deletion.text();
+    expect(deletion.headers()['x-dv-academy-mutation-route']).toBe('DELETE');
     expect(deletion.status(), deletionText).toBe(409);
 
     const [course, enrollment, lesson] = await Promise.all([
