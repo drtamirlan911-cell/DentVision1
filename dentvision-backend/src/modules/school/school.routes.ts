@@ -193,6 +193,7 @@ async function loadDbOfferings(format: 'webinar' | 'textbook' | 'office' | 'cour
 function mapCourseDetail(course: any) {
   const lessons = (course.lessons || []).map((l: any, idx: number) => {
     const content = String(l.content || '');
+    const resourceUrl = /^https?:\/\//i.test(content.trim()) ? content.trim() : null;
     const type = content.includes('[EXAM]')
       ? 'exam'
       : content.includes('[TEST]')
@@ -201,7 +202,9 @@ function mapCourseDetail(course: any) {
           ? 'homework'
           : l.videoUrl
             ? 'video'
-            : 'pdf';
+            : resourceUrl
+              ? 'pdf'
+              : 'text';
     return {
       id: l.id,
       title: l.title,
@@ -210,6 +213,7 @@ function mapCourseDetail(course: any) {
       duration: l.duration,
       duration_minutes: l.duration ? Number(String(l.duration).replace(/[^\d.]/g, '')) || 15 : 15,
       videoUrl: l.videoUrl,
+      fileUrl: type === 'pdf' ? resourceUrl : null,
       content: l.content,
       module_id: 'm1',
     };
