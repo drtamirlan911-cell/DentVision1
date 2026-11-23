@@ -353,8 +353,8 @@ test.describe('Academy / Course Workflow', () => {
       expect.objectContaining({
         scopeType: 'ACADEMY',
         organizationId,
-        roleKey: 'academy_owner',
-        roleLabel: 'Владелец академии',
+        roleKey: 'owner',
+        roleLabel: 'Владелец',
       }),
     ]));
 
