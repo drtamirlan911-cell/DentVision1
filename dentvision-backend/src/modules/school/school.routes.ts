@@ -74,6 +74,7 @@ function mapCourse(course: any, options: { includePrivateFile?: boolean } = {}) 
   const safeMeta = catalogMeta(course.meta);
   return {
     id: course.id,
+    publicationStatus: course.publicationStatus || 'published',
     title: course.title,
     subtitle: course.author || course.lecturer?.userId || '',
     description: course.description,
@@ -135,7 +136,7 @@ function lessonsFromModules(modules: any): Array<{ title: string; videoUrl: stri
 
 async function loadDbOfferings(format: 'webinar' | 'textbook' | 'office' | 'course') {
   return prisma.course.findMany({
-    where: { format },
+    where: { format, publicationStatus: 'published' },
     include: {
       _count: { select: { enrollments: true, lessons: true } },
       academy: { select: { id: true, name: true, city: true } },
@@ -204,6 +205,7 @@ schoolRouter.get('/hub', optionalAuth, async (req: AuthRequest, res) => {
   try {
     const [courses, academies, lecturers, enrollments] = await Promise.all([
       prisma.course.findMany({
+        where: { publicationStatus: 'published' },
         include: {
           _count: { select: { lessons: true, enrollments: true } },
           academy: { select: { id: true, name: true, city: true } },
@@ -323,6 +325,7 @@ schoolRouter.get('/courses', optionalAuth, async (req: AuthRequest, res) => {
     const { category, search, format } = req.query;
     const where: Record<string, unknown> = {
       format: format ? normalizeSchoolFormat(format) : 'course',
+      publicationStatus: 'published',
     };
 
     if (category && typeof category === 'string') where.category = category;
@@ -375,27 +378,26 @@ schoolRouter.get('/courses/:id', optionalAuth, async (req, res) => {
       return;
     }
 
-    // Public course discovery must work before purchase. Anonymous and
-    // unenrolled visitors receive only the sanitized catalogue projection:
-    // program metadata and price, never lessons, private files or exam content.
-    // A verified active entitlement unlocks the full learning player.
+    // Archived products leave discovery and sales, but the purchased learner's
+    // entitlement survives and continues to unlock the existing course materials.
     const userId = (req as AuthRequest).user?.id;
-    if (Number(course.price || 0) > 0) {
-      if (!userId) {
-        return res.json({ ok: true, data: mapCourse(course) });
-      }
-      const enrollment = await prisma.schoolEnrollment.findUnique({
-        where: { userId_courseId: { userId, courseId: course.id } },
-        select: { id: true, accessStatus: true, accessExpiresAt: true },
-      });
-      const hasActiveEntitlement = Boolean(
-        enrollment
-        && enrollment.accessStatus === 'active'
-        && (!enrollment.accessExpiresAt || enrollment.accessExpiresAt > new Date()),
-      );
-      if (!hasActiveEntitlement) {
-        return res.json({ ok: true, data: mapCourse(course) });
-      }
+    const enrollment = userId
+      ? await prisma.schoolEnrollment.findUnique({
+          where: { userId_courseId: { userId, courseId: course.id } },
+          select: { id: true, accessStatus: true, accessExpiresAt: true },
+        })
+      : null;
+    const hasActiveEntitlement = Boolean(
+      enrollment
+      && enrollment.accessStatus === 'active'
+      && (!enrollment.accessExpiresAt || enrollment.accessExpiresAt > new Date()),
+    );
+
+    if (course.publicationStatus === 'archived' && !hasActiveEntitlement) {
+      return res.status(404).json({ ok: false, error: 'Курс больше не доступен для новых учащихся' });
+    }
+    if (Number(course.price || 0) > 0 && !hasActiveEntitlement) {
+      return res.json({ ok: true, data: mapCourse(course) });
     }
 
     return res.json({ ok: true, data: mapCourseDetail(course) });
@@ -545,6 +547,35 @@ schoolRouter.put('/courses/:id', authenticate, requirePermission('academy.manage
   }
 });
 
+schoolRouter.patch('/courses/:id/publication', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
+  try {
+    const academyScope = await activeAcademyScope(req);
+    if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
+    const publicationStatus = req.body?.publicationStatus;
+    if (publicationStatus !== 'published' && publicationStatus !== 'archived') {
+      return res.status(400).json({ ok: false, error: 'publicationStatus должен быть published или archived' });
+    }
+
+    const id = String(req.params.id);
+    const updated = await prisma.course.updateMany({
+      where: { id, academyId: academyScope.academyId },
+      data: { publicationStatus },
+    });
+    if (updated.count === 0) return res.status(404).json({ ok: false, error: 'Курс не найден в активной академии' });
+
+    await writeAuditLog({
+      action: publicationStatus === 'archived' ? 'ACADEMY_COURSE_ARCHIVED' : 'ACADEMY_COURSE_PUBLISHED',
+      entity: 'course',
+      entityId: id,
+      details: { publicationStatus, academyId: academyScope.academyId },
+      userId: req.user!.id,
+    });
+    return res.json({ ok: true, data: { id, publicationStatus } });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: 'Не удалось изменить публикацию курса' });
+  }
+});
+
 schoolRouter.delete('/courses/:id', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
   try {
     const academyScope = await activeAcademyScope(req);
@@ -609,6 +640,13 @@ schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) =>
     if (existing) {
       res.status(409).json({ ok: false, error: 'Already enrolled in this course' });
       return;
+    }
+    if (course.publicationStatus !== 'published') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Запись закрыта: курс находится в архиве',
+        code: 'ACADEMY_COURSE_ARCHIVED',
+      });
     }
 
     const price = Number(course.price || 0);
@@ -877,6 +915,13 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
     if (!product) {
       res.status(404).json({ ok: false, error: 'Продукт не найден' });
       return;
+    }
+    if (dbProduct?.publicationStatus !== 'published') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Продажа закрыта: продукт находится в архиве',
+        code: 'ACADEMY_COURSE_ARCHIVED',
+      });
     }
 
     const contentContext = resolveActiveContentContext(req);
