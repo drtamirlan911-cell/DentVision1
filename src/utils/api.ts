@@ -671,6 +671,9 @@ export async function aiBriefing(): Promise<AIChatResponse> { const tz = clientT
 export async function getJobs(params: Record<string, string> = {}): Promise<any[]> { const q = new URLSearchParams(); Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); }); return apiRequest(`/api/jobs?${q}`); }
 export async function createJob(data: any): Promise<any> { return apiRequest('/api/jobs', { method: 'POST', body: JSON.stringify(data) }); }
 export async function createEmployerVacancy(data: any): Promise<any> { return apiRequest('/api/jobs/employer/vacancies', { method: 'POST', body: JSON.stringify(data) }); }
+export async function updateEmployerVacancy(id: string, data: { title?: string; city?: string; salary?: string; employmentType?: string; description?: string; tags?: string[]; status?: 'open' | 'closed' }): Promise<any> {
+  return apiRequest(`/api/jobs/employer/vacancies/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
 export async function getEmployerStatus(): Promise<{ organizationType: string; organizationName: string; verificationStatus: string; canPublish: boolean }> { return apiRequest('/api/jobs/employer/status'); }
 export interface JobInvitationCreateInput { resumeId: string; vacancyId?: string; message?: string; expiresAt?: string }
 export async function createEmployerInvitation(data: JobInvitationCreateInput): Promise<any> {
