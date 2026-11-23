@@ -21,4 +21,17 @@ describe('workspaceScopeAllowed', () => {
     expect(workspaceScopeAllowed(makeUser('CLINIC'), 'SUPERADMIN', 'DIAGNOSTIC_CENTER')).toBe(true)
     expect(workspaceScopeAllowed(makeUser('CLINIC'), 'SUPERADMIN', 'LABORATORY')).toBe(true)
   })
+
+  it('allows the canonical Academy owner context', () => {
+    expect(workspaceScopeAllowed(makeUser('ACADEMY'), 'OWNER', 'ACADEMY')).toBe(true)
+  })
+
+  it('does not allow a clinic owner to enter the Academy owner workspace', () => {
+    expect(workspaceScopeAllowed(makeUser('CLINIC'), 'OWNER', 'ACADEMY')).toBe(false)
+    expect(workspaceScopeAllowed(makeUser('LECTURER'), 'OWNER', 'ACADEMY')).toBe(false)
+  })
+
+  it('allows superadmin to inspect Academy workspace routes', () => {
+    expect(workspaceScopeAllowed(makeUser('CLINIC'), 'SUPERADMIN', 'ACADEMY')).toBe(true)
+  })
 })
