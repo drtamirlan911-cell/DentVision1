@@ -2,10 +2,15 @@ import { describe, expect, it } from 'vitest'
 
 import { createIamResolver } from './resolver'
 import { permissionsForRole } from './roleMatrix'
+import { IAM_PERMISSIONS } from './permissions'
 
 const LEGACY_PAGES = ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'profile']
 
 describe('frontend role permission fallback', () => {
+  it('includes academy.read in the IAM permission catalogue', () => {
+    expect(IAM_PERMISSIONS.ACADEMY_READ).toBe('academy.read')
+  })
+
   it('does not grant platform Academy governance to clinic owners or admins', () => {
     for (const role of ['OWNER', 'DIRECTOR', 'ADMIN']) {
       const permissions = permissionsForRole(role)
