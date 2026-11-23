@@ -354,6 +354,36 @@ schoolRouter.get('/courses', optionalAuth, async (req: AuthRequest, res) => {
   }
 });
 
+schoolRouter.get('/courses/managed', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
+  try {
+    const academyScope = await activeAcademyScope(req);
+    if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
+
+    const courses = await prisma.course.findMany({
+      where: { academyId: academyScope.academyId },
+      include: {
+        _count: { select: { lessons: true, enrollments: true, assessmentAttempts: true, certificates: true } },
+        academy: { select: { id: true, name: true } },
+        lecturer: { select: { id: true, level: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return res.json({
+      ok: true,
+      data: courses.map((course) => ({
+        ...mapCourse(course),
+        publicationStatus: course.publicationStatus,
+        _count: course._count,
+        modules: course.meta && typeof course.meta === 'object' && !Array.isArray(course.meta)
+          ? (course.meta as Record<string, unknown>).modules || []
+          : [],
+      })),
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить управляемые курсы Academy' });
+  }
+});
+
 schoolRouter.get('/courses/:id', optionalAuth, async (req, res) => {
   try {
     const { id } = req.params;
