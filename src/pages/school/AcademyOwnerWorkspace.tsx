@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import {
   Archive,
@@ -200,7 +200,7 @@ function AcademyManagement() {
 
   const contextKey = `${activeWorkspace?.scopeType || 'none'}:${activeWorkspace?.scopeId || 'none'}:${activeWorkspace?.organizationId || 'none'}`;
 
-  const loadData = async (silent = false) => {
+  const loadData = useCallback(async (silent = false) => {
     const generation = ++requestGeneration.current;
     if (silent) setRefreshing(true);
     else setLoading(true);
@@ -222,14 +222,13 @@ function AcademyManagement() {
         setRefreshing(false);
       }
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadData();
     return () => { requestGeneration.current += 1; };
     // The API client reads the active JWT. Reload whenever the selected Academy changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contextKey]);
+  }, [contextKey, loadData]);
 
   const publishedCount = courses.filter((course) => course.publicationStatus === 'published').length;
   const archivedCount = courses.filter((course) => course.publicationStatus === 'archived').length;
