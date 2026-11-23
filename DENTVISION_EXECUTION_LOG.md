@@ -3026,3 +3026,11 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Added E2E coverage ACADEMY-010/011 for Academy owner update/delete safety and ACADEMY-012 for archive/discovery/sale/learner-access behavior, alongside ACADEMY-009 for lecturer deletion protection.
 - The code and regression tests are pushed on PR #352. Exact-head CI, Prisma generation/build, Quality Gate and RB-034 are not yet certified; do not close the Academy lifecycle item or merge until those checks pass. Cohorts, attendance, assignments/grading, refunds/payout and full Android acceptance remain separate unfinished workflows.
 - No staging/production database, PHI, payment provider, deployment or main-branch merge was used.
+
+
+### Academy publication-management follow-up — 2026-11-23
+
+- Added `GET /api/school/courses/managed`, protected by `academy.manage` and constrained to the active Academy organization. It includes archived courses and counts for learner history.
+- Connected the management list and archive/republish controls in the School Admin course cabinet. The controls are shown only when an Academy workspace is active; otherwise the page remains on public catalogue data.
+- Added ACADEMY-012 assertions that archived courses disappear from public discovery, remain in the active learner's learning player, are rejected by new-sale registration, and remain visible in the scoped management catalogue for republishing.
+- This is still pending exact-HEAD CI and visual/mobile acceptance. The implementation does not mark the Academy vertical complete.
