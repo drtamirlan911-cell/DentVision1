@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { NextFunction, Response, Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { requirePermission, requireSuperadmin } from '../../middleware/rbac.js';
@@ -40,6 +40,49 @@ async function activeAcademyScope(req: AuthRequest): Promise<{ academyId: string
     academyId,
     ...(lecturer?.id ? { lecturerId: lecturer.id } : {}),
   };
+}
+
+/**
+ * Owner operations are authorized by the Academy's own ownership record and
+ * exact active organization context. Do not reuse academy.manage here: that
+ * permission governs the platform-wide Academy/Lecturer registry and must not
+ * be granted to ordinary clinic owners.
+ */
+async function requireAcademyOwner(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const user = req.user;
+    const organizationId = String((user as any)?.organizationId || '').trim();
+    const academyId = String((user as any)?.organizationOriginalId || '').trim();
+    const organizationType = String((user as any)?.organizationType || '').toUpperCase();
+    if (!user || organizationType !== 'ACADEMY' || !organizationId || !academyId) {
+      return res.status(403).json({ ok: false, error: 'Требуется активный контекст владельца Academy' });
+    }
+
+    const [organization, academy] = await Promise.all([
+      prisma.organization.findFirst({
+        where: {
+          id: organizationId,
+          type: 'ACADEMY',
+          originalType: 'Academy',
+          originalId: academyId,
+          archivedAt: null,
+        },
+        select: { id: true },
+      }),
+      prisma.academy.findFirst({
+        where: { id: academyId, ownerId: user.id },
+        select: { id: true },
+      }),
+    ]);
+
+    if (!organization || !academy) {
+      return res.status(403).json({ ok: false, error: 'У вас нет прав владельца этой академии' });
+    }
+    return next();
+  } catch (error) {
+    console.error('[academy-owner] scope verification failed:', error);
+    return res.status(503).json({ ok: false, error: 'Не удалось проверить права владельца Academy' });
+  }
 }
 
 const PUBLIC_COURSE_META_KEYS = [
@@ -354,7 +397,7 @@ schoolRouter.get('/courses', optionalAuth, async (req: AuthRequest, res) => {
   }
 });
 
-schoolRouter.get('/courses/managed', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
+schoolRouter.get('/courses/managed', authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
   try {
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
@@ -436,7 +479,7 @@ schoolRouter.get('/courses/:id', optionalAuth, async (req, res) => {
   }
 });
 
-schoolRouter.post('/courses', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
+schoolRouter.post('/courses', authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
   try {
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
@@ -475,7 +518,7 @@ schoolRouter.post('/courses', authenticate, requirePermission('academy.manage'),
   } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to create course' }); }
 });
 
-schoolRouter.put('/courses/:id', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
+schoolRouter.put('/courses/:id', authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
   try {
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
@@ -577,7 +620,7 @@ schoolRouter.put('/courses/:id', authenticate, requirePermission('academy.manage
   }
 });
 
-schoolRouter.patch('/courses/:id/publication', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
+schoolRouter.patch('/courses/:id/publication', authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
   try {
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
@@ -624,7 +667,7 @@ schoolRouter.patch('/courses/:id/publication', authenticate, requirePermission('
   }
 });
 
-schoolRouter.delete('/courses/:id', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
+schoolRouter.delete('/courses/:id', authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
   try {
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
