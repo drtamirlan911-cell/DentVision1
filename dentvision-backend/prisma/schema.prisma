@@ -3930,6 +3930,7 @@ model LegalPartner {
 
   documents LegalDocument[]
   invoices  LegalInvoice[]
+  contexts  LegalPartnerContext[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -4164,6 +4165,7 @@ model Organization {
   invitations OrganizationInvitation[]
   branches     Branch[]
   partnerBranchSubscriptionInvoices PartnerBranchSubscriptionInvoice[]
+  legalPartnerContext LegalPartnerContext?
   employerVacancies JobVacancy[] @relation("EmployerJobVacancies")
   jobInvitations JobInvitation[] @relation("JobInvitationEmployer")
   jobInterviews JobInterview[] @relation("JobInterviewEmployer")
@@ -4569,4 +4571,20 @@ model SupportTicketMessage {
 
   @@index([ticketId, createdAt])
   @@map("support_ticket_messages")
+}
+
+/// Organization-scoped legal package lookup. A person may be an owner/operator
+/// in several organizations; the context map prevents a legal package from
+/// being inferred from a user id alone.
+model LegalPartnerContext {
+  id             String       @id @default(uuid())
+  organizationId String       @unique @map("organization_id")
+  partnerId      String       @map("partner_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  partner      LegalPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+  @@map("legal_partner_contexts")
 }
