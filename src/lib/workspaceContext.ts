@@ -175,3 +175,21 @@ export function contextRequestHeaders(context: WorkspaceContextContract): Record
   if (context.workflow.key !== 'workspace') headers['X-DentVision-Workflow'] = context.workflow.key
   return headers
 }
+
+
+/** Monotonic request guard for async workspace loads and mutations. */
+export interface WorkspaceRequestGenerationRef {
+  current: number;
+}
+
+export function beginWorkspaceRequest(ref: WorkspaceRequestGenerationRef): number {
+  ref.current += 1;
+  return ref.current;
+}
+
+export function isWorkspaceRequestCurrent(
+  ref: WorkspaceRequestGenerationRef,
+  generation: number,
+): boolean {
+  return ref.current === generation;
+}
