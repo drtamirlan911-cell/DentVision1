@@ -18,7 +18,7 @@ import { RequireWorkspaceScope } from '@/components/auth/RequireWorkspaceScope';
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Button } from '@/components/ui/ds/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card';
+import { Card, CardContent, CardHeader } from '@/components/ui/ds/Card';
 import { EmptyState } from '@/components/ui/ds/EmptyState';
 import { Input, Textarea } from '@/components/ui/ds/Input';
 import { ListSkeleton } from '@/components/ui/ds/Skeleton';
