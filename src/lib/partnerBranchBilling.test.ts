@@ -170,7 +170,7 @@ describe('partner branch invoice presentation', () => {
   it('labels partner branch subscription revenue separately in Finance Hub', () => {
     const financeTab = readFileSync(resolve(process.cwd(), 'src/pages/superadmin/FinanceTab.tsx'), 'utf8');
     expect(financeTab).toContain("PARTNER_BRANCH_SUBSCRIPTION: 'Подписки филиалов партнёров'");
-    expect(financeTab).toContain('Подписки клиник, филиалов партнёров');
+    expect(financeTab).toContain('подписки клиник, филиалов партнёров');
   });
 
 
