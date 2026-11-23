@@ -68,6 +68,11 @@ const STATUS_LABEL: Record<string, string> = {
 
 const VACANCY_STATUS_LABEL: Record<string, string> = { open: 'Активна', closed: 'Закрыта' };
 
+function toLocalDateTimeInput(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 const EMPTY_FORM = {
   title: '',
   city: '',
@@ -106,7 +111,7 @@ export default function JobsEmployerWorkspace() {
   const [offerDraftId, setOfferDraftId] = useState<string | null>(null);
   const [offerSalary, setOfferSalary] = useState('');
   const [offerStartAt, setOfferStartAt] = useState('');
-  const [offerExpiresAt, setOfferExpiresAt] = useState(() => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16));
+  const [offerExpiresAt, setOfferExpiresAt] = useState(() => toLocalDateTimeInput(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)));
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingVacancyId, setEditingVacancyId] = useState<string | null>(null);
@@ -216,6 +221,7 @@ export default function JobsEmployerWorkspace() {
     setInterviewAgenda('');
     setOfferSalary('');
     setOfferStartAt('');
+    setOfferExpiresAt(toLocalDateTimeInput(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)));
     if (isAuthenticated) void loadVacancies();
     else setLoading(false);
     return () => {
