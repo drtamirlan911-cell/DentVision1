@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { BriefcaseBusiness, Users, Plus, ArrowLeft, RefreshCw, CalendarClock } from 'lucide-react';
+import { BriefcaseBusiness, Users, Plus, ArrowLeft, RefreshCw, CalendarClock, Pencil, PauseCircle, PlayCircle } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Button } from '@/components/ui/ds/Button';
@@ -11,6 +11,7 @@ import { useAuth } from '@/store/auth.store';
 import { useToast } from '@/components/ui/ds/Toast';
 import {
   createEmployerVacancy,
+  updateEmployerVacancy,
   getEmployerVacancies,
   getEmployerStatus,
   getEmployerResumes,
@@ -21,7 +22,7 @@ import {
   createEmployerJobOffer,
 } from '@/utils/api';
 
-type EmployerVacancy = { id: string; title: string; city: string; status: string; applicationsCount?: number };
+type EmployerVacancy = { id: string; title: string; city: string; salary?: string; employmentType?: string; description?: string; tags?: string[]; status: string; applicationsCount?: number };
 type EmployerStatus = { organizationType: string; organizationName: string; verificationStatus: string; canPublish: boolean };
 type EmployerResume = {
   id: string;
@@ -65,6 +66,8 @@ const STATUS_LABEL: Record<string, string> = {
   rejected: 'Отклонён',
 };
 
+const VACANCY_STATUS_LABEL: Record<string, string> = { open: 'Активна', closed: 'Закрыта' };
+
 const EMPTY_FORM = {
   title: '',
   city: '',
@@ -99,6 +102,8 @@ export default function JobsEmployerWorkspace() {
   const [offerExpiresAt, setOfferExpiresAt] = useState(() => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16));
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [editingVacancyId, setEditingVacancyId] = useState<string | null>(null);
+  const [vacancyBusyId, setVacancyBusyId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
   const selectedVacancy = useMemo(
@@ -188,30 +193,75 @@ export default function JobsEmployerWorkspace() {
   if (authLoading) return <div className="p-8 text-sm text-txt-muted">Загружаем кабинет работодателя…</div>;
   if (!isAuthenticated) return <Navigate to="/login?returnUrl=%2Femployer" replace />;
 
+  const openVacancyEditor = (vacancy: EmployerVacancy) => {
+    setEditingVacancyId(vacancy.id);
+    setForm({
+      title: vacancy.title || '',
+      city: vacancy.city || '',
+      salary: vacancy.salary || '',
+      employmentType: vacancy.employmentType || 'Полная занятость',
+      description: vacancy.description || '',
+      tags: Array.isArray(vacancy.tags) ? vacancy.tags.join(', ') : '',
+    });
+    setShowForm(true);
+  };
+
   const submitVacancy = async () => {
     if (!form.title.trim() || !form.city.trim()) {
       toast.error('Укажите должность и город');
       return;
     }
+    const tags = [...new Set(form.tags.split(',').map((tag) => tag.trim()).filter(Boolean))];
+    if (tags.length > 20 || tags.some((tag) => tag.length > 40)) {
+      toast.error('Укажите не более 20 тегов, каждый до 40 символов');
+      return;
+    }
     setSaving(true);
     try {
-      const created = await createEmployerVacancy({
+      const payload = {
         title: form.title.trim(),
         city: form.city.trim(),
-        salary: form.salary.trim() || undefined,
-        employmentType: form.employmentType,
-        description: form.description.trim() || undefined,
-        tags: form.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
-      });
-      toast.success('Вакансия опубликована');
+        salary: form.salary.trim(),
+        employmentType: form.employmentType.trim(),
+        description: form.description.trim(),
+        tags,
+      };
+      if (editingVacancyId) {
+        await updateEmployerVacancy(editingVacancyId, payload);
+        toast.success('Вакансия обновлена');
+        setSelectedVacancyId(editingVacancyId);
+      } else {
+        const created = await createEmployerVacancy(payload);
+        toast.success('Вакансия опубликована');
+        if (created?.id) setSelectedVacancyId(created.id);
+      }
       setForm(EMPTY_FORM);
+      setEditingVacancyId(null);
       setShowForm(false);
       await loadVacancies();
-      if (created?.id) setSelectedVacancyId(created.id);
     } catch (error: any) {
-      toast.error(error?.message || 'Не удалось опубликовать вакансию');
+      toast.error(error?.message || (editingVacancyId ? 'Не удалось обновить вакансию' : 'Не удалось опубликовать вакансию'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const toggleVacancyStatus = async (vacancy: EmployerVacancy) => {
+    const nextStatus = vacancy.status === 'open' ? 'closed' : 'open';
+    if (nextStatus === 'open' && workspaceStatus?.canPublish !== true) {
+      toast.error('Повторная публикация доступна после юридической проверки работодателя');
+      return;
+    }
+    setVacancyBusyId(vacancy.id);
+    try {
+      await updateEmployerVacancy(vacancy.id, { status: nextStatus });
+      toast.success(nextStatus === 'closed' ? 'Вакансия закрыта. История откликов сохранена' : 'Вакансия снова опубликована');
+      await loadVacancies();
+      if (selectedVacancyId === vacancy.id) await loadApplications(vacancy.id);
+    } catch (error: any) {
+      toast.error(error?.message || 'Не удалось изменить статус вакансии');
+    } finally {
+      setVacancyBusyId(null);
     }
   };
 
@@ -313,7 +363,7 @@ export default function JobsEmployerWorkspace() {
             <Button variant="secondary" className="min-h-11" onClick={() => navigate('/jobs')}>
               <ArrowLeft size={15} /> Рынок вакансий
             </Button>
-            <Button className="min-h-11" disabled={workspaceStatus?.canPublish !== true} onClick={() => setShowForm((value) => !value)}>
+            <Button className="min-h-11" disabled={workspaceStatus?.canPublish !== true} onClick={() => { setEditingVacancyId(null); setForm(EMPTY_FORM); setShowForm(true); }}>
               <Plus size={15} /> Новая вакансия
             </Button>
           </div>
@@ -334,7 +384,8 @@ export default function JobsEmployerWorkspace() {
       )}
       {showForm && (
         <Card padding="lg" className="space-y-3">
-          <h2 className="font-semibold text-txt-primary">Новая вакансия</h2>
+          <h2 className="font-semibold text-txt-primary">{editingVacancyId ? 'Редактировать вакансию' : 'Новая вакансия'}</h2>
+          {editingVacancyId && <p className="text-sm text-txt-secondary">Изменения сразу появятся в каталоге после сохранения.</p>}
           <div className="grid gap-3 md:grid-cols-2">
             <Input label="Должность *" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
             <Input label="Город *" value={form.city} onChange={(event) => setForm({ ...form, city: event.target.value })} />
@@ -344,8 +395,8 @@ export default function JobsEmployerWorkspace() {
           <Input label="Специализации / теги через запятую" value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} />
           <Textarea label="Описание" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
           <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="ghost" className="min-h-11" onClick={() => setShowForm(false)}>Отмена</Button>
-            <Button className="min-h-11" loading={saving} onClick={submitVacancy}>Опубликовать вакансию</Button>
+            <Button variant="ghost" className="min-h-11" onClick={() => { setShowForm(false); setEditingVacancyId(null); setForm(EMPTY_FORM); }}>Отмена</Button>
+            <Button className="min-h-11" loading={saving} onClick={submitVacancy}>{editingVacancyId ? 'Сохранить изменения' : 'Опубликовать вакансию'}</Button>
           </div>
         </Card>
       )}
@@ -355,7 +406,7 @@ export default function JobsEmployerWorkspace() {
           <div className="flex items-center justify-between gap-2">
             <div>
               <h2 className="font-semibold text-txt-primary">Мои вакансии</h2>
-              <p className="text-xs text-txt-muted">{vacancies.length} активных объявлений</p>
+              <p className="text-xs text-txt-muted">{vacancies.filter((item) => item.status === 'open').length} активных · {vacancies.length} всего</p>
             </div>
             <Button size="sm" variant="ghost" onClick={() => void loadVacancies()} disabled={loading}>
               <RefreshCw size={14} /> Обновить
@@ -371,7 +422,7 @@ export default function JobsEmployerWorkspace() {
                 <button key={vacancy.id} type="button" onClick={() => setSelectedVacancyId(vacancy.id)} className={`w-full rounded-xl border p-3 text-left transition ${selectedVacancyId === vacancy.id ? 'border-dv-gold/50 bg-dv-gold/[0.04]' : 'border-bdr-subtle hover:bg-surface-2'}`}>
                   <div className="flex items-start justify-between gap-2">
                     <span className="font-medium text-txt-primary">{vacancy.title}</span>
-                    <Badge>{vacancy.status}</Badge>
+                    <Badge>{VACANCY_STATUS_LABEL[vacancy.status] || vacancy.status}</Badge>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-3 text-xs text-txt-muted">
                     <span className="flex items-center gap-1"><BriefcaseBusiness size={12} /> {vacancy.city}</span>
@@ -391,6 +442,24 @@ export default function JobsEmployerWorkspace() {
             </div>
             {selectedVacancy && <Badge>{applications.length} откликов</Badge>}
           </div>
+          {selectedVacancy && (
+            <div className="space-y-2 border-b border-bdr-subtle pb-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge>{VACANCY_STATUS_LABEL[selectedVacancy.status] || selectedVacancy.status}</Badge>
+                {selectedVacancy.salary && <span className="text-xs text-txt-muted">{selectedVacancy.salary}</span>}
+                {selectedVacancy.employmentType && <span className="text-xs text-txt-muted">{selectedVacancy.employmentType}</span>}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" className="min-h-11" disabled={workspaceStatus?.canPublish !== true || vacancyBusyId === selectedVacancy.id} onClick={() => openVacancyEditor(selectedVacancy)}>
+                  <Pencil size={14} /> Редактировать
+                </Button>
+                <Button size="sm" variant="secondary" className="min-h-11" loading={vacancyBusyId === selectedVacancy.id} disabled={vacancyBusyId === selectedVacancy.id || (selectedVacancy.status !== 'open' && workspaceStatus?.canPublish !== true)} onClick={() => void toggleVacancyStatus(selectedVacancy)}>
+                  {selectedVacancy.status === 'open' ? <><PauseCircle size={14} /> Закрыть вакансию</> : <><PlayCircle size={14} /> Опубликовать снова</>}
+                </Button>
+              </div>
+              <p className="text-xs text-txt-muted">Закрытие убирает вакансию из открытого каталога и останавливает новые отклики. Существующая история кандидатов сохраняется.</p>
+            </div>
+          )}
           {!selectedVacancy ? (
             <EmptyState icon={<Users size={26} />} title="Выберите вакансию" description="Здесь появятся кандидаты и этапы их рассмотрения." />
           ) : appsLoading ? (
