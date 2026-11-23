@@ -76,6 +76,30 @@ const normalize = (value?: string | null) => {
   return v || null
 }
 
+/**
+ * Resolve a global participant role when the authenticated user has no
+ * organization workspace. This is a presentation-only label; IAM remains
+ * authoritative for permissions and workspace selection.
+ */
+export function resolveGlobalRoleLabel(
+  candidates: readonly (string | null | undefined)[],
+  getRoleDisplayLabel: (role: string) => string,
+  fallbackLabel?: string | null,
+): string {
+  const isGenericLabel = (label?: string | null) =>
+    !label?.trim() || /^(?:участник(?: экосистемы)?|member|participant|user|пользователь)$/i.test(label.trim())
+
+  for (const candidate of candidates) {
+    const role = normalize(candidate)
+    if (!role) continue
+    const label = normalize(getRoleDisplayLabel(role))
+    if (label && !isGenericLabel(label) && label.toLowerCase() !== role.toLowerCase()) return label
+  }
+
+  const fallback = normalize(fallbackLabel)
+  return fallback && !isGenericLabel(fallback) ? fallback : 'Участник экосистемы'
+}
+
 export interface WorkspaceSelectionCandidate {
   scopeId: string
   organizationId?: string | null
