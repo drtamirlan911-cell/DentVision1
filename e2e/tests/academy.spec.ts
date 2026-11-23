@@ -371,6 +371,7 @@ test.describe('Academy / Course Workflow', () => {
       headers: auth(academyToken),
       data: {
         title: courseTitle,
+        description: 'Полная программа курса для проверки публикации и сохранения учебной истории.',
         price: 0,
         modules: [{
           title: 'Основной модуль',
@@ -388,7 +389,21 @@ test.describe('Academy / Course Workflow', () => {
     expect(created.status(), createdText).toBe(201);
     const course = JSON.parse(createdText).data;
     expect(course?.id).toBeTruthy();
+    expect(course?.publicationStatus).toBe('draft');
     academyHistoryCourseIds.push(course.id);
+
+    const draftDetail = await api.get(`${BASE_URL}/api/school/courses/${course.id}`);
+    expect(draftDetail.status()).toBe(404);
+
+    const published = await api.patch(`${BASE_URL}/api/school/courses/${course.id}/publication`, {
+      headers: auth(academyToken),
+      data: { publicationStatus: 'published' },
+    });
+    const publishedText = await published.text();
+    expect(published.status(), publishedText).toBe(200);
+
+    const publicDetail = await api.get(`${BASE_URL}/api/school/courses/${course.id}`);
+    expect(publicDetail.status()).toBe(200);
 
     const learner = await prisma.user.findUniqueOrThrow({
       where: { email: OWNER.email },
