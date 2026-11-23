@@ -22,6 +22,14 @@ describe('workspaceScopeAllowed', () => {
     expect(workspaceScopeAllowed(makeUser('CLINIC'), 'SUPERADMIN', 'LABORATORY')).toBe(true)
   })
 
+  it('allows the matching Academy owner workspace', () => {
+    expect(workspaceScopeAllowed(makeUser('ACADEMY'), 'OWNER', 'ACADEMY')).toBe(true)
+  })
+
+  it('rejects a clinic from the Academy workspace', () => {
+    expect(workspaceScopeAllowed(makeUser('CLINIC'), 'OWNER', 'ACADEMY')).toBe(false)
+  })
+
   it('allows the canonical Academy owner context', () => {
     expect(workspaceScopeAllowed(makeUser('ACADEMY'), 'OWNER', 'ACADEMY')).toBe(true)
   })
