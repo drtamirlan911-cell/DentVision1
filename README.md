@@ -17,6 +17,7 @@ It is **not a clinic CRM with extra tabs**. Clinics are one first-class particip
 | Durable implementation evidence | [`DENTVISION_EXECUTION_LOG.md`](DENTVISION_EXECUTION_LOG.md) |
 | Partner economics | [`docs/business/DENTVISION_PARTNER_ECONOMICS.md`](docs/business/DENTVISION_PARTNER_ECONOMICS.md) |
 | Code-generated system facts | [`docs/SYSTEM_MAP.md`](docs/SYSTEM_MAP.md) |
+| Government partnership strategy | [`docs/strategy/DENTVISION_GOVERNMENT_PARTNERSHIP_STRATEGY.md`](docs/strategy/DENTVISION_GOVERNMENT_PARTNERSHIP_STRATEGY.md) |
 
 Historical/superseded product roadmaps must not be used as a competing source of truth.
 
