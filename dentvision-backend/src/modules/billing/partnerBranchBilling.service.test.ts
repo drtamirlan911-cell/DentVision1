@@ -133,7 +133,12 @@ describe('partner branch invoice issuance', () => {
       type: 'DIAGNOSTIC_CENTER',
       originalType: 'DiagnosticCenter',
       originalId: 'center-late',
-      settings: { ecosystemVisible: true, legal: { platformSignedAt: '2026-12-02T10:00:00.000Z' } },
+      settings: {
+        lifecycle: 'ACTIVE_VERIFIED',
+        verification: 'APPROVED',
+        ecosystemVisible: true,
+        legal: { ownerSigned: true, platformSigned: true, platformSignedAt: '2026-12-02T10:00:00.000Z' },
+      },
     };
     const { tx, created } = makeDb({ organization });
     await expect(issuePartnerBranchInvoiceForTest({
