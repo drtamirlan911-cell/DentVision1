@@ -1304,9 +1304,12 @@ async function main() {
       const members = await prisma.supplierMember.findMany({ include: { supplier: true } });
       let onboarded = 0;
       for (const m of members) {
-        const existing = await prisma.legalPartner.findUnique({ where: { userId: m.userId } });
-        if (existing) continue;
         const s = m.supplier;
+        const existing = await prisma.legalPartner.findFirst({
+          where: { userId: m.userId, type: 'SUPPLIER', legalName: s.name },
+          select: { id: true },
+        });
+        if (existing) continue;
         await onboardPartner({
           userId: m.userId,
           type: 'SUPPLIER',
