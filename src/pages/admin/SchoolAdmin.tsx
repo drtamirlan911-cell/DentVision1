@@ -72,12 +72,13 @@ function CoursesManager({ activeWorkspace }: { activeWorkspace?: { scopeType?: s
     try {
       const rows = hasAcademyContext ? await getManagedSchoolCourses() : await getSchoolCourses()
       setItems(Array.isArray(rows) ? rows : [])
-    } catch (error: any) {
-      toast.error(error?.message || 'Не удалось загрузить курсы')
+    } catch (error) {
+      console.error('Academy course list load failed', error)
+      setItems([])
     } finally {
       setLoading(false)
     }
-  }, [hasAcademyContext, toast])
+  }, [hasAcademyContext, activeWorkspace?.scopeId])
   useEffect(() => { load() }, [load])
 
   function blankCourse() {
