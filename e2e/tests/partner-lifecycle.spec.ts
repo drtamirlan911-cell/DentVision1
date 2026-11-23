@@ -497,6 +497,55 @@ test.describe('Partner operational lifecycle', () => {
     await prisma.$disconnect();
   });
 
+  test('PARTNER-000: partner subscription reads require the active organization and Finance/Billing permissions', async () => {
+    expect(fixtureCenterId).toBeTruthy();
+    expect(fixtureLabId).toBeTruthy();
+
+    const medicalFinance = await api.get(`${BASE}/api/subscriptions/PARTNER/${fixtureLabId}`, {
+      headers: auth(medicalLabFinanceToken),
+    });
+    const medicalFinanceText = await medicalFinance.text();
+    expect(medicalFinance.status(), medicalFinanceText).toBe(200);
+    expect(JSON.parse(medicalFinanceText).data).toMatchObject({
+      ownerType: 'PARTNER',
+      ownerId: fixtureLabId,
+    });
+
+    const medicalTechnician = await api.get(`${BASE}/api/subscriptions/PARTNER/${fixtureLabId}`, {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    const medicalTechnicianText = await medicalTechnician.text();
+    expect(medicalTechnician.status(), medicalTechnicianText).toBe(403);
+
+    const centerOwner = await api.get(`${BASE}/api/subscriptions/PARTNER/${fixtureCenterId}`, {
+      headers: auth(centerOwnerToken),
+    });
+    const centerOwnerText = await centerOwner.text();
+    expect(centerOwner.status(), centerOwnerText).toBe(200);
+    expect(JSON.parse(centerOwnerText).data).toMatchObject({
+      ownerType: 'PARTNER',
+      ownerId: fixtureCenterId,
+    });
+
+    const centerRadiologist = await api.get(`${BASE}/api/subscriptions/PARTNER/${fixtureCenterId}`, {
+      headers: auth(centerRadiologistToken),
+    });
+    const centerRadiologistText = await centerRadiologist.text();
+    expect(centerRadiologist.status(), centerRadiologistText).toBe(403);
+
+    const clinicOwner = await api.get(`${BASE}/api/subscriptions/PARTNER/${fixtureCenterId}`, {
+      headers: auth(ownerToken),
+    });
+    const clinicOwnerText = await clinicOwner.text();
+    expect(clinicOwner.status(), clinicOwnerText).toBe(403);
+
+    const crossOrganizationFinance = await api.get(`${BASE}/api/subscriptions/PARTNER/${fixtureCenterId}`, {
+      headers: auth(medicalLabFinanceToken),
+    });
+    const crossOrganizationFinanceText = await crossOrganizationFinance.text();
+    expect(crossOrganizationFinance.status(), crossOrganizationFinanceText).toBe(403);
+  });
+
   test('PARTNER-001: diagnostic center referral → accept → process → result → clinic visibility', async () => {
     const centerId = fixtureCenterId;
     expect(centerId).toBeTruthy();

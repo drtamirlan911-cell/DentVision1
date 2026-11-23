@@ -3044,3 +3044,11 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - ACADEMY-010/011 on HEAD ce6347e4 returned English “Course not found” 404 despite the test-only route middleware headers. The previous marker did not prove async-handler entry. This update adds a handler-entry header and safe E2E-only route/scope-lookup logs, disables redirect following in both mutation tests, and preserves the expected 409 and learner-history integrity checks.
 - Prior-SHA core E2E: 259 passed, 5 skipped, 2 failed (ACADEMY-010/011); Browser UX and Mobile Design passed; Role/Context was in progress when run telemetry stopped refreshing. Fresh exact-head CI is required.
 - No production/staging data, PHI, payment, provider configuration, secret, deployment or main merge was touched.
+
+
+## 2026-11-23 — Academy response-writer trace and PARTNER subscription RBAC
+
+- Prior SHA b580006: E2E core 259 passed / 5 skipped / 2 failed (ACADEMY-010/011). New route, async handler, scoped lookup and mutation outcome headers each matched the intended PUT/DELETE history-protection path, but final HTTP responses were still 404 with English `Course not found`. This is inconsistent with the handler's explicit 409 branch and remains unresolved.
+- The current follow-up wraps `res.status()` and `res.json()` for the two E2E mutation handlers only, adds a safe response-writer header and asserts the final status/body code. It does not log request bodies or patient information.
+- Hardened `GET /api/subscriptions/PARTNER/:ownerId`: caller must be in the exact active organization whose canonical `originalId` matches ownerId, and hold a scoped Billing/Finance permission. New E2E verifies allowed medical-lab Finance and diagnostic-center owner access and denies technician, radiologist, clinic-owner and cross-organization Finance.
+- Prior SHA checks: backend/frontend lint, lint-test, Quality Gate and RB-034 SUCCESS; Browser UX and Mobile Design SUCCESS; Role/Context was still running. All exact-head checks rerun on the new SHA. No merge/deploy/payment/data migration/PHI action occurred.

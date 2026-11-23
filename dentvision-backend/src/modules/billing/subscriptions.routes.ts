@@ -7,6 +7,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { assertClinicBillingAccess, clinicTenancyUpdateForSubscription } from './clinicSubscription.service.js';
 import { assertOrgAccess } from '../../lib/orgContext.js';
 import { auditFromReq } from '../compliance/audit.service.js';
+import { hasPartnerBranchBillingPermission } from './partnerBranchBilling.service.js';
 
 // Subscriptions (Phase 5). SaaS plans per owner.
 // Writes are restricted — use /api/clinic-billing checkout for clinics.
@@ -21,6 +22,29 @@ async function assertCanReadSubscription(req: AuthRequest, ownerType: string, ow
   if (req.user?.role === 'SUPERADMIN') return;
   if (ownerType === 'CLINIC') {
     if (!(await assertOrgAccess(req.user!, ownerId))) {
+      const err = new Error('Нет доступа к подписке');
+      (err as any).status = 403;
+      throw err;
+    }
+    return;
+  }
+  if (ownerType === 'PARTNER') {
+    const userId = String(req.user?.id || '').trim();
+    const organizationId = String(req.user?.organizationId || '').trim();
+    const activeOwnerId = String(req.user?.organizationOriginalId || '').trim();
+    const canRead = Boolean(
+      userId
+      && organizationId
+      && activeOwnerId
+      && activeOwnerId === ownerId
+      && await hasPartnerBranchBillingPermission({
+        userId,
+        organizationId,
+        ownerId,
+        permissions: ['billing.read', 'billing.manage', 'finance.read', 'finance.manage'],
+      }),
+    );
+    if (!canRead) {
       const err = new Error('Нет доступа к подписке');
       (err as any).status = 403;
       throw err;
