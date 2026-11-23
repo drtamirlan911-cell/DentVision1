@@ -76,6 +76,8 @@ export default function SchoolWorkspace() {
   const [analytics, setAnalytics] = useState<any>(null);
 
   const [addOpen, setAddOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [listFilter, setListFilter] = useState<'all' | OfferFormat>('all');
   const [saving, setSaving] = useState(false);
@@ -208,14 +210,18 @@ export default function SchoolWorkspace() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!token) return;
+  const handleDelete = async () => {
+    if (!token || !deleteTarget || deleting) return;
+    setDeleting(true);
     try {
-      await api.lecturerWs.deleteCourse(token, id);
-      toast.success('Удалено');
+      await api.lecturerWs.deleteCourse(token, deleteTarget.id);
+      toast.success('Продукт Academy OS удалён');
+      setDeleteTarget(null);
       await loadAll(token);
     } catch (e: any) {
-      toast.error(e?.message || 'Ошибка при удалении');
+      toast.error(e?.message || 'Не удалось удалить продукт');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -406,14 +412,26 @@ export default function SchoolWorkspace() {
                               </div>
                               <p className="text-sm font-bold text-txt-primary truncate mt-1">{c.title}</p>
                               <p className="text-xs text-txt-muted mt-0.5">
-                                {c._count?.enrollments ?? 0} покупок
+                                {c._count?.enrollments ?? 0} зачислений
                                 {fmt === 'course' ? ` · ${c._count?.lessons ?? 0} уроков` : ''}
                                 {c.startsAt ? ` · ${String(c.startsAt).slice(0, 16).replace('T', ' ')}` : ''}
                               </p>
                               <p className="text-sm text-dv-gold font-semibold mt-1.5">{c.price ? Number(c.price).toLocaleString('ru-RU') + ' ₸' : 'Бесплатно'}</p>
                             </div>
                           </div>
-                          <button onClick={() => handleDelete(c.id)} className="p-1.5 rounded-lg text-error hover:bg-error/10 transition-colors shrink-0 min-h-11 min-w-11 inline-flex items-center justify-center" aria-label="Удалить">
+                          {Number(c._count?.enrollments || 0) + Number(c._count?.assessmentAttempts || 0) + Number(c._count?.certificates || 0) > 0 && (
+                            <p className="text-xs text-txt-muted mt-2">
+                              Учебная история сохранена — удаление заблокировано
+                            </p>
+                          )}
+                          <button
+                            type="button"
+                            disabled={Number(c._count?.enrollments || 0) + Number(c._count?.assessmentAttempts || 0) + Number(c._count?.certificates || 0) > 0}
+                            onClick={() => setDeleteTarget({ id: c.id, title: c.title })}
+                            className="p-1.5 rounded-lg text-error hover:bg-error/10 transition-colors shrink-0 min-h-11 min-w-11 inline-flex items-center justify-center disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
+                            aria-label={Number(c._count?.enrollments || 0) + Number(c._count?.assessmentAttempts || 0) + Number(c._count?.certificates || 0) > 0 ? 'Удаление заблокировано: есть учебная история' : 'Удалить продукт'}
+                            title={Number(c._count?.enrollments || 0) + Number(c._count?.assessmentAttempts || 0) + Number(c._count?.certificates || 0) > 0 ? 'Есть история обучения' : 'Удалить продукт'}
+                          >
                             <Trash2 size={15} />
                           </button>
                         </div>
@@ -560,6 +578,27 @@ export default function SchoolWorkspace() {
             <Button variant="ghost" className="min-h-11" onClick={() => setAddOpen(false)}>Отмена</Button>
             <Button variant="primary" className="min-h-11" loading={saving} onClick={handleAdd} icon={<Plus size={15} />}>
               Создать {FORMAT_LABEL[form.format]?.toLowerCase() || 'продукт'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(deleteTarget)}
+        onClose={() => { if (!deleting) setDeleteTarget(null); }}
+        title="Подтвердите удаление"
+        className="w-full max-w-full sm:max-w-md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-txt-primary">
+            Удалить «{deleteTarget?.title || 'продукт'}»? Будут удалены сам продукт и его материалы. Продолжить можно только если у продукта нет зачислений, результатов оценивания и сертификатов.
+          </p>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">
+            <Button variant="ghost" className="min-h-11" disabled={deleting} onClick={() => setDeleteTarget(null)}>
+              Отмена
+            </Button>
+            <Button variant="primary" className="min-h-11" loading={deleting} onClick={handleDelete}>
+              Удалить продукт
             </Button>
           </div>
         </div>
