@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => {
     organizationFindFirst: vi.fn(),
     clinicFindUnique: vi.fn(),
     vacancyFindUnique: vi.fn(),
+    vacancyFindFirst: vi.fn(),
     vacancyFindMany: vi.fn(),
     applicationFindUnique: vi.fn(),
     applicationFindMany: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock('../../lib/prisma.js', () => ({
     clinic: { findUnique: mocks.clinicFindUnique },
     jobVacancy: {
       findUnique: mocks.vacancyFindUnique,
+      findFirst: mocks.vacancyFindFirst,
       findMany: mocks.vacancyFindMany,
     },
     jobApplication: {
@@ -132,6 +134,7 @@ beforeEach(() => {
     status: 'open',
     userId: 'different-employer',
   });
+  mocks.vacancyFindFirst.mockResolvedValue({ id: 'vacancy-1' });
   mocks.applicationFindUnique.mockResolvedValue({
     id: 'application-1',
     status: 'new',
@@ -549,7 +552,7 @@ describe('Jobs mutation audit atomicity', () => {
   });
 
   it('does not expose or mutate a vacancy owned by another organization', async () => {
-    mocks.tx.jobVacancy.findFirst.mockResolvedValueOnce(null);
+    mocks.vacancyFindFirst.mockResolvedValueOnce(null);
 
     const response = await fetch(baseUrl + '/api/jobs/employer/vacancies/foreign-vacancy', {
       method: 'PATCH',
@@ -558,13 +561,15 @@ describe('Jobs mutation audit atomicity', () => {
     });
 
     expect(response.status).toBe(404);
-    expect(mocks.tx.jobVacancy.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.vacancyFindFirst).toHaveBeenCalledWith({
       where: {
         id: 'foreign-vacancy',
         employerOrganizationId: 'employer-org',
         kind: 'vacancy',
       },
-    }));
+      select: { id: true },
+    });
+    expect(mocks.transaction).not.toHaveBeenCalled();
     expect(mocks.tx.jobVacancy.updateMany).not.toHaveBeenCalled();
     expect(auditFromReq).not.toHaveBeenCalled();
   });
