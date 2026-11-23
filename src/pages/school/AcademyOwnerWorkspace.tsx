@@ -67,6 +67,8 @@ interface CourseForm {
   instructor: string;
   price: string;
   durationHours: string;
+  firstLessonTitle: string;
+  firstLessonContent: string;
 }
 
 const EMPTY_FORM: CourseForm = {
@@ -76,6 +78,8 @@ const EMPTY_FORM: CourseForm = {
   instructor: '',
   price: '0',
   durationHours: '',
+  firstLessonTitle: '',
+  firstLessonContent: '',
 };
 
 function statusLabel(status?: string) {
@@ -271,6 +275,8 @@ function AcademyManagement() {
       instructor: course.instructor || course.author || '',
       price: String(course.price ?? 0),
       durationHours: String(course.durationHours ?? ''),
+      firstLessonTitle: '',
+      firstLessonContent: '',
     });
     setFormOpen(true);
   }
@@ -279,6 +285,10 @@ function AcademyManagement() {
     event.preventDefault();
     if (!form.title.trim()) {
       setNotice({ type: 'error', text: 'Введите название курса' });
+      return;
+    }
+    if (!editingCourse && (!form.description.trim() || !form.firstLessonTitle.trim() || !form.firstLessonContent.trim())) {
+      setNotice({ type: 'error', text: 'Для черновика заполните описание и первый урок. Без этого курс нельзя будет опубликовать.' });
       return;
     }
     setSaving(true);
@@ -297,8 +307,20 @@ function AcademyManagement() {
         await api.updateSchoolCourse(editingCourse.id, payload);
         setNotice({ type: 'success', text: 'Данные курса обновлены; уроки и учебная история сохранены.' });
       } else {
-        await api.createSchoolCourse(payload);
-        setNotice({ type: 'success', text: 'Создан черновик курса. Проверьте содержание и опубликуйте его, когда он готов.' });
+        await api.createSchoolCourse({
+          ...payload,
+          modules: [{
+            title: 'Модуль 1',
+            lessons: [{
+              title: form.firstLessonTitle.trim(),
+              type: 'text',
+              contentUrl: form.firstLessonContent.trim(),
+              duration: 10,
+              order: 0,
+            }],
+          }],
+        });
+        setNotice({ type: 'success', text: 'Черновик создан с первым уроком. Проверьте материалы и опубликуйте курс, когда он готов.' });
       }
       setFormOpen(false);
       await loadData(true);
@@ -633,7 +655,7 @@ function AcademyManagement() {
               className="min-h-11"
             />
             <Input
-              label="Ответственный лектор"
+              label="Автор / ведущий курса"
               value={form.instructor}
               onChange={(event) => setForm((current) => ({ ...current, instructor: event.target.value }))}
               maxLength={120}
@@ -666,8 +688,28 @@ function AcademyManagement() {
             maxLength={4000}
           />
           {!editingCourse && (
+            <>
+              <Input
+                label="Название первого урока *"
+                value={form.firstLessonTitle}
+                onChange={(event) => setForm((current) => ({ ...current, firstLessonTitle: event.target.value }))}
+                required
+                maxLength={180}
+                className="min-h-11"
+              />
+              <Textarea
+                label="Материал первого урока *"
+                value={form.firstLessonContent}
+                onChange={(event) => setForm((current) => ({ ...current, firstLessonContent: event.target.value }))}
+                rows={5}
+                required
+                maxLength={20000}
+              />
+            </>
+          )}
+          {!editingCourse && (
             <p className="rounded-lg border border-bdr-subtle bg-surface-2/50 p-3 text-xs leading-5 text-txt-secondary">
-              Новый курс создаётся как черновик и не продаётся до публикации. Для подготовки уроков и проверочных материалов назначьте лектора.
+              Новый курс создаётся как черновик. Заполните первый урок, затем опубликуйте курс. Автор в карточке — текстовое имя, назначение аккаунта лектора выполняется отдельно.
             </p>
           )}
           <div className="flex flex-col-reverse gap-2 border-t border-bdr-subtle pt-3 sm:flex-row sm:justify-end">
