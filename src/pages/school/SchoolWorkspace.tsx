@@ -417,13 +417,13 @@ export default function SchoolWorkspace() {
                                 {c.startsAt ? ` · ${String(c.startsAt).slice(0, 16).replace('T', ' ')}` : ''}
                               </p>
                               <p className="text-sm text-dv-gold font-semibold mt-1.5">{c.price ? Number(c.price).toLocaleString('ru-RU') + ' ₸' : 'Бесплатно'}</p>
+                              {Number(c._count?.enrollments || 0) + Number(c._count?.assessmentAttempts || 0) + Number(c._count?.certificates || 0) > 0 && (
+                                <p className="text-xs text-txt-muted mt-2">
+                                  Учебная история сохранена — удаление заблокировано
+                                </p>
+                              )}
                             </div>
                           </div>
-                          {Number(c._count?.enrollments || 0) + Number(c._count?.assessmentAttempts || 0) + Number(c._count?.certificates || 0) > 0 && (
-                            <p className="text-xs text-txt-muted mt-2">
-                              Учебная история сохранена — удаление заблокировано
-                            </p>
-                          )}
                           <button
                             type="button"
                             disabled={Number(c._count?.enrollments || 0) + Number(c._count?.assessmentAttempts || 0) + Number(c._count?.certificates || 0) > 0}
