@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { GraduationCap, BookOpen, Wallet, BarChart3, Plus, Trash2, Users, Award, Building2, Camera, ImageIcon, Radio, BookMarked } from 'lucide-react';
 import * as api from '@/utils/api';
 import { useAuth } from '@/store/auth.store';
-import { selectWorkspaceContext } from '@/lib/workspaceContext';
+import { beginWorkspaceRequest, isWorkspaceRequestCurrent, selectWorkspaceContext } from '@/lib/workspaceContext';
 import { useToast } from '@/components/ui/ds/Toast';
 import { Button } from '@/components/ui/ds/Button';
 import { Input, Select } from '@/components/ui/ds/Input';
@@ -86,13 +86,32 @@ export default function SchoolWorkspace() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [bio, setBio] = useState('');
   const [registering, setRegistering] = useState(false);
+  const requestGenerationRef = useRef(0);
 
-  const loadAll = useCallback(async (t: string) => {
+  const clearWorkspaceData = useCallback(() => {
+    setToken(null);
+    setMe(null);
+    setBio('');
+    setCourses([]);
+    setAnalytics(null);
+    setAddOpen(false);
+    setDeleteTarget(null);
+    setDeleting(false);
+    setPublicationUpdatingId(null);
+    setForm({ ...EMPTY_FORM });
+    setListFilter('all');
+    setTab('courses');
+    setSaving(false);
+    setPhotoUploading(false);
+  }, []);
+
+  const loadAll = useCallback(async (t: string, generation: number) => {
     const [meRes, cRes, aRes] = await Promise.all([
       api.lecturerWs.me(t).catch(() => null),
       api.lecturerWs.courses(t).catch(() => []),
       api.lecturerWs.analytics(t).catch(() => null),
     ]);
+    if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
     setMe(meRes);
     setBio(meRes?.bio || '');
     setCourses(Array.isArray(cRes) ? cRes : []);
@@ -100,49 +119,71 @@ export default function SchoolWorkspace() {
   }, []);
 
   const enter = useCallback(async (scopeId: string) => {
+    const generation = beginWorkspaceRequest(requestGenerationRef);
+    setLoading(true);
     setContextSwitching(true);
-    setToken(null);
+    clearWorkspaceData();
     try {
       const res = await api.switchContext('LECTURER', scopeId);
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
       setToken(res.accessToken);
-      await loadAll(res.accessToken);
+      await loadAll(res.accessToken, generation);
     } catch {
-      setToken(null);
-      toast.error('Не удалось войти в выбранную организацию лектора');
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        setToken(null);
+        toast.error('Не удалось войти в выбранную организацию лектора');
+      }
     } finally {
-      setContextSwitching(false);
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        setContextSwitching(false);
+        setLoading(false);
+      }
     }
-  }, [loadAll, toast]);
+  }, [clearWorkspaceData, loadAll, toast]);
 
   useEffect(() => {
+    const generation = beginWorkspaceRequest(requestGenerationRef);
     (async () => {
       try {
         const res = await api.getMyContexts();
+        if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
         const lec = (res.contexts || []).filter((c: any) => c.scopeType === 'LECTURER') as LecturerCtx[];
         setContexts(lec);
         const preferred = selectWorkspaceContext(lec, {
           scopeId: activeWorkspace?.scopeType === 'LECTURER' ? activeWorkspace.scopeId : null,
           organizationId: activeWorkspace?.scopeType === 'LECTURER' ? activeWorkspace.organizationId : null,
         });
-        if (preferred) await enter(preferred.scopeId);
+        if (preferred) {
+          void enter(preferred.scopeId);
+          return;
+        }
       } catch { /* ignore */ } finally {
-        setLoading(false);
+        if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) setLoading(false);
       }
     })();
+    return () => {
+      beginWorkspaceRequest(requestGenerationRef);
+    };
     // mount-only — enter() is scoped to the initial contexts; re-calling on deps change is not desired
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handleWorkspaceSwitch = (event: Event) => {
       const detail = (event as CustomEvent<{ id?: string; scopeId?: string; scopeType?: string }>).detail;
-      if (detail?.scopeType !== 'LECTURER') return;
+      if (detail?.scopeType !== 'LECTURER') {
+        beginWorkspaceRequest(requestGenerationRef);
+        clearWorkspaceData();
+        setContextSwitching(false);
+        setLoading(false);
+        return;
+      }
       const prefix = 'LECTURER:';
       const scopeId = detail.scopeId || (String(detail.id || '').startsWith(prefix) ? String(detail.id).slice(prefix.length) : '');
       if (scopeId) void enter(scopeId);
     };
     window.addEventListener('dentvision:workspace-switched', handleWorkspaceSwitch);
     return () => window.removeEventListener('dentvision:workspace-switched', handleWorkspaceSwitch);
-  }, [enter]);
+  }, [clearWorkspaceData, enter]);
 
   const becomeLecturer = async () => {
     setRegistering(true);
@@ -161,15 +202,19 @@ export default function SchoolWorkspace() {
   };
 
   const handlePhotoFile = async (file: File | null) => {
+    const generation = requestGenerationRef.current;
     try {
       setPhotoUploading(true);
       const dataUrl = await readImageAsDataUrl(file);
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
       setForm((f) => ({ ...f, imageUrl: dataUrl }));
       toast.success('Фото загружено');
     } catch (e: any) {
-      toast.error(e?.message || 'Не удалось загрузить фото');
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        toast.error(e?.message || 'Не удалось загрузить фото');
+      }
     } finally {
-      setPhotoUploading(false);
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) setPhotoUploading(false);
     }
   };
 
@@ -184,9 +229,11 @@ export default function SchoolWorkspace() {
       toast.error('Укажите ссылку на файл учебника');
       return;
     }
+    const generation = requestGenerationRef.current;
+    const actionToken = token;
     setSaving(true);
     try {
-      await api.lecturerWs.createCourse(token, {
+      await api.lecturerWs.createCourse(actionToken, {
         format: form.format,
         title: form.title.trim(),
         price: form.price ? Number(form.price) : undefined,
@@ -200,68 +247,91 @@ export default function SchoolWorkspace() {
         pages: form.pages ? Number(form.pages) : undefined,
         venue: form.venue || undefined,
       });
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
       toast.success(`${FORMAT_LABEL[form.format] || 'Продукт'} создан`);
       setAddOpen(false);
       setForm({ ...EMPTY_FORM });
-      await loadAll(token);
+      await loadAll(actionToken, generation);
     } catch (e: any) {
-      toast.error(e?.message || 'Ошибка при создании');
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        toast.error(e?.message || 'Ошибка при создании');
+      }
     } finally {
-      setSaving(false);
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) setSaving(false);
     }
   };
 
   const handleDelete = async () => {
     if (!token || !deleteTarget || deleting) return;
+    const generation = requestGenerationRef.current;
+    const actionToken = token;
     setDeleting(true);
     try {
-      await api.lecturerWs.deleteCourse(token, deleteTarget.id);
+      await api.lecturerWs.deleteCourse(actionToken, deleteTarget.id);
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
       toast.success('Продукт Academy OS удалён');
       setDeleteTarget(null);
-      await loadAll(token);
+      await loadAll(actionToken, generation);
     } catch (e: any) {
-      toast.error(e?.message || 'Не удалось удалить продукт');
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        toast.error(e?.message || 'Не удалось удалить продукт');
+      }
     } finally {
-      setDeleting(false);
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) setDeleting(false);
     }
   };
 
   const togglePublication = async (course: any) => {
     if (!token || publicationUpdatingId) return;
     const publicationStatus = course.publicationStatus === 'archived' ? 'published' : 'archived';
+    const generation = requestGenerationRef.current;
+    const actionToken = token;
     setPublicationUpdatingId(course.id);
     try {
-      await api.lecturerWs.updateCourse(token, course.id, { publicationStatus });
+      await api.lecturerWs.updateCourse(actionToken, course.id, { publicationStatus });
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
       toast.success(publicationStatus === 'archived' ? 'Продукт убран из публичного каталога. Доступ учащихся сохранён.' : 'Продукт снова опубликован в каталоге.');
-      await loadAll(token);
+      await loadAll(actionToken, generation);
     } catch (e: any) {
-      toast.error(e?.message || 'Не удалось изменить публикацию продукта');
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        toast.error(e?.message || 'Не удалось изменить публикацию продукта');
+      }
     } finally {
-      setPublicationUpdatingId(null);
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) setPublicationUpdatingId(null);
     }
   };
 
   const saveBio = async () => {
     if (!token) return;
+    const generation = requestGenerationRef.current;
+    const actionToken = token;
     try {
-      await api.lecturerWs.updateMe(token, { bio });
+      await api.lecturerWs.updateMe(actionToken, { bio });
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
       toast.success('Профиль сохранён');
-      await loadAll(token);
+      await loadAll(actionToken, generation);
     } catch (e: any) {
-      toast.error(e?.message || 'Ошибка при сохранении');
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        toast.error(e?.message || 'Ошибка при сохранении');
+      }
     }
   };
 
   const handlePayout = async () => {
     if (!token) return;
+    const generation = requestGenerationRef.current;
+    const actionToken = token;
     const balance = Number(analytics?.balanceMinor || 0);
     if (balance <= 0) { toast.error('Нет средств для вывода'); return; }
     try {
-      await api.lecturerWs.requestPayout(token, { amountMinor: String(balance) });
+      await api.lecturerWs.requestPayout(actionToken, { amountMinor: String(balance) });
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
       toast.success('Заявка на выплату создана');
-      await loadAll(token);
+      await loadAll(actionToken, generation);
     } catch (e: any) {
-      toast.error(e?.message || 'Ошибка при запросе выплаты');
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        toast.error(e?.message || 'Ошибка при запросе выплаты');
+      }
     }
   };
 
