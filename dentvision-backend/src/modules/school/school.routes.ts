@@ -449,36 +449,100 @@ schoolRouter.put('/courses/:id', authenticate, requirePermission('academy.manage
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
     const id = req.params.id as string;
     const b = req.body || {};
-    const existing = await prisma.course.findUnique({ where: { id } });
-    if (!existing) return res.status(404).json({ ok: false, error: 'Курс не найден' });
-    if (existing.academyId !== academyScope.academyId) return res.status(403).json({ ok: false, error: 'Курс принадлежит другой Academy организации' });
-    await prisma.lesson.deleteMany({ where: { courseId: id } });
-    const course = await prisma.course.update({
-      where: { id },
-      data: {
-        title: b.title != null ? String(b.title).trim() : undefined,
-        description: b.description ?? null,
-        author: b.instructor ?? null,
-        imageUrl: b.imageUrl ?? null,
-        price: b.price != null ? Number(b.price) : undefined,
-        category: b.category ?? null,
-        duration: b.durationHours ? `${Number(b.durationHours) || 0} ч` : null,
-        meta: {
-          subtitle: b.subtitle || null,
-          instructorTitle: b.instructorTitle || null,
-          difficulty: b.difficulty || 'beginner',
-          durationHours: b.durationHours || null,
-          lessonCount: b.lessonCount || null,
-          rating: b.rating || null,
-          tags: Array.isArray(b.tags) ? b.tags : [],
-          certificateEnabled: b.certificateEnabled !== false,
-          modules: Array.isArray(b.modules) ? b.modules : [],
+
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.course.findFirst({
+        where: { id, academyId: academyScope.academyId },
+        select: { id: true, meta: true },
+      });
+      if (!existing) return { kind: 'not-found' as const };
+
+      const [enrollmentCount, attemptCount, certificateCount] = await Promise.all([
+        tx.schoolEnrollment.count({ where: { courseId: id } }),
+        tx.schoolAssessmentAttempt.count({ where: { courseId: id } }),
+        tx.schoolCertificate.count({ where: { courseId: id } }),
+      ]);
+      const hasLearningHistory = enrollmentCount + attemptCount + certificateCount > 0;
+      const modulesProvided = Array.isArray(b.modules);
+      const desiredLessons = modulesProvided ? lessonsFromModules(b.modules) : null;
+
+      // Lesson IDs are referenced by learner progress and assessment attempts.
+      // Never replace them once a student has history on this course.
+      if (hasLearningHistory && desiredLessons) {
+        const currentLessons = await tx.lesson.findMany({
+          where: { courseId: id },
+          orderBy: { order: 'asc' },
+          select: { title: true, videoUrl: true, content: true, duration: true, order: true },
+        });
+        const lessonStructureUnchanged =
+          currentLessons.length === desiredLessons.length
+          && currentLessons.every((lesson, index) => {
+            const desired = desiredLessons[index];
+            return lesson.title === desired.title
+              && lesson.videoUrl === desired.videoUrl
+              && lesson.content === desired.content
+              && (lesson.duration ?? 0) === desired.duration
+              && lesson.order === desired.order;
+          });
+        if (!lessonStructureUnchanged) return { kind: 'history-conflict' as const };
+      }
+
+      if (modulesProvided && !hasLearningHistory) {
+        await tx.lesson.deleteMany({ where: { courseId: id } });
+        if (desiredLessons.length > 0) {
+          await tx.lesson.createMany({
+            data: desiredLessons.map((lesson) => ({ ...lesson, id: uid(), courseId: id })),
+          });
+        }
+      }
+
+      const currentMeta = existing.meta && typeof existing.meta === 'object' && !Array.isArray(existing.meta)
+        ? existing.meta as Record<string, unknown>
+        : {};
+      const nextMeta = {
+        ...currentMeta,
+        ...(b.subtitle !== undefined && { subtitle: b.subtitle || null }),
+        ...(b.instructorTitle !== undefined && { instructorTitle: b.instructorTitle || null }),
+        ...(b.difficulty !== undefined && { difficulty: b.difficulty || 'beginner' }),
+        ...(b.durationHours !== undefined && { durationHours: b.durationHours || null }),
+        ...(b.lessonCount !== undefined && { lessonCount: b.lessonCount || null }),
+        ...(b.rating !== undefined && { rating: b.rating || null }),
+        ...(Array.isArray(b.tags) && { tags: b.tags }),
+        ...(b.certificateEnabled !== undefined && { certificateEnabled: b.certificateEnabled !== false }),
+        ...(modulesProvided && { modules: b.modules }),
+      };
+
+      const course = await tx.course.update({
+        where: { id },
+        data: {
+          ...(b.title !== undefined && { title: String(b.title).trim() }),
+          ...(b.description !== undefined && { description: b.description || null }),
+          ...(b.instructor !== undefined && { author: b.instructor || null }),
+          ...(b.imageUrl !== undefined && { imageUrl: b.imageUrl || null }),
+          ...(b.price !== undefined && { price: Number(b.price) }),
+          ...(b.category !== undefined && { category: b.category || null }),
+          ...(b.durationHours !== undefined && { duration: b.durationHours ? `${Number(b.durationHours) || 0} ч` : null }),
+          meta: nextMeta as object,
         },
-        lessons: { create: lessonsFromModules(b.modules) },
-      },
-    });
-    res.json({ ok: true, data: course });
-  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to update course' }); }
+      });
+      return { kind: 'updated' as const, course };
+    }, { isolationLevel: 'Serializable' });
+
+    if (result.kind === 'not-found') return res.status(404).json({ ok: false, error: 'Курс не найден' });
+    if (result.kind === 'history-conflict') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Нельзя заменить уроки курса: у учащихся уже есть учебная история. Создайте новую редакцию курса, чтобы сохранить результаты и сертификаты.',
+        code: 'ACADEMY_LEARNING_HISTORY_PROTECTED',
+      });
+    }
+    return res.json({ ok: true, data: result.course });
+  } catch (error: any) {
+    if (error?.code === 'P2034') {
+      return res.status(409).json({ ok: false, error: 'Курс одновременно изменяется. Обновите страницу и повторите действие.' });
+    }
+    return res.status(500).json({ ok: false, error: 'Failed to update course' });
+  }
 });
 
 schoolRouter.delete('/courses/:id', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
@@ -486,12 +550,42 @@ schoolRouter.delete('/courses/:id', authenticate, requirePermission('academy.man
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
     const id = req.params.id as string;
-    const existing = await prisma.course.findUnique({ where: { id }, select: { academyId: true } });
-    if (!existing) return res.status(404).json({ ok: false, error: 'Курс не найден' });
-    if (existing.academyId !== academyScope.academyId) return res.status(403).json({ ok: false, error: 'Курс принадлежит другой Academy организации' });
-    await prisma.course.delete({ where: { id } });
-    res.json({ ok: true });
-  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to delete course' }); }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.course.findFirst({
+        where: { id, academyId: academyScope.academyId },
+        select: { id: true },
+      });
+      if (!existing) return { kind: 'not-found' as const };
+
+      const [enrollmentCount, attemptCount, certificateCount] = await Promise.all([
+        tx.schoolEnrollment.count({ where: { courseId: id } }),
+        tx.schoolAssessmentAttempt.count({ where: { courseId: id } }),
+        tx.schoolCertificate.count({ where: { courseId: id } }),
+      ]);
+      if (enrollmentCount + attemptCount + certificateCount > 0) {
+        return { kind: 'has-history' as const };
+      }
+
+      await tx.course.delete({ where: { id } });
+      return { kind: 'deleted' as const };
+    }, { isolationLevel: 'Serializable' });
+
+    if (result.kind === 'not-found') return res.status(404).json({ ok: false, error: 'Курс не найден' });
+    if (result.kind === 'has-history') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Удаление запрещено: курс содержит историю обучения. Закройте курс для новых учащихся, сохранив зачисления, результаты оценивания и сертификаты.',
+        code: 'ACADEMY_LEARNING_HISTORY_PROTECTED',
+      });
+    }
+    return res.json({ ok: true });
+  } catch (error: any) {
+    if (error?.code === 'P2034') {
+      return res.status(409).json({ ok: false, error: 'Курс одновременно изменяется. Обновите страницу и повторите действие.' });
+    }
+    return res.status(500).json({ ok: false, error: 'Failed to delete course' });
+  }
 });
 
 schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) => {
