@@ -492,6 +492,13 @@ test.describe('Academy / Course Workflow', () => {
     const republishedText = await republished.text();
     expect(republished.status(), republishedText).toBe(200);
     expect(JSON.parse(republishedText).data?.publicationStatus).toBe('published');
+
+    const republishedCatalog = await api.get(`${BASE_URL}/api/school/courses`, {
+      headers: auth(ownerToken),
+    });
+    const republishedCatalogBody = await republishedCatalog.json();
+    const republishedRows = republishedCatalogBody.data || republishedCatalogBody;
+    expect(republishedRows.some((course: any) => course.id === fixture.courseId)).toBe(true);
   });
 
 });
