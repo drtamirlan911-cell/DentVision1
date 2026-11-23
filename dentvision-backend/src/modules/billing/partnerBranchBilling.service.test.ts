@@ -25,7 +25,12 @@ function makeDb(options: {
     type: 'DIAGNOSTIC_CENTER',
     originalType: 'DiagnosticCenter',
     originalId: 'center-1',
-    settings: { ecosystemVisible: true, legal: { platformSignedAt: '2026-11-01T00:00:00.000Z' } },
+    settings: {
+      lifecycle: 'ACTIVE_VERIFIED',
+      verification: 'APPROVED',
+      ecosystemVisible: true,
+      legal: { ownerSigned: true, platformSigned: true, platformSignedAt: '2026-11-01T00:00:00.000Z' },
+    },
   };
   const active = options.active ?? true;
   const tx: any = {
@@ -134,6 +139,31 @@ describe('partner branch invoice issuance', () => {
     await expect(issuePartnerBranchInvoiceForTest({
       organizationId: organization.id, periodStart, periodEnd,
     }, tx)).rejects.toMatchObject({ code: 'BILLING_HISTORY_UNAVAILABLE' });
+    expect(created.subscription).toBeUndefined();
+    expect(created.invoice).toBeUndefined();
+  });
+
+  it('fails closed when a partner has a platform timestamp but has not completed both legal signatures', async () => {
+    const organization = {
+      id: 'org-center-unverified',
+      type: 'DIAGNOSTIC_CENTER',
+      originalType: 'DiagnosticCenter',
+      originalId: 'center-unverified',
+      settings: {
+        lifecycle: 'SIGNATURE_PENDING',
+        verification: 'OWNER_SIGNED',
+        ecosystemVisible: false,
+        legal: {
+          ownerSigned: true,
+          platformSigned: false,
+          platformSignedAt: '2026-11-01T00:00:00.000Z',
+        },
+      },
+    };
+    const { tx, created } = makeDb({ organization });
+    await expect(issuePartnerBranchInvoiceForTest({
+      organizationId: organization.id, periodStart, periodEnd,
+    }, tx)).rejects.toMatchObject({ code: 'PARTNER_NOT_ACTIVE' });
     expect(created.subscription).toBeUndefined();
     expect(created.invoice).toBeUndefined();
   });

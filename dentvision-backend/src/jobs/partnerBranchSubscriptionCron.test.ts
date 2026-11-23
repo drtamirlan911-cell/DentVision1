@@ -2,9 +2,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { findMany, findFinanceMembers, issueInvoice, notifyMany } = vi.hoisted(() => ({
+const { findMany, findFinanceMembers, findExistingNotifications, issueInvoice, notifyMany } = vi.hoisted(() => ({
   findMany: vi.fn(),
   findFinanceMembers: vi.fn(),
+  findExistingNotifications: vi.fn(),
   issueInvoice: vi.fn(),
   notifyMany: vi.fn(),
 }));
@@ -13,6 +14,7 @@ vi.mock('../lib/prisma.js', () => ({
   default: {
     organization: { findMany },
     personRole: { findMany: findFinanceMembers },
+    notification: { findMany: findExistingNotifications },
   },
 }));
 vi.mock('../modules/billing/partnerBranchBilling.service.js', () => ({
@@ -50,6 +52,7 @@ beforeEach(() => {
     { person: { userId: null } },
   ]);
   notifyMany.mockResolvedValue(undefined);
+  findExistingNotifications.mockResolvedValue([]);
 });
 
 describe('partner branch subscription monthly invoice cron', () => {
@@ -79,8 +82,15 @@ describe('partner branch subscription monthly invoice cron', () => {
       }),
     }));
     expect(notifyMany).toHaveBeenCalledTimes(3);
+    expect(findExistingNotifications).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        type: 'partner.branch_subscription.invoice_issued',
+        title: 'Счёт PB-20261101-ABCDEF12 за филиальную подписку готов',
+      }),
+    }));
     expect(notifyMany).toHaveBeenCalledWith(['finance-user-1', 'finance-user-2'], expect.objectContaining({
       type: 'partner.branch_subscription.invoice_issued',
+      title: 'Счёт PB-20261101-ABCDEF12 за филиальную подписку готов',
       link: '/diagnostics/center?tab=finance',
     }));
     const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/jobs/partnerBranchSubscriptionCron.ts'), 'utf8');
@@ -100,6 +110,9 @@ describe('partner branch subscription monthly invoice cron', () => {
         invoice: { id: 'new-invoice', invoiceNumber: 'PB-20261101-NEW', vertical: 'DENTAL_LAB', amountMinor: 2_990_000n },
       });
 
+    findExistingNotifications
+      .mockResolvedValueOnce([{ userId: 'finance-user-1' }, { userId: 'finance-user-2' }])
+      .mockResolvedValueOnce([]);
     const result = await runPartnerBranchSubscriptionCron(new Date('2026-11-23T09:15:00.000Z'));
 
     expect(result).toMatchObject({ scanned: 3, issued: 1, alreadyIssued: 1, skipped: 1, errors: 0 });
@@ -112,6 +125,7 @@ describe('partner branch subscription monthly invoice cron', () => {
   it('pages through the partner registry instead of silently truncating at one batch', async () => {
     const fullBatch = Array.from({ length: 500 }, (_, index) => ({ id: `org-${String(index).padStart(4, '0')}` }));
     findMany.mockResolvedValueOnce(fullBatch).mockResolvedValueOnce([{ id: 'org-last' }]);
+    findFinanceMembers.mockResolvedValue([]);
     issueInvoice.mockResolvedValue({ idempotent: true, invoice: {} });
 
     const result = await runPartnerBranchSubscriptionCron(new Date('2026-11-23T09:15:00.000Z'));
@@ -119,6 +133,28 @@ describe('partner branch subscription monthly invoice cron', () => {
     expect(result.scanned).toBe(501);
     expect(findMany).toHaveBeenCalledTimes(2);
     expect(findMany.mock.calls[1][0]).toMatchObject({ cursor: { id: 'org-0499' }, skip: 1 });
+  });
+
+  it('retries a missing finance notification for an already-issued invoice without duplicating existing recipients', async () => {
+    issueInvoice.mockResolvedValue({
+      idempotent: true,
+      invoice: {
+        id: 'invoice-existing',
+        invoiceNumber: 'PB-20261101-RETRY001',
+        vertical: 'MEDICAL_ANALYSIS',
+        amountMinor: 1_990_000n,
+      },
+    });
+    findExistingNotifications.mockResolvedValue([{ userId: 'finance-user-1' }]);
+
+    const result = await runPartnerBranchSubscriptionCron(new Date('2026-11-23T09:15:00.000Z'));
+
+    expect(result).toMatchObject({ scanned: 3, issued: 0, alreadyIssued: 3, skipped: 0, errors: 0 });
+    expect(notifyMany).toHaveBeenCalledWith(['finance-user-2'], expect.objectContaining({
+      title: 'Счёт PB-20261101-RETRY001 за филиальную подписку готов',
+      link: '/diagnostics/lab?workspace=medical-lab&tab=finance',
+    }));
+    expect(notifyMany).toHaveBeenCalledTimes(3);
   });
 
   it('registers the hourly job only behind the configured background-job gate', () => {

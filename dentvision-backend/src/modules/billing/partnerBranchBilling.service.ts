@@ -160,30 +160,17 @@ async function issueInTransaction(
       409,
     );
   }
-  if (organizationSettings.ecosystemVisible !== true) {
+  const legallyVerified = organizationSettings.ecosystemVisible === true
+    && organizationSettings.lifecycle === 'ACTIVE_VERIFIED'
+    && organizationSettings.verification === 'APPROVED'
+    && legalSettings.ownerSigned === true
+    && legalSettings.platformSigned === true;
+  if (!legallyVerified) {
     throw new PartnerBranchBillingError(
       'PARTNER_NOT_ACTIVE',
-      'Партнёр ещё не прошёл активацию и публикацию в экосистеме DentVision',
+      'Партнёр не завершил юридическую проверку и активацию DentVision',
       409,
     );
-  }
-  if (vertical === 'DENTAL_LAB') {
-    const legal = legalSettings;
-    // This is the canonical state written by organizations.routes.ts when the
-    // platform signs and approves a partner's legal package.
-    const verifiedDentalLab = organizationSettings.laboratoryType === 'DENTAL_LAB'
-      && organizationSettings.selfServiceType === 'dental_lab'
-      && organizationSettings.lifecycle === 'ACTIVE_VERIFIED'
-      && organizationSettings.verification === 'APPROVED'
-      && legal.ownerSigned === true
-      && legal.platformSigned === true;
-    if (!verifiedDentalLab) {
-      throw new PartnerBranchBillingError(
-        'PARTNER_NOT_ACTIVE',
-        'Зуботехническая лаборатория не завершила проверку и юридическую активацию',
-        409,
-      );
-    }
   }
 
   const existingSubscription = await tx.subscription.findUnique({

@@ -167,6 +167,12 @@ describe('partner branch invoice presentation', () => {
     expect(medicalLabWorkspace).toContain('organizationId={billingOrganizationId}');
     expect(medicalLabWorkspace).toContain('canManageBilling={canManageFinance}');
   });
+  it('labels partner branch subscription revenue separately in Finance Hub', () => {
+    const financeTab = readFileSync(resolve(process.cwd(), 'src/pages/superadmin/FinanceTab.tsx'), 'utf8');
+    expect(financeTab).toContain("PARTNER_BRANCH_SUBSCRIPTION: 'Подписки филиалов партнёров'");
+    expect(financeTab).toContain('Подписки клиник, филиалов партнёров');
+  });
+
 
 
 });

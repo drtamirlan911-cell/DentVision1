@@ -74,12 +74,8 @@ export async function runPartnerBranchSubscriptionCron(now = new Date()): Promis
           periodEnd,
         }, undefined, now);
 
-        if (issued.idempotent) {
-          result.alreadyIssued += 1;
-          continue;
-        }
-
-        result.issued += 1;
+        if (issued.idempotent) result.alreadyIssued += 1;
+        else result.issued += 1;
         // Invoice amounts are financial data: notify only organization members
         // who hold an explicit finance/billing read or manage permission.
         const financeMembers = await prisma.personRole.findMany({
@@ -106,12 +102,32 @@ export async function runPartnerBranchSubscriptionCron(now = new Date()): Promis
           financeMembers.map((member) => member.person.userId).filter((userId): userId is string => Boolean(userId)),
         )];
         if (financeUserIds.length > 0) {
-          await createNotificationForMany(financeUserIds, {
-            type: NOTIFICATION_TYPES.PARTNER_BRANCH_INVOICE_ISSUED,
-            title: 'Счёт за филиальную подписку готов',
-            message: `Счёт ${issued.invoice.invoiceNumber} за текущий месяц сформирован на сумму ${formatMinor(BigInt(issued.invoice.amountMinor))}. Откройте раздел «Финансы», чтобы проверить состав филиалов и оплатить счёт через Kaspi QR.`,
-            link: financeLink(issued.invoice.vertical),
+          const notificationTitle = `Счёт ${issued.invoice.invoiceNumber} за филиальную подписку готов`;
+          const notificationMessage = `Счёт ${issued.invoice.invoiceNumber} за текущий месяц сформирован на сумму ${formatMinor(BigInt(issued.invoice.amountMinor))}. Откройте раздел «Финансы», чтобы проверить состав филиалов и оплатить счёт через Kaspi QR.`;
+          const notificationLink = financeLink(issued.invoice.vertical);
+          // The invoice is the durable source of truth. If notification delivery
+          // failed after issuance, a later hourly tick must retry without
+          // duplicating a notification already persisted for that invoice/user.
+          const existingNotifications = await prisma.notification.findMany({
+            where: {
+              userId: { in: financeUserIds },
+              type: NOTIFICATION_TYPES.PARTNER_BRANCH_INVOICE_ISSUED,
+              title: notificationTitle,
+              message: notificationMessage,
+              link: notificationLink,
+            },
+            select: { userId: true },
           });
+          const alreadyNotified = new Set(existingNotifications.map((row) => row.userId));
+          const pendingRecipients = financeUserIds.filter((userId) => !alreadyNotified.has(userId));
+          if (pendingRecipients.length > 0) {
+            await createNotificationForMany(pendingRecipients, {
+              type: NOTIFICATION_TYPES.PARTNER_BRANCH_INVOICE_ISSUED,
+              title: notificationTitle,
+              message: notificationMessage,
+              link: notificationLink,
+            });
+          }
         }
       } catch (error) {
         const code = error && typeof error === 'object' && 'code' in error

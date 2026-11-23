@@ -114,6 +114,7 @@ const REVENUE_SOURCE_LABELS: Record<string, string> = {
   MARKETPLACE: 'Маркетплейс',
   ACADEMY: 'Академия',
   AI: 'ИИ',
+  PARTNER_BRANCH_SUBSCRIPTION: 'Подписки филиалов партнёров',
 };
 
 const PAYOUT_STATUS_OPTIONS = [
@@ -452,7 +453,7 @@ export default function FinanceTab() {
               <EmptyState
                 icon={<DollarSign size={40} />}
                 title="Продаж за период не было"
-                description="Строка появляется на каждую продажу маркетплейса, академии и активацию подписки клиники"
+                description="Отдельно учитываются подписки клиник, филиалов партнёров, маркетплейс, академии и другие источники дохода"
               />
             ) : (
               <div className="space-y-2">
