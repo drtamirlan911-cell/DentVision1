@@ -454,4 +454,44 @@ test.describe('Academy / Course Workflow', () => {
     expect(lesson).not.toBeNull();
   });
 
+  test('ACADEMY-012: archived course leaves discovery and sales but keeps active learner access', async () => {
+    const fixture = await createAcademyHistoryFixture('Archived learner access lifecycle');
+
+    const archived = await api.patch(`${BASE_URL}/api/school/courses/${fixture.courseId}/publication`, {
+      headers: auth(fixture.academyToken),
+      data: { publicationStatus: 'archived' },
+    });
+    const archivedText = await archived.text();
+    expect(archived.status(), archivedText).toBe(200);
+    expect(JSON.parse(archivedText).data?.publicationStatus).toBe('archived');
+
+    const [catalog, learnerDetail, newSale] = await Promise.all([
+      api.get(`${BASE_URL}/api/school/courses`, { headers: auth(ownerToken) }),
+      api.get(`${BASE_URL}/api/school/courses/${fixture.courseId}`, { headers: auth(ownerToken) }),
+      api.post(`${BASE_URL}/api/school/commerce/register`, {
+        headers: auth(ownerToken),
+        data: { productId: fixture.courseId, format: 'course' },
+      }),
+    ]);
+    const catalogBody = await catalog.json();
+    const catalogRows = catalogBody.data || catalogBody;
+    expect(Array.isArray(catalogRows)).toBe(true);
+    expect(catalogRows.some((course: any) => course.id === fixture.courseId)).toBe(false);
+
+    expect(learnerDetail.status()).toBe(200);
+    const detailBody = await learnerDetail.json();
+    const detail = detailBody.data || detailBody;
+    expect(detail.lessons).toHaveLength(1);
+    expect(detail.lessons[0].title).toBe('Урок с сохранённой историей');
+    expect(newSale.status()).toBe(409);
+
+    const republished = await api.patch(`${BASE_URL}/api/school/courses/${fixture.courseId}/publication`, {
+      headers: auth(fixture.academyToken),
+      data: { publicationStatus: 'published' },
+    });
+    const republishedText = await republished.text();
+    expect(republished.status(), republishedText).toBe(200);
+    expect(JSON.parse(republishedText).data?.publicationStatus).toBe('published');
+  });
+
 });
