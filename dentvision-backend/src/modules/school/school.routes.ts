@@ -799,6 +799,46 @@ schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) =>
   }
 });
 
+schoolRouter.get('/enrollments/managed', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
+  try {
+    const academyScope = await activeAcademyScope(req);
+    if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
+
+    const enrollments = await prisma.schoolEnrollment.findMany({
+      where: { course: { academyId: academyScope.academyId } },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        course: { select: { id: true, title: true, publicationStatus: true } },
+      },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      take: 500,
+    });
+
+    return res.json({
+      ok: true,
+      data: enrollments.map((enrollment) => ({
+        id: enrollment.id,
+        userId: enrollment.userId,
+        learner: {
+          id: enrollment.user.id,
+          name: [enrollment.user.firstName, enrollment.user.lastName].filter(Boolean).join(' ').trim() || 'Учащийся',
+          email: enrollment.user.email,
+        },
+        course: enrollment.course,
+        progress: enrollment.progress,
+        completed: enrollment.completed,
+        accessStatus: enrollment.accessStatus,
+        acquisitionType: enrollment.acquisitionType,
+        enrolledAt: enrollment.createdAt,
+        updatedAt: enrollment.updatedAt,
+        accessExpiresAt: enrollment.accessExpiresAt,
+      })),
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить учащихся Academy' });
+  }
+});
+
 schoolRouter.get('/enrollments', authenticate, async (req: AuthRequest, res) => {
   try {
     const enrollments = await prisma.schoolEnrollment.findMany({
