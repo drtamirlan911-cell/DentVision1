@@ -6,6 +6,14 @@ const source = readFileSync(
   resolve(process.cwd(), 'dentvision-backend/src/modules/branches/branchStatusHistory.ts'),
   'utf8',
 );
+const startup = readFileSync(
+  resolve(process.cwd(), 'dentvision-backend/src/index.ts'),
+  'utf8',
+);
+const migration = readFileSync(
+  resolve(process.cwd(), 'dentvision-backend/prisma/migrations/20261123110000_branch_status_history/migration.sql'),
+  'utf8',
+);
 
 describe('partner branch status history billing boundary', () => {
   it('selects the last branch status effective at the requested period start', () => {
@@ -27,4 +35,15 @@ describe('partner branch status history billing boundary', () => {
     expect(source).toContain('recordOrganizationBranchStatusEvent');
     expect(source).toContain('clock_timestamp()');
   });
+  it('provisions branch history before the API listener and keeps the deployment SQL idempotent', () => {
+    expect(startup).toContain("runOnceMigration('branch_status_history'");
+    expect(startup).toContain('CREATE TABLE IF NOT EXISTS "branch_status_history_baselines"');
+    expect(startup).toContain('CREATE TABLE IF NOT EXISTS "branch_status_events"');
+    expect(startup).toContain('branch_status_events_baseline_unique_idx');
+    expect(migration).toContain('branch_status_events_baseline_unique_idx');
+    expect(migration).toContain('ON CONFLICT DO NOTHING');
+    expect(startup.indexOf("runOnceMigration('branch_status_history'"))
+      .toBeLessThan(startup.indexOf("app.listen(env.PORT"));
+  });
+
 });

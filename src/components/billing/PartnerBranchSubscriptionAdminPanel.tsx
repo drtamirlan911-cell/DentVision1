@@ -105,7 +105,7 @@ export function PartnerBranchSubscriptionAdminPanel() {
     },
   });
 
-  const organizations = organizationsQuery.data || [];
+  const organizations = useMemo(() => organizationsQuery.data || [], [organizationsQuery.data]);
   const selectedOrganization = organizations.find((org) => org.id === organizationId);
   const invoices = invoicesQuery.data || [];
   const organizationNames = useMemo(() => new Map(organizations.map((org) => [org.id, org.name])), [organizations]);

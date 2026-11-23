@@ -35,6 +35,9 @@ DO $$ BEGIN
     ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+CREATE UNIQUE INDEX IF NOT EXISTS "branch_status_events_baseline_unique_idx"
+  ON "branch_status_events"("branch_id") WHERE "source" = 'baseline';
+
 CREATE INDEX IF NOT EXISTS "branch_status_events_branch_effective_idx"
   ON "branch_status_events"("branch_id", "effective_at" DESC, "id" DESC);
 CREATE INDEX IF NOT EXISTS "branch_status_events_organization_effective_idx"
@@ -51,4 +54,5 @@ INSERT INTO "branch_status_events"
 SELECT b."id", b."organization_id", b."active", h."initialized_at", 'baseline', NULL
 FROM "branches" b
 JOIN "branch_status_history_baselines" h ON h."organization_id" = b."organization_id"
-WHERE b."organization_id" IS NOT NULL;
+WHERE b."organization_id" IS NOT NULL
+ON CONFLICT DO NOTHING;
