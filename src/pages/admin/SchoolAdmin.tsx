@@ -78,8 +78,8 @@ function CoursesManager({ activeWorkspace }: { activeWorkspace?: { scopeType?: s
     } finally {
       setLoading(false)
     }
-  }, [hasAcademyContext, activeWorkspace?.scopeId])
-  useEffect(() => { load() }, [load])
+  }, [hasAcademyContext])
+  useEffect(() => { load() }, [load, activeWorkspace?.scopeId])
 
   function blankCourse() {
     return {
