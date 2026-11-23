@@ -25,7 +25,7 @@ function makeDb(options: {
     type: 'DIAGNOSTIC_CENTER',
     originalType: 'DiagnosticCenter',
     originalId: 'center-1',
-    settings: { ecosystemVisible: true },
+    settings: { ecosystemVisible: true, legal: { platformSignedAt: '2026-11-01T00:00:00.000Z' } },
   };
   const active = options.active ?? true;
   const tx: any = {
@@ -106,6 +106,38 @@ async function issuePartnerBranchInvoiceForTest(input: Parameters<typeof issuePa
 }
 
 describe('partner branch invoice issuance', () => {
+  it('fails closed when an active partner has no verified legal activation timestamp', async () => {
+    const organization = {
+      id: 'org-center-legacy',
+      type: 'DIAGNOSTIC_CENTER',
+      originalType: 'DiagnosticCenter',
+      originalId: 'center-legacy',
+      settings: { ecosystemVisible: true },
+    };
+    const { tx, created } = makeDb({ organization });
+    await expect(issuePartnerBranchInvoiceForTest({
+      organizationId: organization.id, periodStart, periodEnd,
+    }, tx)).rejects.toMatchObject({ code: 'BILLING_HISTORY_UNAVAILABLE' });
+    expect(created.subscription).toBeUndefined();
+    expect(created.invoice).toBeUndefined();
+  });
+
+  it('does not charge a month that started before legal activation', async () => {
+    const organization = {
+      id: 'org-center-late',
+      type: 'DIAGNOSTIC_CENTER',
+      originalType: 'DiagnosticCenter',
+      originalId: 'center-late',
+      settings: { ecosystemVisible: true, legal: { platformSignedAt: '2026-12-02T10:00:00.000Z' } },
+    };
+    const { tx, created } = makeDb({ organization });
+    await expect(issuePartnerBranchInvoiceForTest({
+      organizationId: organization.id, periodStart, periodEnd,
+    }, tx)).rejects.toMatchObject({ code: 'BILLING_HISTORY_UNAVAILABLE' });
+    expect(created.subscription).toBeUndefined();
+    expect(created.invoice).toBeUndefined();
+  });
+
   it('creates an immutable invoice using active branch snapshots and KZT minor units', async () => {
     const { tx, created } = makeDb();
     const result = await issuePartnerBranchInvoiceForTest({
@@ -158,7 +190,7 @@ describe('partner branch invoice issuance', () => {
       type: 'LABORATORY',
       originalType: 'Laboratory',
       originalId: 'dental-lab-1',
-      settings: { laboratoryType: 'DENTAL_LAB', selfServiceType: 'dental_lab', lifecycle: 'ACTIVE', verification: 'VERIFIED', ecosystemVisible: true, legal: { status: 'READY' } },
+      settings: { laboratoryType: 'DENTAL_LAB', selfServiceType: 'dental_lab', lifecycle: 'ACTIVE', verification: 'VERIFIED', ecosystemVisible: true, legal: { status: 'READY', platformSignedAt: '2026-11-01T00:00:00.000Z' } },
     };
     const { tx, created } = makeDb({ organization, branches: [{ id: 'lab-branch' }] });
     await issuePartnerBranchInvoiceForTest({

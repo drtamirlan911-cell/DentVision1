@@ -9,7 +9,7 @@
 - Registered HTTP routes after mount: **696**
 - Routes without detected web/mobile consumer: **107**
 - Prisma models: **170**
-- Background jobs: **12**
+- Background jobs: **13**
 - Permission roles: **11**
 
 ## Canonical request context
@@ -101,6 +101,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 - aiApprovalSweeper.ts
 - aiEmployeeHeartbeat.ts
 - biSnapshotCron.ts
+- partnerBranchSubscriptionCron.ts
 - partnerEconomicsReconciliationCron.ts
 - patientConversationOnCall.ts
 - paymentReconciliation.ts

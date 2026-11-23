@@ -144,6 +144,22 @@ async function issueInTransaction(
   const vertical = resolvePartnerBranchBillingVertical(organization);
   const plan = planForVertical(vertical);
   const organizationSettings = settingsObject(organization.settings);
+  const legalSettings = settingsObject(organizationSettings.legal as Prisma.JsonValue | null);
+  const platformSignedAt = new Date(String(legalSettings.platformSignedAt || ''));
+  if (!legalSettings.platformSignedAt || Number.isNaN(platformSignedAt.getTime())) {
+    throw new PartnerBranchBillingError(
+      'BILLING_HISTORY_UNAVAILABLE',
+      'Не подтверждена дата юридической активации организации. Счёт не будет выставлен задним числом.',
+      409,
+    );
+  }
+  if (platformSignedAt.getTime() > input.periodStart.getTime()) {
+    throw new PartnerBranchBillingError(
+      'BILLING_HISTORY_UNAVAILABLE',
+      'Организация активирована после начала периода. Филиальная подписка начнёт начисляться со следующей месячной границы.',
+      409,
+    );
+  }
   if (organizationSettings.ecosystemVisible !== true) {
     throw new PartnerBranchBillingError(
       'PARTNER_NOT_ACTIVE',
@@ -152,7 +168,7 @@ async function issueInTransaction(
     );
   }
   if (vertical === 'DENTAL_LAB') {
-    const legal = settingsObject(organizationSettings.legal as Prisma.JsonValue | null);
+    const legal = legalSettings;
     const verifiedDentalLab = organizationSettings.laboratoryType === 'DENTAL_LAB'
       && organizationSettings.selfServiceType === 'dental_lab'
       && organizationSettings.lifecycle === 'ACTIVE'

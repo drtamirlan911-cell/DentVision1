@@ -11,6 +11,7 @@ import { QueryError } from '@/components/ui/ds/QueryError';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 import { useAuth } from '@/store/auth.store';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
+import { PartnerBranchSubscriptionBilling } from '@/components/billing/PartnerBranchSubscriptionBilling';
 import { createMedicalLabAliquot, createMedicalLabOrder, createMedicalLabSpecimen, getMedicalLabCapabilities, getMedicalLabFinance, getMedicalLabOrder, listMedicalLabOrders, performMedicalLabQualityControl, requestMedicalLabPayout, saveMedicalLabInterpretation, saveMedicalLabResults, scanMedicalLabSpecimen, updateMedicalLabStatus, verifyMedicalLabOrder, type MedicalLabOrder, type MedicalLabStatus } from '@/utils/medicalLabApi';
 
 const STAGES: Array<{ id: MedicalLabStatus; label: string }> = [
@@ -36,7 +37,7 @@ const statusLabel: Record<string, string> = { ordered: 'Направлено', s
 
 export default function MedicalLabWorkspace() {
   const context = useEcosystemUrlContext();
-  const { user } = useAuth();
+  const { user, activeWorkspace } = useAuth();
   const isLaboratoryWorkspace = String(user?.organizationType || '').toUpperCase() === 'LABORATORY';
   const queryClient = useQueryClient();
   const capabilitiesQuery = useQuery({
@@ -47,6 +48,7 @@ export default function MedicalLabWorkspace() {
   const medicalLabCapabilities = capabilitiesQuery.data?.capabilities ?? [];
   const canReadFinance = medicalLabCapabilities.includes('finance.read');
   const canManageFinance = medicalLabCapabilities.includes('finance.manage');
+  const billingOrganizationId = String(activeWorkspace?.organizationId || user?.organizationId || context.organizationId || '');
   const financeQuery = useQuery({
     queryKey: ['medical-lab-finance'],
     queryFn: getMedicalLabFinance,
@@ -390,6 +392,13 @@ export default function MedicalLabWorkspace() {
               </Card>
             </div>
           ) : null}
+          {billingOrganizationId && (
+            <PartnerBranchSubscriptionBilling
+              organizationId={billingOrganizationId}
+              canReadBilling={canReadFinance}
+              canManageBilling={canManageFinance}
+            />
+          )}
         </section>
       )}
     </div>

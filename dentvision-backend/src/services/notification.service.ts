@@ -26,6 +26,7 @@ export const NOTIFICATION_TYPES = {
   REFERRAL_CANCELLED: 'diagnostics.referral.cancelled',
   REFERRAL_RESULT: 'diagnostics.referral.result',
   REFERRAL_PAYMENT: 'diagnostics.referral.payment',
+  PARTNER_BRANCH_INVOICE_ISSUED: 'partner.branch_subscription.invoice_issued',
 
   // Shop
   ORDER_PLACED: 'shop.order.placed',

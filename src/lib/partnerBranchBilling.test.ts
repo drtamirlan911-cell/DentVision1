@@ -158,5 +158,15 @@ describe('partner branch invoice presentation', () => {
     expect(adminPanel).toContain("return 'LABORATORY'");
   });
 
+  it('renders partner branch subscription invoices in the dedicated medical laboratory finance workspace', () => {
+    const medicalLabWorkspace = readFileSync(
+      resolve(process.cwd(), 'src/pages/diagnostics/MedicalLabWorkspace.tsx'),
+      'utf8',
+    );
+    expect(medicalLabWorkspace).toContain('PartnerBranchSubscriptionBilling');
+    expect(medicalLabWorkspace).toContain('organizationId={billingOrganizationId}');
+    expect(medicalLabWorkspace).toContain('canManageBilling={canManageFinance}');
+  });
+
 
 });
