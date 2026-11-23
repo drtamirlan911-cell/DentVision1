@@ -395,6 +395,14 @@ test.describe('Academy / Course Workflow', () => {
     const draftDetail = await api.get(`${BASE_URL}/api/school/courses/${course.id}`);
     expect(draftDetail.status()).toBe(404);
 
+    const draftSale = await api.post(`${BASE_URL}/api/school/commerce/register`, {
+      headers: auth(ownerToken),
+      data: { productId: course.id, format: 'course' },
+    });
+    expect(draftSale.status()).toBe(409);
+    const draftSaleBody = await draftSale.json();
+    expect(draftSaleBody.code).toBe('ACADEMY_COURSE_NOT_PUBLISHED');
+
     const published = await api.patch(`${BASE_URL}/api/school/courses/${course.id}/publication`, {
       headers: auth(academyToken),
       data: { publicationStatus: 'published' },
