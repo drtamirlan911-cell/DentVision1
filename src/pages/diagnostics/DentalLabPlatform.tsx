@@ -92,11 +92,12 @@ function QualityControlForm({ busy, onSubmit }: { busy: boolean; onSubmit: (chec
 }
 
 function OrderCard({
-  order, onStatus, onQc, onRemakeDecision, onDispatch, onConfirmDelivery, onAssignTechnician,
+  order, workspaceCacheScope, onStatus, onQc, onRemakeDecision, onDispatch, onConfirmDelivery, onAssignTechnician,
   technicians, canManageQc, canManageShipping, canManageFinance, canAssignTechnician, canViewDetails,
   onIssueInvoice, invoiceBusy, qcBusy, remakeBusy, shipmentBusy, deliveryBusy, assignmentBusy,
 }: {
   order: LabPlatformOrder;
+  workspaceCacheScope: string;
   onStatus: (id: string, status: string) => void;
   onQc: (id: string, checks: Record<string, boolean>, note: string) => void;
   onRemakeDecision: (id: string, decision: 'accept' | 'reject', note: string) => void;
@@ -127,7 +128,7 @@ function OrderCard({
   const [deliveryNote, setDeliveryNote] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const lifecycleQuery = useQuery({
-    queryKey: ['lab-platform', 'lifecycle', order.id],
+    queryKey: ['lab-platform', workspaceCacheScope, 'lifecycle', order.id],
     queryFn: () => getLabPlatformOrderLifecycle(order.id),
     enabled: detailsOpen && canViewDetails,
   });
@@ -312,7 +313,8 @@ export default function DentalLabPlatform() {
   // The backend validates this ID against the signed active organization context;
   // the client value is used only to key the query and is never authorization proof.
   const billingOrganizationId = String(activeWorkspace?.organizationId || user?.organizationId || '');
-  const dashboard = useQuery({ queryKey: ['lab-platform', 'dashboard'], queryFn: getLabPlatformDashboard, refetchInterval: 30_000 });
+  const workspaceCacheScope = JSON.stringify([billingOrganizationId, String(activeWorkspace?.scopeId || ''), String(context.branchId || '')]);
+  const dashboard = useQuery({ queryKey: ['lab-platform', workspaceCacheScope, 'dashboard'], queryFn: getLabPlatformDashboard, refetchInterval: 30_000 });
   const memberRole = String(dashboard.data?.membershipRole || '').toLowerCase();
   const canManageQc = ['owner', 'admin', 'manager', 'director', 'lab_manager'].includes(memberRole);
   const canManageShipping = canManageQc || ['courier', 'logistics', 'delivery_operator', 'dispatcher'].includes(memberRole);
@@ -325,36 +327,36 @@ export default function DentalLabPlatform() {
       || (['team', 'services'].includes(tab) && !canManageQc)
       || (tab === 'shipping' && !canManageShipping)
       || (['board', 'priority'].includes(tab) && !canReadProduction) ? 'board' : tab;
-  const orders = useQuery({ queryKey: ['lab-platform', 'orders', filter], queryFn: () => getLabPlatformOrders(filter), enabled: canReadOrders, refetchInterval: 30_000 });
-  const team = useQuery({ queryKey: ['lab-platform', 'team'], queryFn: getLabPlatformTeam, enabled: canManageQc && (effectiveTab === 'team' || ['board', 'priority'].includes(effectiveTab)) });
-  const finance = useQuery({ queryKey: ['lab-platform', 'finance'], queryFn: getLabPlatformFinance, enabled: effectiveTab === 'finance' && canManageFinance, refetchInterval: 30_000 });
-  const statusMutation = useMutation({ mutationFn: ({ id, status }: { id: string; status: string }) => updateLabPlatformOrderStatus(id, status), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); } });
+  const orders = useQuery({ queryKey: ['lab-platform', workspaceCacheScope, 'orders', filter], queryFn: () => getLabPlatformOrders(filter), enabled: canReadOrders, refetchInterval: 30_000 });
+  const team = useQuery({ queryKey: ['lab-platform', workspaceCacheScope, 'team'], queryFn: getLabPlatformTeam, enabled: canManageQc && (effectiveTab === 'team' || ['board', 'priority'].includes(effectiveTab)) });
+  const finance = useQuery({ queryKey: ['lab-platform', workspaceCacheScope, 'finance'], queryFn: getLabPlatformFinance, enabled: effectiveTab === 'finance' && canManageFinance, refetchInterval: 30_000 });
+  const statusMutation = useMutation({ mutationFn: ({ id, status }: { id: string; status: string }) => updateLabPlatformOrderStatus(id, status), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform', workspaceCacheScope] }); } });
   const technicianMutation = useMutation({
     mutationFn: ({ id, technicianId }: { id: string; technicianId: string | null }) => assignLabTechnician(id, technicianId),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform', workspaceCacheScope] }); },
   });
-  const qcMutation = useMutation({ mutationFn: ({ id, checks, note }: { id: string; checks: Record<string, boolean>; note: string }) => updateLabPlatformQualityControl(id, checks, note), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); } });
-  const remakeMutation = useMutation({ mutationFn: ({ id, decision, note }: { id: string; decision: 'accept' | 'reject'; note: string }) => updateLabPlatformRemakeRequest(id, decision, note), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); } });
+  const qcMutation = useMutation({ mutationFn: ({ id, checks, note }: { id: string; checks: Record<string, boolean>; note: string }) => updateLabPlatformQualityControl(id, checks, note), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform', workspaceCacheScope] }); } });
+  const remakeMutation = useMutation({ mutationFn: ({ id, decision, note }: { id: string; decision: 'accept' | 'reject'; note: string }) => updateLabPlatformRemakeRequest(id, decision, note), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform', workspaceCacheScope] }); } });
   const shipmentMutation = useMutation({
     mutationFn: ({ id, body }: { id: string; body: { method: 'COURIER' | 'PICKUP'; carrier?: string; trackingNumber?: string; trackingUrl?: string } }) => createLabPlatformShipment(id, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform', workspaceCacheScope] }); },
   });
   const deliveryMutation = useMutation({
     mutationFn: ({ id, body }: { id: string; body: { proofUrl: string; recipientName: string; note?: string } }) => confirmLabPlatformDelivery(id, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform', workspaceCacheScope] }); },
   });
   const technicians = (team.data || []).filter((member) => ['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician'].includes(String(member.role || '').toLowerCase()));
   const [payoutAmount, setPayoutAmount] = useState('');
   const payoutAmountMinor = payoutAmountToMinor(payoutAmount);
   const invoiceMutation = useMutation({
     mutationFn: (id: string) => issueLabPlatformInvoice(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform', workspaceCacheScope] }); },
   });
   const payoutMutation = useMutation({
     mutationFn: () => requestLabPlatformPayout(payoutAmount.trim()),
     onSuccess: () => {
       setPayoutAmount('');
-      qc.invalidateQueries({ queryKey: ['lab-platform', 'finance'] });
+      qc.invalidateQueries({ queryKey: ['lab-platform', workspaceCacheScope, 'finance'] });
     },
   });
 
@@ -411,18 +413,18 @@ export default function DentalLabPlatform() {
           {(filter ? [{ id: filter, label: STAGES.find((s) => s.id === filter)?.label || filter }] : STAGES).map((stage) => (
             <section key={stage.id} className="min-w-0 space-y-3 rounded-2xl bg-surface-0/60 p-2">
               <div className="flex items-center justify-between px-1"><h3 className="text-xs font-semibold text-txt-secondary">{stage.label}</h3><Badge variant="outline">{grouped[stage.id]?.length || 0}</Badge></div>
-              {(grouped[stage.id] || []).slice(0, 20).map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} canManageFinance={canManageFinance} invoiceBusy={invoiceMutation.isPending} onIssueInvoice={(id) => invoiceMutation.mutate(id)} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}
+              {(grouped[stage.id] || []).slice(0, 20).map((order) => <OrderCard key={order.id} order={order} workspaceCacheScope={workspaceCacheScope} canManageQc={canManageQc} canManageShipping={canManageShipping} canManageFinance={canManageFinance} invoiceBusy={invoiceMutation.isPending} onIssueInvoice={(id) => invoiceMutation.mutate(id)} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}
               {!grouped[stage.id]?.length && <div className="rounded-xl border border-dashed border-bdr-subtle p-5 text-center text-xs text-txt-muted">Нет работ</div>}
             </section>
           ))}
         </div>
       </>}
-      {effectiveTab === 'priority' && <div className="grid gap-3 lg:grid-cols-2">{d.priority.map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} canManageFinance={canManageFinance} invoiceBusy={invoiceMutation.isPending} onIssueInvoice={(id) => invoiceMutation.mutate(id)} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}{!d.priority.length && <Card padding="lg"><p className="text-sm text-txt-muted">Критических работ сейчас нет.</p></Card>}</div>}
+      {effectiveTab === 'priority' && <div className="grid gap-3 lg:grid-cols-2">{d.priority.map((order) => <OrderCard key={order.id} order={order} workspaceCacheScope={workspaceCacheScope} canManageQc={canManageQc} canManageShipping={canManageShipping} canManageFinance={canManageFinance} invoiceBusy={invoiceMutation.isPending} onIssueInvoice={(id) => invoiceMutation.mutate(id)} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}{!d.priority.length && <Card padding="lg"><p className="text-sm text-txt-muted">Критических работ сейчас нет.</p></Card>}</div>}
       {effectiveTab === 'shipping' && <div className="grid gap-3 lg:grid-cols-2">
-        {(orders.data || []).filter((order) => order.status === 'ready' || order.status === 'delivered').map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} canManageShipping={canManageShipping} canManageFinance={canManageFinance} invoiceBusy={invoiceMutation.isPending} onIssueInvoice={(id) => invoiceMutation.mutate(id)} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}
+        {(orders.data || []).filter((order) => order.status === 'ready' || order.status === 'delivered').map((order) => <OrderCard key={order.id} order={order} workspaceCacheScope={workspaceCacheScope} canManageQc={canManageQc} canManageShipping={canManageShipping} canManageFinance={canManageFinance} invoiceBusy={invoiceMutation.isPending} onIssueInvoice={(id) => invoiceMutation.mutate(id)} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}
         {!(orders.data || []).some((order) => order.status === 'ready' || order.status === 'delivered') && <Card padding="lg"><p className="text-sm text-txt-muted">Нет заказов, ожидающих отправки, самовывоза или подтверждения вручения.</p></Card>}
       </div>}
-      {effectiveTab === 'services' && <DentalLabServicesTab canManage={canManageQc} />}
+      {effectiveTab === 'services' && <DentalLabServicesTab canManage={canManageQc} cacheScope={workspaceCacheScope} />}
       {effectiveTab === 'team' && <Card padding="md"><div className="divide-y divide-bdr-subtle">{(team.data || []).map((member) => <div key={member.id} className="flex items-center justify-between py-3"><div><p className="text-sm font-medium">{member.firstName} {member.lastName}</p><p className="text-xs text-txt-muted">{member.email}</p></div><Badge variant="outline">{member.role || 'Сотрудник'}</Badge></div>)}{!team.data?.length && <p className="py-6 text-center text-sm text-txt-muted">Команда пока не загружена.</p>}</div></Card>}
       {effectiveTab === 'finance' && (!canManageFinance
         ? <Card padding="lg"><p className="text-sm text-txt-muted">Финансовый раздел доступен владельцу, менеджеру или назначенному сотруднику финслужбы.</p></Card>
