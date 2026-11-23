@@ -342,6 +342,22 @@ test.describe('Academy / Course Workflow', () => {
     const organizationId = registrationBody.data?.organizationId;
     expect(organizationId).toBeTruthy();
 
+    const contextResponse = await api.get(`${BASE_URL}/api/iam/me/contexts`, {
+      headers: auth(ownerToken),
+    });
+    const contextText = await contextResponse.text();
+    expect(contextResponse.status(), contextText).toBe(200);
+    const contextBody = JSON.parse(contextText);
+    const availableContexts = contextBody.data?.contexts || contextBody.contexts || [];
+    expect(availableContexts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        scopeType: 'ACADEMY',
+        organizationId,
+        roleKey: 'academy_owner',
+        roleLabel: 'Владелец академии',
+      }),
+    ]));
+
     const switched = await api.post(`${BASE_URL}/api/iam/switch-context`, {
       headers: auth(ownerToken),
       data: { scopeType: 'ACADEMY', scopeId: organizationId },
