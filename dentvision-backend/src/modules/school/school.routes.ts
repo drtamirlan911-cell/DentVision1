@@ -31,8 +31,7 @@ const schoolRouter = Router();
 function traceAcademyCourseMutationHandler(method: 'PUT' | 'DELETE', req: AuthRequest, res: Response) {
   if (process.env.SEED_E2E_FIXTURES !== 'true') return;
   res.setHeader('X-DV-Academy-Mutation-Handler', method);
-  console.warn(
-    '[E2E_ACADEMY_MUTATION_HANDLER]'', {
+  console.warn('[E2E_ACADEMY_MUTATION_HANDLER]', {
     method, requestMethod: req.method, originalUrl: req.originalUrl, courseId: req.params.id,
   });
 
@@ -40,8 +39,7 @@ function traceAcademyCourseMutationHandler(method: 'PUT' | 'DELETE', req: AuthRe
   // to E2E fixtures and logs only synthetic course identifiers and error codes.
   const originalStatus = res.status.bind(res);
   res.status = ((statusCode: number) => {
-    console.warn(
-    '[E2E_ACADEMY_RESPONSE_STATUS]'', {
+    console.warn('[E2E_ACADEMY_RESPONSE_STATUS]', {
       routeMethod: method,
       requestMethod: req.method,
       originalUrl: req.originalUrl,
@@ -62,8 +60,7 @@ function traceAcademyCourseMutationHandler(method: 'PUT' | 'DELETE', req: AuthRe
     );
     const marker = `${method}:${req.method}:${res.statusCode}:${detail}`;
     if (!res.headersSent) res.setHeader('X-DV-Academy-Mutation-Json', marker);
-    console.warn(
-    '[E2E_ACADEMY_RESPONSE_JSON]'', {
+    console.warn('[E2E_ACADEMY_RESPONSE_JSON]', {
       routeMethod: method,
       requestMethod: req.method,
       originalUrl: req.originalUrl,
@@ -75,8 +72,7 @@ function traceAcademyCourseMutationHandler(method: 'PUT' | 'DELETE', req: AuthRe
   }) as typeof res.json;
 
   res.once('finish', () => {
-    console.warn(
-    '[E2E_ACADEMY_RESPONSE_FINISH]'', {
+    console.warn('[E2E_ACADEMY_RESPONSE_FINISH]', {
       routeMethod: method,
       requestMethod: req.method,
       originalUrl: req.originalUrl,
@@ -90,8 +86,7 @@ function academyCourseMutationTrace(method: 'PUT' | 'DELETE') {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (process.env.SEED_E2E_FIXTURES === 'true') {
       res.setHeader('X-DV-Academy-Mutation-Route', method);
-      console.warn(
-    '[E2E_ACADEMY_MUTATION_ROUTE]'', method, req.originalUrl, {
+      console.warn('[E2E_ACADEMY_MUTATION_ROUTE]', method, req.originalUrl, {
         organizationId: req.user?.organizationId || null,
         academyId: req.user?.organizationOriginalId || null,
       });
@@ -613,8 +608,7 @@ schoolRouter.put('/courses/:id', authenticate, academyCourseMutationTrace('PUT')
       });
       if (process.env.SEED_E2E_FIXTURES === 'true') {
         res.setHeader('X-DV-Academy-Mutation-Lookup', existing ? 'found' : 'not-found');
-        console.warn(
-    '[E2E_ACADEMY_MUTATION_LOOKUP]'', {
+        console.warn('[E2E_ACADEMY_MUTATION_LOOKUP]', {
           method: 'PUT',
           courseId: id,
           academyId: academyScope.academyId,
@@ -792,8 +786,7 @@ schoolRouter.delete('/courses/:id', authenticate, academyCourseMutationTrace('DE
       });
       if (process.env.SEED_E2E_FIXTURES === 'true') {
         res.setHeader('X-DV-Academy-Mutation-Lookup', existing ? 'found' : 'not-found');
-        console.warn(
-    '[E2E_ACADEMY_MUTATION_LOOKUP]'', {
+        console.warn('[E2E_ACADEMY_MUTATION_LOOKUP]', {
           method: 'DELETE',
           courseId: id,
           academyId: academyScope.academyId,
