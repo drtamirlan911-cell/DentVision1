@@ -41,6 +41,8 @@ export default function MedicalLabWorkspace() {
   const activeScopeType = String(activeWorkspace?.scopeType || user?.organizationType || '').toUpperCase();
   const isLaboratoryWorkspace = activeScopeType === 'LABORATORY';
   const queryClient = useQueryClient();
+  const billingOrganizationId = String(activeWorkspace?.organizationId || user?.organizationId || context.organizationId || '');
+  const workspaceCacheScope = JSON.stringify([billingOrganizationId, String(activeWorkspace?.scopeId || ''), String(context.branchId || '')]);
   const capabilitiesQuery = useQuery({
     queryKey: ['medical-lab-capabilities', workspaceCacheScope],
     queryFn: getMedicalLabCapabilities,
@@ -49,8 +51,6 @@ export default function MedicalLabWorkspace() {
   const medicalLabCapabilities = capabilitiesQuery.data?.capabilities ?? [];
   const canReadFinance = medicalLabCapabilities.includes('finance.read');
   const canManageFinance = medicalLabCapabilities.includes('finance.manage');
-  const billingOrganizationId = String(activeWorkspace?.organizationId || user?.organizationId || context.organizationId || '');
-  const workspaceCacheScope = JSON.stringify([billingOrganizationId, String(activeWorkspace?.scopeId || ''), String(context.branchId || '')]);
   const financeQuery = useQuery({
     queryKey: ['medical-lab-finance', workspaceCacheScope],
     queryFn: getMedicalLabFinance,
