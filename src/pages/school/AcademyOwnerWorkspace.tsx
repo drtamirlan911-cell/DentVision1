@@ -148,7 +148,7 @@ export default function AcademyOwnerWorkspace() {
   const organizationType = String((user as any)?.organizationType || '').toUpperCase();
 
   if (loading) {
-    return <div className="p-6"><ListSkeleton rows={4} /></div>;
+    return <div className="p-6"><ListSkeleton count={4} /></div>;
   }
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -463,7 +463,7 @@ function AcademyManagement() {
           )}
 
           {loading ? (
-            <ListSkeleton rows={5} />
+            <ListSkeleton count={5} />
           ) : tab === 'courses' ? (
             filteredCourses.length === 0 ? (
               <EmptyState
