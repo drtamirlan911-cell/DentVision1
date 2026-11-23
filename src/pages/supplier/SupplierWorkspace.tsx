@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import * as api from '@/utils/api'
 import { useAuth } from '@/store/auth.store'
-import { selectWorkspaceContext } from '@/lib/workspaceContext'
+import { beginWorkspaceRequest, isWorkspaceRequestCurrent, selectWorkspaceContext } from '@/lib/workspaceContext'
 import { useToast } from '@/components/ui/ds/Toast'
 import { Button } from '@/components/ui/ds/Button'
 import { Input } from '@/components/ui/ds/Input'
@@ -127,63 +127,123 @@ export default function SupplierWorkspace() {
   const [returnResponseNote, setReturnResponseNote] = useState('')
   const [returnResponseSaving, setReturnResponseSaving] = useState(false)
 
-  const loadAll = useCallback(async (t: string) => {
+  const requestGenerationRef = useRef(0)
+  const activeTokenRef = useRef('')
+
+  const clearWorkspaceData = useCallback(() => {
+    activeTokenRef.current = ''
+    setToken(null)
+    setMe(null)
+    setDash(null)
+    setCashbackRules([])
+    setDefaultCb('1')
+    setAddOpen(false)
+    setPromoOpen(false)
+    setForm({ name: '', price: '', stock: '', category: '', description: '', imageUrl: '' })
+    setPromoForm({ productId: '', title: '', discountPercent: '10', cashbackPercent: '10' })
+    setShipmentOrder(null)
+    setShipmentForm({ carrier: '', trackingNumber: '', trackingUrl: '' })
+    setDeliveryOrder(null)
+    setDeliveryForm({ proofUrl: '', recipientName: '', note: '' })
+    setReturnResponseDispute(null)
+    setReturnResponseNote('')
+    setQuickPrice({})
+    setQuickStock({})
+    setQuickAdding(null)
+    setSaving(false)
+    setPhotoUploading(false)
+    setShipmentSaving(false)
+    setDeliverySaving(false)
+    setReturnResponseSaving(false)
+    setCbSaving(false)
+    setContextSwitching(false)
+  }, [])
+
+  const isSupplierTokenCurrent = useCallback((candidate: string) => (
+    candidate.length > 0 && activeTokenRef.current === candidate
+  ), [])
+
+  const loadAll = useCallback(async (t: string, generation = requestGenerationRef.current) => {
     const [meRes, dashRes, rulesRes] = await Promise.all([
       api.supplierWs.me(t).catch(() => null),
       api.supplierWs.dashboard(t).catch(() => null),
       api.supplierWs.cashbackRules(t).catch(() => ({ rules: [] })),
     ])
+    if (!isWorkspaceRequestCurrent(requestGenerationRef, generation) || !isSupplierTokenCurrent(t)) return
     setMe(meRes)
     setDash(dashRes)
     const rules = Array.isArray(rulesRes?.rules) ? rulesRes.rules : []
     setCashbackRules(rules)
     const allRule = rules.find((r: any) => r.scope === 'ALL' && r.active)
-    if (allRule) setDefaultCb(String((allRule.rateBps / 100).toFixed(1)).replace(/\.0$/, ''))
-  }, [])
+    if (allRule) setDefaultCb(String((allRule.rateBps / 100).toFixed(1)).replace(/\\.0$/, ''))
+  }, [isSupplierTokenCurrent])
 
   const enterSupplier = useCallback(async (scopeId: string) => {
+    const generation = beginWorkspaceRequest(requestGenerationRef)
+    clearWorkspaceData()
+    setLoading(true)
     setContextSwitching(true)
-    setToken(null)
     try {
       const res = await api.switchContext('SUPPLIER', scopeId)
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return
+      activeTokenRef.current = res.accessToken
       setToken(res.accessToken)
-      await loadAll(res.accessToken)
+      await loadAll(res.accessToken, generation)
     } catch {
-      setToken(null)
-      toast.error('Не удалось войти в выбранную организацию поставщика')
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        clearWorkspaceData()
+        toast.error('Не удалось войти в выбранную организацию поставщика')
+      }
     } finally {
-      setContextSwitching(false)
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        setContextSwitching(false)
+        setLoading(false)
+      }
     }
-  }, [loadAll, toast])
+  }, [clearWorkspaceData, loadAll, toast])
 
   useEffect(() => {
+    const generation = beginWorkspaceRequest(requestGenerationRef)
     ;(async () => {
       try {
         const res = await api.getMyContexts()
+        if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return
         const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER') as SupplierCtx[]
         setContexts(sup)
         const preferred = selectWorkspaceContext(sup, {
           scopeId: activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.scopeId : null,
           organizationId: activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.organizationId : null,
         })
-        if (preferred) await enterSupplier(preferred.scopeId)
+        if (preferred) {
+          void enterSupplier(preferred.scopeId)
+          return
+        }
       } catch { /* ignore */ } finally {
-        setLoading(false)
+        if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) setLoading(false)
       }
     })()
+    return () => {
+      beginWorkspaceRequest(requestGenerationRef)
+      activeTokenRef.current = ''
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handleWorkspaceSwitch = (event: Event) => {
       const detail = (event as CustomEvent<{ id?: string; scopeId?: string; scopeType?: string }>).detail
-      if (detail?.scopeType !== 'SUPPLIER') return
+      if (detail?.scopeType !== 'SUPPLIER') {
+        beginWorkspaceRequest(requestGenerationRef)
+        clearWorkspaceData()
+        setLoading(false)
+        return
+      }
       const prefix = 'SUPPLIER:'
       const scopeId = detail.scopeId || (String(detail.id || '').startsWith(prefix) ? String(detail.id).slice(prefix.length) : '')
       if (scopeId) void enterSupplier(scopeId)
     }
     window.addEventListener('dentvision:workspace-switched', handleWorkspaceSwitch)
     return () => window.removeEventListener('dentvision:workspace-switched', handleWorkspaceSwitch)
-  }, [enterSupplier])
+  }, [clearWorkspaceData, enterSupplier])
 
   const reloadContexts = async () => {
     const res = await api.getMyContexts()
