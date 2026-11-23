@@ -124,6 +124,9 @@ jobs:
       - name: Apply organization-scoped legal partner context migration
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261123130000_legal_partner_contexts/migration.sql
         working-directory: dentvision-backend
+      - name: Allow multiple legal packages for multi-organization owners
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261123140000_legal_partner_multi_org/migration.sql
+        working-directory: dentvision-backend
       - name: Apply partner branch subscription invoice constraints
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261123090000_partner_branch_subscription_invoices/migration.sql
         working-directory: dentvision-backend
