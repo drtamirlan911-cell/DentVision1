@@ -8,6 +8,8 @@ const OWNER = { email: 'owner-a@test.com', password: 'Test1234!' };
 let ownerToken = '';
 let testCourseId = '';
 let testEnrollmentId = '';
+let protectedCourseId = '';
+let protectedEnrollmentId = '';
 
 async function loginOwner(api: APIRequestContext) {
   if (ownerToken) return ownerToken;
@@ -49,6 +51,12 @@ test.describe('Academy / Course Workflow', () => {
     }
     if (testCourseId) {
       await prisma.course.deleteMany({ where: { id: testCourseId } }).catch(() => {});
+    }
+    if (protectedEnrollmentId) {
+      await prisma.schoolEnrollment.deleteMany({ where: { id: protectedEnrollmentId } }).catch(() => {});
+    }
+    if (protectedCourseId) {
+      await prisma.course.deleteMany({ where: { id: protectedCourseId } }).catch(() => {});
     }
   });
 
@@ -239,6 +247,49 @@ test.describe('Academy / Course Workflow', () => {
       });
       expect([200, 401, 403]).toContain(unauthRes.status());
     }
+  });
+
+  test('ACADEMY-009: lecturer cannot delete a course with learner history', async () => {
+    const registration = await api.post(`${BASE_URL}/api/lecturer/register`, {
+      headers: auth(ownerToken),
+      data: {},
+    });
+    expect([200, 201]).toContain(registration.status());
+    const registrationBody = await registration.json();
+    const lecturerId = (registrationBody.data || registrationBody).id;
+    expect(lecturerId).toBeTruthy();
+
+    await prisma.lecturer.update({ where: { id: lecturerId }, data: { level: 'verified' } });
+    const switched = await api.post(`${BASE_URL}/api/iam/switch-context`, {
+      headers: auth(ownerToken),
+      data: { scopeType: 'LECTURER', scopeId: lecturerId },
+    });
+    expect(switched.status()).toBe(200);
+    const switchedBody = await switched.json();
+    const lecturerToken = switchedBody.data?.accessToken || switchedBody.accessToken;
+    expect(lecturerToken).toBeTruthy();
+
+    const created = await api.post(`${BASE_URL}/api/lecturer/courses`, {
+      headers: auth(lecturerToken),
+      data: { title: 'Protected learner history regression', format: 'course', price: 0 },
+    });
+    expect(created.status()).toBe(201);
+    const courseBody = await created.json();
+    protectedCourseId = (courseBody.data || courseBody).id;
+    expect(protectedCourseId).toBeTruthy();
+
+    const owner = await prisma.user.findUniqueOrThrow({ where: { email: OWNER.email }, select: { id: true } });
+    const enrollment = await prisma.schoolEnrollment.create({
+      data: { userId: owner.id, courseId: protectedCourseId, acquisitionType: 'free', accessStatus: 'active' },
+    });
+    protectedEnrollmentId = enrollment.id;
+
+    const deleted = await api.delete(`${BASE_URL}/api/lecturer/courses/${protectedCourseId}`, {
+      headers: auth(lecturerToken),
+    });
+    expect(deleted.status()).toBe(409);
+    expect(await prisma.course.findUnique({ where: { id: protectedCourseId }, select: { id: true } })).not.toBeNull();
+    expect(await prisma.schoolEnrollment.findUnique({ where: { id: protectedEnrollmentId }, select: { id: true } })).not.toBeNull();
   });
 
   test('ACADEMY-008: Double enrollment → 409 or idempotent', async () => {
