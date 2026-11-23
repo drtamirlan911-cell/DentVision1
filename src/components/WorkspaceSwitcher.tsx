@@ -10,7 +10,7 @@ import { getRoleDisplayLabel, useAuth, useAuthStore } from '@/store/auth.store'
 import { useToast } from '@/components/ui/ds/Toast'
 import { queryKeys } from '@/queries/keys'
 import { useWorkspaceStore } from '@/store/workspace.store'
-import { selectWorkspaceContext, workspaceContextFrom } from '@/lib/workspaceContext'
+import { resolveGlobalRoleLabel, selectWorkspaceContext, workspaceContextFrom } from '@/lib/workspaceContext'
 import * as api from '@/utils/api'
 
 type ScopeType = 'CLINIC' | 'DIAGNOSTIC_CENTER' | 'LABORATORY' | 'SUPPLIER' | 'LECTURER' | 'ACADEMY' | 'PARTNER' | 'EMPLOYER'
@@ -144,7 +144,19 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const isGenericRoleLabel = (label?: string | null) =>
     !label?.trim() || /^(?:участник(?: экосистемы)?|member|participant|user|пользователь)$/i.test(label.trim())
   const activeRoleLabel = useMemo(() => {
-    if (!current) return t('platform.workspace_choose', { defaultValue: 'Контекст не выбран' })
+    if (!current) {
+      // Global participants (student, patient, superadmin, support) may have no
+      // organization workspace. Keep their authenticated role visible without
+      // manufacturing or selecting an organization context.
+      if (workspaces.length === 0) {
+        return resolveGlobalRoleLabel(
+          [effectiveRole, (user as any)?.role, (user as any)?.platformRole],
+          getRoleDisplayLabel,
+          roleInfo?.label,
+        )
+      }
+      return t('platform.workspace_choose', { defaultValue: 'Контекст не выбран' })
+    }
     // Prefer the application's canonical role vocabulary over stale labels saved
     // in older workspace rows (for example, "Руководитель" vs "Владелец").
     const canonicalCandidates = [current?.roleKey, effectiveRole, (user as any)?.role, (user as any)?.platformRole, current?.role]
@@ -155,7 +167,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     }
     if (!isGenericRoleLabel(current?.roleLabel)) return current?.roleLabel || roleInfo?.label || 'Участник экосистемы'
     return roleInfo?.label || 'Участник экосистемы'
-  }, [current, effectiveRole, user, roleInfo?.label, t])
+  }, [current, workspaces.length, effectiveRole, user, roleInfo?.label, t])
 
   interface BranchOption { id: string; name: string; code?: string | null; active?: boolean }
   const { data: branches = [], isFetching: branchesLoading } = useQuery<BranchOption[]>({
