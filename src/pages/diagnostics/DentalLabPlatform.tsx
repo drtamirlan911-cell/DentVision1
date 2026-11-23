@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock3, FlaskConical, History, PackageCheck, RefreshCw, Truck, Users, Wallet, Wrench } from 'lucide-react';
@@ -347,6 +347,7 @@ export default function DentalLabPlatform() {
   });
   const technicians = (team.data || []).filter((member) => ['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician'].includes(String(member.role || '').toLowerCase()));
   const [payoutAmount, setPayoutAmount] = useState('');
+  useEffect(() => { setPayoutAmount(''); }, [workspaceCacheScope]);
   const payoutAmountMinor = payoutAmountToMinor(payoutAmount);
   const invoiceMutation = useMutation({
     mutationFn: (id: string) => issueLabPlatformInvoice(id),
