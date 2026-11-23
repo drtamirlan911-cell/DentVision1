@@ -478,7 +478,8 @@ test.describe('Academy / Course Workflow', () => {
     const updateText = await update.text();
     expect(update.headers()['x-dv-academy-mutation-route']).toBe('PUT');
     expect(update.headers()['x-dv-academy-mutation-handler']).toBe('PUT');
-    expect(update.request().method()).toBe('PUT');
+    expect(update.headers()['x-dv-academy-mutation-lookup']).toBe('found');
+    expect(update.headers()['x-dv-academy-mutation-outcome']).toBe('history-conflict');
     expect(update.url()).toBe(`${BASE_URL}/api/school/courses/${fixture.courseId}`);
     expect(update.status(), updateText).toBe(409);
 
@@ -510,7 +511,8 @@ test.describe('Academy / Course Workflow', () => {
     const deletionText = await deletion.text();
     expect(deletion.headers()['x-dv-academy-mutation-route']).toBe('DELETE');
     expect(deletion.headers()['x-dv-academy-mutation-handler']).toBe('DELETE');
-    expect(deletion.request().method()).toBe('DELETE');
+    expect(deletion.headers()['x-dv-academy-mutation-lookup']).toBe('found');
+    expect(deletion.headers()['x-dv-academy-mutation-outcome']).toBe('has-history');
     expect(deletion.url()).toBe(`${BASE_URL}/api/school/courses/${fixture.courseId}`);
     expect(deletion.status(), deletionText).toBe(409);
 

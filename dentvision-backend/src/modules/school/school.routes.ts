@@ -561,6 +561,7 @@ schoolRouter.put('/courses/:id', authenticate, academyCourseMutationTrace('PUT')
         select: { id: true, meta: true },
       });
       if (process.env.SEED_E2E_FIXTURES === 'true') {
+        res.setHeader('X-DV-Academy-Mutation-Lookup', existing ? 'found' : 'not-found');
         console.info('[E2E_ACADEMY_MUTATION_LOOKUP]', {
           method: 'PUT',
           courseId: id,
@@ -641,6 +642,9 @@ schoolRouter.put('/courses/:id', authenticate, academyCourseMutationTrace('PUT')
       return { kind: 'updated' as const, course };
     }, { isolationLevel: 'Serializable' });
 
+    if (process.env.SEED_E2E_FIXTURES === 'true') {
+      res.setHeader('X-DV-Academy-Mutation-Outcome', result.kind);
+    }
     if (result.kind === 'not-found') return res.status(404).json({ ok: false, error: 'Курс не найден' });
     if (result.kind === 'history-conflict') {
       return res.status(409).json({
@@ -735,6 +739,7 @@ schoolRouter.delete('/courses/:id', authenticate, academyCourseMutationTrace('DE
         select: { id: true },
       });
       if (process.env.SEED_E2E_FIXTURES === 'true') {
+        res.setHeader('X-DV-Academy-Mutation-Lookup', existing ? 'found' : 'not-found');
         console.info('[E2E_ACADEMY_MUTATION_LOOKUP]', {
           method: 'DELETE',
           courseId: id,
@@ -757,6 +762,9 @@ schoolRouter.delete('/courses/:id', authenticate, academyCourseMutationTrace('DE
       return { kind: 'deleted' as const };
     }, { isolationLevel: 'Serializable' });
 
+    if (process.env.SEED_E2E_FIXTURES === 'true') {
+      res.setHeader('X-DV-Academy-Mutation-Outcome', result.kind);
+    }
     if (result.kind === 'not-found') return res.status(404).json({ ok: false, error: 'Курс не найден' });
     if (result.kind === 'has-history') {
       return res.status(409).json({
