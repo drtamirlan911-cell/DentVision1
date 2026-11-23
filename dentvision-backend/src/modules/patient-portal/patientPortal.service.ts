@@ -5,6 +5,7 @@ import { getPublishedRelease, listPublishedReleases } from '../patient-presentat
 import { collectPlanTeeth, enrichStages, lineItemTotal, normalizePlanItems } from '../../lib/treatmentPlanShape.js';
 import { mergeClinicSettings } from '../clinics/clinicSettings.js';
 import { buildTimeSlots, isWorkingDay, filterAvailableSlots } from '../public/bookingSlots.js';
+import { resolveClinicBranchAccess } from '../../lib/clinicBranchAccess.js';
 
 export class PortalActionError extends Error { constructor(message: string, readonly code: 'NOT_FOUND' | 'BAD_STATUS') { super(message); } }
 
@@ -52,20 +53,226 @@ export async function cancelAppointment(patientId: string, appointmentId: string
   await (prisma as any).appointment.update({ where: { id: appointmentId }, data: { status: 'cancelled', notes: `${appt.notes || ''}\n[Отмена пациентом через портал]`.trim() } }); return { cancelled: true, date: appt.date, time: appt.time };
 }
 
+type BookableDoctor = { id: string; role: 'DOCTOR' | 'OWNER' };
+
+async function listBookableDoctorsForBranch(clinicId: string, branchId: string): Promise<BookableDoctor[]> {
+  const organization = await (prisma as any).organization.findFirst({
+    where: { originalType: 'Clinic', originalId: clinicId },
+    select: { id: true, archivedAt: true },
+  });
+  if (organization) {
+    if (organization.archivedAt) return [];
+    const persons = await (prisma as any).person.findMany({
+      where: {
+        organizationId: organization.id,
+        userId: { not: null },
+        branchMemberships: { some: { branchId, active: true } },
+        personRoles: {
+          some: {
+            scopeType: 'organization',
+            scopeId: organization.id,
+            role: { key: { in: ['doctor', 'owner', 'org_owner', 'director'] } },
+          },
+        },
+      },
+      select: {
+        userId: true,
+        personRoles: {
+          where: { scopeType: 'organization', scopeId: organization.id },
+          select: { role: { select: { key: true } } },
+        },
+      },
+    });
+    const result = new Map<string, BookableDoctor['role']>();
+    for (const person of persons) {
+      if (!person.userId) continue;
+      const keys = (person.personRoles || []).map((entry: any) => String(entry.role?.key || '').toLowerCase());
+      const role: BookableDoctor['role'] = keys.includes('doctor') ? 'DOCTOR' : 'OWNER';
+      result.set(String(person.userId), role);
+    }
+    return [...result.entries()].map(([id, role]) => ({ id, role }));
+  }
+
+  const members = await (prisma as any).clinicMember.findMany({
+    where: { clinicId, branchId, role: { in: ['DOCTOR', 'OWNER'] } },
+    select: { userId: true, role: true },
+  });
+  return members.map((member: any) => ({
+    id: String(member.userId),
+    role: member.role === 'OWNER' ? 'OWNER' as const : 'DOCTOR' as const,
+  }));
+}
+
 export interface AvailableSlotsResult { date: string; workingDay: boolean; slots: string[]; }
-export async function getAvailableSlots(clinicId: string, date: string, doctorId?: string | null): Promise<AvailableSlotsResult> {
-  const clinic = await (prisma as any).clinic.findUnique({ where: { id: clinicId }, select: { settings: true } }); if (!clinic) throw new PortalActionError('Клиника не найдена', 'NOT_FOUND'); const settings = mergeClinicSettings(clinic.settings); const day = new Date(`${date}T12:00:00.000Z`); if (!isWorkingDay(day, settings)) return { date, workingDay: false, slots: [] };
-  const dayStart = new Date(`${date}T00:00:00.000Z`); const dayEnd = new Date(`${date}T23:59:59.999Z`); const doctorCount = doctorId ? 1 : (await (prisma as any).clinicMember.count({ where: { clinicId, role: { in: ['DOCTOR', 'OWNER'] } } })) || 1;
-  const [appointments, bookings] = await Promise.all([(prisma as any).appointment.findMany({ where: { clinicId, date: { gte: dayStart, lte: dayEnd }, status: { notIn: ['cancelled', 'no_show'] }, ...(doctorId ? { doctorId } : {}) }, select: { time: true, doctorId: true } }), (prisma as any).booking.findMany({ where: { clinicId, date: dayStart, status: { in: ['pending', 'confirmed'] }, ...(doctorId ? { doctorId } : {}) }, select: { time: true, doctorId: true } })]); const occupied = [...appointments.filter((a: any) => a.time).map((a: any) => ({ time: a.time, doctorId: a.doctorId })), ...bookings.map((b: any) => ({ time: b.time, doctorId: b.doctorId }))]; return { date, workingDay: true, slots: filterAvailableSlots(buildTimeSlots(settings), occupied, doctorId ?? null, doctorCount) };
+export async function getAvailableSlots(
+  clinicId: string,
+  date: string,
+  doctorId?: string | null,
+  branchId?: string | null,
+): Promise<AvailableSlotsResult> {
+  const clinic = await (prisma as any).clinic.findUnique({ where: { id: clinicId }, select: { settings: true } });
+  if (!clinic) throw new PortalActionError('Клиника не найдена', 'NOT_FOUND');
+  const settings = mergeClinicSettings(clinic.settings);
+  const day = new Date(`${date}T12:00:00.000Z`);
+  if (!isWorkingDay(day, settings)) return { date, workingDay: false, slots: [] };
+
+  const branchFilter = branchId ? { branchId } : {};
+  const dayStart = new Date(`${date}T00:00:00.000Z`);
+  const dayEnd = new Date(`${date}T23:59:59.999Z`);
+
+  let doctorCount: number;
+  if (branchId) {
+    const bookableDoctors = await listBookableDoctorsForBranch(clinicId, branchId);
+    if (doctorId) {
+      const selectedDoctor = bookableDoctors.find((doctor) => doctor.id === doctorId);
+      if (!selectedDoctor) throw new PortalActionError('Врач не доступен в филиале пациента', 'NOT_FOUND');
+      const doctorAccess = await resolveClinicBranchAccess({
+        userId: doctorId,
+        clinicId,
+        role: selectedDoctor.role,
+        requestedBranchId: branchId,
+      });
+      if (!doctorAccess || doctorAccess.branchId !== branchId) {
+        throw new PortalActionError('Врач не доступен в филиале пациента', 'NOT_FOUND');
+      }
+      doctorCount = 1;
+    } else {
+      doctorCount = bookableDoctors.length;
+    }
+  } else {
+    doctorCount = doctorId
+      ? 1
+      : (await (prisma as any).clinicMember.count({
+        where: { clinicId, role: { in: ['DOCTOR', 'OWNER'] } },
+      })) || 1;
+  }
+
+  const [appointments, bookings] = await Promise.all([
+    (prisma as any).appointment.findMany({
+      where: {
+        clinicId,
+        ...branchFilter,
+        date: { gte: dayStart, lte: dayEnd },
+        status: { notIn: ['cancelled', 'no_show'] },
+        ...(doctorId ? { doctorId } : {}),
+      },
+      select: { time: true, doctorId: true },
+    }),
+    (prisma as any).booking.findMany({
+      where: {
+        clinicId,
+        ...branchFilter,
+        date: dayStart,
+        status: { in: ['pending', 'confirmed'] },
+        ...(doctorId ? { doctorId } : {}),
+      },
+      select: { time: true, doctorId: true },
+    }),
+  ]);
+  const occupied = [
+    ...appointments.filter((a: any) => a.time).map((a: any) => ({ time: a.time, doctorId: a.doctorId })),
+    ...bookings.map((b: any) => ({ time: b.time, doctorId: b.doctorId })),
+  ];
+  return {
+    date,
+    workingDay: true,
+    slots: doctorCount > 0
+      ? filterAvailableSlots(buildTimeSlots(settings), occupied, doctorId ?? null, doctorCount)
+      : [],
+  };
 }
 
 export interface RequestAppointmentInput { patientId: string; clinicId: string; date: string; time: string; doctorId?: string | null; serviceName?: string | null; notes?: string | null; releaseId?: string | null; }
 export async function requestAppointment(input: RequestAppointmentInput) {
-  const [patient, clinic] = await Promise.all([(prisma as any).patient.findUnique({ where: { id: input.patientId }, select: { firstName: true, lastName: true, phone: true, email: true, clinicId: true } }), (prisma as any).clinic.findUnique({ where: { id: input.clinicId }, select: { settings: true } })]);
-  if (!patient) throw new PortalActionError('Карта пациента не найдена', 'NOT_FOUND'); if (!clinic) throw new PortalActionError('Клиника не найдена', 'NOT_FOUND'); if (patient.clinicId && patient.clinicId !== input.clinicId) throw new PortalActionError('Пациент не относится к выбранной клинике', 'NOT_FOUND');
-  const settings = mergeClinicSettings(clinic.settings); if (settings.onlineBookingEnabled === false) throw new PortalActionError('Онлайн-запись в этой клинике сейчас недоступна', 'BAD_STATUS'); const day = new Date(`${input.date}T12:00:00.000Z`); if (!isWorkingDay(day, settings)) throw new PortalActionError('Клиника не работает в выбранный день', 'BAD_STATUS'); if (!buildTimeSlots(settings).includes(input.time)) throw new PortalActionError('Такого времени нет в расписании клиники', 'BAD_STATUS');
-  const dayStart = new Date(`${input.date}T00:00:00.000Z`); const dayEnd = new Date(`${input.date}T23:59:59.999Z`); const [conflictAppt, conflictBooking] = await Promise.all([(prisma as any).appointment.findFirst({ where: { clinicId: input.clinicId, date: { gte: dayStart, lte: dayEnd }, time: input.time, status: { notIn: ['cancelled', 'no_show'] }, ...(input.doctorId ? { doctorId: input.doctorId } : {}) } }), (prisma as any).booking.findFirst({ where: { clinicId: input.clinicId, date: dayStart, time: input.time, status: { in: ['pending', 'confirmed'] }, ...(input.doctorId ? { doctorId: input.doctorId } : {}) } })]); if (conflictAppt || conflictBooking) throw new PortalActionError('Это время уже занято. Выберите другое.', 'BAD_STATUS');
-  let doctorName: string | null = null; if (input.doctorId) { const member = await (prisma as any).clinicMember.findFirst({ where: { clinicId: input.clinicId, userId: input.doctorId }, include: { user: { select: { firstName: true, lastName: true } } } }); if (!member) throw new PortalActionError('Врач не найден', 'NOT_FOUND'); doctorName = [member.user.firstName, member.user.lastName].filter(Boolean).join(' ').trim(); }
+  const [patient, clinic] = await Promise.all([
+    (prisma as any).patient.findUnique({
+      where: { id: input.patientId },
+      select: { firstName: true, lastName: true, phone: true, email: true, clinicId: true, branchId: true },
+    }),
+    (prisma as any).clinic.findUnique({ where: { id: input.clinicId }, select: { settings: true } }),
+  ]);
+  if (!patient) throw new PortalActionError('Карта пациента не найдена', 'NOT_FOUND');
+  if (!clinic) throw new PortalActionError('Клиника не найдена', 'NOT_FOUND');
+  if (patient.clinicId && patient.clinicId !== input.clinicId) throw new PortalActionError('Пациент не относится к выбранной клинике', 'NOT_FOUND');
+  const patientBranchId = patient.branchId ? String(patient.branchId) : null;
+  if (!patientBranchId) throw new PortalActionError('Филиал карточки пациента ещё не определён. Обратитесь в клинику.', 'BAD_STATUS');
+
+  const activeBranch = await (prisma as any).branch.findFirst({
+    where: { id: patientBranchId, clinicId: input.clinicId, active: true },
+    select: { id: true },
+  });
+  if (!activeBranch) throw new PortalActionError('Филиал карточки пациента недоступен для записи.', 'BAD_STATUS');
+
+  const settings = mergeClinicSettings(clinic.settings);
+  if (settings.onlineBookingEnabled === false) throw new PortalActionError('Онлайн-запись в этой клинике сейчас недоступна', 'BAD_STATUS');
+  const day = new Date(`${input.date}T12:00:00.000Z`);
+  if (!isWorkingDay(day, settings)) throw new PortalActionError('Клиника не работает в выбранный день', 'BAD_STATUS');
+  if (!buildTimeSlots(settings).includes(input.time)) throw new PortalActionError('Такого времени нет в расписании клиники', 'BAD_STATUS');
+
+  const dayStart = new Date(`${input.date}T00:00:00.000Z`);
+  const dayEnd = new Date(`${input.date}T23:59:59.999Z`);
+  const [conflictAppt, conflictBooking] = await Promise.all([
+    (prisma as any).appointment.findFirst({
+      where: {
+        clinicId: input.clinicId,
+        branchId: patientBranchId,
+        date: { gte: dayStart, lte: dayEnd },
+        time: input.time,
+        status: { notIn: ['cancelled', 'no_show'] },
+        ...(input.doctorId ? { doctorId: input.doctorId } : {}),
+      },
+    }),
+    (prisma as any).booking.findFirst({
+      where: {
+        clinicId: input.clinicId,
+        branchId: patientBranchId,
+        date: dayStart,
+        time: input.time,
+        status: { in: ['pending', 'confirmed'] },
+        ...(input.doctorId ? { doctorId: input.doctorId } : {}),
+      },
+    }),
+  ]);
+  if (conflictAppt || conflictBooking) throw new PortalActionError('Это время уже занято. Выберите другое.', 'BAD_STATUS');
+
+  let doctorName: string | null = null;
+  if (input.doctorId) {
+    const doctorAccess = await resolveClinicBranchAccess({
+      userId: input.doctorId,
+      clinicId: input.clinicId,
+      role: 'DOCTOR',
+      requestedBranchId: patientBranchId,
+    });
+    if (!doctorAccess || doctorAccess.branchId !== patientBranchId) {
+      throw new PortalActionError('Врач не доступен в филиале пациента', 'NOT_FOUND');
+    }
+    const doctor = await (prisma as any).user.findUnique({
+      where: { id: input.doctorId },
+      select: { firstName: true, lastName: true },
+    });
+    if (!doctor) throw new PortalActionError('Врач не найден', 'NOT_FOUND');
+    doctorName = [doctor.firstName, doctor.lastName].filter(Boolean).join(' ').trim();
+  }
   let releaseId: string | null = null; if (input.releaseId) { const release = await getPublishedRelease(input.patientId, input.releaseId); releaseId = release?.id ?? null; }
-  const patientName = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim() || 'Пациент'; const row = await (prisma as any).booking.create({ data: { id: uid(), clinicId: input.clinicId, patientName, phone: patient.phone || '', email: patient.email || null, doctorId: input.doctorId || null, doctorName, serviceName: input.serviceName || null, date: dayStart, time: input.time, notes: input.notes || null, status: 'pending', releaseId, source: 'ai-assistant' } }); return { id: row.id, date: input.date, time: row.time, doctorName, status: row.status };
+  const patientName = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim() || 'Пациент';
+  const row = await (prisma as any).booking.create({
+    data: {
+      id: uid(),
+      clinicId: input.clinicId,
+      branchId: patientBranchId,
+      patientName,
+      phone: patient.phone || '',
+      email: patient.email || null,
+      doctorId: input.doctorId || null,
+      doctorName,
+      serviceName: input.serviceName || null,
+      date: dayStart,
+      time: input.time,
+      notes: input.notes || null,
+      status: 'pending',
+      releaseId,
+      source: 'ai-assistant',
+    },
+  });
+  return { id: row.id, date: input.date, time: row.time, doctorName, status: row.status };
 }

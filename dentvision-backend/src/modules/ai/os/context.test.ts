@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const { agentActivityFindMany, resolveOrganizationIdForClinic, organizationFindUnique, clinicFindUnique, supplierFindUnique, lecturerFindUnique, clinicMemberFindMany, supplierMemberFindMany, diagnosticCenterMemberFindMany, laboratoryMemberFindMany, personFindMany, personFindFirst, branchFindUnique } = vi.hoisted(() => ({
+const { agentActivityFindMany, resolveOrganizationIdForClinic, organizationFindUnique, clinicFindUnique, supplierFindUnique, lecturerFindUnique, clinicMemberFindMany, supplierMemberFindMany, diagnosticCenterMemberFindMany, laboratoryMemberFindMany, personFindMany, personFindFirst, branchFindUnique, resolveAiEmployeeTaskScope } = vi.hoisted(() => ({
   agentActivityFindMany: vi.fn(),
   resolveOrganizationIdForClinic: vi.fn(),
   organizationFindUnique: vi.fn(),
@@ -16,6 +16,7 @@ const { agentActivityFindMany, resolveOrganizationIdForClinic, organizationFindU
   personFindMany: vi.fn(),
   personFindFirst: vi.fn(),
   branchFindUnique: vi.fn(),
+  resolveAiEmployeeTaskScope: vi.fn(),
 }));
 
 vi.mock('../../../lib/prisma.js', () => ({
@@ -33,6 +34,7 @@ vi.mock('../../../lib/prisma.js', () => ({
     person: { findMany: personFindMany, findFirst: personFindFirst },
   },
 }));
+vi.mock('./aiEmployeeTaskScope.js', () => ({ resolveAiEmployeeTaskScope }));
 vi.mock('../../../lib/orgContext.js', () => ({
   resolveOrganizationIdForClinic,
   resolveClinicAccess: vi.fn().mockResolvedValue({ role: 'DOCTOR' }),
@@ -68,6 +70,7 @@ beforeEach(() => {
   personFindMany.mockResolvedValue([]);
   personFindFirst.mockResolvedValue(null);
   branchFindUnique.mockResolvedValue(null);
+  resolveAiEmployeeTaskScope.mockResolvedValue(null);
 });
 
 describe('buildAiContext', () => {
@@ -112,14 +115,7 @@ describe('buildAiContext', () => {
         role: { key: 'supplier' },
       }],
     });
-    branchFindUnique.mockResolvedValueOnce({
-      id: 'legacy-clinic-branch',
-      name: 'Legacy Clinic Branch',
-      code: 'OLD',
-      organizationId: 'org-old-clinic',
-      clinicId: 'clinic-1',
-    });
-
+    // A partner token's stale clinic branch is never queried: the server scope resolver denies it.
     const ctx = await buildAiContext(req({
       clinicId: 'clinic-1',
       organizationId: 'org-supplier',
@@ -136,6 +132,39 @@ describe('buildAiContext', () => {
     expect(ctx.branch).toBeNull();
     expect(resolveOrganizationIdForClinic).not.toHaveBeenCalled();
     expect(clinicFindUnique).not.toHaveBeenCalled();
+  });
+
+  it('exposes an active branch only after the server-side IAM scope resolver verifies it', async () => {
+    resolveAiEmployeeTaskScope.mockResolvedValueOnce({ branchId: 'branch-verified' });
+    branchFindUnique.mockResolvedValueOnce({
+      id: 'branch-verified',
+      name: 'Филиал А',
+      code: 'A',
+      organizationId: 'org-1',
+      clinicId: 'clinic-1',
+    });
+
+    const ctx = await buildAiContext(req({ branchId: 'branch-forged' }), {});
+
+    expect(branchFindUnique).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'branch-verified' },
+    }));
+    expect(ctx.branch).toEqual({
+      id: 'branch-verified',
+      name: 'Филиал А',
+      code: 'A',
+      organizationId: 'org-1',
+      clinicId: 'clinic-1',
+    });
+  });
+
+  it('does not expose a JWT branch claim when the current IAM resolver denies its scope', async () => {
+    resolveAiEmployeeTaskScope.mockResolvedValueOnce(null);
+
+    const ctx = await buildAiContext(req({ branchId: 'branch-victim' }), {});
+
+    expect(ctx.branch).toBeNull();
+    expect(branchFindUnique).not.toHaveBeenCalled();
   });
 
   it('accepts omitted UI hints for server-side callers', async () => {
@@ -223,6 +252,80 @@ describe('buildAiContext', () => {
     const ctx = await buildAiContext(req({ id: 'user-9', role: 'OWNER' }), {});
 
     expect(ctx.user).toEqual({ id: 'user-9', role: 'OWNER', name: 'Аида Ержанова' });
+  });
+});
+
+describe('AI context error logging', () => {
+  it('redacts personal and clinical details from workspace inventory failures', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      clinicMemberFindMany.mockRejectedValueOnce(
+        new Error('patient Иван Тестов phone +7 700 000 00 00 diagnosis pulpitis'),
+      );
+
+      await buildAiContext(req(), {});
+
+      expect(warning).toHaveBeenCalledWith(
+        '[AI context] workspace inventory resolution failed',
+        'Error',
+      );
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('Иван Тестов');
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('+7 700 000 00 00');
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('pulpitis');
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  it('redacts branch lookup exception details', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      resolveAiEmployeeTaskScope.mockResolvedValueOnce({ branchId: 'branch-1' });
+      branchFindUnique.mockRejectedValueOnce(
+        new Error('branch query included patient Иван Тестов and IIN 000000000000'),
+      );
+
+      await buildAiContext(req({ branchId: 'branch-1' }), {});
+
+      expect(warning).toHaveBeenCalledWith('[AI context] branch resolution failed', 'Error');
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('Иван Тестов');
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('000000000000');
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  it('redacts active workspace resolution exception details', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      organizationFindUnique.mockRejectedValueOnce(
+        new Error('organization lookup leaked patient Иван Тестов diagnosis pulpitis'),
+      );
+
+      await buildAiContext(req({
+        clinicId: null,
+        organizationId: 'org-1',
+        organizationType: 'SUPPLIER_COMPANY',
+      }), {});
+
+      expect(warning).toHaveBeenCalledWith('[AI context] active workspace resolution failed', 'Error');
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('Иван Тестов');
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('pulpitis');
+    } finally {
+      warning.mockRestore();
+    }
+  });
+});
+
+describe('AI proactive context error logging', () => {
+  it('logs only the safe classification for clinic-load signal failures', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/ai/core/digitalTwin.ts'),
+      'utf8',
+    );
+
+    expect(source).toContain("console.warn('[proactive] clinic load signals failed', safeErrorKind(error));");
+    expect(source).not.toContain("console.warn('[proactive] clinic load signals failed', e)");
   });
 });
 

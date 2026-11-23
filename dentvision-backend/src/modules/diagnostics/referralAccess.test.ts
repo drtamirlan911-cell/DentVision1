@@ -1,20 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { referralFindUnique, assertOrgAccess, assertClinicOrgAccess, queryRaw } = vi.hoisted(() => ({
+const { referralFindUnique, assertOrgAccess, assertClinicOrgAccess, queryRaw, resolveClinicBranchAccess } = vi.hoisted(() => ({
   referralFindUnique: vi.fn(),
   assertOrgAccess: vi.fn(),
   assertClinicOrgAccess: vi.fn(),
   queryRaw: vi.fn(),
+  resolveClinicBranchAccess: vi.fn(),
 }));
 
 vi.mock('../../lib/prisma.js', () => ({
   default: { referral: { findUnique: referralFindUnique }, $queryRaw: queryRaw },
 }));
 vi.mock('../../lib/orgContext.js', () => ({ assertOrgAccess, assertClinicOrgAccess }));
+vi.mock('../../lib/clinicBranchAccess.js', () => ({ resolveClinicBranchAccess }));
 
 import { authorizeReferralListScope, requireReferralAccess } from './diagnostics.routes.js';
 
-beforeEach(() => { vi.clearAllMocks(); queryRaw.mockResolvedValue([{ branch_id: 'branch-1' }]); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  queryRaw.mockResolvedValue([{ branch_id: 'branch-1' }]);
+  resolveClinicBranchAccess.mockResolvedValue({
+    roleScope: 'ASSIGNED',
+    branchId: 'branch-1',
+    allowedBranchIds: ['branch-1'],
+  });
+});
 
 function mockRes() {
   const res: any = {};

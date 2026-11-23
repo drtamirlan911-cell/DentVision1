@@ -19,11 +19,15 @@
  * nothing else has to change.
  */
 
+import { safeErrorKind } from '../../../lib/safeError.js';
+
 export interface ModelCandidate {
   /** Exact id sent as `model`. */
   id: string;
   /** Accepts image input — required for radiograph analysis. */
   vision: boolean;
+  /** Supports the Responses API reasoning parameter. Never infer from a name prefix. */
+  reasoning: boolean;
 }
 
 /**
@@ -32,19 +36,39 @@ export interface ModelCandidate {
  * enough to be safe to assume.
  */
 export const FULL_LADDER: readonly ModelCandidate[] = [
-  { id: 'gpt-5.4', vision: true },
-  { id: 'gpt-5', vision: true },
-  { id: 'gpt-4.1', vision: true },
-  { id: 'o3', vision: false },
-  { id: 'gpt-4o', vision: true },
+  // Sol is positioned as the everyday agent model. The API probe decides
+  // whether the exact account may call the current or previous version.
+  { id: 'gpt-6.2-sol', vision: false, reasoning: false },
+  { id: 'gpt-6.1-sol', vision: false, reasoning: true },
+  { id: 'gpt-6.2-astra', vision: false, reasoning: true },
+  { id: 'gpt-6-astra', vision: false, reasoning: true },
+  // Terra is the dedicated visual-reasoning choice for radiograph/image work.
+  { id: 'gpt-6.1-terra', vision: true, reasoning: true },
+  { id: 'gpt-5.6-sol', vision: false, reasoning: true },
+  { id: 'gpt-5.4', vision: true, reasoning: true },
+  { id: 'gpt-5', vision: true, reasoning: true },
+  { id: 'gpt-4.1', vision: true, reasoning: false },
+  { id: 'o3', vision: false, reasoning: true },
+  { id: 'gpt-4o', vision: true, reasoning: false },
+];
+
+/** Highest-reasoning tier, reserved for deep clinical/strategic work. */
+export const DEEP_LADDER: readonly ModelCandidate[] = [
+  { id: 'gpt-6.2-astra', vision: false, reasoning: true },
+  { id: 'gpt-6-astra', vision: false, reasoning: true },
+  { id: 'gpt-5.6-sol', vision: false, reasoning: true },
+  { id: 'gpt-5.4', vision: true, reasoning: true },
+  { id: 'o3', vision: false, reasoning: true },
 ];
 
 export const MINI_LADDER: readonly ModelCandidate[] = [
-  { id: 'gpt-5.4-mini', vision: true },
-  { id: 'gpt-5-mini', vision: true },
-  { id: 'gpt-4.1-mini', vision: true },
-  { id: 'o4-mini', vision: false },
-  { id: 'gpt-4o-mini', vision: true },
+  // Luna is the efficient high-volume tier; older IDs remain safe fallbacks.
+  { id: 'gpt-6-luna', vision: false, reasoning: false },
+  { id: 'gpt-5.4-mini', vision: true, reasoning: true },
+  { id: 'gpt-5-mini', vision: true, reasoning: true },
+  { id: 'gpt-4.1-mini', vision: true, reasoning: false },
+  { id: 'o4-mini', vision: false, reasoning: true },
+  { id: 'gpt-4o-mini', vision: true, reasoning: false },
 ];
 
 /**
@@ -57,8 +81,8 @@ export const MINI_LADDER: readonly ModelCandidate[] = [
  */
 export const EMBEDDING_LADDER: readonly string[] = [
   'text-embedding-3-large',
+  // The small v3 model is the conservative floor when discovery is degraded.
   'text-embedding-3-small',
-  'text-embedding-ada-002',
 ];
 
 /**
@@ -67,6 +91,7 @@ export const EMBEDDING_LADDER: readonly string[] = [
  * nothing newer.
  */
 export const TRANSCRIPTION_LADDER: readonly string[] = [
+  'gpt-transcribe',
   'gpt-4o-transcribe',
   'gpt-4o-mini-transcribe',
   'whisper-1',
@@ -77,11 +102,16 @@ export interface ResolvedModels {
   mini: string;
   /** Best available model that accepts images, or null when none does. */
   vision: string | null;
+  fullSupportsReasoning: boolean;
+  deep: string;
+  deepSupportsReasoning: boolean;
+  miniSupportsReasoning: boolean;
+  visionSupportsReasoning: boolean;
   /** Best available embedding model. */
   embedding: string;
   /** Best available speech-to-text model. */
   transcription: string;
-  /** `env` when an operator pinned the ids, `probe` when they were discovered. */
+  /** `env` when at least one chat tier was explicitly pinned; otherwise `probe`. */
   source: 'env' | 'probe';
   /** True when the probe failed and the ladder floor is standing in. */
   degraded: boolean;
@@ -132,7 +162,7 @@ async function probeAvailableModels(apiKey: string): Promise<Set<string>> {
 
 export interface ResolveOptions {
   apiKey?: string | null;
-  /** Operator pin. When both are set the probe is skipped entirely. */
+  /** Operator pin. Pins override chat tiers; discovery still resolves auxiliary models. */
   envFull?: string | null;
   envMini?: string | null;
   force?: boolean;
@@ -141,9 +171,11 @@ export interface ResolveOptions {
 /**
  * Resolve the model ids to use, cached for six hours.
  *
- * An explicit env pin always wins: an operator who names a model gets that
- * model, and no probe runs. Otherwise the ladder is intersected with what the
- * account has. A failed probe is reported loudly and falls back to the ladder
+ * An explicit env pin always wins for its chat tier. The provider probe still
+ * runs to discover independent vision, embedding and transcription models;
+ * pinning chat must not silently force those capabilities to obsolete floors.
+ * Otherwise the chat ladders are intersected with what the account has. A failed
+ * probe is reported safely and falls back to the ladder
  * floor — refusing to answer at all would take the whole assistant down over a
  * metadata call, but the failure must never pass unnoticed, which is what
  * `degraded` is for.
@@ -157,30 +189,28 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
     const envFull = opts.envFull?.trim() || '';
     const envMini = opts.envMini?.trim() || '';
 
-    if (envFull && envMini) {
-      const known = [...FULL_LADDER, ...MINI_LADDER];
-      const visionPin = [envFull, envMini].find((id) => known.find((c) => c.id === id)?.vision) ?? null;
-      return {
-        full: envFull,
-        mini: envMini,
-        vision: visionPin,
-        // Pinning the chat models says nothing about embeddings, so the floor
-        // stands in until a probe runs.
-        embedding: EMBEDDING_LADDER[EMBEDDING_LADDER.length - 1],
-        transcription: TRANSCRIPTION_LADDER[TRANSCRIPTION_LADDER.length - 1],
-        source: 'env',
-        degraded: false,
-        resolvedAt: Date.now(),
-      };
-    }
+    const known = [...FULL_LADDER, ...MINI_LADDER];
+    const pinnedVision = [envFull, envMini]
+      .map((id) => known.find((candidate) => candidate.id === id && candidate.vision))
+      .find((candidate) => candidate !== undefined);
+
+    const selectedFull = FULL_LADDER.find((candidate) => candidate.id === envFull) ?? floorOf(FULL_LADDER);
+    const selectedDeep = [...DEEP_LADDER, ...FULL_LADDER].find((candidate) => candidate.id === envFull) ?? selectedFull;
+    const selectedMini = MINI_LADDER.find((candidate) => candidate.id === envMini) ?? floorOf(MINI_LADDER);
+    const fallbackVision = pinnedVision ?? floorOf(FULL_LADDER);
 
     const fallback = (degraded: boolean): ResolvedModels => ({
-      full: envFull || floorOf(FULL_LADDER).id,
-      mini: envMini || floorOf(MINI_LADDER).id,
-      vision: floorOf(FULL_LADDER).vision ? floorOf(FULL_LADDER).id : null,
+      full: envFull || selectedFull.id,
+      deep: envFull || selectedDeep.id,
+      mini: envMini || selectedMini.id,
+      vision: fallbackVision.id,
+      fullSupportsReasoning: selectedFull.reasoning,
+      deepSupportsReasoning: selectedDeep.reasoning,
+      miniSupportsReasoning: selectedMini.reasoning,
+      visionSupportsReasoning: fallbackVision.reasoning,
       embedding: EMBEDDING_LADDER[EMBEDDING_LADDER.length - 1],
       transcription: TRANSCRIPTION_LADDER[TRANSCRIPTION_LADDER.length - 1],
-      source: 'probe',
+      source: envFull || envMini ? 'env' : 'probe',
       degraded,
       resolvedAt: Date.now(),
     });
@@ -190,6 +220,7 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
     try {
       const available = await probeAvailableModels(opts.apiKey);
       const full = envFull ? null : pickAvailable(FULL_LADDER, available);
+      const deep = envFull ? null : pickAvailable(DEEP_LADDER, available);
       const mini = envMini ? null : pickAvailable(MINI_LADDER, available);
 
       if (!envFull && !full && !envMini && !mini) {
@@ -203,28 +234,42 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
 
       const visionCandidate =
         [...FULL_LADDER, ...MINI_LADDER].find((c) => c.vision && available.has(c.id)) ?? null;
+      const selectedFull = envFull
+        ? [...FULL_LADDER, ...MINI_LADDER].find((candidate) => candidate.id === envFull)
+        : full;
+      const selectedDeep = envFull
+        ? [...DEEP_LADDER, ...FULL_LADDER].find((candidate) => candidate.id === envFull) ?? selectedFull
+        : deep ?? full;
+      const selectedMini = envMini
+        ? [...FULL_LADDER, ...MINI_LADDER].find((candidate) => candidate.id === envMini)
+        : mini;
 
       const resolved: ResolvedModels = {
         full: envFull || full?.id || floorOf(FULL_LADDER).id,
+        deep: envFull || deep?.id || full?.id || floorOf(FULL_LADDER).id,
         mini: envMini || mini?.id || floorOf(MINI_LADDER).id,
         vision: visionCandidate?.id ?? null,
+        fullSupportsReasoning: selectedFull?.reasoning ?? false,
+        deepSupportsReasoning: selectedDeep?.reasoning ?? selectedFull?.reasoning ?? false,
+        miniSupportsReasoning: selectedMini?.reasoning ?? false,
+        visionSupportsReasoning: visionCandidate?.reasoning ?? false,
         embedding:
           EMBEDDING_LADDER.find((id) => available.has(id)) ??
           EMBEDDING_LADDER[EMBEDDING_LADDER.length - 1],
         transcription:
           TRANSCRIPTION_LADDER.find((id) => available.has(id)) ??
           TRANSCRIPTION_LADDER[TRANSCRIPTION_LADDER.length - 1],
-        source: 'probe',
+        source: envFull || envMini ? 'env' : 'probe',
         degraded: false,
         resolvedAt: Date.now(),
       };
       console.warn(
-        `[modelCatalog] models resolved: full=${resolved.full} mini=${resolved.mini} ` +
-          `vision=${resolved.vision ?? 'none'}`,
+        `[modelCatalog] models resolved: standard=${resolved.full} deep=${resolved.deep} mini=${resolved.mini} ` +
+          `vision=${resolved.vision ?? 'none'} source=${resolved.source} degraded=${resolved.degraded}`,
       );
       return resolved;
     } catch (error) {
-      console.error('[modelCatalog] /v1/models probe failed:', error);
+      console.error('[modelCatalog] /v1/models probe failed (' + safeErrorKind(error) + ')');
       return fallback(true);
     }
   };

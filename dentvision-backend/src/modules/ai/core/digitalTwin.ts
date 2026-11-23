@@ -5,6 +5,7 @@
  */
 import prisma from '../../../lib/prisma.js';
 import { resolveClinicAccess } from '../../../lib/orgContext.js';
+import { safeErrorKind } from '../../../lib/safeError.js';
 
 type TwinRole =
   | 'OWNER'
@@ -750,8 +751,8 @@ export async function buildProactiveAlerts(opts: {
     const { buildClinicLoadSignals } = await import('./clinicLoadPlan.js');
     const signals = await buildClinicLoadSignals(clinicId);
     alerts.push(...signals.alerts);
-  } catch (e) {
-    console.warn('[proactive] clinic load signals failed', e);
+  } catch (error: unknown) {
+    console.warn('[proactive] clinic load signals failed', safeErrorKind(error));
   }
 
   // ─── Diagnostics referrals awaiting action ───

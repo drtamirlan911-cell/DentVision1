@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../lib/safeError.js';
 /**
  * The on-call timer: a thread nobody has claimed re-notifies, instead of
  * sitting quietly in a bell nobody re-opened.
@@ -81,7 +82,7 @@ export function startOnCallInterval(ms = 5 * 60 * 1000, thresholdMs = DEFAULT_TH
         console.log(`[OnCallTimer] scanned=${r.scanned} renotified=${r.renotified}`);
       }
     } catch (err) {
-      console.error('[OnCallTimer] tick failed', err);
+      console.error('[OnCallTimer] tick failed', safeErrorKind(err));
     }
 
     // AI escalations ride the same timer rather than starting a second one:
@@ -100,7 +101,7 @@ export function startOnCallInterval(ms = 5 * 60 * 1000, thresholdMs = DEFAULT_TH
         console.warn(`[OnCallTimer] escalations checked=${e.checked} renotified=${e.renotified}`);
       }
     } catch (err) {
-      console.error('[OnCallTimer] escalation sweep failed', err);
+      console.error('[OnCallTimer] escalation sweep failed', safeErrorKind(err));
     }
   };
   setTimeout(tick, 30_000);

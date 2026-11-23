@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../../lib/safeError.js';
 /**
  * Server-side speech-to-text for chairside dictation.
  *
@@ -102,8 +103,9 @@ export async function transcribeAudio(input: {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) {
-      const detail = await res.text().catch(() => '');
-      console.error('[transcription] provider rejected:', res.status, detail.slice(0, 200));
+      // Provider response bodies can contain transcript or request data.
+      // Keep only the HTTP status; never persist provider text in operational logs.
+      console.error('[transcription] provider rejected:', res.status);
       return { ok: false, reason: 'PROVIDER_ERROR', error: TRANSCRIPTION_MESSAGE.PROVIDER_ERROR };
     }
     const payload = (await res.json()) as { text?: string };
@@ -113,7 +115,7 @@ export async function transcribeAudio(input: {
     }
     return { ok: true, text, model };
   } catch (error) {
-    console.error('[transcription] request failed:', error);
+    console.error('[transcription] request failed:', safeErrorKind(error));
     return { ok: false, reason: 'PROVIDER_ERROR', error: TRANSCRIPTION_MESSAGE.PROVIDER_ERROR };
   }
 }

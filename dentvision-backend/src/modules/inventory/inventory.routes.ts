@@ -29,10 +29,13 @@ function nonNegativeNumber(v: unknown): number | undefined {
 async function getBranchContext(req: AuthRequest, clinicId: string) {
   const user = req.user;
   if (!user?.id) return null;
-  return resolveInventoryBranchContext(user.id, clinicId, String(user.role || ''));
+  return resolveInventoryBranchContext(user.id, clinicId, String(user.role || ''), {
+    organizationId: user.organizationId,
+    requestedBranchId: user.branchId,
+  });
 }
 
-function scopedWhere(context: Awaited<ReturnType<typeof resolveInventoryBranchContext>>) {
+function scopedWhere(context: NonNullable<Awaited<ReturnType<typeof resolveInventoryBranchContext>>>) {
   return context.organizationWide
     ? { clinicId: context.clinicId }
     : { clinicId: context.clinicId, branchId: { in: context.branchIds } };
@@ -41,9 +44,13 @@ function scopedWhere(context: Awaited<ReturnType<typeof resolveInventoryBranchCo
 async function resolveCreateBranch(req: AuthRequest, clinicId: string) {
   const context = await getBranchContext(req, clinicId);
   if (!context || !context.branchIds.length) return null;
+
   const requested = typeof req.body?.branchId === 'string' ? req.body.branchId : null;
-  const branchId = requested || context.branchId || context.branchIds[0];
-  if (!context.branchIds.includes(branchId)) return null;
+  const branchId = requested || context.branchId || (context.organizationWide ? context.branchIds[0] : null);
+  if (!branchId || !context.branchIds.includes(branchId)) return null;
+  // A selected organization role is no longer organization-wide for writes:
+  // the request cannot silently move/create stock in a different branch.
+  if (!context.organizationWide && context.branchId !== branchId) return null;
   if (!(await assertInventoryBranch(branchId, clinicId))) return null;
   return { context, branchId };
 }

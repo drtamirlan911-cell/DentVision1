@@ -1,3 +1,29 @@
+## 2026-11-20 — AI Employee subscriber PHI-free error logging (PR #351)
+
+- Continued on the existing PR #351 branch; no new branch/PR.
+- Source review found `aiEmployeeTaskSubscriber.ts` logging the raw exception object when durable task creation failed. Since event processing can involve clinical events, the exception could contain identifiers or clinical text.
+- Replaced raw exception logging with the shared `safeErrorKind(error)` classifier, which emits only `Error` / `NonError`. Added a regression case injecting a synthetic patient name, phone number and diagnosis into the thrown error and asserting the captured log contains none of them.
+- Source commit: `c5170cd183ebd52d06192224ed647a8a3ad2abf0`; test commit/current code-bearing head: `e79d6c2e2f92c516a7bb057146a815285ad83b47`.
+- Exact-head CI [44710458202](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44710458202) was pending; Quality Gate [44710458253](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44710458253) was in progress at dependency installation; Vercel Preview pending. No check is claimed as passed at this SHA.
+- Verified that the AI Employee task table and all three service operations remain clinicId-only; subscriber skips events without clinicId; approval task routes require a clinic claim. Ecosystem-wide Organization/Branch queue remains a separate architectural implementation, not part of this log-scrubbing fix.
+- Documentation is being reconciled to this finding on the same PR branch. Main remains unchanged; no DB or production operation was performed.
+
+---
+
+## 2026-11-20 — Jarvis product knowledge and patient-agent failure isolation (PR #351)
+
+- Continued on the existing PR #351 / `feat/user-jarvis-product-knowledge-20261120`; no additional branch or PR was created. Main remains `da1257fc650f536c76583bdff570906290b92bcd`.
+- Reconciled the candidate against Master Spec v5.0 §15, Product DNA, README canonical-document hierarchy, current system audit and release blockers.
+- Verified the candidate product-knowledge path: local-only bounded retrieval from `docs/AI_PRODUCT_KNOWLEDGE.md`; patient surface receives only the patient section; current capabilities are generated from server-filtered DB/IAM tools; read-only partner tools revalidate organization/membership scope.
+- Found a separate patient-agent data boundary: `patientAgent.ts` forwarded raw caught tool exception text into the model's function output. Replaced it with `toPatientSafeToolFailure()`, which returns a fixed non-diagnostic message and discards the exception. Added synthetic-data regression tests for patient name, phone, IIN-like value, diagnosis and SQL/provider details.
+- Code commits: helper `f068cddc44639eec10c334448db1bec5710bcfba`; tests `06dd9343600f851f014ddd889f8d81e5548938ef`; patient-agent integration `7fec65ee209c8d31dbfe988bc319919229b00aec`.
+- Corrected duplicate section numbering in the product guide; documentation commit `598535a9819b64a4a74c46e1390e7e44ca140d18`. The current docs reconciliation commit will update this log and the source-of-truth checkpoint documents together.
+- Verification on code-bearing SHA `7fec65e`: frontend lint passed; Quality Gate backend TypeScript and ESLint steps passed; CI full E2E/unit and Quality Gate release gate were still running at the last inspection. The later docs-only commit requires fresh exact-head CI, Quality Gate and Vercel evidence. Do not report earlier results as final.
+- AI Employee remains clinic-scoped and ecosystem coverage remains partial. RB-029 remains P0/open for historical PHI inventory, key lifecycle, retention, backup/restore and staging reconciliation; RB-035 and other release blockers remain open.
+- No direct main write/merge, production deployment, database operation, PHI backfill, key/secret/provider change or payment operation was performed.
+
+---
+
 ## 2026-11-15 — RB-029 staged AI Admin writes and retained queue backfill candidate
 
 - Continued on existing PR #347 / security/rb029-ai-admin-external-id-20261114; no new branch or PR.
@@ -2995,3 +3021,120 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Reconciled old branches: PR #328/#329 work was merged into PR #330 via #331/#332, then #330 was merged; PR #333 itself was not merged, but its provider-polish implementation and focused tests exist on main. Do not merge the stale PR #333 branch wholesale.
 - RB-029 audit found a raw exception logger in AI Admin `book_appointment.tool.ts`. Candidate removes raw error details and adds an E2E-independent unit regression proving patient name/phone are absent from logs. Branch `security/rb029-ai-admin-booking-log-redaction-20261118`; exact-head CI pending.
 - No staging/production DB, PHI, secret/key, payment provider, legal signature, backup/restore or production deployment was accessed or changed.
+
+
+## 2026-11-20 — PHI-safe AI context and proactive-signal logging (PR #351)
+
+- A follow-up source sweep found four additional raw-exception log paths outside the initial AI kernel/route/task-subscriber set: three in `modules/ai/os/context.ts` (workspace inventory, branch lookup and active-workspace resolution) and one in `modules/ai/core/digitalTwin.ts` (proactive clinic-load signal fallback).
+- All four now log only `safeErrorKind(error)` (`Error` / `NonError`); exception messages, stacks, SQL details and possible patient data are not serialized.
+- Added three context resolver regression tests using synthetic patient name, phone, IIN-like value and diagnosis text, plus a source-contract test for the digital-twin proactive fallback. The existing shared `safeErrorKind` tests remain the primitive-level boundary tests.
+- Context source/test commits: `f4f243aa83eec1c6ee383297233d9e768ba5bb72` and `d1d61cd8a01a27bccb42edb38750266a96af56ba`. Proactive digital-twin source/test commits: `d9fc3893e07072ca84ee94b900fbfe44fcbf5c9a` and `e46e7d6bfb415500561fae7760bf0ceac3e3607d`.
+- Code/test checkpoint: `e46e7d6bfb415500561fae7760bf0ceac3e3607d`. Exact-head CI [44713041911](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44713041911) was pending and Quality Gate [44713042000](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44713042000) was in progress when checked. These are not passing results; documentation commits require refreshed exact-head checks.
+- All changes remain on the existing Draft PR #351 branch. Main, production/staging databases, PHI, keys/secrets, payments and deployments were not modified.
+
+
+## 2026-11-20 — Jarvis agent-registry knowledge parity (PR #351)
+
+- Compared `docs/AI_PRODUCT_KNOWLEDGE.md` section 9 with the live `os/registry.ts` definitions. The prior guide named only eight broad persona categories and omitted multiple registered partner, clinical-specialty and workspace agents.
+- Expanded the guide to document every non-disabled registered agent by canonical name, grouped by clinic/clinical work, business operations, marketplace/learning, partner workspaces and platform administration. Descriptions are bounded to the tools each agent actually receives; read-only queues, draft-only workflows, patient-data boundaries and unfinished partner lifecycle steps are stated explicitly.
+- Added a registry-parity regression test to `productKnowledge.test.ts`: it loads `listAgents()` and fails when any non-disabled registered agent name is missing from guide section 9. The test is extensible and does not hard-code the current agent count.
+- Guide commit: `b7f8cc31191a49ad9d86c387765d194a555f65b4`; test alignment commit: `1565dc06478b937596ce610a535dc1d1141bfde5`. Current main remains `da1257fc650f536c76583bdff570906290b92bcd`; PR #351 remains the single Draft candidate.
+- The preceding exact-head CI/Quality Gate attempts were superseded by this source/test update. Fresh exact-head CI, Quality Gate, role/context E2E and Vercel Preview are required; no passing result is claimed from an older SHA.
+- No authorization rule was widened, no agent received additional tools, and no main merge or production/staging operation was performed.
+
+
+## 2026-11-20 — runtime loading test for Jarvis product knowledge (PR #351)
+
+- Added an integration-level retrieval test that calls `retrievePatientProductKnowledge()` and verifies the approved patient section is loaded from the actual `docs/AI_PRODUCT_KNOWLEDGE.md` file, not only from an in-memory test fixture.
+- The assertion checks that retrieval returns the patient portal section and the canonical source label. This exercises the current source/runtime path and fails closed in CI if the guide file is absent or unreadable in the test environment.
+- Test commit: `f81ef0b0b3c9ffa736dac851725718828519e53d`. Exact-head CI [44713904156](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44713904156) was pending and Quality Gate [44713904154](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44713904154) was in progress at the time of this checkpoint. These are not passing results; later documentation commits require refreshed exact-head checks.
+
+
+## 2026-11-20 — bundle Jarvis knowledge into backend container (PR #351)
+
+- Runtime-path audit found that `productKnowledge.ts` resolves the canonical guide under `/app/docs/AI_PRODUCT_KNOWLEDGE.md` in the compiled backend container, while the Docker runner previously copied only `dist`, `node_modules`, `prisma` and `package.json`. The guide would therefore be absent in that container and the optional loader would silently return no product knowledge.
+- Added `dentvision-backend/docs/AI_PRODUCT_KNOWLEDGE.md` as the backend build-context copy of the canonical root guide and added `COPY --from=builder /app/docs ./docs` to the runner image.
+- Added a regression test that compares the backend runtime asset byte-for-byte with the canonical `docs/AI_PRODUCT_KNOWLEDGE.md`. Existing runtime retrieval test calls `retrievePatientProductKnowledge()` against the shipped guide and verifies the patient section is found.
+- Source commits: backend guide asset `6febcc8b3844f749855abb2dcbcf627226be6b23`; Dockerfile `763670095ef689e9b7a1a4b7aba0926802006333`; parity/retrieval test head `0d87710415c6a8a98da55f52f433d799c159fbcb`.
+- The canonical guide and backend copy were fetched from the latest branch and verified byte-identical. This is source and regression-test evidence; do not claim a standalone Docker image build or production deployment unless an exact CI job explicitly performs it.
+- Exact-head CI [44714091779](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44714091779) and Quality Gate [44714091932](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44714091932) were in progress at inspection; Vercel Preview was pending. Fresh exact-head results are required after this documentation update.
+- All changes remain on Draft PR #351. Main, deployment configuration, secrets, databases, migrations, PHI, payment providers and production services were not modified.
+
+
+## 2026-11-20 — AI audit record exception-text regression (PR #351)
+
+- Audited the two /api/ai/query and /api/ai/query/stream failure paths that pass errorMessage into logAIInteraction(). The current auditLogger.ts deliberately does not persist that field; the durable response stores only status and a boolean errorPresent marker alongside token/latency metadata.
+- Added auditLogger.test.ts with a synthetic sentinel in errorMessage and an assertion that no exception text or field name is present in the Prisma create payload. It also asserts the error-presence marker is retained.
+- Separately confirmed EventStore.markFailed() encrypts durable event error text through encodeDurableEventError(); new event payloads/results/errors are encrypted at rest while legacy plaintext remains in compatibility read mode. This is source-level confirmation, not closure of the historical PHI/data-lifecycle blocker.
+- Test commit: 1969aaf1db488c8a0b5af1903aa90d60b8997aee. Exact-head checks are refreshed by this commit and subsequent doc sync; do not treat earlier SHA results as final.
+- No production data, key, database, deployment or main-branch change was performed.
+
+## 2026-11-20 — user-query retrieval coverage for Jarvis agents (PR #351)
+
+- Added a runtime retrieval regression for the natural-language query “Какие AI агенты есть в DentVision?”. The test loads the canonical product guide through retrieveProductKnowledge(), asserts the AI-agent section ranks first and verifies that the returned excerpt names a real registered agent.
+- This complements the registry-parity test (every non-disabled listAgents() name must be present) and the runtime asset equality test (backend Docker guide copy must be byte-identical to the canonical root guide).
+- Test commit: 0094c4f2f0e79935132fbdaf1e30644836c50dfe. Exact-head CI/Quality Gate have to be refreshed after the test and documentation commits; earlier run results are superseded.
+
+## 2026-11-20 — Docker runtime path contract regression (PR #351)
+
+- Added a source-contract test that reads dentvision-backend/Dockerfile and asserts the runner copies /app/docs into ./docs, which is the path resolved by the compiled product-knowledge loader.
+- This closes the verification gap between the byte-identical backend guide asset and the runtime Dockerfile instruction. It does not replace an actual Docker image build or deployment check.
+- Test commit: 453e2e282f22c8f790f12ba1eac51611168a40e7. Exact-head GitHub CI/Quality Gate must pass on the final PR SHA.
+
+## 2026-11-20 — AI Employee task/event failure privacy and scope audit (PR #351)
+
+- Source audit traced the durable task failure path through API → service → PostgreSQL. The task transition route accepts an optional error string; `transitionAiEmployeeTask()` previously persisted it verbatim in the task `error` column. The service now stores only the fixed marker `Task failed; details omitted` while preserving task status and audit transition. A regression test injects a synthetic sentinel and asserts the SQL bind values never contain it. Source/test commits: `dc68ec29795f5c1cfb7deef8c9cada0ab03e5a98` / `66605c21cf07b6cf2b6e842f905b75073a0384d2`.
+- A wider EventBus sweep found raw exception text in both subscriber failure logging and durable PostgreSQL polling failure logging. Both now log only `safeErrorKind()`; new tests assert synthetic subscriber/database exception sentinels never reach console output. Source/test commits: `61eaebc53044ec8726f9a2ca1d3647e1aad42109`, `99ef20224d089fc06140b0e313454ea53c4ca079`, `88fe9c3f63549fbb3653822c6d54972a113eabc4`, `7aeef2d89150fe1941972d2cdc963534bb345831`.
+- Cross-organization AI Employee remains intentionally unimplemented at this checkpoint. `CRMEvent` and `EventContext` require `clinicId`; `EventBus.publish()` materializes that value into every event; `ai_employee_tasks.clinic_id` is `NOT NULL`; service insert/list/transition/readback and `/api/ai/approvals/tasks` routes all rely on clinic scope. Current partner AI tools prove organization membership for read-only queue summaries but do not emit durable tasks or approval records.
+- Master Spec §15 and §17 require the active Organization/cabinet to be authoritative and prohibit silent cross-organization access; §19 requires organization switching, branch scope and negative isolation evidence. A safe extension must therefore change the event envelope, task scope, canonical IAM resolution, branch binding, approval lifecycle, UI and tests as one contract. It must not infer organization from a role name or make clinic_id nullable without a canonical scope key and tenant constraints.
+- This continuation deliberately fixes the plaintext task-error and EventBus logging paths, but does not widen the task ledger or invent a parallel queue. The existing clinic workflow remains the compatibility baseline. Exact-head CI/Quality Gate/E2E are required for all new changes; no production/staging data, migration, key, database or deployment was changed.
+
+## 2026-11-20 — AI Employee insert idempotency contract fix (PR #351)
+
+- Runtime/source audit found that createAiEmployeeTask() targeted ON CONFLICT (source_event_id, action, role), while the migration that creates ai_employee_tasks declared only a non-unique source_event_id index. Without a matching unique/exclusion index PostgreSQL cannot use that conflict target; the event subscriber's durable task insert would fail on that SQL path.
+- Added migration 20261120_add_ai_employee_task_idempotency_key: a new nullable idempotency_key column; existing rows receive unique legacy:<task-id> values; a partial unique index enforces non-null keys. No task rows are deleted or rewritten except for the new key.
+- New task keys are deterministic SHA-256 values over CLINIC, clinicId, sourceEventId, action and canonical role. The service now targets ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL. This makes retries for the same event/action/role idempotent while preventing collisions between clinics. Tasks without source-event/action remain non-idempotent by design rather than sharing a fake key.
+- Added regression tests for same-event retry stability, cross-clinic key separation, correct conflict target and non-destructive legacy migration backfill. Source commits: migration a3722aabfec811569903cf80579354b26e9a3cf4; service a4fae19b97767025baeec0abe8b7816ddefcc33f; tenant idempotency test 3e9c3cc46aff44915dfb328014c4091930909baa; migration preservation test c3febe9b24083f4ef10f56a19b005d859f075395.
+- This fixes the source schema/query mismatch for the existing clinic task flow. It does not add Organization/Branch task tenancy; the table, event envelope and approval routes remain clinic-scoped. Exact-head CI and migration validation are required before merge; no migration was executed against staging or production.
+
+## 2026-11-20 — Organization/Branch AI Employee scope design recorded (PR #351)
+
+- Added docs/AI_EMPLOYEE_ORGANIZATION_SCOPE.md as a source-audited design contract, not an implementation claim. It reconciles Master Spec §§15/17/19 against WorkspaceContext, Organization/Person/PersonRole, Branch/BranchMember, resolveAiToolAccess, CRMEvent/AIEvent, ai_employee_tasks, AiApproval, AgentActivity and ActionEvidence.
+- The design explicitly records two gaps beyond the clinic-only task table: AI tool access currently has no verified branch-scope result, and organizationId on AiApproval is not wired through buildApprovalFilter()/approve/reject routes. ActionEvidence also lacks organizationId/branchId.
+- The contract specifies one canonical Organization tenant, optional verified Branch, legacy clinic compatibility, a versioned event envelope, reuse of the current task/approval/event tables, branch-aware query contracts, idempotency, audit/evidence, cabinet/mobile acceptance tests and a staged non-destructive rollout.
+- It is a design checkpoint only. No organization task migration, branch resolver, producer, approval route or partner queue UI was added in this step. Next implementation must start with the server-side scope resolver and negative isolation tests before any non-clinic task producer is enabled.
+
+## 2026-11-20 — AI Employee result/action-payload minimization (PR #351)
+
+- A second task-row data path was reviewed: transitionAiEmployeeTask() accepted arbitrary JSON result values, while list/create/transition returned action_payload, result and error columns directly. Since manager roles can read a broader clinic queue, these fields could become a side-channel for patient/provider content.
+- New task creation now stores action_payload as NULL (tasks are work memory, not an executor) and allowlists metadata keys. Task results are limited to fixed status/outcome enums, a boolean verified flag and bounded aggregate counts; free text, identifiers, transcripts and arbitrary nested JSON are discarded before persistence.
+- Every create/list/transition/readback response passes through a common sanitizer. It omits legacy actionPayload, projects legacy result fields to the same safe allowlist and replaces any stored error string with a fixed marker. This protects API reads without destructively rewriting legacy rows; historical at-rest cleanup remains separate.
+- Added regression tests for action-payload and metadata sentinel omission, result SQL-bind projection, and legacy-row read sanitization. Source commit: a51341b4905719277a42ec77c405cbd5dbd70283; test commit: dbd7229a4d0d17152b8bc9253be196cf5e40b5c4.
+- Exact-head CI [44717762427](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44717762427) was pending and Quality Gate [44717762435](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44717762435) was in progress before this source/test update. Fresh exact-head checks are required. No migration was executed against staging/production.
+
+## 2026-11-20 — Dockerignore allowlist for Jarvis product guide (PR #351)
+
+- A further container audit found `dentvision-backend/.dockerignore` excluded `*.md`, which would remove the backend copy of `docs/AI_PRODUCT_KNOWLEDGE.md` from the Docker build context even though the Dockerfile runner copied `/app/docs`.
+- Added explicit negation rules `!docs/` and `!docs/AI_PRODUCT_KNOWLEDGE.md` after the Markdown exclusion. The `docker-compose.yml` backend build context is `./dentvision-backend`, so this is the relevant ignore file.
+- Added a regression test that checks the canonical guide path is re-included after the `*.md` rule. Commits: dockerignore `e63641d3a1ce6c498bf648f245c12b45fd36d56c`; test `4c2cba265b47fb2a2ad756360900fc748c97de69`.
+- This closes the source-level Docker build-context omission. It does not prove that a Docker image was built or deployed; exact-head CI remains required.
+
+## 2026-11-20 — partner AI Employee queue negative contract tests (PR #351)
+
+- Added route-level tests proving that a verified `EMPLOYER_OWNER` Organization context cannot use the existing clinic-only AI Employee task read or transition endpoints. Both requests must fail closed with 403 and must not query or mutate task rows.
+- This locks the current safety boundary while Organization/Branch task scope remains design-only; it prevents a future accidental widening based on global role or organization presence alone.
+- Test commit: 4ecd976b991c9bf5779be9176cedd9ea7c2647dc. GitHub had not surfaced fresh exact-head CI/Quality Gate records at the latest inspection; older SHA outcomes are not final evidence. No task schema or approval route was widened.
+
+## 2026-11-20 — Jarvis explanation of AI Employee scope (PR #351)
+
+- Added an explicit user-facing section to guide §9 explaining the existing clinic-only durable task queue, the partner read-only overview boundary, and the rule that a task status change does not execute a domain action. High-risk operations still require the Approval Center and governance kernel.
+- Added a natural-language retrieval regression asking whether suppliers/laboratories have a shared AI Employee queue; the test asserts the relevant AI-agent guide section is returned and that Jarvis states clinic-only scope.
+- Canonical root guide and backend runtime copy were updated together. Commits: guide f51b97927725805c59d001c8de9de5aefa462d66; backend copy a9c0b333998ed2565d9225637d11092f28d65e6e; retrieval test 054bee83e0f63306c0d36598532a9b8d0fac4afc. Exact-head CI/Quality Gate results are required after this change.
+
+## 2026-11-20 — advanced model routing and deep reasoning tier (PR #351)
+
+- Reworked the model catalogue/router into purpose-specific Luna (mini/high-volume), Sol (standard agent work), Astra (deep reasoning) and Terra (vision) routes. Candidate IDs are always intersected with the account's live /v1/models list; the provisional gpt-6.2-sol ID is not assumed to exist if the account does not expose it.
+- Added a dedicated DEEP_LADDER with account-verified fallback to the selected standard full model. Deep clinical/strategic prompts, sustained context, multi-question requests, weak-mini escalation and sufficiently deep tool loops can select Astra. This shares the existing full token budget.
+- Added OPENAI_DEEP_REASONING_EFFORT (default high, allowed medium/high). Standard full work still uses OPENAI_REASONING_EFFORT (default low). Vision-capable reasoning uses elevated effort. Capability metadata is explicit; non-reasoning models do not receive the Responses API reasoning parameter.
+- Any image request forces a discovered vision model before normal tier selection; no image is sent to a text-only model. The radiograph tool maps a missing vision model to a fixed, non-diagnostic user message that explicitly warns that no AI result does not imply a normal radiograph.
+- Added docs/AI_MODEL_ROUTING.md to document the model/capability contract, budget, privacy and governance boundaries. Exact-head CI and E2E remain pending.

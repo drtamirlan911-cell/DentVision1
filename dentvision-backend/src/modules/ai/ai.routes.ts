@@ -1,3 +1,5 @@
+import { safeErrorKind } from '../../lib/safeError.js';
+import { env } from '../../config.js';
 import { Router } from 'express';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
@@ -6,7 +8,8 @@ import { validate } from '../../middleware/validate.js';
 import { z } from 'zod';
 import { aiService } from './core/ai.service.js';
 import { improveResponseWithLLM } from './core/llm.service.js';
-import { orchestrate, orchestratorEnabled, isProviderUnavailableError } from './os/orchestrator.js';
+import { orchestrate, orchestratorEnabled, isProviderUnavailableError, canUseClinicWideAiShortcuts } from './os/orchestrator.js';
+import { resolveAiToolBranchScope, patientBranchWhere } from './os/aiToolBranchScope.js';
 import type { AIResponse } from './types/ai.types.js';
 import { prisma } from '../../lib/prisma.js';
 import type { Prisma } from '@prisma/client';
@@ -56,6 +59,36 @@ async function enforceGuestAiQuota(req: AuthRequest, res: import('express').Resp
   }
   res.setHeader('X-Guest-AI-Remaining', String(remaining));
   return true;
+}
+
+/**
+ * Direct Jarvis briefing/proactive routes must not bypass the branch-aware tool
+ * kernel. Digital Twin alert queries are still clinic-wide; allow them only for
+ * a DB-resolved OWNER/ADMIN with no active branch selection.
+ */
+async function canUseClinicWideAiData(req: AuthRequest): Promise<boolean> {
+  try {
+    if (!req.user || req.user.isGuest) return false;
+    const clinicId = activeAiClinicId(req.user);
+    if (!clinicId) return false;
+    const access = await resolveAiToolAccess({
+      userId: req.user.id,
+      clinicId,
+      organizationId: req.user.organizationId,
+      organizationType: req.user.organizationType,
+      supplierId: req.user.supplierId,
+      lecturerId: req.user.lecturerId,
+      isGuest: req.user.isGuest,
+    });
+    const context = await buildAiContext(req, {}).catch(() => null);
+    return canUseClinicWideAiShortcuts(
+      access.role,
+      req.user.branchId || req.user.assignedBranchId || null,
+      context?.branch?.id || null,
+    );
+  } catch {
+    return false;
+  }
 }
 
 const querySchema = z.object({
@@ -378,7 +411,7 @@ async function processQuery(
         ? `Запомнил: ${justLearned.map((p) => p.value).slice(0, 2).join('; ')}`
         : ctx.learnedHint;
     } catch (e) {
-      console.warn('[AI] learning context failed', e);
+      console.warn('[AI] learning context failed', safeErrorKind(e));
     }
   }
 
@@ -396,6 +429,13 @@ async function processQuery(
         lecturerId: isGuest ? null : (req.user?.lecturerId || null),
         role: isGuest ? 'GUEST' : req.user!.role,
         workspace: activeWorkspace,
+        availableWorkspaces: aiContext?.availableWorkspaces.map(({ name, scopeType, roleLabel }) => ({
+          name,
+          scopeType,
+          roleLabel,
+        })) || [],
+        branch: aiContext?.branch || null,
+        requestedBranchId: req.user?.branchId || req.user?.assignedBranchId || aiContext?.branch?.id || null,
         userName: isGuest
           ? 'Гость'
           : [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' '),
@@ -440,7 +480,7 @@ async function processQuery(
       // back — the intent router's improveResponseWithLLM calls the same API
       // again, so the user waits through a second round-trip for nothing.
       if (isProviderUnavailableError(error)) {
-        console.error('[AI OS] provider unavailable — answering without the LLM:', error);
+        console.error('[AI OS] provider unavailable — answering without the LLM:', safeErrorKind(error));
         return {
           message:
             'ИИ-ассистент временно недоступен: закончились кредиты у провайдера модели. '
@@ -453,7 +493,7 @@ async function processQuery(
           activeWorkspace,
         };
       }
-      console.error('[AI OS] orchestrator failed, falling back to intent router:', error);
+      console.error('[AI OS] orchestrator failed, falling back to intent router:', safeErrorKind(error));
     }
   }
 
@@ -562,7 +602,7 @@ aiRouter.post(
       // product decision with its own consent.
       return res.json({ ok: true, data: { text: result.text, model: result.model } });
     } catch (error) {
-      console.error('[AI] transcribe', error);
+      console.error('[AI] transcribe', safeErrorKind(error));
       return res.status(500).json({ ok: false, error: 'Не удалось распознать речь' });
     }
   },
@@ -689,7 +729,7 @@ aiRouter.get('/threads', authenticate, async (req: AuthRequest, res) => {
       },
     });
   } catch (error) {
-    console.error('[AI] threads list', error);
+    console.error('[AI] threads list', safeErrorKind(error));
     return res.json({ ok: true, data: { threads: [] } });
   }
 });
@@ -730,7 +770,7 @@ aiRouter.get('/threads/active', authenticate, async (req: AuthRequest, res) => {
       },
     });
   } catch (error) {
-    console.error('[AI] threads active unavailable', error);
+    console.error('[AI] threads active unavailable', safeErrorKind(error));
     return res.status(503).json({
       ok: false,
       error: 'История AI временно недоступна',
@@ -780,7 +820,7 @@ aiRouter.post('/threads/new', authenticate, async (req: AuthRequest, res) => {
     });
     return res.json({ ok: true, data: { threadId: id, sessionId: id } });
   } catch (error) {
-    console.error('[AI] threads new', error);
+    console.error('[AI] threads new', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось создать сессию' });
   }
 });
@@ -840,6 +880,11 @@ aiRouter.post('/action', authenticate, async (req: AuthRequest, res) => {
       userId: req.user!.id,
       clinicId: access.clinicId,
       role: access.role,
+      organizationId: access.organizationId,
+      organizationType: access.organizationType,
+      requestedBranchId: req.user?.branchId || req.user?.assignedBranchId || null,
+      supplierId: access.supplierId,
+      lecturerId: access.lecturerId,
     }, allowed);
 
     if (!result.ok) return res.json({ ok: true, data: { type: 'error', message: result.error } });
@@ -888,7 +933,7 @@ aiRouter.get('/history', authenticate, async (req: AuthRequest, res) => {
       })),
     });
   } catch (error) {
-    console.error('[AI History Error]', error);
+    console.error('[AI History Error]', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'History fetch failed' });
   }
 });
@@ -906,7 +951,7 @@ aiRouter.post('/session', async (req: AuthRequest, res) => {
     // Just return a new session ID - actual session created on first query
     res.json({ ok: true, data: { sessionId: context.sessionId } });
   } catch (error) {
-    console.error('[AI Session Error]', error);
+    console.error('[AI Session Error]', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Session creation failed' });
   }
 });
@@ -936,13 +981,18 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
     const timeZone = resolveTimeZone(clientTz, clinicTz, DEFAULT_CLINIC_TZ);
     const greeting = timeGreetingInTz(new Date(), timeZone);
 
-    const alerts = await aiService.getProactiveAlerts({
-      userId: req.user?.id || 'guest',
-      clinicId,
-      role: req.user?.role || 'guest',
-      sessionId: crypto.randomUUID(),
-      metadata: { timeZone },
-    });
+    const allowAlerts = (!req.user || req.user.isGuest)
+      ? Boolean(clinicId)
+      : await canUseClinicWideAiData(req);
+    const alerts = allowAlerts
+      ? await aiService.getProactiveAlerts({
+          userId: req.user?.id || 'guest',
+          clinicId,
+          role: req.user?.role || 'guest',
+          sessionId: crypto.randomUUID(),
+          metadata: { timeZone },
+        })
+      : [];
 
     res.json({
       ok: true,
@@ -953,7 +1003,7 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
       },
     });
   } catch (error) {
-    console.error('[AI Greeting Error]', error);
+    console.error('[AI Greeting Error]', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Greeting failed' });
   }
 });
@@ -961,17 +1011,18 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
 aiRouter.get('/proactive', optionalAuth, async (req: AuthRequest, res) => {
   try {
     const { buildProactiveAlerts } = await import('./core/digitalTwin.js');
-    const alerts = await buildProactiveAlerts({
+    const allowAlerts = await canUseClinicWideAiData(req);
+    const alerts = allowAlerts ? await buildProactiveAlerts({
       userId: req.user?.id || 'guest',
       clinicId: activeAiClinicId(req.user),
       role: req.user?.isGuest ? 'GUEST' : (req.user?.role || 'guest'),
       isGuest: req.user?.isGuest === true,
       organizationType: req.user?.organizationType || null,
       workspaceName: req.user?.organizationType && req.user.organizationType !== 'CLINIC' ? 'активная организация' : null,
-    });
+    }) : [];
     res.json({ ok: true, data: { alerts } });
   } catch (error) {
-    console.error('[AI Proactive Error]', error);
+    console.error('[AI Proactive Error]', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Proactive failed' });
   }
 });
@@ -983,8 +1034,19 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
       return res.status(403).json({ ok: false, error: 'Briefing requires clinic user' });
     }
     const { buildJarvisBriefing } = await import('./core/jarvisBriefing.js');
-    const clinicId = activeAiClinicId(req.user);
-    const activeWorkspace = await buildAiContext(req, {}).then((ctx) => ctx?.workspace ?? null).catch(() => null);
+    const access = await resolveAiToolAccess({
+      userId: req.user.id,
+      clinicId: activeAiClinicId(req.user),
+      organizationId: req.user.organizationId,
+      organizationType: req.user.organizationType,
+      supplierId: req.user.supplierId,
+      lecturerId: req.user.lecturerId,
+      isGuest: req.user.isGuest,
+    });
+    const clinicId = access.clinicId;
+    const aiContext = await buildAiContext(req, {}).catch(() => null);
+    const activeWorkspace = aiContext?.workspace ?? null;
+    const requestedBranchId = req.user.branchId || req.user.assignedBranchId || null;
     const clinic = clinicId
       ? await prisma.clinic.findUnique({
           where: { id: clinicId },
@@ -1013,6 +1075,23 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
         },
       });
     }
+    if (!canUseClinicWideAiShortcuts(access.role, requestedBranchId, aiContext?.branch?.id || null)) {
+      const workspaceName = activeWorkspace?.name || clinic?.name || 'DentVision';
+      const reply = `Рабочий контекст «${workspaceName}» готов. Я подготовлю сведения и действия в пределах доступного вам филиала и роли.`;
+      return res.json({
+        ok: true,
+        data: {
+          reply,
+          message: reply,
+          suggestions: ['Покажи моё расписание', 'Какие задачи доступны?', 'Открой нужный раздел'],
+          skill: 'workspace',
+          intent: 'WORKSPACE_BRIEFING',
+          action: { type: 'SHOW_BRIEFING', payload: { workspace: activeWorkspace, branch: aiContext?.branch || null } },
+          role: access.role,
+          timeZone,
+        },
+      });
+    }
     const briefing = await buildJarvisBriefing({
       userId: req.user.id,
       clinicId,
@@ -1036,7 +1115,7 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
       },
     });
   } catch (error) {
-    console.error('[AI Briefing Error]', error);
+    console.error('[AI Briefing Error]', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Briefing failed' });
   }
 });
@@ -1066,6 +1145,11 @@ aiRouter.post('/confirm', authenticate, async (req: AuthRequest, res) => {
         userId: req.user!.id,
         clinicId: access.clinicId,
         role: access.role,
+        organizationId: access.organizationId,
+        organizationType: access.organizationType,
+        requestedBranchId: req.user?.branchId || req.user?.assignedBranchId || null,
+        supplierId: access.supplierId,
+        lecturerId: access.lecturerId,
       },
       access.allowed,
     );
@@ -1081,7 +1165,7 @@ aiRouter.post('/confirm', authenticate, async (req: AuthRequest, res) => {
       },
     });
   } catch (error) {
-    console.error('[AI Confirm Error]', error);
+    console.error('[AI Confirm Error]', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Confirm failed' });
   }
 });
@@ -1092,7 +1176,8 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
     if (!req.user?.id) {
       return res.json({ ok: true, data: { twin: buildGuestPlatformTwin(null), preferences: [] } });
     }
-    const clinicId = activeAiClinicId(req.user);
+    const clinicWideAllowed = await canUseClinicWideAiData(req);
+    const clinicId = clinicWideAllowed ? activeAiClinicId(req.user) : null;
     const twin = await buildDigitalTwin(req.user.id, clinicId, {
       isGuest: req.user?.isGuest === true,
     });
@@ -1111,12 +1196,14 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
 
     let preferences: Array<{ key: string; label: string; value: string; source: string }> = [];
     try {
-      const learning = await import('./learning/learning.service.js');
-      preferences = await learning.listPrefs(req.user.id, clinicId);
+      if (clinicWideAllowed) {
+        const learning = await import('./learning/learning.service.js');
+        preferences = await learning.listPrefs(req.user.id, clinicId);
+      }
     } catch { /* optional */ }
     res.json({ ok: true, data: { twin: enrichedTwin, preferences } });
   } catch (error) {
-    console.error('[AI Digital Twin Error]', error);
+    console.error('[AI Digital Twin Error]', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Digital twin failed' });
   }
 });
@@ -1128,7 +1215,9 @@ aiRouter.get('/twin/proactive', optionalAuth, async (req: AuthRequest, res) => {
 
     const userId = req.user?.id;
     const clinicId = activeAiClinicId(req.user);
-    if (!userId) return res.json({ ok: true, data: { suggestions: [], feed: [] } });
+    if (!userId || !(await canUseClinicWideAiData(req))) {
+      return res.json({ ok: true, data: { suggestions: [], feed: [] } });
+    }
 
     const { buildDigitalTwin, buildProactiveAlerts, buildContextualSuggestions } = await import('./core/digitalTwin.js');
     const twin = await buildDigitalTwin(userId, clinicId || null, {
@@ -1155,7 +1244,7 @@ aiRouter.get('/twin/proactive', optionalAuth, async (req: AuthRequest, res) => {
 
     res.json({ ok: true, data: { suggestions, feed } });
   } catch (error) {
-    console.error('[AI Proactive]', error);
+    console.error('[AI Proactive]', safeErrorKind(error));
     res.json({ ok: true, data: { suggestions: [], feed: [] } });
   }
 });
@@ -1189,7 +1278,7 @@ aiRouter.post('/feedback', authenticate, async (req: AuthRequest, res) => {
       },
     });
   } catch (error) {
-    console.error('[AI Feedback Error]', error);
+    console.error('[AI Feedback Error]', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Feedback failed' });
   }
 });
@@ -1200,7 +1289,7 @@ aiRouter.get('/memory', authenticate, async (req: AuthRequest, res) => {
     const items = await learning.listPrefs(req.user!.id, aiSessionScope(req));
     return res.json({ ok: true, data: { items } });
   } catch (error) {
-    console.error('[AI Memory list]', error);
+    console.error('[AI Memory list]', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Memory list failed' });
   }
 });
@@ -1211,7 +1300,7 @@ aiRouter.delete('/memory/:key', authenticate, async (req: AuthRequest, res) => {
     const removed = await learning.deletePref(req.user!.id, aiSessionScope(req), String(req.params.key));
     return res.json({ ok: true, data: { removed } });
   } catch (error) {
-    console.error('[AI Memory delete]', error);
+    console.error('[AI Memory delete]', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Memory delete failed' });
   }
 });
@@ -1222,7 +1311,7 @@ aiRouter.delete('/memory', authenticate, async (req: AuthRequest, res) => {
     await learning.clearPrefs(req.user!.id, aiSessionScope(req));
     return res.json({ ok: true, data: { cleared: true } });
   } catch (error) {
-    console.error('[AI Memory clear]', error);
+    console.error('[AI Memory clear]', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Memory clear failed' });
   }
 });
@@ -1256,7 +1345,7 @@ aiRouter.get('/skills', authenticate, async (req: AuthRequest, res) => {
     const access = await resolveAiToolAccess(aiAccessInput(req));
     return res.json({ ok: true, data: skillCatalogueFor(access, 'staff') });
   } catch (error) {
-    console.error('[AI Skills] list failed:', error);
+    console.error('[AI Skills] list failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось получить список возможностей' });
   }
 });
@@ -1265,10 +1354,27 @@ aiRouter.get('/insights', authenticate, requirePermission('medical.read'), async
   try {
     const entityType = String(req.query.entityType || '');
     const entityId = String(req.query.entityId || '');
-    const clinicId = activeAiClinicId(req.user);
+    const access = await resolveAiToolAccess({
+      userId: req.user!.id,
+      clinicId: activeAiClinicId(req.user),
+      organizationId: req.user!.organizationId,
+      organizationType: req.user!.organizationType,
+      supplierId: req.user!.supplierId,
+      lecturerId: req.user!.lecturerId,
+      isGuest: req.user!.isGuest,
+    });
+    const clinicId = access.clinicId;
     if (!clinicId) {
       return res.status(400).json({ ok: false, error: 'Клиника не указана' });
     }
+    const branchScope = await resolveAiToolBranchScope({
+      userId: req.user!.id,
+      clinicId,
+      organizationId: access.organizationId || req.user!.organizationId,
+      role: access.role,
+      requestedBranchId: req.user!.branchId || req.user!.assignedBranchId || null,
+    });
+    if (!branchScope) return res.status(403).json({ ok: false, error: 'Нет подтверждённого доступа к филиалу' });
     if (!entityId) {
       return res.status(400).json({ ok: false, error: 'entityId обязателен' });
     }
@@ -1277,9 +1383,19 @@ aiRouter.get('/insights', authenticate, requirePermission('medical.read'), async
     if (entityType !== 'patient') {
       return res.json({ ok: true, data: [] });
     }
-    const patient = await prisma.patient.findFirst({ where: { id: entityId, clinicId }, select: { id: true } });
+    const patient = await prisma.patient.findFirst({
+      where: { id: entityId, clinicId, ...patientBranchWhere(branchScope) },
+      select: { id: true },
+    });
     if (!patient) {
       return res.status(404).json({ ok: false, error: 'Пациент не найден' });
+    }
+    if (env.AI_PATIENT_SCOPE === 'on' && ['DOCTOR', 'ASSISTANT'].includes(String(access.role).toUpperCase())) {
+      const assignment = await prisma.patientAssignment.findFirst({
+        where: { clinicId, patientId: entityId, userId: req.user!.id, active: true },
+        select: { id: true },
+      });
+      if (!assignment) return res.status(404).json({ ok: false, error: 'Пациент не найден' });
     }
     const [insights, dismissed] = await Promise.all([
       computePatientInsights(entityId, clinicId),
@@ -1287,7 +1403,7 @@ aiRouter.get('/insights', authenticate, requirePermission('medical.read'), async
     ]);
     return res.json({ ok: true, data: insights.filter((i) => !dismissed.has(i.id)) });
   } catch (error) {
-    console.error('[AI Insights] list failed:', error);
+    console.error('[AI Insights] list failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось получить подсказки' });
   }
 });
@@ -1301,7 +1417,7 @@ aiRouter.post('/insights/:id/dismiss', authenticate, async (req: AuthRequest, re
     await dismissInsight(String(req.params.id), req.user!.id, clinicId);
     return res.json({ ok: true, data: { dismissed: true } });
   } catch (error) {
-    console.error('[AI Insights] dismiss failed:', error);
+    console.error('[AI Insights] dismiss failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось скрыть подсказку' });
   }
 });

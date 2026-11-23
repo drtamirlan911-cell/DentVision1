@@ -16,10 +16,22 @@ describe('diagnostics referral branch enforcement', () => {
     expect(source).toContain("diagnosticsRouter.post('/laboratories', requireSuperadmin");
   });
 
-  it('passes branch scope into referral list queries', () => {
+  it('resolves the referral list branch filter from active IAM and selected branch', () => {
     expect(source).toContain('referralListBranchIds');
-    expect(source).toContain('branchIds');
+    expect(source).toContain('resolveClinicBranchAccess({');
+    expect(source).toContain('organizationId: user.organizationId');
+    expect(source).toContain('requestedBranchId: user.branchId');
+    expect(source).not.toContain('user.branchIds ?? []');
+    expect(source).toContain('if (!access) return []');
+    expect(source).toContain('return access.branchId ? [access.branchId] : access.allowedBranchIds');
     expect(source).toContain('Нет доступа к филиалам клиники');
+  });
+
+  it('verifies the selected doctor belongs to the referral patient branch', () => {
+    expect(source).toContain('const doctorBranchAccess = await resolveClinicBranchAccess({');
+    expect(source).toContain('requestedBranchId: targetBranchId');
+    expect(source).toContain('doctorBranchAccess.allowedBranchIds.includes(targetBranchId)');
+    expect(source).toContain('Указанный врач не имеет доступа к филиалу пациента');
   });
 
   it('keeps signed diagnostic results behind referral access', () => {

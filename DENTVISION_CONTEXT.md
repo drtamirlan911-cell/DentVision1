@@ -1,3 +1,18 @@
+## Current continuation checkpoint — 2026-11-20 (AI / Jarvis, model routing and AI Employee privacy)
+
+- Canonical repository: drtamirlan911-cell/DentVision1.
+- Current main snapshot: da1257fc650f536c76583bdff570906290b92bcd.
+- Active candidate: PR #351, Draft/open, branch feat/user-jarvis-product-knowledge-20261120; latest HEAD: b743cdbfa53af3a3ffe971349ca28fdaadcbd3f2; 189 commits ahead / 0 behind; 65 changed files. No main write, merge or deployment.
+- AI model routing: added separate Luna (fast/high-volume), Sol (standard agent tasks), Astra (deep clinical/strategic reasoning) and Terra (visual input) selection. Exact candidate capabilities are declared per model; the live API /v1/models list is required before candidate selection. The candidate ID gpt-6.2-sol is never assumed to exist; it is used only if the API account exposes that exact ID. Legacy model IDs remain compatibility fallbacks.
+- Reasoning effort: ordinary full-tier work defaults to low; deep and vision-capable reasoning defaults to high via OPENAI_DEEP_REASONING_EFFORT (configurable to medium/high). Deep uses the same full daily token ledger; no hidden additional budget. The Responses API reasoning parameter is omitted for models whose explicit capability is false.
+- Vision fail-closed: any request containing an image requires a catalogued image-capable model before standard routing. Radiograph analysis cannot silently fall back to a text-only model. If none is available, a dedicated non-diagnostic message says image analysis is unavailable and warns that no AI response does not mean a normal image. Clinical findings still require clinician confirmation and existing governance.
+- Jarvis knowledge: approved guide retrieval remains local and bounded; patient queries only receive the patient section; current capabilities are derived from DB/IAM-filtered tools. Canonical/backend product guide parity, Docker runner copy and .dockerignore allowlist are covered by tests.
+- AI Employee data boundary: clinic-only task ledger has tenant-bound idempotency, safe result/error/action-payload storage and redacted readback. Organization/Branch task queue remains unimplemented and is explicitly fail-closed for partner workspaces; see docs/AI_EMPLOYEE_ORGANIZATION_SCOPE.md.
+- Privacy hardening: raw exception text was removed from AI model tool output, kernel/orchestrator/routes/context/proactive signals, task subscriber, EventBus, transcription and AI audit logs. Tests inject synthetic PHI sentinels. Historical PHI inventory, legacy storage cleanup, key lifecycle and retention remain open.
+- Exact-head checks: Quality Gate run 44725395941 was in progress and CI run 44725395965 was pending at inspection. Vercel Preview returned build-rate-limit; this is an external preview failure, not evidence of a passing preview. Earlier SHA results are not final evidence for this HEAD.
+- Release boundary: keep PR #351 Draft until exact-head backend/frontend lint, unit tests, full E2E, migration validation and role/context/mobile checks finish. The AI Employee idempotency migration has not been run against staging or production.
+
+---
 ## Current continuation checkpoint — 2026-11-18
 
 - Canonical repository: `drtamirlan911-cell/DentVision1`; current `main`: `7289f369b1effa28db94e3e1e4541e4500bc5ee0`.
@@ -764,3 +779,9 @@ PARTNER-003 verifies only the current basic handoff and production path. It does
 - The test avoids shared E2E Clinic A and has a finally-based restore attempt if an assertion fails.
 - Test commits: \`65e9c3d49959301d87f704a2216e6e8f6ab4139f\` and \`d062acd90082f6d1bcf3b406508418e32133d9c7\`.
 - Exact-head CI must verify the test. D2 remains OPEN pending E2E and approved staging migration/retention evidence; no database migration or live archive/restore was executed.
+
+### Organization/Branch AI Employee design checkpoint (2026-11-20)
+
+- Added `docs/AI_EMPLOYEE_ORGANIZATION_SCOPE.md` with a source-verified target contract. The active organization id is the canonical tenant; `scopeType/scopeId` preserve the workspace domain identity; branch scope is resolved from active BranchMember/legacy clinic membership and never trusted from JWT claims.
+- The audit found that AI approvals already store `organizationId`, but `activityQuery.ts` and approve/reject routes remain clinic-only; `AiToolAccess` also does not expose verified branch scope; `ActionEvidence` lacks organization/branch scope fields.
+- This is design only. The next code step is a canonical server-side task scope resolver plus cross-tenant/branch negative tests; schema, event producer and partner queue rollout must wait until that resolver passes.

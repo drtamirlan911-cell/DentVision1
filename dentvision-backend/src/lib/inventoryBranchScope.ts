@@ -1,49 +1,47 @@
 import prisma from './prisma.js';
+import { resolveClinicBranchAccess } from './clinicBranchAccess.js';
 
 export type InventoryBranchContext = {
   clinicId: string;
   role: string;
+  /** Verified selected branch; null only for an unfiltered organization view. */
   branchId: string | null;
   organizationWide: boolean;
+  /** Branches permitted in the current selection, never copied from JWT branchIds. */
   branchIds: string[];
 };
 
-const ORGANIZATION_ROLES = new Set(['OWNER', 'ADMIN', 'ACCOUNTANT']);
+export interface InventoryBranchContextOptions {
+  organizationId?: string | null;
+  requestedBranchId?: string | null;
+}
 
 export async function resolveInventoryBranchContext(
   userId: string,
   clinicId: string,
   role: string,
-): Promise<InventoryBranchContext> {
-  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null }>>`
-    SELECT branch_id
-    FROM clinic_members
-    WHERE "userId" = ${userId} AND "clinicId" = ${clinicId}
-    LIMIT 1
-  `;
-  const branchId = membership[0]?.branch_id ?? null;
+  options: InventoryBranchContextOptions = {},
+): Promise<InventoryBranchContext | null> {
+  const access = await resolveClinicBranchAccess({
+    userId,
+    clinicId,
+    organizationId: options.organizationId,
+    role,
+    requestedBranchId: options.requestedBranchId,
+  });
 
-  if (ORGANIZATION_ROLES.has(role)) {
-    const branches = await prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT id FROM branches
-      WHERE clinic_id = ${clinicId} AND active = true
-      ORDER BY "isDefault" DESC, created_at ASC
-    `;
-    return {
-      clinicId,
-      role,
-      branchId,
-      organizationWide: true,
-      branchIds: branches.map((b) => b.id),
-    };
-  }
+  if (!access) return null;
+
+  const branchIds = access.branchId
+    ? [access.branchId]
+    : access.allowedBranchIds;
 
   return {
     clinicId,
     role,
-    branchId,
-    organizationWide: false,
-    branchIds: branchId ? [branchId] : [],
+    branchId: access.branchId,
+    organizationWide: access.roleScope === 'ORGANIZATION' && access.branchId === null,
+    branchIds,
   };
 }
 

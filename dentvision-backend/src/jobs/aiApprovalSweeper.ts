@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../lib/safeError.js';
 /**
  * Expires stale `AiApproval` rows.
  *
@@ -42,7 +43,7 @@ export function startAiApprovalSweeperInterval(ms = 15 * 60 * 1000): void {
         console.warn(`[AiApprovalSweeper] expired=${r.expired}`);
       }
     } catch (err) {
-      console.error('[AiApprovalSweeper] tick failed', err);
+      console.error('[AiApprovalSweeper] tick failed', safeErrorKind(err));
     }
   };
   setTimeout(tick, 30_000);

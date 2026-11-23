@@ -117,6 +117,32 @@ describe('chatCompletion — Responses API request shape', () => {
     expect(body().reasoning).toEqual({ effort: 'medium' });
   });
 
+  it('requires a vision-capable model whenever a message contains an image', async () => {
+    captureFetch();
+    await chatCompletion({
+      messages: [{ role: 'user', content: 'опиши снимок', imageUrl: 'https://example.test/x.png' }],
+      task: 'orchestrate',
+      text: 'опиши снимок',
+    });
+
+    expect(chooseOpenAIModel).toHaveBeenCalledWith(expect.objectContaining({
+      requiresVision: true,
+    }));
+  });
+
+  it('does not request a vision model for text-only conversations', async () => {
+    captureFetch();
+    await chatCompletion({
+      messages: [{ role: 'user', content: 'Покажи расписание' }],
+      task: 'orchestrate',
+      text: 'Покажи расписание',
+    });
+
+    expect(chooseOpenAIModel).toHaveBeenCalledWith(expect.objectContaining({
+      requiresVision: false,
+    }));
+  });
+
   it('sends an image as an `input_image` part alongside the text', async () => {
     const body = captureFetch();
     await chatCompletion({

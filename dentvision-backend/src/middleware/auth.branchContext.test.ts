@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mergeBranchIds, shouldUseLegacyClinicFallback } from './auth.js';
+import { mergeBranchIds, resolveAssignedBranchId, shouldUseLegacyClinicFallback } from './auth.js';
 
 describe('mergeBranchIds', () => {
   it('combines universal and legacy branch assignments without duplicates', () => {
@@ -15,6 +15,20 @@ describe('mergeBranchIds', () => {
   });
 });
 
+
+describe('assigned branch selector', () => {
+  it('uses the only canonical branch when membership is unambiguous', () => {
+    expect(resolveAssignedBranchId(['branch-a'], 'legacy-branch')).toBe('branch-a');
+  });
+
+  it('does not silently pick the first branch when canonical membership spans several branches', () => {
+    expect(resolveAssignedBranchId(['branch-a', 'branch-b'], 'legacy-branch')).toBeUndefined();
+  });
+
+  it('keeps the legacy ClinicMember branch fallback for pre-canonical clinics', () => {
+    expect(resolveAssignedBranchId([], 'legacy-branch')).toBe('legacy-branch');
+  });
+});
 
 describe('legacy clinic claim fallback', () => {
   it('does not override a verified active partner organization with a retained clinicId', () => {

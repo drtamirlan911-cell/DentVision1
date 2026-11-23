@@ -16,3 +16,21 @@ describe('patient portal medical-history write contract', () => {
     expect(source).toContain("Медицинская история должна быть объектом");
   });
 });
+
+
+describe('patient portal online booking branch contract', () => {
+  it('uses the linked patient branch for available slots and rejects missing/inactive branches', () => {
+    expect(source).toContain("where: { id: patientId }");
+    expect(source).toContain("select: { clinicId: true, branchId: true }");
+    expect(source).toContain("code: 'PATIENT_BRANCH_UNASSIGNED'");
+    expect(source).toContain("code: 'PATIENT_BRANCH_INACTIVE'");
+    expect(source).toContain('portalSvc.getAvailableSlots(clinicId, date, doctorId, branchId)');
+  });
+
+  it('does not accept a branch from the patient request body', () => {
+    const start = source.indexOf("patientPortalRouter.post('/appointments/request'");
+    const route = source.slice(start);
+    expect(route).toContain('portalSvc.requestAppointment({ patientId, clinicId');
+    expect(route).not.toContain('branchId: body.branchId');
+  });
+});

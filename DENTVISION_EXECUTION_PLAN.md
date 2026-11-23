@@ -6,6 +6,50 @@
 - The strategy does not change the existing technical execution order: P0 privacy/security and IAM evidence remain first. Build only a synthetic-data pilot pack until legal, security, clinical and operator readiness gates are signed.
 - Government pilot readiness is a separate gate from source CI and general product release readiness. No state partnership, endorsement, grant award or PPP contract is implied.
 
+## Current execution checkpoint — 2026-11-20 (AI / Jarvis advanced routing, Master Spec v5.0)
+
+Canonical repo: drtamirlan911-cell/DentVision1
+Main snapshot: da1257fc650f536c76583bdff570906290b92bcd
+Active candidate: PR #351, Draft/open, branch feat/user-jarvis-product-knowledge-20261120.
+Latest HEAD: b743cdbfa53af3a3ffe971349ca28fdaadcbd3f2; 189 commits ahead / 0 behind main; 65 changed files.
+Normative architecture: Master Spec §15 — AI Router → Active Context → Role/Workspace Context → Permission Engine → Tool Registry → Model/Reasoning → Action Validator → Preview → Confirmation when required → Execute → Verify → Audit.
+
+### Advanced model architecture implemented in candidate source
+
+- Luna / mini: routine, short and high-volume, low-risk requests.
+- Sol / full-standard: standard complex agent workflows and multi-tool work.
+- Astra / deep: differential diagnosis support, complex treatment planning, high-stakes reasoning and deep audits. It is selected for explicit deep intents, sustained multi-turn tasks, deep tool loops or escalation after weak/empty mini output.
+- Terra / vision: mandatory route for image input when available. Any image request is routed to a vision-capable model before normal tier selection; no text-only fallback is allowed.
+- Each model candidate carries explicit vision and reasoning metadata. Production capability selection uses discovered model metadata, not name prefixes.
+- Runtime discovery intersects candidate ladders with the API account's /v1/models response. Chat model pins do not suppress independent discovery of vision, embedding and transcription IDs. The candidate gpt-6.2-sol ID is selected only if the account lists it.
+- Standard full reasoning defaults to low; deep and vision reasoning defaults to high through OPENAI_DEEP_REASONING_EFFORT, configurable to medium or high. Astra remains on the shared full daily token budget.
+- Missing vision capability returns a dedicated non-diagnostic message; the radiograph tool does not imply a normal image or auto-write findings.
+
+### Existing AI controls preserved
+
+- Product guide is reference-only; current tool capability is derived from DB/IAM-filtered tool names.
+- All side effects remain behind the governance kernel and required confirmation/approval; the model cannot grant itself tools.
+- Patient-specific product knowledge remains isolated; query text is not sent to a second embedding provider.
+- AI Employee task payload/result/error fields are minimized. Durable task ledger and approval routes remain clinic-only; Organization/Branch queue is design-only and partner routes are tested to fail closed.
+- Raw exception/log payloads are replaced with safe classifications across audited AI boundaries.
+
+### Exact-head verification
+
+- Latest exact HEAD b743cdbfa53af3a3ffe971349ca28fdaadcbd3f2: Quality Gate run 44725395941 was in progress; CI run 44725395965 was pending at inspection. A previous SHA's unit failure (two new LLM tests missing a fetch stub and one outdated pin-source assertion) was diagnosed and corrected; only a fresh exact-head run can establish the result.
+- Vercel Preview currently reports build-rate-limit; no successful Preview is claimed.
+- Keep PR #351 Draft until fresh exact-head CI, Quality Gate, full E2E and required release checks complete.
+
+### Remaining AI work and constraints
+
+1. Complete latest exact-head CI/Quality Gate/E2E and fix findings without weakening security assertions.
+2. Add a measured multi-workspace retrieval/evaluation set (clinic, patient, diagnostic center, medical lab, dental lab, supplier, Academy, employer) with expected answer boundaries. Keep PHI out of external embeddings.
+3. Implement canonical Organization/Branch task-scope resolver and approval/audit lifecycle before any non-clinic durable task producer.
+4. Continue RB-029 historical PHI, key lifecycle, retention, backup/restore and approved staging evidence; continue RB-035 role/context negative matrix.
+5. Do not migrate to an agent framework unless it wraps the same governed tools/kernel and has a PHI-safe tracing/evaluation plan.
+
+Release remains NOT READY. Green source checks do not prove production/staging, legal, payment-provider, historical-data, backup/restore or physical-device readiness.
+
+---
 ## Current execution checkpoint — 2026-11-18 (post-merge reconciliation, Master Spec v5.0)
 
 The previous 2026-11-17 checkpoint is historical. Current source is `main=7289f369b1effa28db94e3e1e4541e4500bc5ee0`. PR #346, #347 and #348 are merged; PR #322 is merged as developer-environment setup only. No open PRs were returned by the current repository query.
@@ -842,3 +886,17 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [ ] Complete invoice → payment → settlement → payout for the laboratory.
 - [ ] Verify durable idempotent notifications and AI operational exception summaries.
 - [ ] Complete owner/manager/technician RBAC and desktop/mobile acceptance. D10 remains OPEN.
+
+
+### 2026-11-20 AI Employee retry/idempotency correction
+
+The task creator previously used an ON CONFLICT target that was not backed by a unique index in the table-creation migration. The candidate adds a dedicated partial unique idempotency key, tenant-bound to clinic + source event + action + role; existing rows receive unique legacy keys. Tests assert retries deduplicate, a different clinic receives a different key, and migration history is preserved. This fixes the existing clinic-scope task insert path only. Organization/Branch task scope is still a separate architectural gap and must be designed across event envelope, IAM, task APIs and approvals before migration.
+
+### Organization/Branch AI Employee implementation sequence
+
+The design contract is in `docs/AI_EMPLOYEE_ORGANIZATION_SCOPE.md`. Begin implementation in this order:
+1. Add a server-side `AiTaskScope` resolver from canonical Organization/Person/PersonRole plus active BranchMember (legacy clinic fallback only where not canonicalized). Return the exact allowed branch set and permission set; do not trust JWT branch claims.
+2. Add negative tests for two organizations, two branches, revoked memberships, archived organizations, stale clinic fallback and context switching before changing persistence.
+3. Extend the existing AIEvent/ai_employee_tasks/AiApproval/ActionEvidence contract additively; retain clinic rows and reuse current task, approval and governance-kernel paths.
+4. Extend organization-scoped approval visibility/approve/reject, then implement scoped task read/transition.
+5. Add one real domain-event producer and cabinet queue at a time, with mobile and end-to-end acceptance.

@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../../lib/safeError.js';
 /**
  * Governance kernel — DentVision Agentic OS.
  *
@@ -41,10 +42,17 @@ import { env } from '../../../config.js';
 import { uid } from '../../../lib/helpers.js';
 import { resolveOrganizationIdForClinic } from '../../../lib/orgContext.js';
 import { resolveAiToolAccess } from './access.js';
+import {
+  resolveAiToolBranchScope,
+  isNarrowAiToolBranchScope,
+  CLINIC_BRANCH_INDEPENDENT_AI_TOOLS,
+  BRANCH_FILTERED_CLINIC_AI_TOOLS,
+  type AiToolBranchScope,
+} from './aiToolBranchScope.js';
 import { TOOLS, type ToolContext } from './tools.js';
 import { TOOL_PERMISSIONS } from './toolPermissions.js';
 import { encryptAiApprovalParams, getAiApprovalSummary } from './approvalPrivacy.js';
-import { SURFACE_TOOLS, HIGH_RISK_TOOLS, TOOL_PATIENT_ARG, sanitizeArgs, toolExistsAnywhere } from './dataScope.js';
+import { SURFACE_TOOLS, HIGH_RISK_TOOLS, TOOL_PATIENT_ARG, TOOL_REQUIRES_PATIENT_CONTEXT_FOR_ASSIGNED_ROLES, sanitizeArgs, toolExistsAnywhere } from './dataScope.js';
 import { SKILLS, skillPermissionSatisfied } from './skills.js';
 import { executePatientTool } from '../../ai-patient/patientTools.js';
 import { executeToolCall as executeAdminToolCall } from '../../ai-admin/llm/tools/tools.registry.js';
@@ -200,7 +208,7 @@ async function recordActivity(row: {
       },
     });
   } catch (err) {
-    console.error('[ai kernel] failed to record activity:', err);
+    console.error('[ai kernel] failed to record activity:', safeErrorKind(err));
     // No activity row means no parent for the evidence rows (the FK cascades
     // from it), so there is nothing to attach and nothing to attempt.
     return id;
@@ -228,7 +236,7 @@ async function recordEvidence(
       })),
     });
   } catch (err) {
-    console.error('[ai kernel] failed to record evidence:', err);
+    console.error('[ai kernel] failed to record evidence:', safeErrorKind(err));
   }
 }
 
@@ -300,24 +308,40 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
   // step 4 below is skipped, matching their pre-kernel trust boundary exactly.
   let role: string;
   let clinicId: string | null;
+  let organizationId: string | null = null;
+  let organizationType: string | null = null;
+  let organizationOriginalId: string | null = null;
+  let supplierId: string | null = null;
+  let lecturerId: string | null = null;
   let allowedTools: Set<string> | null = null;
+  let branchScope: AiToolBranchScope | null = null;
   if (p.surface === 'staff') {
     const access = await resolveAiToolAccess({
       userId: p.userId,
       clinicId: p.requestedClinicId,
+      ...(p.requestedOrganizationId ? { organizationId: p.requestedOrganizationId } : {}),
+      ...(p.requestedOrganizationType ? { organizationType: p.requestedOrganizationType } : {}),
+      ...(p.supplierId ? { supplierId: p.supplierId } : {}),
+      ...(p.lecturerId ? { lecturerId: p.lecturerId } : {}),
       isGuest: p.isGuest,
     });
     role = access.role;
     clinicId = access.clinicId;
+    organizationId = access.organizationId || (clinicId ? await resolveOrganizationIdForClinic(clinicId) : null);
+    organizationType = access.organizationType;
+    organizationOriginalId = access.organizationOriginalId;
+    supplierId = access.supplierId;
+    lecturerId = access.lecturerId;
     allowedTools = access.allowed;
   } else if (p.surface === 'patient') {
     role = 'PATIENT';
     clinicId = p.requestedClinicId;
+    organizationId = clinicId ? await resolveOrganizationIdForClinic(clinicId) : null;
   } else {
     role = 'SYSTEM';
     clinicId = p.requestedClinicId;
+    organizationId = clinicId ? await resolveOrganizationIdForClinic(clinicId) : null;
   }
-  const organizationId = clinicId ? await resolveOrganizationIdForClinic(clinicId) : null;
 
   // Step 4 — staff only. `access.allowed` already folds the agent registry
   // and TOOL_PERMISSIONS/permissionsSatisfy together (see access.ts); a
@@ -340,6 +364,53 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
       argsRedacted: redactArgs(args, [], p.surface),
     });
     return { status: 'denied', reason: 'NOT_ALLOWED', error: 'Действие недоступно для вашей роли', activityId };
+  }
+
+  // Step 4a — clinic branch scope. The active branch id is only a selector;
+  // current Organization/PersonRole/BranchMember or legacy ClinicMember
+  // membership is re-resolved here immediately before execution.
+  if (p.surface === 'staff' && clinicId && !CLINIC_BRANCH_INDEPENDENT_AI_TOOLS.has(inv.tool)) {
+    try {
+      branchScope = await resolveAiToolBranchScope({
+        userId: p.userId,
+        clinicId,
+        organizationId,
+        role,
+        requestedBranchId: p.requestedBranchId || null,
+      });
+    } catch (error) {
+      console.warn('[ai kernel] branch scope resolution failed:', safeErrorKind(error));
+      branchScope = null;
+    }
+
+    const branchFilterUnavailable =
+      !!branchScope
+      && isNarrowAiToolBranchScope(branchScope)
+      && !BRANCH_FILTERED_CLINIC_AI_TOOLS.has(inv.tool);
+    if (!branchScope || branchFilterUnavailable) {
+      const activityId = await recordActivity({
+        traceId: inv.traceId,
+        surface: p.surface,
+        agentId: p.agentId,
+        tool: inv.tool,
+        actorUserId: p.userId,
+        actorRole: role,
+        clinicId,
+        organizationId,
+        patientId: p.patientId,
+        status: 'denied',
+        denyReason: 'BRANCH_SCOPE_REQUIRED',
+        argsRedacted: redactArgs(args, [], p.surface),
+      });
+      return {
+        status: 'denied',
+        reason: 'BRANCH_SCOPE_REQUIRED',
+        error: branchScope
+          ? 'Инструмент пока недоступен в выбранном филиальном контексте'
+          : 'Не удалось подтвердить доступ к активному филиалу',
+        activityId,
+      };
+    }
   }
 
   // Step 4b — named skill boundary (optional). A narrower gate on top of the
@@ -387,15 +458,40 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
     }
   }
 
-  // Step 5 — patient scope. AI-only (human REST/UI is unaffected); off
-  // unless env.AI_PATIENT_SCOPE === 'on', and only for the tools in
-  // TOOL_PATIENT_ARG where the target patient is unambiguous.
-  if (env.AI_PATIENT_SCOPE === 'on' && p.surface === 'staff' && (role === 'DOCTOR' || role === 'ASSISTANT')) {
+  // Step 5 — assigned-patient safeguards. Human REST/UI is unaffected.
+  // A DOCTOR/ASSISTANT cannot use optional patientId tools as whole-branch
+  // patient listings. Specific-patient assignment checks remain behind the
+  // migration/backfill flag until all clinics have reliable PatientAssignment rows.
+  if (p.surface === 'staff' && (role === 'DOCTOR' || role === 'ASSISTANT')) {
     const patientArg = TOOL_PATIENT_ARG[inv.tool];
     const targetPatientId = patientArg ? args[patientArg] : undefined;
-    if (targetPatientId) {
+
+    if (TOOL_REQUIRES_PATIENT_CONTEXT_FOR_ASSIGNED_ROLES.has(inv.tool) && !targetPatientId) {
+      const activityId = await recordActivity({
+        traceId: inv.traceId,
+        surface: p.surface,
+        agentId: p.agentId,
+        tool: inv.tool,
+        actorUserId: p.userId,
+        actorRole: role,
+        clinicId,
+        organizationId,
+        patientId: p.patientId,
+        status: 'denied',
+        denyReason: 'OUT_OF_PATIENT_SCOPE',
+        argsRedacted: redactArgs(args, contextFields, p.surface),
+      });
+      return {
+        status: 'denied',
+        reason: 'OUT_OF_PATIENT_SCOPE',
+        error: 'Для этой операции сначала откройте карточку конкретного пациента',
+        activityId,
+      };
+    }
+
+    if (env.AI_PATIENT_SCOPE === 'on' && targetPatientId) {
       const assignment = await prisma.patientAssignment.findFirst({
-        where: { patientId: String(targetPatientId), userId: p.userId, active: true },
+        where: { clinicId, patientId: String(targetPatientId), userId: p.userId, active: true },
         select: { id: true },
       });
       if (!assignment) {
@@ -434,7 +530,14 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
         approval &&
         approval.status === 'approved' &&
         approval.tool === inv.tool &&
-        approval.clinicId === clinicId;
+        approval.clinicId === clinicId &&
+        (
+          approval.organizationId === organizationId
+          // Legacy clinic approvals predate Organization mirroring. They remain
+          // valid only for the exact same verified clinic; partner approvals
+          // always require an exact organization match.
+          || (Boolean(clinicId) && approval.organizationId == null)
+        );
       if (!valid) {
         const activityId = await recordActivity({
           traceId: inv.traceId,
@@ -488,7 +591,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
           );
         }
       } catch (err) {
-        console.error('[ai kernel] failed to create approval:', err);
+        console.error('[ai kernel] failed to create approval:', safeErrorKind(err));
       }
       const activityId = await recordActivity({
         traceId: inv.traceId,
@@ -517,7 +620,18 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
   let toolResult: ExecResult;
   try {
     if (p.surface === 'staff') {
-      const ctx: ToolContext = { userId: p.userId, clinicId, role };
+      const ctx: ToolContext = {
+        userId: p.userId,
+        clinicId,
+        role,
+        organizationId,
+        organizationType,
+        organizationOriginalId,
+        supplierId,
+        lecturerId,
+        requestedBranchId: p.requestedBranchId || null,
+        branchScope,
+      };
       toolResult = await TOOLS[inv.tool].execute(args, ctx);
     } else if (p.surface === 'patient') {
       const data = await executePatientTool(inv.tool, args, {
@@ -555,7 +669,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
       });
       return { status: 'denied', reason: 'NO_CLINIC', error: 'Нет активной клиники — выберите рабочее пространство', activityId };
     }
-    console.error(`[ai kernel] tool ${inv.tool} failed:`, error);
+    console.error(`[ai kernel] tool ${inv.tool} failed:`, safeErrorKind(error));
     const activityId = await recordActivity({
       traceId: inv.traceId,
       surface: p.surface,

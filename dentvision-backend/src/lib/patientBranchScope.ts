@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import prisma from './prisma.js';
+import { resolveClinicBranchAccess } from './clinicBranchAccess.js';
 
 export type PatientBranchScope =
   | { kind: 'organization'; branchIds: string[] }
@@ -10,56 +11,76 @@ export interface PatientBranchContext {
   clinicId: string;
   userId: string;
   role: string;
+  /** Explicit or uniquely resolved branch in the active workspace. */
   branchId: string | null;
+  /** All currently authorized branches, separate from the active read scope. */
+  allowedBranchIds?: string[];
   scope: PatientBranchScope;
 }
 
-const ORGANIZATION_ROLES = new Set(['OWNER', 'ADMIN']);
-const BRANCH_ROLES = new Set(['MANAGER']);
-const ASSIGNED_ROLES = new Set(['DOCTOR', 'ASSISTANT', 'RECEPTIONIST', 'CASHIER']);
+export interface PatientBranchContextOptions {
+  organizationId?: string | null;
+  requestedBranchId?: string | null;
+}
+
+function emptyPatientScope(): PatientBranchContext['scope'] {
+  return { kind: 'assigned', branchIds: [] };
+}
 
 export async function resolvePatientBranchContext(
   userId: string,
   clinicId: string,
   role: string,
+  options: PatientBranchContextOptions = {},
 ): Promise<PatientBranchContext> {
-  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null }>>`
-    SELECT branch_id
-    FROM clinic_members
-    WHERE "userId" = ${userId} AND "clinicId" = ${clinicId}
-    LIMIT 1
-  `;
-  const memberBranchId = membership[0]?.branch_id ?? null;
+  const access = await resolveClinicBranchAccess({
+    userId,
+    clinicId,
+    organizationId: options.organizationId,
+    role,
+    requestedBranchId: options.requestedBranchId,
+  });
 
-  if (ORGANIZATION_ROLES.has(role)) {
-    const branches = await prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT id
-      FROM branches
-      WHERE clinic_id = ${clinicId} AND active = true
-      ORDER BY "isDefault" DESC, "created_at" ASC
-    `;
-    return { clinicId, userId, role, branchId: memberBranchId, scope: { kind: 'organization', branchIds: branches.map((b) => b.id) } };
+  if (!access) {
+    return {
+      clinicId,
+      userId,
+      role,
+      branchId: null,
+      allowedBranchIds: [],
+      scope: emptyPatientScope(),
+    };
   }
 
-  if (BRANCH_ROLES.has(role)) {
-    return { clinicId, userId, role, branchId: memberBranchId, scope: { kind: 'branch', branchIds: memberBranchId ? [memberBranchId] : [] } };
-  }
+  const kind = access.roleScope === 'ORGANIZATION'
+    ? 'organization'
+    : access.roleScope === 'BRANCH'
+      ? 'branch'
+      : 'assigned';
+  const visibleBranchIds = access.branchId
+    ? [access.branchId]
+    : access.allowedBranchIds;
 
-  if (ASSIGNED_ROLES.has(role)) {
-    return { clinicId, userId, role, branchId: memberBranchId, scope: { kind: 'assigned', branchIds: memberBranchId ? [memberBranchId] : [] } };
-  }
-
-  return { clinicId, userId, role, branchId: memberBranchId, scope: { kind: 'assigned', branchIds: [] } };
+  return {
+    clinicId,
+    userId,
+    role,
+    branchId: access.branchId,
+    allowedBranchIds: access.allowedBranchIds,
+    scope: { kind, branchIds: visibleBranchIds },
+  };
 }
 
+/** Branchless legacy rows remain visible only in an unfiltered organization view. */
 export function canAccessPatientBranch(context: PatientBranchContext, branchId: string | null): boolean {
-  if (!branchId) return false;
+  if (!branchId) return context.scope.kind === 'organization' && context.branchId === null;
   return context.scope.branchIds.includes(branchId);
 }
 
 export function canManagePatientBranch(context: PatientBranchContext, branchId: string | null): boolean {
   if (!branchId) return false;
-  return context.scope.kind === 'organization' && context.scope.branchIds.includes(branchId);
+  return context.scope.kind === 'organization'
+    && (context.allowedBranchIds ?? context.scope.branchIds).includes(branchId);
 }
 
 export async function getPatientBranchId(patientId: string, clinicId: string): Promise<string | null> {

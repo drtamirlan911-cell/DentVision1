@@ -10,6 +10,22 @@ describe('patients route branch scope contract', () => {
     expect(source).toContain('resolvePatientBranchContext');
     expect(source).toContain('getPatientIdsForBranchScope');
   });
+  it('requires staff.write to create or revoke patient assignments', () => {
+    expect(source).toContain("patientsRouter.post('/:id/assignments',requirePermission('staff.write')");
+    expect(source).toContain("patientsRouter.delete('/:id/assignments/:assignmentId',requirePermission('staff.write')");
+    expect(source).not.toContain("patientsRouter.post('/:id/assignments',requirePermission('patient.write')");
+    expect(source).not.toContain("patientsRouter.delete('/:id/assignments/:assignmentId',requirePermission('patient.write')");
+  });
+
+  it('binds assignment removal to the patient in the route', () => {
+    const routeStart = source.indexOf("patientsRouter.delete('/:id/assignments/:assignmentId'");
+    expect(routeStart).toBeGreaterThanOrEqual(0);
+    const route = source.slice(routeStart, routeStart + 1_400);
+    expect(route).toContain('revokePatientAssignment({');
+    expect(route).toContain('patientId:s.patientId');
+    expect(route).toContain('assignmentId:req.params.assignmentId');
+  });
+
   it('filters patient lists by branch at query construction time', () => {
     expect(source).toContain('scopedPatientWhere');
     expect(source).toContain('prisma.patient.findMany');
@@ -19,6 +35,25 @@ describe('patients route branch scope contract', () => {
     expect(source).toContain('loadClinicPatient(req,res)');
     expect(source).toContain('canAccessPatientBranch(context,patientBranchId)');
     expect(source).toMatch(/setPatientBranch\s*\(\s*patient\.id\s*,\s*clinicId\s*,\s*targetBranchId\s*\)/);
+  });
+
+  it('scopes patient idempotency replay lookup to the active clinic and preserves foreign keys', () => {
+    const createStart = source.indexOf("patientsRouter.post('/',");
+    const lookupStart = source.indexOf("patientsRouter.get('/lookup'", createStart);
+    const createRoute = source.slice(createStart, lookupStart);
+    expect(createRoute).toContain('where: { id: reservation.resultId, clinicId }');
+    expect(createRoute).toContain("code: 'IDEMPOTENCY_KEY_SCOPE_CONFLICT'");
+    expect(createRoute).toContain('if (!prior) {');
+    expect(createRoute).not.toContain('prisma.patient.findUnique({where:{id:r.resultId}');
+    expect(createRoute).not.toContain('deleteIdempotencyKey(idempotencyKey)}');
+  });
+
+  it('does not let an organization role create in another branch while one branch is selected', () => {
+    const createStart = source.indexOf("patientsRouter.post('/',");
+    const lookupStart = source.indexOf("patientsRouter.get('/lookup'", createStart);
+    const createRoute = source.slice(createStart, lookupStart);
+    expect(createRoute).toContain('if(context.branchId && requestedBranchId!==context.branchId)');
+    expect(createRoute).toContain('context.allowedBranchIds');
   });
 
   it('requires patient permission and returns a minimized list payload', () => {
