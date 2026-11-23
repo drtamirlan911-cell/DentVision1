@@ -298,6 +298,7 @@ export default function DentalLabPlatform() {
   const validTab = requestedTab === 'priority' || requestedTab === 'team' || requestedTab === 'services' || requestedTab === 'shipping' || requestedTab === 'finance' ? requestedTab : 'board';
   const [tab, setTab] = useState(validTab);
   const [filter, setFilter] = useState<string | undefined>();
+  const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
 
   const changeTab = (nextTab: string) => {
     const selected = nextTab === 'priority' || nextTab === 'team' || nextTab === 'services' || nextTab === 'shipping' || nextTab === 'finance' ? nextTab : 'board';
@@ -347,7 +348,7 @@ export default function DentalLabPlatform() {
   });
   const technicians = (team.data || []).filter((member) => ['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician'].includes(String(member.role || '').toLowerCase()));
   const [payoutAmount, setPayoutAmount] = useState('');
-  useEffect(() => { setPayoutAmount(''); }, [workspaceCacheScope]);
+  useEffect(() => { setPayoutAmount(''); setExpandedStages({}); }, [workspaceCacheScope]);
   const payoutAmountMinor = payoutAmountToMinor(payoutAmount);
   const invoiceMutation = useMutation({
     mutationFn: (id: string) => issueLabPlatformInvoice(id),
@@ -414,7 +415,12 @@ export default function DentalLabPlatform() {
           {(filter ? [{ id: filter, label: STAGES.find((s) => s.id === filter)?.label || filter }] : STAGES).map((stage) => (
             <section key={stage.id} className="min-w-0 space-y-3 rounded-2xl bg-surface-0/60 p-2">
               <div className="flex items-center justify-between px-1"><h3 className="text-xs font-semibold text-txt-secondary">{stage.label}</h3><Badge variant="outline">{grouped[stage.id]?.length || 0}</Badge></div>
-              {(grouped[stage.id] || []).slice(0, 20).map((order) => <OrderCard key={order.id} order={order} workspaceCacheScope={workspaceCacheScope} canManageQc={canManageQc} canManageShipping={canManageShipping} canManageFinance={canManageFinance} invoiceBusy={invoiceMutation.isPending} onIssueInvoice={(id) => invoiceMutation.mutate(id)} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}
+              {(grouped[stage.id] || []).slice(0, expandedStages[stage.id] ? undefined : 20).map((order) => <OrderCard key={order.id} order={order} workspaceCacheScope={workspaceCacheScope} canManageQc={canManageQc} canManageShipping={canManageShipping} canManageFinance={canManageFinance} invoiceBusy={invoiceMutation.isPending} onIssueInvoice={(id) => invoiceMutation.mutate(id)} canAssignTechnician={canManageQc} canViewDetails={canManageQc || canReadProduction} technicians={technicians} assignmentBusy={technicianMutation.isPending} onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })} qcBusy={qcMutation.isPending} remakeBusy={remakeMutation.isPending} shipmentBusy={shipmentMutation.isPending} deliveryBusy={deliveryMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onRemakeDecision={(id, decision, note) => remakeMutation.mutate({ id, decision, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} onDispatch={(id, body) => shipmentMutation.mutate({ id, body })} onConfirmDelivery={(id, body) => deliveryMutation.mutate({ id, body })} />)}
+               {(grouped[stage.id]?.length || 0) > 20 && (
+                 <Button size="sm" variant="ghost" className="min-h-10 w-full" onClick={() => setExpandedStages((current) => ({ ...current, [stage.id]: !current[stage.id] }))}>
+                   {expandedStages[stage.id] ? 'Свернуть' : 'Показать ещё ' + ((grouped[stage.id]?.length || 0) - 20)}
+                 </Button>
+               )}
               {!grouped[stage.id]?.length && <div className="rounded-xl border border-dashed border-bdr-subtle p-5 text-center text-xs text-txt-muted">Нет работ</div>}
             </section>
           ))}
