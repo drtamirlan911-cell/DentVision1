@@ -218,14 +218,54 @@ lecturerRouter.patch('/courses/:id', async (req: AuthRequest, res) => {
 });
 
 lecturerRouter.delete('/courses/:id', async (req: AuthRequest, res) => {
-  const existing = await prisma.course.findFirst({
-    where: { id: req.params.id as string, lecturerId: req.user!.lecturerId },
-  });
-  if (!existing) {
-    return res.status(404).json({ ok: false, error: 'Продукт не найден' } satisfies ApiResponse);
+  try {
+    // Course has cascading relations to enrollments, assessment attempts and
+    // certificates. Never let a lecturer's catalogue cleanup erase a learner's
+    // academic record. Serializable isolation also closes the check/delete race
+    // with a concurrent enrollment or assessment insert.
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.course.findFirst({
+        where: { id: req.params.id as string, lecturerId: req.user!.lecturerId },
+        select: { id: true },
+      });
+      if (!existing) return { kind: 'not-found' as const };
+
+      const [enrollmentCount, attemptCount, certificateCount] = await Promise.all([
+        tx.schoolEnrollment.count({ where: { courseId: existing.id } }),
+        tx.schoolAssessmentAttempt.count({ where: { courseId: existing.id } }),
+        tx.schoolCertificate.count({ where: { courseId: existing.id } }),
+      ]);
+
+      if (enrollmentCount + attemptCount + certificateCount > 0) {
+        return { kind: 'has-history' as const };
+      }
+
+      await tx.course.delete({ where: { id: existing.id } });
+      return { kind: 'deleted' as const, id: existing.id };
+    }, { isolationLevel: 'Serializable' });
+
+    if (result.kind === 'not-found') {
+      return res.status(404).json({ ok: false, error: 'Курс не найден' } satisfies ApiResponse);
+    }
+    if (result.kind === 'has-history') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Удаление запрещено: у курса есть история обучения. Зачисления, результаты оценивания и сертификаты должны оставаться доступными учащимся.',
+      } satisfies ApiResponse);
+    }
+    return res.json({ ok: true, data: { id: result.id } } satisfies ApiResponse);
+  } catch (error) {
+    const code = typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code?: unknown }).code)
+      : null;
+    if (code === 'P2034') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Курс одновременно изменяется. Обновите список и повторите действие.',
+      } satisfies ApiResponse);
+    }
+    throw error;
   }
-  await prisma.course.delete({ where: { id: existing.id } });
-  return res.json({ ok: true, data: { id: existing.id } } satisfies ApiResponse);
 });
 
 // ─── Wallet + payouts ───
