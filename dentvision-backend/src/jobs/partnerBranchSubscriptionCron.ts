@@ -1,6 +1,6 @@
 import prisma from '../lib/prisma.js';
 import { withJobLock } from '../lib/jobLock.js';
-import { createNotificationForCenter, NOTIFICATION_TYPES } from '../services/notification.service.js';
+import { createNotificationForMany, NOTIFICATION_TYPES } from '../services/notification.service.js';
 import { issuePartnerBranchSubscriptionInvoice } from '../modules/billing/partnerBranchBilling.service.js';
 
 const ORGANIZATION_TYPES = ['DIAGNOSTIC_CENTER', 'LABORATORY'] as const;
@@ -80,12 +80,39 @@ export async function runPartnerBranchSubscriptionCron(now = new Date()): Promis
         }
 
         result.issued += 1;
-        await createNotificationForCenter(organization.id, {
-          type: NOTIFICATION_TYPES.PARTNER_BRANCH_INVOICE_ISSUED,
-          title: 'Счёт за филиальную подписку готов',
-          message: `Счёт ${issued.invoice.invoiceNumber} за текущий месяц сформирован на сумму ${formatMinor(BigInt(issued.invoice.amountMinor))}. Откройте раздел «Финансы», чтобы проверить состав филиалов и оплатить счёт через Kaspi QR.`,
-          link: financeLink(issued.invoice.vertical),
+        // Invoice amounts are financial data: notify only organization members
+        // who hold an explicit finance/billing read or manage permission.
+        const financeMembers = await prisma.personRole.findMany({
+          where: {
+            scopeType: 'organization',
+            scopeId: organization.id,
+            person: {
+              organizationId: organization.id,
+              userId: { not: null },
+            },
+            role: {
+              permissions: {
+                some: {
+                  permission: {
+                    key: { in: ['billing.read', 'billing.manage', 'finance.read', 'finance.manage'] },
+                  },
+                },
+              },
+            },
+          },
+          select: { person: { select: { userId: true } } },
         });
+        const financeUserIds = [...new Set(
+          financeMembers.map((member) => member.person.userId).filter((userId): userId is string => Boolean(userId)),
+        )];
+        if (financeUserIds.length > 0) {
+          await createNotificationForMany(financeUserIds, {
+            type: NOTIFICATION_TYPES.PARTNER_BRANCH_INVOICE_ISSUED,
+            title: 'Счёт за филиальную подписку готов',
+            message: `Счёт ${issued.invoice.invoiceNumber} за текущий месяц сформирован на сумму ${formatMinor(BigInt(issued.invoice.amountMinor))}. Откройте раздел «Финансы», чтобы проверить состав филиалов и оплатить счёт через Kaspi QR.`,
+            link: financeLink(issued.invoice.vertical),
+          });
+        }
       } catch (error) {
         const code = error && typeof error === 'object' && 'code' in error
           ? String((error as { code?: unknown }).code || '')

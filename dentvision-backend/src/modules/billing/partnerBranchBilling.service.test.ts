@@ -190,7 +190,7 @@ describe('partner branch invoice issuance', () => {
       type: 'LABORATORY',
       originalType: 'Laboratory',
       originalId: 'dental-lab-1',
-      settings: { laboratoryType: 'DENTAL_LAB', selfServiceType: 'dental_lab', lifecycle: 'ACTIVE', verification: 'VERIFIED', ecosystemVisible: true, legal: { status: 'READY', platformSignedAt: '2026-11-01T00:00:00.000Z' } },
+      settings: { laboratoryType: 'DENTAL_LAB', selfServiceType: 'dental_lab', lifecycle: 'ACTIVE_VERIFIED', verification: 'APPROVED', ecosystemVisible: true, legal: { ownerSigned: true, platformSigned: true, platformSignedAt: '2026-11-01T00:00:00.000Z' } },
     };
     const { tx, created } = makeDb({ organization, branches: [{ id: 'lab-branch' }] });
     await issuePartnerBranchInvoiceForTest({

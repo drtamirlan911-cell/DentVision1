@@ -2,20 +2,24 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { findMany, issueInvoice, notifyCenter } = vi.hoisted(() => ({
+const { findMany, findFinanceMembers, issueInvoice, notifyMany } = vi.hoisted(() => ({
   findMany: vi.fn(),
+  findFinanceMembers: vi.fn(),
   issueInvoice: vi.fn(),
-  notifyCenter: vi.fn(),
+  notifyMany: vi.fn(),
 }));
 
 vi.mock('../lib/prisma.js', () => ({
-  default: { organization: { findMany } },
+  default: {
+    organization: { findMany },
+    personRole: { findMany: findFinanceMembers },
+  },
 }));
 vi.mock('../modules/billing/partnerBranchBilling.service.js', () => ({
   issuePartnerBranchSubscriptionInvoice: issueInvoice,
 }));
 vi.mock('../services/notification.service.js', () => ({
-  createNotificationForCenter: notifyCenter,
+  createNotificationForMany: notifyMany,
   NOTIFICATION_TYPES: { PARTNER_BRANCH_INVOICE_ISSUED: 'partner.branch_subscription.invoice_issued' },
 }));
 vi.mock('../lib/jobLock.js', () => ({
@@ -40,7 +44,12 @@ beforeEach(() => {
       amountMinor: 4_990_000n,
     },
   });
-  notifyCenter.mockResolvedValue(undefined);
+  findFinanceMembers.mockResolvedValue([
+    { person: { userId: 'finance-user-1' } },
+    { person: { userId: 'finance-user-2' } },
+    { person: { userId: null } },
+  ]);
+  notifyMany.mockResolvedValue(undefined);
 });
 
 describe('partner branch subscription monthly invoice cron', () => {
@@ -55,8 +64,22 @@ describe('partner branch subscription monthly invoice cron', () => {
       periodStart: result.periodStart,
       periodEnd: result.periodEnd,
     }), undefined, now);
-    expect(notifyCenter).toHaveBeenCalledTimes(3);
-    expect(notifyCenter).toHaveBeenCalledWith('org-diagnostic', expect.objectContaining({
+    expect(findFinanceMembers).toHaveBeenCalledTimes(3);
+    expect(findFinanceMembers).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        scopeType: 'organization',
+        scopeId: 'org-diagnostic',
+        role: expect.objectContaining({
+          permissions: expect.objectContaining({
+            some: expect.objectContaining({
+              permission: { key: { in: ['billing.read', 'billing.manage', 'finance.read', 'finance.manage'] } },
+            }),
+          }),
+        }),
+      }),
+    }));
+    expect(notifyMany).toHaveBeenCalledTimes(3);
+    expect(notifyMany).toHaveBeenCalledWith(['finance-user-1', 'finance-user-2'], expect.objectContaining({
       type: 'partner.branch_subscription.invoice_issued',
       link: '/diagnostics/center?tab=finance',
     }));
@@ -80,8 +103,8 @@ describe('partner branch subscription monthly invoice cron', () => {
     const result = await runPartnerBranchSubscriptionCron(new Date('2026-11-23T09:15:00.000Z'));
 
     expect(result).toMatchObject({ scanned: 3, issued: 1, alreadyIssued: 1, skipped: 1, errors: 0 });
-    expect(notifyCenter).toHaveBeenCalledTimes(1);
-    expect(notifyCenter).toHaveBeenCalledWith('org-dental-lab', expect.objectContaining({
+    expect(notifyMany).toHaveBeenCalledTimes(1);
+    expect(notifyMany).toHaveBeenCalledWith(['finance-user-1', 'finance-user-2'], expect.objectContaining({
       link: '/diagnostics/lab?tab=finance',
     }));
   });

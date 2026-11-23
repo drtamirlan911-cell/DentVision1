@@ -169,11 +169,14 @@ async function issueInTransaction(
   }
   if (vertical === 'DENTAL_LAB') {
     const legal = legalSettings;
+    // This is the canonical state written by organizations.routes.ts when the
+    // platform signs and approves a partner's legal package.
     const verifiedDentalLab = organizationSettings.laboratoryType === 'DENTAL_LAB'
       && organizationSettings.selfServiceType === 'dental_lab'
-      && organizationSettings.lifecycle === 'ACTIVE'
-      && organizationSettings.verification === 'VERIFIED'
-      && legal.status === 'READY';
+      && organizationSettings.lifecycle === 'ACTIVE_VERIFIED'
+      && organizationSettings.verification === 'APPROVED'
+      && legal.ownerSigned === true
+      && legal.platformSigned === true;
     if (!verifiedDentalLab) {
       throw new PartnerBranchBillingError(
         'PARTNER_NOT_ACTIVE',
