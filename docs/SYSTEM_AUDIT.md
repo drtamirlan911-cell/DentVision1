@@ -504,16 +504,11 @@ The current implementation still exposes these as `/crm/*` pages and a legacy CR
 
 The correct next step is IA/workflow consolidation, not replacing the existing CRM data model.
 
-### AUDIT-P1-02 — Marketplace procurement is not yet the canonical one-action CRM → cart flow
+### AUDIT-P1-02 — Marketplace procurement and CRM restock need stock-safe close-out
 
-The CRM Inventory page can identify low stock and navigate to a matching Marketplace product or search result:
+The CRM Inventory page already uses the canonical shared cart store to add a matched Marketplace product and open checkout; the previous product/search-only description is stale. The candidate correction calculates the clinic's required quantity against the seller catalog stock and the same product's existing cart quantity, then applies the increment in one cart-store update. Partial availability is surfaced before checkout rather than adding more units than the catalog snapshot shows.
 
-- `/shop/:id` when a match exists;
-- `/shop?q=...` otherwise.
-
-The older Marketplace acceptance criterion requires creating a cart in one action from critical inventory. Current behavior is a product/search deep link, not a deterministic cart creation operation.
-
-This should be implemented through the existing cart/order source of truth rather than a second procurement model.
+**Remaining:** marketplace stock can change after the catalog snapshot, so checkout remains the server-authoritative availability and price gate. Supplier allocation, substitutions, approval limits and purchase-order/invoice reconciliation still require their own workflows. This uses the existing cart/order source of truth and does not create a second procurement model. Exact-head CI/E2E and UX acceptance are required before closure.
 
 ### AUDIT-P1-03 — Academy has real learning primitives, but the full acceptance contract remains unproven
 
@@ -571,11 +566,11 @@ The web exposes organization/branch settings through the Settings surface rather
 
 The current web `WorkspaceSwitcher` explicitly models:
 
-`CLINIC, DIAGNOSTIC_CENTER, LABORATORY, SUPPLIER, LECTURER, ACADEMY, PARTNER`
+`CLINIC, DIAGNOSTIC_CENTER, LABORATORY, SUPPLIER, LECTURER, ACADEMY, PARTNER, EMPLOYER`
 
 The Master Spec organization model also defines:
 
-`MEDICAL_ORGANIZATION, MANUFACTURER, EDUCATION_CENTER, EMPLOYER, PROFESSIONAL_GROUP`
+`MEDICAL_ORGANIZATION, MANUFACTURER, EDUCATION_CENTER, PROFESSIONAL_GROUP`
 
 These types are not first-class in the current switcher.
 
@@ -609,6 +604,8 @@ The problem is the distance between these implemented vertical pieces and the si
 
 ## 7. Documentation audit
 
+
+**Candidate context-integrity correction — 2026-11-23:** the shared switcher previously fell back to the first non-clinic or first available membership when the active identity did not match. It now delegates fallback selection to the tested `selectWorkspaceContext` helper and shows no active workspace when identity is stale or multiple memberships are ambiguous. This change fixes unsafe selection; it does not create missing workspace templates for the organization types still listed above.
 ### DOC-01 — Canonical hierarchy is not completely clean
 
 The root README and Master Spec state that the Master Spec is the single normative Product/System source of truth.

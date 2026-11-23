@@ -19,7 +19,7 @@ import { EmptyState } from '../../components/ui/ds/EmptyState'
 import { StatCard, PageHeader } from '../../components/ui/ds/StatCard'
 import { INVENTORY_CATEGORIES, INVENTORY_UNITS } from '../../utils/constants'
 import { cn, formatMoney } from '../../lib/utils'
-import { buildClinicRestockSuggestions, findShopMatches } from '@/lib/inventory-shop-match'
+import { buildClinicRestockSuggestions, findShopMatches, getClinicRestockQuantities } from '@/lib/inventory-shop-match'
 import { useIam } from '@/iam'
 import type { InventoryItem, Clinic, User as UserType, RoleInfo } from '../../types'
 
@@ -55,7 +55,7 @@ interface InventoryForm {
 export default function Inventory() {
   const { clinic } = useOutletContext<OutletContext>()
   const navigate = useNavigate()
-  const { addToCart } = useCart()
+  const { cart, addToCart } = useCart()
   const [searchParams, setSearchParams] = useSearchParams()
   const { showToast, toast, clearToast } = useToast()
   const { inventory, upsertInventoryItem } = useDataQuery(clinic?.id)
@@ -177,6 +177,23 @@ export default function Inventory() {
     }
   }
 
+  const addRestockProduct = (item: InventoryItem, product: any) => {
+    const currentCartQuantity = cart.find((cartItem) => cartItem.id === product.id)?.qty || 0
+    const quantities = getClinicRestockQuantities(item, product, currentCartQuantity)
+    if (quantities.addable <= 0) {
+      showToast('У продавца больше нет доступного остатка для пополнения. Проверьте карточку товара.', 'warning')
+      navigate('/shop/' + product.id)
+      return
+    }
+    addToCart(product, quantities.addable)
+    const unit = product.unit || item.unit || 'шт'
+    if (quantities.addable < quantities.requested) {
+      showToast('Добавлено ' + quantities.addable + ' ' + unit + ' из ' + quantities.requested + ': ограничено остатком продавца.', 'warning')
+    } else {
+      showToast('В корзину добавлено ' + quantities.addable + ' ' + unit + '.', 'success')
+    }
+    navigate('/shop/checkout')
+  }
   const openHistory = async (item: InventoryItem) => {
     setHistoryItem(item)
     setMovements(null)
@@ -224,9 +241,7 @@ export default function Inventory() {
                   <Button size="sm" variant="secondary" className="min-h-11" onClick={() => {
                     const target = shopProducts.find((product: any) => product.id === best.id)
                     if (!target) { navigate(`/shop?q=${encodeURIComponent(row.query)}`); return }
-                    const deficit = Math.max(1, row.min - Number(row.item.quantity || 0))
-                    for (let i = 0; i < deficit; i++) addToCart(target)
-                    navigate('/shop/checkout')
+                    addRestockProduct(row.item as InventoryItem, target)
                   }}>Заказать</Button>
                 ) : (
                   <Button size="sm" variant="secondary" className="min-h-11" onClick={() => navigate(`/shop?q=${encodeURIComponent(row.query)}`)}>Найти</Button>
@@ -266,10 +281,7 @@ export default function Inventory() {
                       if (!shopMatch?.id) { navigate(`/shop?q=${encodeURIComponent(item.name || '')}`); return }
                       const target = shopProducts.find((product: any) => product.id === shopMatch.id)
                       if (!target) { navigate(`/shop/${shopMatch.id}`); return }
-                      const min = Number(item.minQuantity || item.min || 0)
-                      const deficit = Math.max(1, min - Number(item.quantity || 0))
-                      for (let i = 0; i < deficit; i++) addToCart(target)
-                      navigate('/shop/checkout')
+                      addRestockProduct(item, target)
                     }} aria-label={shopMatch?.id ? "Добавить критичный остаток в корзину" : "Найти в маркетплейсе"} />}
                     </div>
                     {item.supplier && <p className="text-xs text-txt-muted mt-2">Поставщик: {item.supplier}</p>}

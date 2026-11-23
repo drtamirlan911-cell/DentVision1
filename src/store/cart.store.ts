@@ -25,7 +25,7 @@ interface CartState {
   favorites: FavItem[]
   cartCount: number
   cartTotal: number
-  addToCart: (product: Omit<CartItem, 'qty'>) => void
+  addToCart: (product: Omit<CartItem, 'qty'>, quantity?: number) => void
   removeFromCart: (id: string) => void
   updateQty: (id: string, qty: number) => void
   clearCart: () => void
@@ -49,20 +49,21 @@ export const useCartStore = create<CartState>((set, get) => ({
   cartCount: 0,
   cartTotal: 0,
 
-  addToCart: (product) => {
+  addToCart: (product, quantity = 1) => {
+    const increment = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1
     set((prev) => {
       const ex = prev.cart.find(i => i.id === product.id)
       const cart = ex
         ? prev.cart.map(i => i.id === product.id
           ? {
               ...i,
-              qty: i.qty + 1,
+              qty: i.qty + increment,
               supplierId: i.supplierId || product.supplierId || null,
               category: i.category || product.category || null,
               ownBrand: i.ownBrand || product.ownBrand,
             }
           : i)
-        : [...prev.cart, { ...product, qty: 1 }]
+        : [...prev.cart, { ...product, qty: increment }]
       const cartCount = cart.reduce((s, i) => s + i.qty, 0)
       const cartTotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
       try { localStorage.setItem(CART_KEY, JSON.stringify(cart)) } catch (e) { console.warn('localStorage unavailable:', e) }

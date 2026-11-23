@@ -107,6 +107,18 @@ export function findShopMatches(
     .slice(0, limit);
 }
 
+export function getClinicRestockQuantities(
+  item: LowStockLike,
+  product: ShopMatchLike,
+  alreadyInCart = 0,
+): { requested: number; available: number; addable: number } {
+  const onHand = Math.max(0, Number(item.quantity ?? 0) || 0)
+  const requested = Math.max(1, clinicMinQty(item) - onHand)
+  const stock = Math.max(0, Math.floor(Number(product.stock ?? 0) || 0))
+  const cartQuantity = Math.max(0, Math.floor(Number(alreadyInCart) || 0))
+  const available = Math.max(0, stock - cartQuantity)
+  return { requested, available, addable: Math.min(requested, available) }
+}
 export function buildClinicRestockSuggestions(
   inventory: LowStockLike[],
   products: ShopMatchLike[],

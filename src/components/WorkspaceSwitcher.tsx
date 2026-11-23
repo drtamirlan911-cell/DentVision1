@@ -10,7 +10,7 @@ import { getRoleDisplayLabel, useAuth, useAuthStore } from '@/store/auth.store'
 import { useToast } from '@/components/ui/ds/Toast'
 import { queryKeys } from '@/queries/keys'
 import { useWorkspaceStore } from '@/store/workspace.store'
-import { workspaceContextFrom } from '@/lib/workspaceContext'
+import { selectWorkspaceContext, workspaceContextFrom } from '@/lib/workspaceContext'
 import * as api from '@/utils/api'
 
 type ScopeType = 'CLINIC' | 'DIAGNOSTIC_CENTER' | 'LABORATORY' | 'SUPPLIER' | 'LECTURER' | 'ACADEMY' | 'PARTNER' | 'EMPLOYER'
@@ -132,20 +132,19 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     () => {
       const exact = workspaces.find(isActive)
       if (exact) return exact
-      if (activeOrgId) {
-        const sameOrganization = workspaces.find((w) => w.organizationId === activeOrgId || w.scopeId === activeOrgId)
-        if (sameOrganization) return sameOrganization
-      }
-      if (activeOrgType && activeOrgType !== 'CLINIC') {
-        return workspaces.find((w) => w.scopeType !== 'CLINIC') || workspaces[0]
-      }
-      return workspaces.find((w) => w.scopeType === 'CLINIC') || workspaces[0]
+      // Reuse the canonical fail-closed selector. A stale identity or an
+      // ambiguous multi-membership state must never borrow the first workspace.
+      return selectWorkspaceContext(workspaces, {
+        scopeId: activeLecturerId || activeSupplierId || activeClinicId || activeOrgId,
+        organizationId: activeOrgId,
+      })
     },
-    [workspaces, isActive, activeOrgId, activeOrgType],
+    [workspaces, isActive, activeOrgId, activeClinicId, activeSupplierId, activeLecturerId],
   )
   const isGenericRoleLabel = (label?: string | null) =>
     !label?.trim() || /^(?:участник(?: экосистемы)?|member|participant|user|пользователь)$/i.test(label.trim())
   const activeRoleLabel = useMemo(() => {
+    if (!current) return t('platform.workspace_choose', { defaultValue: 'Контекст не выбран' })
     // Prefer the application's canonical role vocabulary over stale labels saved
     // in older workspace rows (for example, "Руководитель" vs "Владелец").
     const canonicalCandidates = [current?.roleKey, effectiveRole, (user as any)?.role, (user as any)?.platformRole, current?.role]
@@ -156,7 +155,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     }
     if (!isGenericRoleLabel(current?.roleLabel)) return current?.roleLabel || roleInfo?.label || 'Участник экосистемы'
     return roleInfo?.label || 'Участник экосистемы'
-  }, [current, effectiveRole, user, roleInfo?.label])
+  }, [current, effectiveRole, user, roleInfo?.label, t])
 
   interface BranchOption { id: string; name: string; code?: string | null; active?: boolean }
   const { data: branches = [], isFetching: branchesLoading } = useQuery<BranchOption[]>({
@@ -215,7 +214,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const Icon = TYPE_ICON[current?.scopeType || 'CLINIC'] || Building2
 
   const pick = async (ws: WorkspaceContext) => {
-    if (busyId || isActive(ws)) {
+    if (busyId || current?.id === ws.id) {
       setOpen(false)
       return
     }
@@ -326,7 +325,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
             <div className="space-y-0.5">
               {group.items.map((ws) => {
                 const WsIcon = TYPE_ICON[ws.scopeType] || Building2
-                const active = isActive(ws)
+                const active = current?.id === ws.id
                 const loading = busyId === ws.id
                 return (
                   <button
@@ -385,7 +384,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         onMouseDown={(event) => event.stopPropagation()}
         onClick={() => { if (!open) updateMenuPosition(); setOpen((v) => !v) }}
         className={cn('group flex items-center gap-2 max-w-[8.5rem] xs:max-w-[10rem] sm:max-w-[16rem] min-h-11 px-2.5 py-1.5 rounded-xl', 'bg-surface-raised border border-bdr-strong text-txt-primary shadow-elev-1 hover:bg-surface-raised-hover hover:border-dv-gold/60 hover:shadow-elev-2 transition-[background-color,border-color,box-shadow] duration-150', open && 'border-dv-gold/70 shadow-elev-2')}
-        aria-label={activeRoleLabel ? `${t('platform.clinic_switch')}: ${current?.name || t('platform.clinic_fallback')} — ${activeRoleLabel}` : t('platform.clinic_switch')}
+        aria-label={activeRoleLabel ? `${t('platform.clinic_switch')}: ${current?.name || t('platform.workspace_choose', { defaultValue: 'Выберите рабочее пространство' })} — ${activeRoleLabel}` : t('platform.clinic_switch')}
         aria-expanded={open}
         aria-haspopup="menu"
       >

@@ -3004,3 +3004,11 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Lecturer course list now returns history counts. The UI displays the enrollment count, explains when learning history is protected, disables delete for courses with history and asks for confirmation before deleting a course without history.
 - `ACADEMY-009` E2E was added in commit `3cc9e29f1a6fa493d9095ac856bfa17b896e1cd7` and remains on this branch. The first E2E run was automatically cancelled when the safety implementation was pushed; it did not provide a red/green test result. The current resulting HEAD must pass full CI, Quality Gate and RB-034 before this slice is considered verified.
 - Archive/close/reopen, cohorts, attendance, assignments/grading, learner refunds and complete mobile acceptance remain open. No production/staging data, migration, provider payment, deployment or `main` merge was performed.
+
+
+## 2026-11-23 — Fail-closed workspace selection and stock-safe CRM restocking (PR #352)
+
+- `WorkspaceSwitcher` now uses the tested `selectWorkspaceContext` fallback instead of choosing the first non-clinic or first available membership. A stale identity or ambiguous multi-membership state displays no active workspace and requires explicit user selection.
+- CRM stock replenishment calculates the clinic's requested quantity against both seller catalog stock and the same product's quantity already in the shared cart. The shared cart store accepts a quantity increment in one state update rather than repeated writes in a loop.
+- Partial seller availability is shown to the user; no available stock opens the product card instead of sending an impossible quantity to checkout. Added unit tests for stock caps, existing cart quantity and sold-out products.
+- Checkout remains the server-authoritative stock and price gate because catalog availability may change after the client read. Exact-head CI and visual/mobile acceptance are pending. No production order, payment, wallet movement, deployment or main merge was performed.
