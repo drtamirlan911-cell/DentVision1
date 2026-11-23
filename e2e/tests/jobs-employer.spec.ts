@@ -185,6 +185,49 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
       expect(vacancy.clinicId).toBeNull();
       expect(vacancy.kind).toBe('vacancy');
 
+      const editVacancy = await api.patch(API + '/api/jobs/employer/vacancies/' + vacancyId, {
+        headers: auth(ownerToken),
+        data: {
+          salary: '420 000 — 650 000 ₸',
+          description: 'Updated employer-owned vacancy with clear working conditions.',
+          tags: ['Терапия', 'Эндодонтия'],
+        },
+      });
+      expect(editVacancy.status(), 'owner can edit its own vacancy').toBe(200);
+      const editedVacancy = (await editVacancy.json()).data;
+      expect(editedVacancy).toMatchObject({
+        id: vacancyId,
+        title: 'Врач-стоматолог-терапевт',
+        salary: '420 000 — 650 000 ₸',
+        description: 'Updated employer-owned vacancy with clear working conditions.',
+        tags: ['Терапия', 'Эндодонтия'],
+      });
+
+      const invalidVacancyStatus = await api.patch(API + '/api/jobs/employer/vacancies/' + vacancyId, {
+        headers: auth(ownerToken),
+        data: { status: 'draft' },
+      });
+      expect(invalidVacancyStatus.status()).toBe(400);
+      expect((await invalidVacancyStatus.json()).code).toBe('INVALID_VACANCY_STATUS');
+
+      const closeVacancy = await api.patch(API + '/api/jobs/employer/vacancies/' + vacancyId, {
+        headers: auth(ownerToken),
+        data: { status: 'closed' },
+      });
+      expect(closeVacancy.status(), 'owner can close a published vacancy').toBe(200);
+      expect((await closeVacancy.json()).data.status).toBe('closed');
+      const publicWhileClosed = await api.get(API + '/api/jobs');
+      expect((await publicWhileClosed.json()).some((item: any) => item.id === vacancyId)).toBe(false);
+
+      const reopenVacancy = await api.patch(API + '/api/jobs/employer/vacancies/' + vacancyId, {
+        headers: auth(ownerToken),
+        data: { status: 'open' },
+      });
+      expect(reopenVacancy.status(), 'verified owner can republish a closed vacancy').toBe(200);
+      expect((await reopenVacancy.json()).data.status).toBe('open');
+
+      const legacyCreate = await api.post(API + '/api/jobs', {
+
       const legacyCreate = await api.post(`${API}/api/jobs`, {
         headers: auth(ownerToken),
         data: { title: 'Unscoped vacancy', city: 'Тараз', kind: 'vacancy' },
@@ -343,6 +386,20 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
         headers: auth(otherEmployer.accessToken),
       });
       expect(crossTenantRead.status()).toBe(404);
+
+      const crossTenantEdit = await api.patch(API + '/api/jobs/employer/vacancies/' + vacancyId, {
+        headers: auth(otherEmployer.accessToken),
+        data: { title: 'Stolen vacancy title' },
+      });
+      expect(crossTenantEdit.status(), 'foreign employer cannot edit another organization vacancy').toBe(404);
+
+      const crossTenantClose = await api.patch(API + '/api/jobs/employer/vacancies/' + vacancyId, {
+        headers: auth(otherEmployer.accessToken),
+        data: { status: 'closed' },
+      });
+      expect(crossTenantClose.status(), 'foreign employer cannot close another organization vacancy').toBe(404);
+
+      // Public discovery must stop exposing an employer vacancy immediately
 
       // Public discovery must stop exposing an employer vacancy immediately
       // when verification/legal activation is revoked, even if its row remains open.
