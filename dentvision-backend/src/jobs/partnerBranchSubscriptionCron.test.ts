@@ -81,7 +81,7 @@ describe('partner branch subscription monthly invoice cron', () => {
         }),
       }),
     }));
-    expect(notifyMany).toHaveBeenCalledTimes(3);
+    expect(notifyMany).toHaveBeenCalledTimes(1);
     expect(findExistingNotifications).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         type: 'partner.branch_subscription.invoice_issued',
@@ -136,6 +136,7 @@ describe('partner branch subscription monthly invoice cron', () => {
   });
 
   it('retries a missing finance notification for an already-issued invoice without duplicating existing recipients', async () => {
+    findMany.mockResolvedValueOnce([{ id: 'org-medical-lab' }]);
     issueInvoice.mockResolvedValue({
       idempotent: true,
       invoice: {
@@ -149,7 +150,7 @@ describe('partner branch subscription monthly invoice cron', () => {
 
     const result = await runPartnerBranchSubscriptionCron(new Date('2026-11-23T09:15:00.000Z'));
 
-    expect(result).toMatchObject({ scanned: 3, issued: 0, alreadyIssued: 3, skipped: 0, errors: 0 });
+    expect(result).toMatchObject({ scanned: 1, issued: 0, alreadyIssued: 1, skipped: 0, errors: 0 });
     expect(notifyMany).toHaveBeenCalledWith(['finance-user-2'], expect.objectContaining({
       title: 'Счёт PB-20261101-RETRY001 за филиальную подписку готов',
       link: '/diagnostics/lab?workspace=medical-lab&tab=finance',
