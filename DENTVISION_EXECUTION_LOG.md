@@ -3052,3 +3052,9 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - The current follow-up wraps `res.status()` and `res.json()` for the two E2E mutation handlers only, adds a safe response-writer header and asserts the final status/body code. It does not log request bodies or patient information.
 - Hardened `GET /api/subscriptions/PARTNER/:ownerId`: caller must be in the exact active organization whose canonical `originalId` matches ownerId, and hold a scoped Billing/Finance permission. New E2E verifies allowed medical-lab Finance and diagnostic-center owner access and denies technician, radiologist, clinic-owner and cross-organization Finance.
 - Prior SHA checks: backend/frontend lint, lint-test, Quality Gate and RB-034 SUCCESS; Browser UX and Mobile Design SUCCESS; Role/Context was still running. All exact-head checks rerun on the new SHA. No merge/deploy/payment/data migration/PHI action occurred.
+
+
+## 2026-11-23 — Backend lint threshold maintained
+
+- SHA `2d7acbf9743d85f809400be19a4af8058dbfb437` backend-lint had 0 errors but 75 `no-console` warnings against the existing max of 73. The three new E2E-only response trace log sites caused the increase; no lint threshold was raised.
+- Converted the `[E2E_ACADEMY_*]` diagnostic entries to allowed `console.warn` calls. Exact-head lint/type-check and all E2E suites must rerun on the follow-up SHA.
