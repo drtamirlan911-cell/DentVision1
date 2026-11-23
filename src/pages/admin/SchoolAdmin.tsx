@@ -11,7 +11,8 @@ import {
   EmptyState, Tabs, useToast, Badge, PageHeader, Switch,
 } from '../../components/ui/ds'
 import {
-  getSchoolCourses, createSchoolCourse, updateSchoolCourse, deleteSchoolCourse,
+  getSchoolCourses, getManagedSchoolCourses, updateSchoolCoursePublication,
+  createSchoolCourse, updateSchoolCourse, deleteSchoolCourse,
   getSchoolClinicalCases, createSchoolClinicalCase, updateSchoolClinicalCase, deleteSchoolClinicalCase,
   getSchoolLibrary, createSchoolLibraryItem, updateSchoolLibraryItem, deleteSchoolLibraryItem,
 } from '../../utils/api'
@@ -25,7 +26,7 @@ function useMakeToast() {
 }
 
 export default function SchoolAdmin() {
-  const { user } = useAuth()
+  const { user, activeWorkspace } = useAuth()
   const [tab, setTab] = useState('courses')
 
   if (user?.role !== 'superadmin') return <Navigate to="/school" replace />
@@ -46,14 +47,14 @@ export default function SchoolAdmin() {
         active={tab}
         onChange={setTab}
       />
-      {tab === 'courses' && <CoursesManager />}
+      {tab === 'courses' && <CoursesManager activeWorkspace={activeWorkspace} />}
       {tab === 'cases' && <CasesManager />}
       {tab === 'library' && <LibraryManager />}
     </div>
   )
 }
 
-function CoursesManager() {
+function CoursesManager({ activeWorkspace }: { activeWorkspace?: { scopeType?: string; scopeId?: string; name?: string } | null }) {
   const toast = useMakeToast()
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -62,9 +63,21 @@ function CoursesManager() {
   const [open, setOpen] = useState(false)
   const [toDelete, setToDelete] = useState<any>(null)
   const [saving, setSaving] = useState(false)
+  const [publicationUpdatingId, setPublicationUpdatingId] = useState<string | null>(null)
   const [form, setForm] = useState<any>({})
+  const hasAcademyContext = activeWorkspace?.scopeType === 'ACADEMY'
 
-  const load = useCallback(async () => { setLoading(true); setItems(await getSchoolCourses()); setLoading(false) }, [])
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const rows = hasAcademyContext ? await getManagedSchoolCourses() : await getSchoolCourses()
+      setItems(Array.isArray(rows) ? rows : [])
+    } catch (error: any) {
+      toast.error(error?.message || 'Не удалось загрузить курсы')
+    } finally {
+      setLoading(false)
+    }
+  }, [hasAcademyContext, toast])
   useEffect(() => { load() }, [load])
 
   function blankCourse() {
@@ -136,6 +149,21 @@ function CoursesManager() {
     try { await deleteSchoolCourse(toDelete.id); toast.success('Курс удалён'); await load() } catch (e: any) { toast.error(e?.message || 'Ошибка') } finally { setToDelete(null) }
   }
 
+  async function togglePublication(course: any) {
+    if (!hasAcademyContext || publicationUpdatingId) return
+    const publicationStatus = course.publicationStatus === 'archived' ? 'published' : 'archived'
+    setPublicationUpdatingId(course.id)
+    try {
+      await updateSchoolCoursePublication(course.id, publicationStatus)
+      toast.success(publicationStatus === 'archived' ? 'Курс скрыт из каталога. Доступ учащихся сохранён.' : 'Курс снова опубликован.')
+      await load()
+    } catch (error: any) {
+      toast.error(error?.message || 'Не удалось изменить публикацию курса')
+    } finally {
+      setPublicationUpdatingId(null)
+    }
+  }
+
   const filtered = items.filter(i => (i.title + ' ' + (i.category || '')).toLowerCase().includes(query.toLowerCase()))
 
   return (
@@ -161,15 +189,38 @@ function CoursesManager() {
                       </div>
                       <div className="flex gap-1 shrink-0">
                         <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(c)} className="min-h-11"><Pencil size={16} /></Button>
-                        <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(c)} className="min-h-11"><Trash2 size={16} /></Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={c._count && (c._count.enrollments + c._count.assessmentAttempts + c._count.certificates) > 0 ? 'Удаление заблокировано: есть учебная история' : 'Удалить'}
+                          disabled={!!(c._count && (c._count.enrollments + c._count.assessmentAttempts + c._count.certificates) > 0)}
+                          onClick={() => setToDelete(c)}
+                          className="min-h-11"
+                        ><Trash2 size={16} /></Button>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2 mt-2 text-xs text-txt-muted">
                       <Badge variant="default">{c.difficulty}</Badge>
+                      {c.publicationStatus === 'archived' && <Badge variant="default">В архиве</Badge>}
                       <span>{c.durationHours} ч</span>
                       <span>· {c.lessonCount} ур.</span>
                       {c.price > 0 ? <span>· {c.price.toLocaleString()} ₸</span> : <Badge variant="success">Бесплатно</Badge>}
                     </div>
+                    {c._count && (c._count.enrollments + c._count.assessmentAttempts + c._count.certificates) > 0 && (
+                      <p className="mt-2 text-xs text-txt-muted">Учебная история сохранена — удаление заблокировано</p>
+                    )}
+                    {hasAcademyContext && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="mt-3 min-h-11"
+                        disabled={publicationUpdatingId === c.id}
+                        loading={publicationUpdatingId === c.id}
+                        onClick={() => togglePublication(c)}
+                      >
+                        {c.publicationStatus === 'archived' ? 'Вернуть в каталог' : 'Убрать в архив'}
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
