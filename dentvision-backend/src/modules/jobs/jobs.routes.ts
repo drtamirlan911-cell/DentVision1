@@ -324,6 +324,132 @@ jobsRouter.post('/employer/vacancies', authenticate, requirePermission('jobs.wri
   }
 });
 
+jobsRouter.patch('/employer/vacancies/:id', authenticate, requirePermission('jobs.write'), async (req: AuthRequest, res) => {
+  try {
+    const scope = await activeJobEmployerScope(req);
+    if (!scope) return res.status(403).json({ ok: false, error: 'Рабочий контекст работодателя не подтверждён', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
+
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+      ? req.body as Record<string, unknown>
+      : null;
+    if (!body || Object.keys(body).length === 0) {
+      return res.status(400).json({ ok: false, error: 'Передайте поля для изменения вакансии', code: 'EMPTY_VACANCY_UPDATE' } satisfies ApiResponse);
+    }
+
+    const allowedFields = new Set(['title', 'city', 'salary', 'employmentType', 'description', 'tags', 'status']);
+    const unknownFields = Object.keys(body).filter((field) => !allowedFields.has(field));
+    if (unknownFields.length) {
+      return res.status(400).json({ ok: false, error: 'Запрос содержит неподдерживаемые поля', code: 'INVALID_VACANCY_FIELDS' } satisfies ApiResponse);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, 'status')
+      && body.status !== 'open' && body.status !== 'closed') {
+      return res.status(400).json({ ok: false, error: 'Статус вакансии должен быть open или closed', code: 'INVALID_VACANCY_STATUS' } satisfies ApiResponse);
+    }
+
+    const contentFields = ['title', 'city', 'salary', 'employmentType', 'description', 'tags'];
+    const changesContent = contentFields.some((field) => Object.prototype.hasOwnProperty.call(body, field));
+    if (scope.employerOrganizationId && !scope.canPublish
+      && (changesContent || body.status === 'open')) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Редактирование и публикация вакансий доступны после юридической проверки и активации работодателя. Закрыть вакансию можно в любой момент.',
+        code: 'EMPLOYER_VERIFICATION_REQUIRED',
+        data: { verificationStatus: scope.verificationStatus, nextPath: '/organizations' },
+      } satisfies ApiResponse);
+    }
+    if (!(await ensureJobWriteAllowed(scope, res))) return;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const owned = await tx.jobVacancy.findFirst({
+        where: { id: String(req.params.id), ...ownedVacancyWhere(scope), kind: 'vacancy' },
+        select: {
+          id: true, status: true, title: true, city: true, salary: true,
+          employmentType: true, description: true, tags: true, updatedAt: true,
+        },
+      });
+      if (!owned) return { kind: 'not_found' as const };
+
+      const data: Prisma.JobVacancyUpdateInput = {};
+      const changedFields: string[] = [];
+      const stringFields = [
+        ['title', 120, true],
+        ['city', 100, true],
+        ['salary', 120, false],
+        ['employmentType', 80, false],
+        ['description', 8000, false],
+      ] as const;
+
+      for (const [field, maxLength, required] of stringFields) {
+        if (!Object.prototype.hasOwnProperty.call(body, field)) continue;
+        const raw = body[field];
+        if (typeof raw !== 'string') return { kind: 'invalid' as const, message: 'Поле ' + field + ' должно быть строкой' };
+        const value = raw.trim();
+        if (required && !value) return { kind: 'invalid' as const, message: 'Поле ' + field + ' обязательно' };
+        if (value.length > maxLength) return { kind: 'invalid' as const, message: 'Поле ' + field + ' превышает допустимую длину' };
+        if (value !== owned[field]) {
+          (data as unknown as Record<string, unknown>)[field] = value;
+          changedFields.push(field);
+        }
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, 'tags')) {
+        if (!Array.isArray(body.tags) || body.tags.length > 20 || body.tags.some((tag) => typeof tag !== 'string')) {
+          return { kind: 'invalid' as const, message: 'Теги должны быть массивом не более чем из 20 строк' };
+        }
+        const tags = body.tags.map((tag) => (tag as string).trim()).filter(Boolean);
+        if (tags.some((tag) => tag.length > 40)) {
+          return { kind: 'invalid' as const, message: 'Каждый тег должен содержать не более 40 символов' };
+        }
+        const currentTags = Array.isArray(owned.tags) ? owned.tags : [];
+        if (JSON.stringify(currentTags) !== JSON.stringify(tags)) {
+          data.tags = tags as Prisma.InputJsonValue;
+          changedFields.push('tags');
+        }
+      }
+
+      const requestedStatus = Object.prototype.hasOwnProperty.call(body, 'status')
+        ? body.status as string
+        : owned.status;
+      if (requestedStatus !== owned.status) {
+        data.status = requestedStatus;
+        changedFields.push('status');
+      }
+
+      if (!changedFields.length) return { kind: 'unchanged' as const, vacancy: owned };
+
+      const changed = await tx.jobVacancy.updateMany({
+        where: { id: owned.id, status: owned.status, updatedAt: owned.updatedAt },
+        data,
+      });
+      if (changed.count !== 1) return { kind: 'conflict' as const };
+
+      const result = await tx.jobVacancy.findUnique({ where: { id: owned.id } });
+      if (!result) throw new Error('Updated employer vacancy could not be read inside transaction');
+
+      const statusChanged = requestedStatus !== owned.status;
+      const action = statusChanged
+        ? requestedStatus === 'closed' ? 'jobs.vacancy.closed' : 'jobs.vacancy.reopened'
+        : 'jobs.vacancy.updated';
+      await auditFromReq(req, {
+        action,
+        entity: 'job_vacancy',
+        entityId: owned.id,
+        details: { fromStatus: owned.status, toStatus: result.status, changedFields },
+      }, tx);
+      return { kind: 'updated' as const, vacancy: result };
+    });
+
+    if (updated.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Вакансия не найдена в активной организации' } satisfies ApiResponse);
+    if (updated.kind === 'invalid') return res.status(400).json({ ok: false, error: updated.message, code: 'INVALID_VACANCY_UPDATE' } satisfies ApiResponse);
+    if (updated.kind === 'conflict') return res.status(409).json({ ok: false, error: 'Вакансия изменилась параллельно. Обновите список.', code: 'VACANCY_CONFLICT' } satisfies ApiResponse);
+    return res.json({ ok: true, data: updated.vacancy } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Update employer vacancy error:', safeErrorKind(error));
+    return res.status(500).json({ ok: false, error: 'Не удалось обновить вакансию' } satisfies ApiResponse);
+  }
+});
+
 jobsRouter.patch('/employer/applications/:id/status', authenticate, requirePermission('jobs.write'), async (req: AuthRequest, res) => {
   try {
     const scope = await activeJobEmployerScope(req);
