@@ -1736,6 +1736,9 @@ model Course {
   duration    String?
 
   format   String    @default("course")
+  // published: discoverable and open to new purchases; archived: hidden from public sales,
+  // while existing active learners retain their entitled course content and history.
+  publicationStatus String @default("published")
   startsAt DateTime?
   seats    Int?
   fileUrl  String?
