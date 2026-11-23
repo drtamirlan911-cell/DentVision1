@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Button } from '@/components/ui/ds/Button';
@@ -22,6 +22,7 @@ export function DentalLabServicesTab({ canManage, cacheScope }: { canManage: boo
   const toast = useToast();
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [editing, setEditing] = useState<string | null>(null);
+  useEffect(() => { setDraft(EMPTY); setEditing(null); }, [cacheScope]);
   const query = useQuery({ queryKey: ['lab-platform', cacheScope, 'services'], queryFn: getDentalLabServices });
   const services = query.data || [];
 
