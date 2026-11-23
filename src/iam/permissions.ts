@@ -19,6 +19,7 @@ export const IAM_PERMISSIONS = {
   INVENTORY_WRITE: 'inventory.write',
   INVENTORY_DELETE: 'inventory.delete',
   ACADEMY_MANAGE: 'academy.manage',
+  ACADEMY_READ: 'academy.read',
   SUPPLIER_MANAGE: 'supplier.manage',
   COMPLIANCE_MANAGE: 'compliance.manage',
   PLATFORM_ANALYTICS: 'platform.analytics',
