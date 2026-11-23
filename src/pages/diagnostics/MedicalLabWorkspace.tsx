@@ -38,10 +38,11 @@ const statusLabel: Record<string, string> = { ordered: 'Направлено', s
 export default function MedicalLabWorkspace() {
   const context = useEcosystemUrlContext();
   const { user, activeWorkspace } = useAuth();
-  const isLaboratoryWorkspace = String(user?.organizationType || '').toUpperCase() === 'LABORATORY';
+  const activeScopeType = String(activeWorkspace?.scopeType || user?.organizationType || '').toUpperCase();
+  const isLaboratoryWorkspace = activeScopeType === 'LABORATORY';
   const queryClient = useQueryClient();
   const capabilitiesQuery = useQuery({
-    queryKey: ['medical-lab-capabilities'],
+    queryKey: ['medical-lab-capabilities', workspaceCacheScope],
     queryFn: getMedicalLabCapabilities,
     enabled: isLaboratoryWorkspace,
   });
@@ -49,8 +50,9 @@ export default function MedicalLabWorkspace() {
   const canReadFinance = medicalLabCapabilities.includes('finance.read');
   const canManageFinance = medicalLabCapabilities.includes('finance.manage');
   const billingOrganizationId = String(activeWorkspace?.organizationId || user?.organizationId || context.organizationId || '');
+  const workspaceCacheScope = JSON.stringify([billingOrganizationId, String(activeWorkspace?.scopeId || ''), String(context.branchId || '')]);
   const financeQuery = useQuery({
-    queryKey: ['medical-lab-finance'],
+    queryKey: ['medical-lab-finance', workspaceCacheScope],
     queryFn: getMedicalLabFinance,
     enabled: isLaboratoryWorkspace && canReadFinance,
   });
@@ -71,7 +73,7 @@ export default function MedicalLabWorkspace() {
     mutationFn: () => requestMedicalLabPayout(payoutAmount.trim()),
     onSuccess: () => {
       setPayoutAmount('');
-      queryClient.invalidateQueries({ queryKey: ['medical-lab-finance'] });
+      queryClient.invalidateQueries({ queryKey: ['medical-lab-finance', workspaceCacheScope] });
     },
   });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -84,10 +86,19 @@ export default function MedicalLabWorkspace() {
   const [barcodeScan, setBarcodeScan] = useState('');
   const [scanNote, setScanNote] = useState('');
   const [resultDrafts, setResultDrafts] = useState<Record<string, string>>({});
+  useEffect(() => {
+    setSelectedId(null);
+    setResultDrafts({});
+    setInterpretation('');
+    setQualityNote('');
+    setBarcodeScan('');
+    setScanNote('');
+    setPayoutAmount('');
+  }, [workspaceCacheScope]);
   const [creating, setCreating] = useState(false);
-  const listQuery = useQuery({ queryKey: ['medical-lab-orders', context.patientId, context.caseId], queryFn: () => listMedicalLabOrders({ patientId: context.patientId || undefined, caseId: context.caseId || undefined }) });
-  const detailQuery = useQuery({ queryKey: ['medical-lab-order', selectedId], queryFn: () => getMedicalLabOrder(selectedId!), enabled: !!selectedId });
-  const refresh = () => { queryClient.invalidateQueries({ queryKey: ['medical-lab-orders'] }); if (selectedId) queryClient.invalidateQueries({ queryKey: ['medical-lab-order', selectedId] }); };
+  const listQuery = useQuery({ queryKey: ['medical-lab-orders', workspaceCacheScope, context.patientId, context.caseId], queryFn: () => listMedicalLabOrders({ patientId: context.patientId || undefined, caseId: context.caseId || undefined }), enabled: isLaboratoryWorkspace });
+  const detailQuery = useQuery({ queryKey: ['medical-lab-order', workspaceCacheScope, selectedId], queryFn: () => getMedicalLabOrder(selectedId!), enabled: isLaboratoryWorkspace && !!selectedId });
+  const refresh = () => { queryClient.invalidateQueries({ queryKey: ['medical-lab-orders', workspaceCacheScope] }); if (selectedId) queryClient.invalidateQueries({ queryKey: ['medical-lab-order', workspaceCacheScope, selectedId] }); };
   const statusMutation = useMutation({ mutationFn: ({ id, status }: { id: string; status: MedicalLabStatus }) => updateMedicalLabStatus(id, status), onSuccess: refresh });
   const verifyMutation = useMutation({ mutationFn: (id: string) => verifyMedicalLabOrder(id), onSuccess: refresh });
   const interpretationMutation = useMutation({ mutationFn: ({ id, text }: { id: string; text: string }) => saveMedicalLabInterpretation(id, text, 'human'), onSuccess: () => { setInterpretation(''); refresh(); } });
