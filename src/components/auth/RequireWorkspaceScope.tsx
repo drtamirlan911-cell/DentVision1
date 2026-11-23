@@ -2,7 +2,7 @@ import React from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/store/auth.store'
 
-export type PartnerWorkspaceScope = 'DIAGNOSTIC_CENTER' | 'LABORATORY'
+export type PartnerWorkspaceScope = 'DIAGNOSTIC_CENTER' | 'LABORATORY' | 'ACADEMY'
 
 type AuthLike = ReturnType<typeof useAuth>
 
@@ -31,7 +31,7 @@ export function RequireWorkspaceScope({
   if (loading) return null
   if (!user) return <Navigate to="/login" state={{ from: location }} replace />
   if (workspaceScopeAllowed(user, effectiveRole, scopeType)) return <>{children}</>
-  return <Navigate to="/diagnostics" replace />
+  return <Navigate to={scopeType === 'ACADEMY' ? '/school' : '/diagnostics'} replace />
 }
 
 export default RequireWorkspaceScope
