@@ -58,9 +58,9 @@ WITH candidate_pairs AS (
     ON person_role."personId" = person."id"
    AND person_role."scopeType" = 'organization'
    AND person_role."scopeId" = organization."id"
-  JOIN "roles" role
-    ON role."id" = person_role."roleId"
-   AND (role."key" = 'owner' OR RIGHT(role."key", 6) = '_owner')
+  JOIN "roles" iam_role
+    ON iam_role."id" = person_role."roleId"
+   AND (iam_role."key" = 'owner' OR RIGHT(iam_role."key", 6) = '_owner')
   WHERE partner."userId" IS NOT NULL
 ),
 unambiguous_pairs AS (
