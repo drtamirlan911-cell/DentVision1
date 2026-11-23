@@ -27,6 +27,15 @@ const schoolRouter = Router();
 
 // Test-only route provenance: keeps a failing API contract traceable without
 // changing authorization or error semantics. Enabled only by isolated E2E CI.
+
+function traceAcademyCourseMutationHandler(method: 'PUT' | 'DELETE', req: AuthRequest, res: Response) {
+  if (process.env.SEED_E2E_FIXTURES !== 'true') return;
+  res.setHeader('X-DV-Academy-Mutation-Handler', method);
+  console.info('[E2E_ACADEMY_MUTATION_HANDLER]', {
+    method, requestMethod: req.method, originalUrl: req.originalUrl, courseId: req.params.id,
+  });
+}
+
 function academyCourseMutationTrace(method: 'PUT' | 'DELETE') {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (process.env.SEED_E2E_FIXTURES === 'true') {
@@ -539,6 +548,7 @@ schoolRouter.post('/courses', authenticate, requireAcademyOwner, async (req: Aut
 });
 
 schoolRouter.put('/courses/:id', authenticate, academyCourseMutationTrace('PUT'), requireAcademyOwner, async (req: AuthRequest, res) => {
+  traceAcademyCourseMutationHandler('PUT', req, res);
   try {
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
@@ -550,6 +560,14 @@ schoolRouter.put('/courses/:id', authenticate, academyCourseMutationTrace('PUT')
         where: { id, academyId: academyScope.academyId },
         select: { id: true, meta: true },
       });
+      if (process.env.SEED_E2E_FIXTURES === 'true') {
+        console.info('[E2E_ACADEMY_MUTATION_LOOKUP]', {
+          method: 'PUT',
+          courseId: id,
+          academyId: academyScope.academyId,
+          found: Boolean(existing),
+        });
+      }
       if (!existing) return { kind: 'not-found' as const };
 
       const [enrollmentCount, attemptCount, certificateCount] = await Promise.all([
@@ -705,6 +723,7 @@ schoolRouter.patch('/courses/:id/publication', authenticate, requireAcademyOwner
 });
 
 schoolRouter.delete('/courses/:id', authenticate, academyCourseMutationTrace('DELETE'), requireAcademyOwner, async (req: AuthRequest, res) => {
+  traceAcademyCourseMutationHandler('DELETE', req, res);
   try {
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
@@ -715,6 +734,14 @@ schoolRouter.delete('/courses/:id', authenticate, academyCourseMutationTrace('DE
         where: { id, academyId: academyScope.academyId },
         select: { id: true },
       });
+      if (process.env.SEED_E2E_FIXTURES === 'true') {
+        console.info('[E2E_ACADEMY_MUTATION_LOOKUP]', {
+          method: 'DELETE',
+          courseId: id,
+          academyId: academyScope.academyId,
+          found: Boolean(existing),
+        });
+      }
       if (!existing) return { kind: 'not-found' as const };
 
       const [enrollmentCount, attemptCount, certificateCount] = await Promise.all([

@@ -3034,3 +3034,13 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Connected the management list and archive/republish controls in the School Admin course cabinet. The controls are shown only when an Academy workspace is active; otherwise the page remains on public catalogue data.
 - Added ACADEMY-012 assertions that archived courses disappear from public discovery, remain in the active learner's learning player, are rejected by new-sale registration, and remain visible in the scoped management catalogue for republishing.
 - This is still pending exact-HEAD CI and visual/mobile acceptance. The implementation does not mark the Academy vertical complete.
+
+
+## 2026-11-23 — Partner billing evidence correction and Academy handler diagnostics (PR #352)
+
+- Source review corrected prior wording: partner billing already contains an hourly monthly invoice-issuance job, scoped invoice notifications, platform invoice issuance, partner invoice/Kaspi QR UI, provider-status polling and atomic shared settlement. The job creates invoices and notices only; it does not automatically debit a payment method.
+- Active branch status changes are recorded prospectively and invoice quantity is snapshotted at the period start. Queries before the recorded baseline fail closed; this does not reconstruct historical activation dates or support proration.
+- Remaining billing gates: entitlement enforcement across all partner APIs; dunning/automated recovery; proration/credits; subscription refunds/credit notes; VAT/tax invoices/EDS; accounting export/bank reconciliation; live Kaspi merchant and callback acceptance. Partner verticals remain PARTIAL.
+- ACADEMY-010/011 on HEAD ce6347e4 returned English “Course not found” 404 despite the test-only route middleware headers. The previous marker did not prove async-handler entry. This update adds a handler-entry header and safe E2E-only route/scope-lookup logs, disables redirect following in both mutation tests, and preserves the expected 409 and learner-history integrity checks.
+- Prior-SHA core E2E: 259 passed, 5 skipped, 2 failed (ACADEMY-010/011); Browser UX and Mobile Design passed; Role/Context was in progress when run telemetry stopped refreshing. Fresh exact-head CI is required.
+- No production/staging data, PHI, payment, provider configuration, secret, deployment or main merge was touched.

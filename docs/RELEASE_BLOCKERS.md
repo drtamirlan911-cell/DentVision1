@@ -927,3 +927,18 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - Lecturer deletion now checks all three history relations in a serializable transaction and returns HTTP 409 when any history exists; serialization conflicts also fail closed with 409. The lecturer course list exposes the matching counts; the UI explains why deletion is unavailable and disables the destructive control. Products without learner history require explicit confirmation before deletion.
 - `ACADEMY-009` covers a real lecturer context, a persisted enrollment, the 409 response and post-request existence checks for both course and enrollment. The first CI run was cancelled by a subsequent source update before this test completed; only the new exact-head CI can verify it.
 - **Still OPEN:** a first-class course archive/close/reopen lifecycle, owner-managed cohorts, attendance, grading/assignment operations, learner purchase/refund history, instructor settlement and complete mobile acceptance. This change is a data-safety correction, not Academy completion. Academy / Student OS remain **PARTIAL / CANDIDATE** pending exact-head CI/E2E and all role, mobile and visual gates. No production/staging database was changed and no main merge was performed.
+
+
+## 2026-11-23 correction — partner branch billing lifecycle evidence in PR #352
+
+Earlier entries above describe pre-scheduler/pre-payment-UI milestones and are superseded by the source audit of the current PR #352 candidate. The candidate now contains:
+
+- Hourly, idempotent current-month invoice issuance for legally activated Diagnostic Center and explicitly classified Medical/Dental Laboratory organizations.
+- In-app invoice-issued notices to members with scoped Billing/Finance permissions.
+- Platform Finance invoice issuance and partner-facing invoice list / Kaspi QR initiation.
+- Provider-status polling, invoice-bound payment identity and amount/currency checks, atomic payment settlement and distinct PARTNER_BRANCH_SUBSCRIPTION revenue recognition.
+- Prospective branch-status events and month-start billable-quantity snapshots. This does not reconstruct history before the baseline.
+
+This is invoice scheduling and payment initiation/settlement support, **not automatic recurring debit**. Remaining release blockers are entitlement enforcement on every partner-scoped API, dunning and automated failed-payment recovery, proration/credits, refunds/credit notes, VAT/tax invoices and EDS, bank reconciliation/accounting exports, live Kaspi merchant and callback acceptance, and approved staging/operator evidence. The three verticals remain PARTIAL; D10 and release remain OPEN / NOT READY.
+
+ACADEMY-010/011 are not resolved: core E2E on ce6347e4 had 259 passed, 5 skipped and 2 failed, with a “Course not found” 404 for protected PUT/DELETE. The old route marker established middleware entry only. The follow-up records async-handler entry and scoped lookup outcome, disables automatic redirects, and preserves the expected 409 and data-integrity assertions. Do not merge PR #352 before fresh exact-head full CI, Quality Gate, RB-034 and every role/mobile/visual gate succeeds.

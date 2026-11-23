@@ -1,3 +1,16 @@
+## Current continuation checkpoint — 2026-11-23
+
+- Canonical repository: drtamirlan911-cell/DentVision1; audited main: 758ffe7f39112848df701a8b988f44af03845597. Active candidate PR #352, branch fix/partner-workspace-context-ux-20261120, pre-diagnostic HEAD ce6347e4af3e27aca8a23c9d34ef1868b6cf7db4. Do not merge before every exact-head gate passes and merge state is clean.
+- Exact-head checks observed before this follow-up: backend lint, frontend lint and lint-test SUCCESS; Quality Gate 45200857359 SUCCESS; RB-034 Context Diagnostic 45200857516 SUCCESS; core E2E 259 passed / 5 skipped / 2 failed (ACADEMY-010 and ACADEMY-011). Browser UX and Mobile Design passed; Role/Context was still in progress when workflow telemetry stopped refreshing.
+- The old X-DV-Academy-Mutation-Route header proved only route middleware entry, not entry into the async handler. This follow-up adds a distinct handler-entry header, E2E-only safe route/lookup logs and maxRedirects:0; the expected HTTP 409 and learner-history integrity assertions stay unchanged.
+- Partner billing source now includes a monthly invoice cron, permission-scoped invoice notifications, platform issuance panel, partner invoice/QR payment UI, provider-status polling and atomic settlement, plus prospective branch-status history. The cron creates invoices and notices, not automatic debits. Entitlements on every partner API, dunning, proration, refunds/credit notes, tax/EDS, bank reconciliation and live Kaspi acceptance remain open.
+- Approved monthly branch tariffs remain Diagnostic Center ₸49,900, Medical Laboratory ₸19,900 and Dental Laboratory ₸29,900. Transaction commissions are separate. No fixed supplier or Academy branch fee is approved.
+- Partner cabinets are implemented slices, not production-certified verticals: RIS/PACS/DICOMweb and report sign-off, lab analyzer/QC/regulatory proof, full dental CAD/CAM, Academy cohorts/attendance/assignments/refunds and supplier return/refund reconciliation remain open.
+- PR #350 (archived-branch security) and PR #351 (Jarvis knowledge/read-only capabilities) remain dirty/unmergeable at their observed heads. Avoid wholesale merge/cherry-pick because the PRs overlap IAM, workspace and partner scope.
+- No staging/production DB, PHI, secrets, live provider payment, legal signature, production deployment or main merge was performed.
+
+---
+
 ## Current continuation checkpoint — 2026-11-18
 
 - Canonical repository: `drtamirlan911-cell/DentVision1`; current `main`: `7289f369b1effa28db94e3e1e4541e4500bc5ee0`.

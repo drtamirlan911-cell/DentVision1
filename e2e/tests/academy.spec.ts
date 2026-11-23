@@ -459,6 +459,7 @@ test.describe('Academy / Course Workflow', () => {
     expect(beforeLessons).toHaveLength(1);
 
     const update = await api.put(`${BASE_URL}/api/school/courses/${fixture.courseId}`, {
+      maxRedirects: 0,
       headers: auth(fixture.academyToken),
       data: {
         title: 'Attempted destructive content replacement',
@@ -476,6 +477,9 @@ test.describe('Academy / Course Workflow', () => {
     });
     const updateText = await update.text();
     expect(update.headers()['x-dv-academy-mutation-route']).toBe('PUT');
+    expect(update.headers()['x-dv-academy-mutation-handler']).toBe('PUT');
+    expect(update.request().method()).toBe('PUT');
+    expect(update.url()).toBe(`${BASE_URL}/api/school/courses/${fixture.courseId}`);
     expect(update.status(), updateText).toBe(409);
 
     const [course, afterLessons, enrollment] = await Promise.all([
@@ -500,10 +504,14 @@ test.describe('Academy / Course Workflow', () => {
     });
 
     const deletion = await api.delete(`${BASE_URL}/api/school/courses/${fixture.courseId}`, {
+      maxRedirects: 0,
       headers: auth(fixture.academyToken),
     });
     const deletionText = await deletion.text();
     expect(deletion.headers()['x-dv-academy-mutation-route']).toBe('DELETE');
+    expect(deletion.headers()['x-dv-academy-mutation-handler']).toBe('DELETE');
+    expect(deletion.request().method()).toBe('DELETE');
+    expect(deletion.url()).toBe(`${BASE_URL}/api/school/courses/${fixture.courseId}`);
     expect(deletion.status(), deletionText).toBe(409);
 
     const [course, enrollment, lesson] = await Promise.all([
