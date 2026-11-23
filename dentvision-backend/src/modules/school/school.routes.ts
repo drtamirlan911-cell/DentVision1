@@ -538,7 +538,7 @@ schoolRouter.post('/courses', authenticate, requireAcademyOwner, async (req: Aut
   } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to create course' }); }
 });
 
-schoolRouter.put('/courses/:id', academyCourseMutationTrace('PUT'), authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
+schoolRouter.put('/courses/:id', authenticate, academyCourseMutationTrace('PUT'), requireAcademyOwner, async (req: AuthRequest, res) => {
   try {
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
@@ -704,7 +704,7 @@ schoolRouter.patch('/courses/:id/publication', authenticate, requireAcademyOwner
   }
 });
 
-schoolRouter.delete('/courses/:id', academyCourseMutationTrace('DELETE'), authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
+schoolRouter.delete('/courses/:id', authenticate, academyCourseMutationTrace('DELETE'), requireAcademyOwner, async (req: AuthRequest, res) => {
   try {
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
