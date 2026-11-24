@@ -10,7 +10,10 @@ describe('dental lab branch isolation contract', () => {
     expect(source).toContain('await resolveClinicBranchAccess({');
     expect(source).toContain('requestedBranchId: req.user.branchId');
     expect(source).toContain('const organizationWide = access.roleScope === \'ORGANIZATION\' && access.branchId === null');
-    expect(source).toContain('patient: { branchId: { in: branchIds } }');
+    expect(source).toContain('const scopedBranchIds = access.branchId ? [access.branchId] : access.allowedBranchIds');
+    expect(source).toContain('const branchIds = organizationWide ? null : scopedBranchIds');
+    expect(source).toContain('patient: { branchId: { in: scopedBranchIds } }');
+    expect(source).toContain('prepareLabOrderWrite(clinicId, writeBody, {}, branchIds)');
     expect(source).toContain('__NO_BRANCH_ACCESS__');
     expect(source).toContain("if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN') return { where: {}, branchIds: null };");
     expect(source).not.toContain("['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)");
