@@ -447,6 +447,14 @@ labRouter.post('/:id/acceptance', requirePermission('lab.write'), async (req: Au
         uid(), order.id, clinicId, 'delivered', 'delivered',
         'Клиника подтвердила приём доставленной работы.', req.user!.id,
       );
+      await writeAuditLog({
+        action: 'LAB_ORDER_CLINIC_ACCEPTED',
+        entity: 'lab_order',
+        entityId: orderId,
+        details: { laboratoryId: meta.laboratoryId, shipmentId: latestShipment.id, remakeRequestId: acceptance.remakeRequestId, feedbackLength: note.length },
+        userId: req.user!.id,
+        clinicId,
+      }, tx);
       return { kind: 'accepted' as const, order, acceptance, laboratoryId: meta.laboratoryId };
     });
 
@@ -457,14 +465,6 @@ labRouter.post('/:id/acceptance', requirePermission('lab.write'), async (req: Au
     if (outcome.kind === 'delivery_required') return res.status(409).json({ ok: false, error: 'Нет подтверждённой доставки последней версии заказа', code: 'LAB_DELIVERY_EVIDENCE_REQUIRED' } satisfies ApiResponse);
 
     if (outcome.kind === 'accepted') {
-      await writeAuditLog({
-        action: 'LAB_ORDER_CLINIC_ACCEPTED',
-        entity: 'lab_order',
-        entityId: orderId,
-        details: { laboratoryId: outcome.laboratoryId, shipmentId: outcome.acceptance.shipmentId, remakeRequestId: outcome.acceptance.remakeRequestId, feedbackLength: note.length },
-        userId: req.user!.id,
-        clinicId,
-      });
       const labMembers = await prisma.laboratoryMember.findMany({
         where: { labId: outcome.laboratoryId },
         select: { userId: true },
