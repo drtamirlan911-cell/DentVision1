@@ -85,12 +85,15 @@ async function branchScopedLabOrder(req: AuthRequest, clinicId: string): Promise
   if (!access) return { where: { patient: { branchId: '__NO_BRANCH_ACCESS__' } }, branchIds: [] };
 
   const organizationWide = access.roleScope === 'ORGANIZATION' && access.branchId === null;
-  const branchIds = access.branchId ? [access.branchId] : access.allowedBranchIds;
+  const scopedBranchIds = access.branchId ? [access.branchId] : access.allowedBranchIds;
+  // Organization-wide users have no branch restriction. Do not pass their
+  // branch inventory as a write allow-list: legacy patients may have branchId=null.
+  const branchIds = organizationWide ? null : scopedBranchIds;
   return {
     where: organizationWide
       ? {}
-      : branchIds.length
-        ? { patient: { branchId: { in: branchIds } } }
+      : scopedBranchIds.length
+        ? { patient: { branchId: { in: scopedBranchIds } } }
         : { patient: { branchId: '__NO_BRANCH_ACCESS__' } },
     branchIds,
   };
