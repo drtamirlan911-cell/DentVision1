@@ -1,3 +1,11 @@
+## 2026-11-24 — PR #352 clinic acceptance continuation
+
+- Added an explicit clinic acceptance step after verified dental-lab delivery. It is bound to the active clinic and branch, the latest persisted shipment proof and the delivery recipient; retries are idempotent per shipment.
+- Starting a remake clears acceptance for the previous delivery cycle while preserving immutable shipment/event history. The clinic CRM provides an explicit acceptance action; operational lab roles see feedback and logistics views do not.
+- Candidate E2E covers first delivery acceptance, remake reset, second delivery acceptance, pre-delivery denial and idempotent retries. Do not call D10 complete until exact-head CI/E2E and the remaining financial, CAD/CAM, materials, tax, warranty, refund/chargeback and desktop/mobile requirements are complete.
+
+---
+
 ## 2026-11-23 — Branch reconciliation checkpoint
 
 - Canonical integration base: `main` at `758ffe7f39112848df701a8b988f44af03845597`.
