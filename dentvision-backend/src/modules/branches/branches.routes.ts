@@ -458,6 +458,7 @@ branchesRouter.post('/:id/workspace', async (req: AuthRequest, res) => {
         ? await authorizeMemberBranch(req.user!.id, branch.clinic_id, branch)
         : { allowed: false, status: 404, error: 'Филиал не связан с организацией' };
     if (!authz.allowed) return res.status(authz.status).json({ ok: false, error: authz.error });
+    if (!branch.active) return res.status(409).json({ ok: false, error: 'Архивный филиал нельзя открыть как рабочее пространство', code: 'BRANCH_ARCHIVED' });
     return res.json({ ok: true, data: { branch: serialize(branch), context: { organizationId: branch.organization_id, clinicId: branch.clinic_id, branchId: branch.id } } });
   } catch (error) {
     console.error('[branches] workspace', error);
@@ -500,6 +501,7 @@ branchesRouter.post('/:id/members/:userId', enforceTargetClinicTrial, async (req
     if(branch.clinic_id){
       const authz=await authorizeMemberBranch(req.user!.id,branch.clinic_id,branch,true);
       if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
+      if(!branch.active)return res.status(409).json({ok:false,error:'Нельзя назначать сотрудников в архивный филиал',code:'BRANCH_ARCHIVED'});
       const target=await prisma.clinicMember.findUnique({where:{userId_clinicId:{userId,clinicId:branch.clinic_id}}});
       if(!target)return res.status(404).json({ok:false,error:'Сотрудник не является участником клиники'});
       await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=${branchId},"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id}`;
@@ -509,6 +511,7 @@ branchesRouter.post('/:id/members/:userId', enforceTargetClinicTrial, async (req
     if(!branch.organization_id)return res.status(404).json({ok:false,error:'Филиал не найден'});
     const authz=await authorizeOrganizationBranch(req.user!.id,branch.organization_id,branch,true);
     if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
+    if(!branch.active)return res.status(409).json({ok:false,error:'Нельзя назначать сотрудников в архивный филиал',code:'BRANCH_ARCHIVED'});
     const person=await organizationPerson(userId,branch.organization_id);
     if(!person)return res.status(404).json({ok:false,error:'Пользователь не является участником этой организации'});
     await prisma.branchMember.upsert({where:{personId_branchId:{personId:person.id,branchId}},create:{id:uid(),personId:person.id,branchId,active:true},update:{active:true}});
@@ -528,6 +531,7 @@ branchesRouter.patch('/:id/members/:userId/status', enforceTargetClinicTrial, as
     if(branch.clinic_id){
       const authz=await authorizeMemberBranch(req.user!.id,branch.clinic_id,branch,true);
       if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
+      if(active && !branch.active)return res.status(409).json({ok:false,error:'Нельзя включить сотрудника в архивном филиале',code:'BRANCH_ARCHIVED'});
       const target=await prisma.clinicMember.findUnique({where:{userId_clinicId:{userId,clinicId:branch.clinic_id}}});
       if(!target) return res.status(404).json({ok:false,error:'Сотрудник не найден в клинике'});
       if(!active && target.branchId !== branchId) return res.status(404).json({ok:false,error:'Сотрудник не закреплён за этим филиалом'});
@@ -543,6 +547,7 @@ branchesRouter.patch('/:id/members/:userId/status', enforceTargetClinicTrial, as
     if(!branch.organization_id)return res.status(404).json({ok:false,error:'Филиал не найден'});
     const authz=await authorizeOrganizationBranch(req.user!.id,branch.organization_id,branch,true);
     if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
+    if(active && !branch.active)return res.status(409).json({ok:false,error:'Нельзя включить сотрудника в архивном филиале',code:'BRANCH_ARCHIVED'});
     const person=await organizationPerson(userId,branch.organization_id);
     if(!person)return res.status(404).json({ok:false,error:'Пользователь не является участником этой организации'});
     const changed=await prisma.branchMember.updateMany({where:{personId:person.id,branchId},data:{active}});
