@@ -921,7 +921,15 @@ labPlatformRouter.post('/orders/:id/invoice', async (req: AuthRequest, res) => {
       await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} FOR UPDATE`;
       const order = await tx.labOrder.findFirst({
         where: { id: orderId, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } },
-        include: { patient: { select: { branchId: true } }, dentalLabInvoice: true },
+        include: {
+          patient: { select: { branchId: true } },
+          dentalLabInvoice: true,
+          dentalLabShipments: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { id: true, laboratoryId: true, status: true, deliveredAt: true, proofUrl: true, recipientName: true },
+          },
+        },
       });
       if (!order) return { kind: 'not_found' as const };
       if (order.status !== 'delivered') return { kind: 'not_delivered' as const };
@@ -930,6 +938,10 @@ labPlatformRouter.post('/orders/:id/invoice', async (req: AuthRequest, res) => {
       }
       const meta = metaOf(order.files);
       if (meta.remakeRequest?.status === 'requested') return { kind: 'remake_pending' as const };
+      const latestShipment = order.dentalLabShipments[0] ?? null;
+      if (!hasAcceptedLatestDentalLabDelivery(meta.clinicAcceptance, latestShipment, membership.labId)) {
+        return { kind: 'clinic_acceptance_required' as const };
+      }
       if (order.dentalLabInvoice) return { kind: 'existing' as const, invoice: order.dentalLabInvoice };
 
       const invoice = await tx.dentalLabInvoice.create({
@@ -956,6 +968,13 @@ labPlatformRouter.post('/orders/:id/invoice', async (req: AuthRequest, res) => {
     if (outcome.kind === 'not_delivered') return res.status(409).json({ ok: false, error: 'Счёт можно выставить только после подтверждённого вручения заказа' } satisfies ApiResponse);
     if (outcome.kind === 'price_snapshot_missing') return res.status(409).json({ ok: false, error: 'Для счёта нужна опубликованная услуга и зафиксированная цена заказа' } satisfies ApiResponse);
     if (outcome.kind === 'remake_pending') return res.status(409).json({ ok: false, error: 'Сначала завершите ожидающий запрос переделки' } satisfies ApiResponse);
+    if (outcome.kind === 'clinic_acceptance_required') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Клиника должна подтвердить приёмку последней поставки до выставления счёта.',
+        code: 'LAB_CLINIC_ACCEPTANCE_REQUIRED',
+      } satisfies ApiResponse);
+    }
 
     if (outcome.kind === 'created') {
       await writeAuditLog({
