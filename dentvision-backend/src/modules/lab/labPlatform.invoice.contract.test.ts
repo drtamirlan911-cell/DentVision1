@@ -55,7 +55,11 @@ describe('Dental Lab partner invoice lifecycle', () => {
     expect(partnerRoutes).toContain('invoice: null');
     expect(labUi).toContain('issueLabPlatformInvoice(id)');
     expect(labUi).toContain('Выставить счёт клинике');
+    expect(labUi).toContain('clinicAcceptedCurrentShipment');
+    expect(labUi).toContain('order.clinicAcceptance.shipmentId === shipment?.id');
     expect(clinicUi).toContain('Счёт {labInvoice.invoiceNumber}');
+    expect(clinicUi).toContain("clinicAcceptance?.status === 'accepted'");
+    expect(clinicUi).toContain("clinicAcceptance?.status !== 'accepted'");
     expect(clinicUi).toContain("labInvoice?.status === 'issued'");
     expect(clinicUi).toContain('invoiceId: invoice.id');
   });
