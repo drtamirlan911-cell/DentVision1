@@ -13,6 +13,7 @@ import { assertClinicOrgAccess } from '../../lib/orgContext.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { uid } from '../../lib/helpers.js';
 import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js';
+import { hasAcceptedLatestDentalLabDelivery } from './dentalLabAcceptance.js';
 import { createNotificationForClinic } from '../../services/notification.service.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { safeErrorKind } from '../../lib/safeError.js';
