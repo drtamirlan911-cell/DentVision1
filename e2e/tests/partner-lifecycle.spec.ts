@@ -2061,6 +2061,35 @@ test.describe('Partner operational lifecycle', () => {
     expect((await issuedInvoiceRetry.json()).data.id).toBe(issuedInvoiceData.id);
     expect((await issuedInvoiceRetry.json()).idempotent).toBe(true);
 
+    // Delivery confirms operational completion, not a commercial settlement.
+    // Allow the in-process event queue to drain, then assert there is no partner
+    // economics transaction (and therefore no delivery-triggered ledger snapshot).
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const deliveryEconomics = await prisma.transaction.findMany({
+      where: { type: 'partner_economics', refType: 'DENTAL_LAB', refId: order.id },
+      include: { ledgerEntries: true },
+    });
+    expect(deliveryEconomics, 'delivered dental-lab orders must not create economics before settlement').toHaveLength(0);
+
+    const labFinance = await api.get(`${BASE}/api/lab-orders/platform/finance`, { headers: auth(dentalLabOwnerToken) });
+    expect(labFinance.status()).toBe(200);
+    const labFinanceData = (await labFinance.json()).data;
+    expect(labFinanceData.wallet).toMatchObject({ ownerType: 'PARTNER', ownerId: fixtureDentalLabId, balance: '0' });
+    expect(labFinanceData.availableBalanceMinor).toBe('0');
+    expect(labFinanceData.economics.totals.operations).toBe(0);
+
+    const technicianCannotReadLabFinance = await api.get(`${BASE}/api/lab-orders/platform/finance`, { headers: auth(dentalTechnicianToken) });
+    expect(technicianCannotReadLabFinance.status()).toBe(403);
+    const clinicCannotReadLabFinance = await api.get(`${BASE}/api/lab-orders/platform/finance`, { headers: auth(ownerToken) });
+    expect(clinicCannotReadLabFinance.status()).toBe(403);
+
+    const insufficientPartnerPayout = await api.post(`${BASE}/api/lab-orders/platform/payouts`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { amount: '1.00' },
+    });
+    expect(insufficientPartnerPayout.status()).toBe(409);
+    expect((await insufficientPartnerPayout.json()).code).toBe('INSUFFICIENT_FUNDS');
+
     const paymentCreated = await api.post(`${BASE}/api/payments`, {
       headers: { ...auth(ownerToken), 'Idempotency-Key': `partner-003-accepted-invoice-${issuedInvoiceData.id}` },
       data: {
@@ -2102,41 +2131,12 @@ test.describe('Partner operational lifecycle', () => {
 
     // Delivery and acceptance alone never create partner economics. The only
     // operation above is the confirmed payment settlement.
-    const deliveryEconomics = await prisma.transaction.findMany({
+    const settledEconomicsRows = await prisma.transaction.findMany({
       where: { type: 'partner_economics', refType: 'DENTAL_LAB', refId: order.id },
       include: { ledgerEntries: true },
     });
-    expect(deliveryEconomics).toHaveLength(1);
-    expect(deliveryEconomics[0].ledgerEntries.reduce((sum: bigint, entry: any) => sum + entry.amount, 0n)).toBe(10_400_000n);
-
-    // Delivery confirms operational completion, not a commercial settlement.
-    // Allow the in-process event queue to drain, then assert there is no partner
-    // economics transaction (and therefore no delivery-triggered ledger snapshot).
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const deliveryEconomics = await prisma.transaction.findMany({
-      where: { type: 'partner_economics', refType: 'DENTAL_LAB', refId: order.id },
-      include: { ledgerEntries: true },
-    });
-    expect(deliveryEconomics, 'delivered dental-lab orders must not create economics before settlement').toHaveLength(0);
-
-    const labFinance = await api.get(`${BASE}/api/lab-orders/platform/finance`, { headers: auth(dentalLabOwnerToken) });
-    expect(labFinance.status()).toBe(200);
-    const labFinanceData = (await labFinance.json()).data;
-    expect(labFinanceData.wallet).toMatchObject({ ownerType: 'PARTNER', ownerId: fixtureDentalLabId, balance: '0' });
-    expect(labFinanceData.availableBalanceMinor).toBe('0');
-    expect(labFinanceData.economics.totals.operations).toBe(0);
-
-    const technicianCannotReadLabFinance = await api.get(`${BASE}/api/lab-orders/platform/finance`, { headers: auth(dentalTechnicianToken) });
-    expect(technicianCannotReadLabFinance.status()).toBe(403);
-    const clinicCannotReadLabFinance = await api.get(`${BASE}/api/lab-orders/platform/finance`, { headers: auth(ownerToken) });
-    expect(clinicCannotReadLabFinance.status()).toBe(403);
-
-    const insufficientPartnerPayout = await api.post(`${BASE}/api/lab-orders/platform/payouts`, {
-      headers: auth(dentalLabOwnerToken),
-      data: { amount: '1.00' },
-    });
-    expect(insufficientPartnerPayout.status()).toBe(409);
-    expect((await insufficientPartnerPayout.json()).code).toBe('INSUFFICIENT_FUNDS');
+    expect(settledEconomicsRows).toHaveLength(1);
+    expect(settledEconomicsRows[0].ledgerEntries.reduce((sum: bigint, entry: any) => sum + entry.amount, 0n)).toBe(10_400_000n);
 
     const lifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/lifecycle`, {
       headers: auth(dentalLabOwnerToken),
