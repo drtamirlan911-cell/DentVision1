@@ -12,7 +12,7 @@ describe('dental lab branch isolation contract', () => {
     expect(source).toContain('const organizationWide = access.roleScope === \'ORGANIZATION\' && access.branchId === null');
     expect(source).toContain('patient: { branchId: { in: branchIds } }');
     expect(source).toContain('__NO_BRANCH_ACCESS__');
-    expect(source).toContain("if (role === 'SUPERADMIN') return {};");
+    expect(source).toContain("if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN') return { where: {}, branchIds: null };");
     expect(source).not.toContain("['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)");
   });
 
