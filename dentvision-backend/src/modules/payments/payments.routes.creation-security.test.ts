@@ -19,6 +19,7 @@ const m = vi.hoisted(() => ({
   partnerBranchInvoiceUpdate: vi.fn(),
   paymentFindFirst: vi.fn(),
   transaction: vi.fn(),
+  queryRawUnsafe: vi.fn(),
   orderFindUnique: vi.fn(),
   labOrderFindUnique: vi.fn(),
   labOrderUpdate: vi.fn(),
@@ -58,6 +59,7 @@ vi.mock('../../lib/prisma.js', () => ({
       update: m.partnerBranchInvoiceUpdate,
     },
     $transaction: m.transaction,
+    $queryRawUnsafe: m.queryRawUnsafe,
   },
 }));
 vi.mock('../../middleware/auth.js', () => ({
@@ -149,7 +151,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  m.user = { id: 'authenticated-user', role: 'DOCTOR', clinicId: 'clinic-owned', branchIds: ['branch-1'] };
+  m.user = { id: 'authenticated-user', role: 'DOCTOR', clinicId: 'clinic-owned', branchId: 'branch-1', assignedBranchId: 'branch-1', branchIds: ['branch-1'] };
   m.reserveIdempotencyKey.mockResolvedValue({ status: 'reserved' });
   m.completeIdempotencyKey.mockResolvedValue(undefined);
   m.deleteIdempotencyKey.mockResolvedValue(undefined);
@@ -159,6 +161,7 @@ beforeEach(() => {
   m.assertClinicOrgAccess.mockResolvedValue(true);
   m.resolveOrganizationIdForClinic.mockImplementation((clinicId: string) => clinicId);
   m.resolveClinicBranchAccess.mockResolvedValue({ roleScope: 'ASSIGNED', branchId: 'branch-1', allowedBranchIds: ['branch-1'] });
+  m.queryRawUnsafe.mockResolvedValue([]);
   m.resolveClinicMemberAccess.mockResolvedValue({ role: 'OWNER' });
   m.appointmentFindFirst.mockResolvedValue({ id: 'appointment-1', clinicId: 'clinic-owned' });
   m.invoiceFindFirst.mockResolvedValue({ id: 'invoice-1', clinicId: 'clinic-owned', amount: 1000, paidAmount: 0, status: 'unpaid' });
@@ -447,6 +450,126 @@ describe('payment creation server-side pricing and metadata protection', () => {
     }));
     expect(m.providerCreate).not.toHaveBeenCalled();
     expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects creating a medical-lab payment for an archived patient branch', async () => {
+    m.queryRawUnsafe.mockResolvedValueOnce([{
+      clinicId: 'clinic-owned',
+      labId: 'lab-1',
+      branchId: 'branch-archived',
+    }]);
+
+    const { response, body } = await postPayment({
+      amountMinor: '10000',
+      refType: 'medical_lab_order',
+      refId: 'medical-order-archived',
+      meta: {},
+    });
+
+    expect(response.status).toBe(403);
+    expect(body.ok).toBe(false);
+    expect(m.queryRawUnsafe).toHaveBeenCalledTimes(1);
+    expect(m.providerCreate).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it('allows a medical-lab payment only for the active branch and immutable server price', async () => {
+    m.queryRawUnsafe
+      .mockResolvedValueOnce([{ clinicId: 'clinic-owned', labId: 'lab-1', branchId: 'branch-1' }])
+      .mockResolvedValueOnce([{ priceMinor: 10000n, price: null }]);
+
+    const { response, body } = await postPayment({
+      amountMinor: '10000',
+      refType: 'medical_lab_order',
+      refId: 'medical-order-active',
+      meta: { userId: 'attacker', branchId: 'branch-attacker' },
+    });
+
+    expect(response.status).toBe(201);
+    expect(body.ok).toBe(true);
+    expect(m.providerCreate).toHaveBeenCalledWith({ amountMinor: 10000n, refId: 'medical-order-active' });
+    expect(m.paymentCreate.mock.calls[0][0].data.meta.userId).toBe('authenticated-user');
+    expect(m.paymentCreate.mock.calls[0][0].data.meta.branchId).not.toBe('branch-attacker');
+  });
+
+  it('denies confirmation of an existing medical-lab payment after its patient branch is archived', async () => {
+    m.paymentFindUnique.mockResolvedValue({
+      id: 'payment-medical-archived',
+      provider: 'kaspi_qr',
+      externalId: 'payment-medical-archived-external',
+      amount: 10000n,
+      status: 'pending',
+      refType: 'medical_lab_order',
+      refId: 'medical-order-archived',
+      meta: { userId: 'authenticated-user', merchantScope: 'platform' },
+    });
+    m.queryRawUnsafe.mockResolvedValueOnce([{
+      clinicId: 'clinic-owned',
+      labId: 'lab-1',
+      branchId: 'branch-archived',
+    }]);
+
+    const { response, body } = await postConfirm('payment-medical-archived');
+
+    expect(response.status).toBe(403);
+    expect(body.ok).toBe(false);
+    expect(m.queryRawUnsafe).toHaveBeenCalledTimes(1);
+    expect(m.providerStatus).not.toHaveBeenCalled();
+    expect(m.transaction).not.toHaveBeenCalled();
+  });
+
+  it('denies confirmation of a clinic invoice whose patient is no longer in active branch scope', async () => {
+    m.paymentFindUnique.mockResolvedValue({
+      id: 'payment-archived-invoice',
+      provider: 'clinic_kaspi',
+      externalId: 'clinic-archived-invoice',
+      amount: 10000n,
+      status: 'pending',
+      refType: 'crm_invoice',
+      refId: 'archived-invoice',
+      meta: { clinicId: 'clinic-owned', merchantScope: 'clinic', branchId: 'branch-1' },
+    });
+    m.invoiceFindFirst.mockResolvedValueOnce(null);
+
+    const { response, body } = await postConfirm('payment-archived-invoice');
+
+    expect(response.status).toBe(403);
+    expect(body.ok).toBe(false);
+    expect(m.invoiceFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'archived-invoice',
+        clinicId: 'clinic-owned',
+        deletedAt: null,
+      },
+      select: { patient: { select: { branchId: true } } },
+    });
+    expect(m.providerStatus).not.toHaveBeenCalled();
+    expect(m.loadClinicPaymentsConfig).not.toHaveBeenCalled();
+    expect(m.transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects a client-selected clinic that differs from the authenticated clinic context', async () => {
+    const { response } = await postPayment({
+      amountMinor: '10000',
+      domain: 'crm',
+      clinicId: 'clinic-owned',
+      meta: { clinicId: 'another-clinic' },
+    });
+    expect(response.status).toBe(403);
+    expect(m.createClinicKaspiPayment).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it('persists the authenticated active branch rather than a client-supplied payment branch', async () => {
+    const { response } = await postPayment({
+      amountMinor: '10000',
+      domain: 'crm',
+      clinicId: 'clinic-owned',
+      meta: { branchId: 'branch-attacker' },
+    });
+    expect(response.status).toBe(201);
+    expect(m.paymentCreate.mock.calls[0][0].data.meta.branchId).toBe('branch-1');
+    expect(m.paymentCreate.mock.calls[0][0].data.meta.clinicId).toBe('clinic-owned');
   });
 
   it('rejects enrollment underpayment against the persisted course price', async () => {
