@@ -714,6 +714,34 @@ async function canManageClinicBillingMutation(user: AuthRequest['user'], clinicI
   return permissionsSatisfy(new Set(permissions), 'billing.manage');
 }
 
+async function assertClinicPaymentBranchAccess(
+  req: AuthRequest,
+  payment: { meta: unknown; refType: string | null; refId: string | null },
+  clinicId: string,
+): Promise<boolean> {
+  if (req.user?.role === 'SUPERADMIN') return true;
+  try {
+    if (payment.refType === 'appointment' && payment.refId) {
+      const appointment = await prisma.appointment.findFirst({
+        where: { id: payment.refId, clinicId },
+        select: { branchId: true },
+      });
+      return canAccessClinicBranch(req.user, clinicId, appointment?.branchId ?? null);
+    }
+    if (payment.refType === 'crm_invoice' && payment.refId) {
+      const invoice = await prisma.invoice.findFirst({
+        where: { id: payment.refId, clinicId, deletedAt: null },
+        select: { patient: { select: { branchId: true } } },
+      });
+      return canAccessClinicBranch(req.user, clinicId, invoice?.patient?.branchId ?? null);
+    }
+    const meta = (payment.meta || {}) as { branchId?: string | null };
+    return canAccessClinicBranch(req.user, clinicId, meta.branchId ?? null);
+  } catch {
+    return false;
+  }
+}
+
 async function assertPaymentOwner(
   req: AuthRequest,
   payment: { provider: string; meta: unknown; refType: string | null; refId: string | null },
@@ -745,7 +773,8 @@ async function assertPaymentOwner(
         return false;
       }
     }
-    return canManageClinicBillingMutation(req.user!, clinicId);
+    if (!(await canManageClinicBillingMutation(req.user!, clinicId))) return false;
+    return assertClinicPaymentBranchAccess(req, payment, clinicId);
   }
 
   if (payment.refType === 'partner_branch_subscription_invoice') {
