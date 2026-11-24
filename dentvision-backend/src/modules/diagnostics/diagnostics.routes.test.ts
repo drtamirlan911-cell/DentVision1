@@ -275,3 +275,51 @@ describe('diagnostics referral scope authorization', () => {
     await expect(authorizeReferralListScope(user({ role: 'SUPERADMIN', organizationId: undefined, organizationOriginalId: undefined, organizationType: undefined }), { labId: 'any-lab' })).resolves.toEqual({ ok: true });
   });
 });
+
+
+describe('diagnostics active branch allow-list', () => {
+  it('uses canonical authenticated branch memberships without requiring a legacy ClinicMember row', () => {
+    const clinicOwner = user({
+      role: 'OWNER',
+      organizationId: 'clinic-org-1',
+      organizationOriginalId: 'clinic-1',
+      organizationType: 'CLINIC',
+      clinicId: 'clinic-1',
+      branchId: 'branch-default',
+      assignedBranchId: 'branch-default',
+      branchIds: ['branch-default', 'branch-second'],
+    });
+    expect(resolveTrustedReferralBranchIds(clinicOwner, 'clinic-1')).toEqual([
+      'branch-default',
+      'branch-second',
+    ]);
+  });
+
+  it('fails closed for a clinic context with no active assigned branches', () => {
+    const clinicDoctor = user({
+      role: 'DOCTOR',
+      organizationId: 'clinic-org-1',
+      organizationOriginalId: 'clinic-1',
+      organizationType: 'CLINIC',
+      clinicId: 'clinic-1',
+      branchIds: [],
+    });
+    expect(resolveTrustedReferralBranchIds(clinicDoctor, 'clinic-1')).toEqual([]);
+  });
+
+  it('does not widen a clinic allow-list from role names', () => {
+    const clinicAdmin = user({
+      role: 'ADMIN',
+      organizationId: 'clinic-org-1',
+      organizationOriginalId: 'clinic-1',
+      organizationType: 'CLINIC',
+      clinicId: 'clinic-1',
+      branchIds: ['branch-one'],
+    });
+    expect(resolveTrustedReferralBranchIds(clinicAdmin, 'clinic-1')).toEqual(['branch-one']);
+  });
+
+  it('keeps the explicit superadmin platform-wide branch behavior', () => {
+    expect(resolveTrustedReferralBranchIds(user({ role: 'SUPERADMIN' }), 'clinic-1')).toBeUndefined();
+  });
+});
