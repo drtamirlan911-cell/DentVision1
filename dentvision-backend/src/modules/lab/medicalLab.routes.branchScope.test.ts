@@ -28,8 +28,9 @@ describe('medical lab branch isolation contract', () => {
 
   it('uses the canonical Clinic.id → Organization.id resolver for clinic-scoped access', () => {
     expect(source).toContain("import { assertClinicOrgAccess } from '../../lib/orgContext.js';");
-    expect(source).toContain('assertClinicOrgAccess(user!, order.clinicId)');
+    expect(source).toContain('if (order.clinicId !== user?.clinicId) return false;');
     expect(source).toContain('assertClinicOrgAccess(req.user!, clinicId)');
+    expect(source).not.toContain('if (!write && order.clinicId) return assertClinicOrgAccess(user!, order.clinicId)');
     expect(source).not.toContain('assertOrgAccess(user!, order.clinicId)');
     expect(source).not.toContain('assertOrgAccess(req.user!, clinicId)');
   });
