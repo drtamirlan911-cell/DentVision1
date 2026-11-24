@@ -42,6 +42,9 @@ describe('clinic acceptance for partner dental-lab deliveries', () => {
     expect(route).toContain("code: 'LAB_REMAKE_DECISION_PENDING'");
     expect(route).toContain('idempotent: outcome.kind === \'idempotent\'');
     expect(clinicSource).toContain('clinicAcceptance: null');
+    expect(clinicSource).toContain("clinicAcceptanceHistory: previousAcceptance");
+    expect(clinicSource).toContain("...acceptanceHistory, previousAcceptance");
+    expect(clinicSource).toContain('clinicAcceptanceHistory: meta.clinicAcceptanceHistory || []');
   });
 
   it('records audit, immutable lifecycle evidence, notification and ecosystem event', () => {
@@ -58,6 +61,9 @@ describe('clinic acceptance for partner dental-lab deliveries', () => {
 
   it('exposes acceptance feedback to production roles but not logistics projections', () => {
     expect(partnerSource).toContain("clinicAcceptance?: { status: 'accepted'; acceptedAt: string; shipmentId: string; remakeRequestId?: string | null; note?: string | null } | null;");
+    expect(partnerSource).toContain("clinicAcceptanceHistory?: Array<{ status: 'accepted'; acceptedAt: string; shipmentId: string; remakeRequestId?: string | null; note?: string | null }>");
+    expect(partnerSource).toContain('Array.isArray(meta.clinicAcceptanceHistory)');
+    expect(partnerSource).toContain('clinicAcceptanceHistory,');
     expect(partnerSource).toContain('clinicAcceptance');
     expect(partnerSource).toContain('includeClinicAcceptanceNote: !logisticsOnly');
     expect(partnerSource).toContain('includeClinicAcceptanceNote: !isLabLogisticsRole(membership.role)');
