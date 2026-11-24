@@ -66,7 +66,7 @@ export function isDentalLabTransitionAllowed(from: string, to: string): boolean 
 
 function branchScopedLabOrder(req: AuthRequest): Record<string, unknown> {
   const role = String(req.user?.role || '').toUpperCase();
-  if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {};
+  if (role === 'SUPERADMIN') return {};
   const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
   return branchIds.length > 0
     ? { patient: { branchId: { in: branchIds } } }
