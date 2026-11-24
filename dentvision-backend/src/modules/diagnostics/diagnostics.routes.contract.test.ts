@@ -79,7 +79,8 @@ describe('diagnostics route contract', () => {
 
   it('keeps operational dashboard and referral money fields behind their matching partner permissions', () => {
     const dashboardStart = source.indexOf("diagnosticsRouter.get('/dashboard'");
-    const dashboardRoute = source.slice(dashboardStart, dashboardStart + 1800);
+    const dashboardEnd = source.indexOf("diagnosticsRouter.post('/referrals/:id/ai-result'", dashboardStart);
+    const dashboardRoute = source.slice(dashboardStart, dashboardEnd);
     expect(dashboardRoute).toContain('partnerReferralReadPermission({ centerId: q.centerId, labId: q.labId })');
     expect(dashboardRoute).not.toContain("hasPartnerScopedPermission(req.user, 'billing.read')");
     expect(dashboardRoute).toContain('redactPartnerDashboardStats');
