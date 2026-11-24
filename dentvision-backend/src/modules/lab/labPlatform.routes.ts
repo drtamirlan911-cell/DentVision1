@@ -139,7 +139,6 @@ function serialize(order: any, options: { includeClinicAcceptanceNote?: boolean 
   const clinicAcceptance = meta.clinicAcceptance && typeof meta.clinicAcceptance === 'object'
     ? {
         status: meta.clinicAcceptance.status,
-        acceptedByUserId: meta.clinicAcceptance.acceptedByUserId,
         acceptedAt: meta.clinicAcceptance.acceptedAt,
         shipmentId: meta.clinicAcceptance.shipmentId,
         remakeRequestId: meta.clinicAcceptance.remakeRequestId || null,
