@@ -6,7 +6,10 @@ describe('medical lab branch isolation contract', () => {
   const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/lab/medicalLab.routes.ts'), 'utf8');
 
   it('checks branch membership for clinic medical-lab orders', () => {
-    expect(source).toContain('user?.branchIds ?? []');
+    expect(source).toContain("from '../../lib/clinicBranchAccess.js'");
+    expect(source).toContain('await resolveClinicBranchAccess({');
+    expect(source).toContain('requestedBranchId: user.branchId');
+    expect(source).toContain("access.roleScope === 'ORGANIZATION'");
     expect(source).toContain('o."clinicId" = $1');
     expect(source).not.toContain('o."clinicId" = ${args.length}');
     expect(source).toContain('o."labId" = $1');
