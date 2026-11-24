@@ -400,6 +400,17 @@ describe('payment creation server-side pricing and metadata protection', () => {
     expect(m.paymentCreate).not.toHaveBeenCalled();
   });
 
+  it('does not let OWNER read or settle a dental-lab invoice from an archived/unassigned branch', async () => {
+    m.user = { id: 'authenticated-user', role: 'OWNER', clinicId: 'clinic-owned', branchIds: [] };
+    const { response } = await postPayment({
+      amountMinor: '1500000', refType: 'dental_lab_order', refId: 'lab-order-1', meta: {},
+    });
+    expect(response.status).toBe(403);
+    expect(m.providerCreate).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+    expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
+  });
+
   it('rejects enrollment underpayment against the persisted course price', async () => {
     const { response } = await postPayment({
       amountMinor: '1',
