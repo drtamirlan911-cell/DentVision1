@@ -365,10 +365,32 @@ async function seedE2EClinicCanonicalContexts() {
       if (branch.organizationId && branch.organizationId !== organization.id) {
         throw new Error(`E2E clinic branch belongs to a different organization for ${member.user.email}`);
       }
+      // E2E branches are initially created by the legacy clinic fixture. Once
+      // the canonical Clinic Organization exists, attach the branch to it as
+      // well as keeping clinicId for domain compatibility. BranchMember alone
+      // is insufficient: resolveOrganizationBranches queries organizationId.
+      if (!branch.organizationId) {
+        await prisma.branch.update({
+          where: { id: branch.id },
+          data: { organizationId: organization.id },
+        });
+      }
+      const canonicalBranch = await prisma.branch.findFirst({
+        where: {
+          id: branch.id,
+          clinicId: member.clinicId,
+          organizationId: organization.id,
+          active: true,
+        },
+        select: { id: true, active: true },
+      });
+      if (!canonicalBranch) {
+        throw new Error(`E2E clinic branch was not attached to the canonical organization for ${member.user.email}`);
+      }
       await prisma.branchMember.upsert({
-        where: { personId_branchId: { personId: person.id, branchId: branch.id } },
-        create: { id: randomUUID(), personId: person.id, branchId: branch.id, active: branch.active },
-        update: { active: branch.active },
+        where: { personId_branchId: { personId: person.id, branchId: canonicalBranch.id } },
+        create: { id: randomUUID(), personId: person.id, branchId: canonicalBranch.id, active: true },
+        update: { active: true },
       });
     }
 
