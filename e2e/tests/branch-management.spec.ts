@@ -161,6 +161,81 @@ test.describe('Canonical organization branch management', () => {
     const branchName = `E2E Archive ${Date.now()}`;
     const branchId = await createBranch(page, branchName);
 
+    // Assign through the same API used by the branch-management UI. This must
+    // persist both the legacy ClinicMember and canonical BranchMember records.
+    // An owner token is not sufficient for this regression: owners legitimately
+    // retain organization-level access to all ACTIVE branches.
+    const ownerHeaders = await bearerHeaders(page);
+
+    // Inventory is operational data too: a clinic owner may manage active
+    // branches, but archived-branch stock must leave normal API listings.
+    const archivedInventoryName = `RB035 Archived Inventory ${Date.now()}`;
+    const inventoryCreate = await page.request.post('/api/inventory', {
+      headers: ownerHeaders,
+      data: { name: archivedInventoryName, quantity: 7, minimum: 1, price: 100, branchId },
+    });
+    expect(inventoryCreate.status(), await inventoryCreate.text()).toBe(201);
+    const inventoryCreateBody = await inventoryCreate.json();
+    const archivedInventoryId = inventoryCreateBody.data?.id as string;
+    expect(archivedInventoryId).toBeTruthy();
+
+    const doctor = await prisma.user.findUnique({ where: { email: 'doctor-a@test.com' }, select: { id: true } });
+    expect(doctor?.id, 'E2E doctor fixture must exist').toBeTruthy();
+    const assignment = await page.request.post(`/api/branches/${branchId}/members/${doctor!.id}`, {
+      headers: ownerHeaders,
+    });
+    expect(assignment.status(), await assignment.text()).toBe(200);
+
+    const doctorLogin = await page.request.post('/api/auth/login', {
+      data: { email: 'doctor-a@test.com', password: PASSWORD },
+    });
+    expect(doctorLogin.status(), await doctorLogin.text()).toBe(200);
+    const doctorLoginData = (await doctorLogin.json()).data;
+    const doctorAccessToken = String(doctorLoginData.accessToken || '');
+    expect(doctorAccessToken).toBeTruthy();
+
+    const doctorSwitch = await page.request.post('/api/iam/switch-context', {
+      headers: { Authorization: `Bearer ${doctorAccessToken}` },
+      data: { scopeType: 'CLINIC', scopeId: ownerOrganizationId, branchId },
+    });
+    expect(doctorSwitch.status(), await doctorSwitch.text()).toBe(200);
+    const doctorBranchTokens = (await doctorSwitch.json()).data;
+    const staleBranchAccessToken = String(doctorBranchTokens.accessToken || '');
+    const doctorRefreshToken = String(doctorBranchTokens.refreshToken || '');
+    expect(staleBranchAccessToken).toBeTruthy();
+    expect(doctorRefreshToken).toBeTruthy();
+
+    // Keep a real patient record on the branch being archived. The database row
+    // must survive, while ordinary owner patient APIs must stop returning it.
+    const archivedPatient = await prisma.patient.create({
+      data: {
+        clinicId: ownerClinicId,
+        branchId,
+        firstName: 'Archived Branch',
+        lastName: `E2E Patient ${Date.now()}`,
+        notes: 'RB-035 archive isolation fixture',
+      },
+      select: { id: true, branchId: true, lastName: true },
+    });
+    const patientBeforeArchive = await page.request.get(`/api/patients/${archivedPatient.id}`, {
+      headers: ownerHeaders,
+    });
+    expect(patientBeforeArchive.status(), await patientBeforeArchive.text()).toBe(200);
+
+    const invoiceIdempotencyKey = `rb035-invoice-${Date.now()}`;
+    const archivedPatientInvoiceResponse = await page.request.post('/api/billing/invoices', {
+      headers: { ...ownerHeaders, 'Idempotency-Key': invoiceIdempotencyKey },
+      data: { patientId: archivedPatient.id, amount: 8765, items: [{ name: 'RB-035 archive fixture', price: 8765 }] },
+    });
+    expect(archivedPatientInvoiceResponse.status(), await archivedPatientInvoiceResponse.text()).toBe(201);
+    const archivedPatientInvoice = (await archivedPatientInvoiceResponse.json()).data;
+    expect(archivedPatientInvoice.branchId).toBe(branchId);
+
+    const invoiceBeforeArchive = await page.request.get(`/api/billing/invoices/${archivedPatientInvoice.id}`, {
+      headers: ownerHeaders,
+    });
+    expect(invoiceBeforeArchive.status(), await invoiceBeforeArchive.text()).toBe(200);
+
     await branchRow(page, branchName).click();
     await page.getByRole('button', { name: 'Архивировать', exact: true }).click();
     await expect(branchRow(page, branchName)).toContainText('Архив', { timeout: 15000 });
@@ -170,6 +245,145 @@ test.describe('Canonical organization branch management', () => {
     const branches = Array.isArray(payload) ? payload : payload?.data ?? [];
     const archived = branches.find((item: { id?: string }) => item.id === branchId);
     expect(archived?.active).toBe(false);
+
+    // Archiving is a permission change, not a data deletion: keep the record
+    // but remove it from normal patient search and direct patient reads, even
+    // when an owner reuses the access token issued before the archive.
+    const retainedPatient = await prisma.patient.findUnique({
+      where: { id: archivedPatient.id },
+      select: { id: true, branchId: true, lastName: true },
+    });
+    expect(retainedPatient).toEqual(archivedPatient);
+
+    const ownerPatientSearch = await page.request.get(
+      `/api/patients?search=${encodeURIComponent(archivedPatient.lastName)}`,
+      { headers: ownerHeaders },
+    );
+    expect(ownerPatientSearch.status(), await ownerPatientSearch.text()).toBe(200);
+    const ownerPatientSearchBody = await ownerPatientSearch.json();
+    expect(ownerPatientSearchBody.data?.data ?? []).toEqual([]);
+
+    const ownerDirectPatientRead = await page.request.get(`/api/patients/${archivedPatient.id}`, {
+      headers: ownerHeaders,
+    });
+    expect(ownerDirectPatientRead.status()).toBe(404);
+
+    const retainedInvoice = await prisma.invoice.findUnique({
+      where: { id: archivedPatientInvoice.id },
+      select: { id: true, clinicId: true, branchId: true, patientId: true, amount: true },
+    });
+    expect(retainedInvoice).toMatchObject({
+      id: archivedPatientInvoice.id,
+      clinicId: ownerClinicId,
+      branchId,
+      patientId: archivedPatient.id,
+      amount: 8765,
+    });
+
+    const ownerInvoiceList = await page.request.get('/api/billing/invoices?limit=100', {
+      headers: ownerHeaders,
+    });
+    expect(ownerInvoiceList.status(), await ownerInvoiceList.text()).toBe(200);
+    const ownerInvoiceListBody = await ownerInvoiceList.json();
+    expect(ownerInvoiceListBody.data?.data ?? []).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: archivedPatientInvoice.id })]),
+    );
+
+    const ownerDirectInvoiceRead = await page.request.get(`/api/billing/invoices/${archivedPatientInvoice.id}`, {
+      headers: ownerHeaders,
+    });
+    expect(ownerDirectInvoiceRead.status()).toBe(404);
+
+    const archivedInvoiceReplay = await page.request.post('/api/billing/invoices', {
+      headers: { ...ownerHeaders, 'Idempotency-Key': invoiceIdempotencyKey },
+      data: { patientId: archivedPatient.id, amount: 8765, items: [{ name: 'RB-035 archive fixture', price: 8765 }] },
+    });
+    expect(archivedInvoiceReplay.status()).toBe(404);
+
+    const archivedInvoicePayment = await page.request.post(`/api/billing/invoices/${archivedPatientInvoice.id}/pay`, {
+      headers: ownerHeaders,
+      data: { amount: 8765, paymentMethod: 'cash' },
+    });
+    expect(archivedInvoicePayment.status()).toBe(404);
+
+    const archivedPatientPrepayment = await page.request.post(`/api/billing/patients/${archivedPatient.id}/prepayment`, {
+      headers: ownerHeaders,
+      data: { amount: 1000, paymentMethod: 'cash' },
+    });
+    expect(archivedPatientPrepayment.status()).toBe(404);
+
+    const retainedInventory = await prisma.inventoryItem.findUnique({
+      where: { id: archivedInventoryId },
+      select: { id: true, branchId: true, name: true },
+    });
+    expect(retainedInventory).toEqual({
+      id: archivedInventoryId,
+      branchId,
+      name: archivedInventoryName,
+    });
+
+    const ownerInventoryList = await page.request.get(
+      `/api/inventory?q=${encodeURIComponent(archivedInventoryName)}`,
+      { headers: ownerHeaders },
+    );
+    expect(ownerInventoryList.status(), await ownerInventoryList.text()).toBe(200);
+    const ownerInventoryListBody = await ownerInventoryList.json();
+    expect(ownerInventoryListBody.data ?? []).toEqual([]);
+
+    const workspace = await page.request.post(`/api/branches/${branchId}/workspace`, { headers: ownerHeaders });
+    expect(workspace.status()).toBe(409);
+    expect((await workspace.json()).code).toBe('BRANCH_ARCHIVED');
+
+    const ownerSwitchArchived = await page.request.post('/api/iam/switch-context', {
+      headers: ownerHeaders,
+      data: { scopeType: 'CLINIC', scopeId: ownerOrganizationId, branchId },
+    });
+    expect(ownerSwitchArchived.status()).toBe(409);
+    expect((await ownerSwitchArchived.json()).code).toBe('BRANCH_ARCHIVED');
+
+    const staleDoctorHeaders = { Authorization: `Bearer ${staleBranchAccessToken}` };
+    const staleOperationalRead = await page.request.get('/api/patients', { headers: staleDoctorHeaders });
+    expect(staleOperationalRead.status()).toBe(403);
+    expect((await staleOperationalRead.json()).code).toBe('BRANCH_ARCHIVED');
+
+    const refreshed = await page.request.post('/api/auth/refresh', { data: { refreshToken: doctorRefreshToken } });
+    expect(refreshed.status(), await refreshed.text()).toBe(200);
+    const refreshedTokens = (await refreshed.json()).data;
+    const refreshedDoctorAccessToken = String(refreshedTokens.accessToken || '');
+    expect(refreshedDoctorAccessToken).toBeTruthy();
+
+    const recoveredContexts = await page.request.get('/api/iam/me/contexts', {
+      headers: { Authorization: `Bearer ${refreshedDoctorAccessToken}` },
+    });
+    expect(recoveredContexts.status(), await recoveredContexts.text()).toBe(200);
+    const recoveredContext = ((await recoveredContexts.json()).data?.contexts || []).find(
+      (item: { organizationId?: string; scopeType?: string }) => item.organizationId === ownerOrganizationId,
+    );
+    expect(recoveredContext, 'doctor keeps the organization identity after the archived branch claim is dropped').toBeTruthy();
+    expect(recoveredContext.branchId).not.toBe(branchId);
+
+    const recoveredArchivedSwitch = await page.request.post('/api/iam/switch-context', {
+      headers: { Authorization: `Bearer ${refreshedDoctorAccessToken}` },
+      data: { scopeType: 'CLINIC', scopeId: ownerOrganizationId, branchId },
+    });
+    expect(recoveredArchivedSwitch.status()).toBe(409);
+    expect((await recoveredArchivedSwitch.json()).code).toBe('BRANCH_ARCHIVED');
+
+    await page.getByRole('button', { name: 'Восстановить филиал', exact: true }).click();
+    await expect(branchRow(page, branchName)).not.toContainText('Архив', { timeout: 15000 });
+
+    const afterRestore = await page.request.get(`/api/branches?organizationId=${encodeURIComponent(ownerOrganizationId)}`, { headers: ownerHeaders });
+    const restorePayload = await afterRestore.json();
+    const restoredBranches = Array.isArray(restorePayload) ? restorePayload : restorePayload?.data ?? [];
+    expect(restoredBranches.find((item: { id?: string }) => item.id === branchId)?.active).toBe(true);
+
+    // The pre-existing BranchMember assignment is preserved; access resumes only
+    // after the owner explicitly restores the archived branch.
+    const switchRestored = await page.request.post('/api/iam/switch-context', {
+      headers: { Authorization: `Bearer ${refreshedDoctorAccessToken}` },
+      data: { scopeType: 'CLINIC', scopeId: ownerOrganizationId, branchId },
+    });
+    expect(switchRestored.status(), await switchRestored.text()).toBe(200);
   });
   test('BRANCH-003: workspace switcher selects a branch and propagates branch scope', async ({ page }) => {
     await login(page);

@@ -33,7 +33,9 @@ describe('clinic creation trial bootstrap', () => {
         user: { findUnique: vi.fn().mockResolvedValue({ firstName: 'Owner', lastName: 'Test', phone: null, email: 'owner@example.test', spec: null }) },
         clinic: { create: vi.fn().mockResolvedValue({ id: 'clinic-1', plan: 'ENTERPRISE', active: true }) },
         subscription: { create: vi.fn().mockResolvedValue({ id: 'subscription-1' }) },
-        clinicMember: { create: vi.fn().mockResolvedValue({}) },
+        clinicMember: { create: vi.fn().mockResolvedValue({}), update: vi.fn().mockResolvedValue({}) },
+        branch: { create: vi.fn().mockImplementation(({ data }) => Promise.resolve(data)) },
+        branchMember: { upsert: vi.fn().mockResolvedValue({}) },
         organization: { upsert: vi.fn().mockResolvedValue({ id: 'organization-1', name: 'Test clinic' }) },
         person: { upsert: vi.fn().mockResolvedValue({ id: 'person-1' }) },
         personRole: { upsert: vi.fn().mockResolvedValue({}) },
@@ -44,6 +46,22 @@ describe('clinic creation trial bootstrap', () => {
       expectedPeriodEnd.setDate(expectedPeriodEnd.getDate() + TRIAL_DAYS);
       expect(tx.clinic.create).toHaveBeenCalledWith(expect.objectContaining({
         data: expect.objectContaining({ plan: 'ENTERPRISE', active: true }),
+      }));
+      expect(tx.branch.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          organizationId: 'organization-1',
+          clinicId: generatedClinicId,
+          code: 'MAIN',
+          active: true,
+          isDefault: true,
+        }),
+      });
+      expect(tx.clinicMember.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { userId_clinicId: { userId: 'user-1', clinicId: generatedClinicId } },
+        data: { branchId: expect.any(String) },
+      }));
+      expect(tx.branchMember.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { personId_branchId: { personId: 'person-1', branchId: expect.any(String) } },
       }));
       expect(tx.subscription.create).toHaveBeenCalledWith({
         data: {

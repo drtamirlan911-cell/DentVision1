@@ -25,8 +25,8 @@ import { assertClinicDoctorSignoff, ClinicalSignoffAuthorizationError } from './
 
 beforeEach(() => {
   vi.clearAllMocks();
-  organizationFindFirst.mockResolvedValue({ id: 'org-1', archivedAt: null });
-  personFindFirst.mockResolvedValue({ id: 'person-1' });
+  organizationFindFirst.mockResolvedValue({ id: 'org-1', originalId: 'clinic-1', type: 'CLINIC', archivedAt: null });
+  personFindFirst.mockResolvedValue({ id: 'person-1', branchMemberships: [{ branchId: 'branch-1' }] });
   clinicMemberFindUnique.mockResolvedValue(null);
   canAccessReferralBranch.mockResolvedValue(true);
 });
@@ -52,10 +52,24 @@ describe('clinical diagnostic sign-off authorization', () => {
           },
         },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        branchMemberships: {
+          where: { active: true, branch: { is: { active: true } } },
+          select: { branchId: true },
+        },
+      },
     });
     expect(canAccessReferralBranch).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'doctor-1', role: 'DOCTOR', clinicId: 'clinic-1' }),
+      expect.objectContaining({
+        id: 'doctor-1',
+        role: 'DOCTOR',
+        clinicId: 'clinic-1',
+        organizationId: 'org-1',
+        organizationOriginalId: 'clinic-1',
+        organizationType: 'CLINIC',
+        branchIds: ['branch-1'],
+      }),
       { clinicId: 'clinic-1', branchId: 'branch-1' },
     );
   });
@@ -63,7 +77,7 @@ describe('clinical diagnostic sign-off authorization', () => {
   it('preserves the Master Spec OWNER + DOCTOR multi-role capability', async () => {
     // The persisted query deliberately asks whether the person has a scoped
     // doctor role, not which single role resolveClinicAccess ranks first.
-    personFindFirst.mockResolvedValue({ id: 'owner-doctor-person' });
+    personFindFirst.mockResolvedValue({ id: 'owner-doctor-person', branchMemberships: [{ branchId: 'branch-1' }] });
 
     await expect(assertClinicDoctorSignoff({
       userId: 'owner-doctor-1',
@@ -125,7 +139,7 @@ describe('clinical diagnostic sign-off authorization', () => {
 
   it('supports a legacy doctor only when the clinic has no canonical Organization', async () => {
     organizationFindFirst.mockResolvedValue(null);
-    clinicMemberFindUnique.mockResolvedValue({ role: 'DOCTOR' });
+    clinicMemberFindUnique.mockResolvedValue({ role: 'DOCTOR', branchId: 'legacy-branch', branch: { active: true } });
 
     await expect(assertClinicDoctorSignoff({
       userId: 'legacy-doctor',
@@ -137,8 +151,48 @@ describe('clinical diagnostic sign-off authorization', () => {
     expect(personFindFirst).not.toHaveBeenCalled();
     expect(clinicMemberFindUnique).toHaveBeenCalledWith({
       where: { userId_clinicId: { userId: 'legacy-doctor', clinicId: 'legacy-clinic' } },
-      select: { role: true },
+      select: { role: true, branchId: true, branch: { select: { active: true } } },
     });
+    expect(canAccessReferralBranch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'legacy-clinic',
+        organizationOriginalId: 'legacy-clinic',
+        organizationType: 'CLINIC',
+        branchIds: ['legacy-branch'],
+      }),
+      { clinicId: 'legacy-clinic', branchId: 'legacy-branch' },
+    );
+  });
+
+  
+  it('includes only active canonical BranchMember assignments in the sign-off allow-list', async () => {
+    personFindFirst.mockResolvedValue({ id: 'person-1', branchMemberships: [] });
+    await expect(assertClinicDoctorSignoff({
+      userId: 'doctor-1',
+      clinicId: 'clinic-1',
+      branchId: 'branch-1',
+      assignedDoctorId: 'doctor-1',
+    })).resolves.toBeUndefined();
+    expect(canAccessReferralBranch).toHaveBeenCalledWith(
+      expect.objectContaining({ branchIds: [] }),
+      { clinicId: 'clinic-1', branchId: 'branch-1' },
+    );
+  });
+
+  it('does not restore an archived legacy branch in the clinical sign-off scope', async () => {
+    organizationFindFirst.mockResolvedValue(null);
+    clinicMemberFindUnique.mockResolvedValue({ role: 'DOCTOR', branchId: 'archived-branch', branch: { active: false } });
+    canAccessReferralBranch.mockResolvedValue(false);
+    await expect(assertClinicDoctorSignoff({
+      userId: 'legacy-doctor',
+      clinicId: 'legacy-clinic',
+      branchId: 'archived-branch',
+      assignedDoctorId: 'legacy-doctor',
+    })).rejects.toThrow('У врача нет доступа к филиалу направления');
+    expect(canAccessReferralBranch).toHaveBeenCalledWith(
+      expect.objectContaining({ branchIds: [] }),
+      { clinicId: 'legacy-clinic', branchId: 'archived-branch' },
+    );
   });
 
   it('denies a doctor with no permission for the referral branch', async () => {

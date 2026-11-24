@@ -15,10 +15,10 @@ export async function resolveDiagnosticBranchContext(
   clinicId: string,
   role: string,
 ): Promise<DiagnosticBranchContext> {
-  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null; role: string | null }>>`
-    SELECT branch_id, role
-    FROM clinic_members
-    WHERE user_id = ${userId} AND clinic_id = ${clinicId}
+  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null; role: string | null; branch_active: boolean }>>`
+    SELECT cm."branch_id", cm."role", CASE WHEN cm."branch_id" IS NULL THEN true ELSE COALESCE(b."active", false) END AS branch_active
+    FROM "clinic_members" cm LEFT JOIN "branches" b ON b."id" = cm."branch_id"
+    WHERE cm."userId" = ${userId} AND cm."clinicId" = ${clinicId}
     LIMIT 1
   `;
 
@@ -27,7 +27,7 @@ export async function resolveDiagnosticBranchContext(
     return { clinicId, branchId: null, branchIds: [], organizationWide: false };
   }
 
-  const branchId = membership[0].branch_id ?? null;
+  const branchId = membership[0].branch_active ? (membership[0].branch_id ?? null) : null;
 
   if (ORGANIZATION_ROLES.has(role)) {
     const branches = await prisma.$queryRaw<Array<{ id: string }>>`

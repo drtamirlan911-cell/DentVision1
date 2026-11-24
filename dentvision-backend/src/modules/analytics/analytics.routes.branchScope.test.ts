@@ -8,6 +8,12 @@ describe('analytics branch isolation contract', () => {
     expect(source).toContain('req.user?.branchIds ?? []');
     expect(source).toContain('__NO_BRANCH_ACCESS__');
   });
+
+  it('does not give clinic OWNER/ADMIN an unfiltered analytics wildcard', () => {
+    expect(source).toContain("if (role === 'SUPERADMIN') return {}");
+    expect(source).toContain("if (role === 'SUPERADMIN') return null");
+    expect(source).not.toContain("if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {}");
+  });
   it('scopes dashboard patients, appointments and operational lab data', () => {
     expect(source).toContain('prisma.patient.count({ where: { clinicId, ...branchScope(req) } })');
     expect(source).toContain('clinicId,\n          ...branchScope(req),\n          date:');

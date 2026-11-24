@@ -29,7 +29,7 @@ const patientSelect = { id: true, firstName: true, lastName: true, phone: true }
 
 function branchScope(req: AuthRequest): Record<string, unknown> {
   const role = String(req.user?.role || '').toUpperCase();
-  if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {};
+  if (role === 'SUPERADMIN') return {};
   const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
   return branchIds.length > 0 ? { branchId: { in: branchIds } } : { branchId: '__NO_BRANCH_ACCESS__' };
 }

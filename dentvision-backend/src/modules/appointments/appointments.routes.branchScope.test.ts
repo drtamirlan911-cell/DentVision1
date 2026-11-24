@@ -11,6 +11,11 @@ describe('appointment branch isolation contract', () => {
     expect(source).toContain("__NO_BRANCH_ACCESS__");
   });
 
+  it('does not give clinic OWNER/ADMIN a wildcard across archived branches', () => {
+    expect(source).toContain("if (role === 'SUPERADMIN') return {}");
+    expect(source).not.toContain("if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {}");
+  });
+
   it('scopes appointment listing and conflict queries', () => {
     expect(source).toContain("const where: Record<string, unknown> = { clinicId, ...branchScope(req) }");
     expect(source).toContain("where: { clinicId, ...branchScope(req), date:");
