@@ -25,6 +25,17 @@ import {
 
 const schoolRouter = Router();
 
+/** Emit the terminal learning-history conflict as one immutable HTTP response. */
+function sendAcademyLearningHistoryConflict(res: Response, error: string) {
+  res.statusCode = 409;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.end(JSON.stringify({
+    ok: false,
+    error,
+    code: 'ACADEMY_LEARNING_HISTORY_PROTECTED',
+  }));
+}
+
 // Test-only route provenance: keeps a failing API contract traceable without
 // changing authorization or error semantics. Enabled only by isolated E2E CI.
 
@@ -658,11 +669,10 @@ schoolRouter.put('/courses/:id', authenticate, academyCourseMutationTrace('PUT')
     }
     if (result.kind === 'not-found') return res.status(404).json({ ok: false, error: 'Курс не найден' });
     if (result.kind === 'history-conflict') {
-      return res.status(409).json({
-        ok: false,
-        error: 'Нельзя заменить уроки курса: у учащихся уже есть учебная история. Создайте новую редакцию курса, чтобы сохранить результаты и сертификаты.',
-        code: 'ACADEMY_LEARNING_HISTORY_PROTECTED',
-      });
+      return sendAcademyLearningHistoryConflict(
+        res,
+        'Нельзя заменить уроки курса: у учащихся уже есть учебная история. Создайте новую редакцию курса, чтобы сохранить результаты и сертификаты.',
+      );
     }
     return res.json({ ok: true, data: result.course });
   } catch (error: any) {
@@ -778,11 +788,10 @@ schoolRouter.delete('/courses/:id', authenticate, academyCourseMutationTrace('DE
     }
     if (result.kind === 'not-found') return res.status(404).json({ ok: false, error: 'Курс не найден' });
     if (result.kind === 'has-history') {
-      return res.status(409).json({
-        ok: false,
-        error: 'Удаление запрещено: курс содержит историю обучения. Закройте курс для новых учащихся, сохранив зачисления, результаты оценивания и сертификаты.',
-        code: 'ACADEMY_LEARNING_HISTORY_PROTECTED',
-      });
+      return sendAcademyLearningHistoryConflict(
+        res,
+        'Удаление запрещено: курс содержит историю обучения. Закройте курс для новых учащихся, сохранив зачисления, результаты оценивания и сертификаты.',
+      );
     }
     return res.json({ ok: true });
   } catch (error: any) {
