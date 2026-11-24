@@ -51,23 +51,43 @@ function clientSafePaymentMeta(value: unknown): Record<string, unknown> {
   );
 }
 
-async function medicalLabOrderAmountMinor(
+type MedicalLabOrderContext = {
+  clinicId: string;
+  labId: string;
+  branchId: string | null;
+};
+
+async function medicalLabOrderContext(
   orderId: string,
   db: Prisma.TransactionClient | typeof prisma = prisma,
-): Promise<{ clinicId: string; labId: string; amountMinor: bigint; branchId: string | null } | null> {
+): Promise<MedicalLabOrderContext | null> {
   const orders = await db.$queryRawUnsafe<Array<{ clinicId: string; labId: string | null; branchId: string | null }>>(
-    `SELECT "clinicId", "labId", (SELECT "branchId" FROM "patients" p WHERE p."id"=o."patientId") AS "branchId" FROM "medical_lab_orders" o WHERE o."id"=$1 LIMIT 1`,
+    `SELECT "clinicId", "labId", (
+       SELECT p."branchId" FROM "patients" p
+       WHERE p."id"=o."patientId" AND p."clinicId"=o."clinicId" AND p."deletedAt" IS NULL
+     ) AS "branchId"
+     FROM "medical_lab_orders" o WHERE o."id"=$1 LIMIT 1`,
     orderId,
   );
   const order = orders[0];
   if (!order?.clinicId || !order.labId) return null;
+  return { clinicId: order.clinicId, labId: order.labId, branchId: order.branchId };
+}
+
+async function medicalLabOrderAmountMinor(
+  orderId: string,
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+  authorizedOrder?: MedicalLabOrderContext,
+): Promise<(MedicalLabOrderContext & { amountMinor: bigint }) | null> {
+  const order = authorizedOrder ?? await medicalLabOrderContext(orderId, db);
+  if (!order) return null;
   const rows = await db.$queryRawUnsafe<Array<{ priceMinor: bigint | number | string | null; price: unknown }>>(
     `SELECT ot."priceMinor" AS "priceMinor", lt."price" AS "price" FROM "medical_lab_order_tests" ot LEFT JOIN "laboratory_tests" lt ON lt."id"=ot."testId" WHERE ot."orderId"=$1`,
     orderId,
   );
   let amountMinor = 0n;
   for (const row of rows) amountMinor += row.priceMinor != null ? BigInt(row.priceMinor) : tengeToMinor(Number(row.price ?? 0) || 0);
-  return { clinicId: order.clinicId, labId: order.labId, amountMinor, branchId: order.branchId };
+  return { ...order, amountMinor };
 }
 
 class DentalLabPaymentStateError extends Error {
@@ -124,7 +144,7 @@ async function dentalLabOrderPaymentDetails(
   };
 }
 
-async function canAccessDentalLabOrderBranch(
+async function canAccessClinicBranch(
   user: AuthRequest['user'],
   clinicId: string,
   branchId: string | null,
@@ -719,7 +739,7 @@ async function assertPaymentOwner(
           order
           && order.clinicId === clinicId
           && await canManageClinicBillingMutation(req.user!, clinicId)
-          && await canAccessDentalLabOrderBranch(req.user, order.clinicId, order.branchId),
+          && await canAccessClinicBranch(req.user, order.clinicId, order.branchId),
         );
       } catch {
         return false;
@@ -745,6 +765,22 @@ async function assertPaymentOwner(
       ownerId,
       permissions: ['billing.manage', 'finance.manage'],
     });
+  }
+
+  if (payment.refType === 'medical_lab_order') {
+    if (!payment.refId || !req.user) return false;
+    if (req.user.role === 'SUPERADMIN') return true;
+    if (!meta.userId || meta.userId !== req.user.id) return false;
+    try {
+      const order = await medicalLabOrderContext(payment.refId);
+      return Boolean(
+        order
+        && order.clinicId === req.user.clinicId
+        && await canAccessClinicBranch(req.user, order.clinicId, order.branchId),
+      );
+    } catch {
+      return false;
+    }
   }
 
   // Orders are canonical ownership records. Historical payment metadata was
@@ -961,7 +997,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       if (!(await canManageClinicBillingMutation(req.user!, labOrder.clinicId))) {
         return res.status(403).json({ ok: false, error: 'Нет полномочий на оплату заказа от имени этой клиники' } satisfies ApiResponse);
       }
-      if (!(await canAccessDentalLabOrderBranch(req.user, labOrder.clinicId, labOrder.branchId))) {
+      if (!(await canAccessClinicBranch(req.user, labOrder.clinicId, labOrder.branchId))) {
         return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу, которому принадлежит зуботехнический заказ' } satisfies ApiResponse);
       }
       dentalLabInvoiceId = String(req.body?.invoiceId || '').trim();
@@ -991,9 +1027,15 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     }
 
     if (refType === 'medical_lab_order' && refId) {
-      const medicalOrder = await medicalLabOrderAmountMinor(refId);
+      const medicalOrderContext = await medicalLabOrderContext(refId);
+      if (!medicalOrderContext) return res.status(404).json({ ok: false, error: 'Медицинский лабораторный заказ не найден или не назначен лаборатории' } satisfies ApiResponse);
+      if (!(await assertClinicOrgAccess(req.user!, medicalOrderContext.clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к этому медицинскому заказу' } satisfies ApiResponse);
+      if (!(await canAccessClinicBranch(req.user, medicalOrderContext.clinicId, medicalOrderContext.branchId))) {
+        return res.status(403).json({ ok: false, error: 'Нет доступа к активному филиалу медицинского заказа' } satisfies ApiResponse);
+      }
+      // Load immutable test pricing only after the clinic and active branch checks pass.
+      const medicalOrder = await medicalLabOrderAmountMinor(refId, prisma, medicalOrderContext);
       if (!medicalOrder) return res.status(404).json({ ok: false, error: 'Медицинский лабораторный заказ не найден или не назначен лаборатории' } satisfies ApiResponse);
-      if (!(await assertClinicOrgAccess(req.user!, medicalOrder.clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к этому медицинскому заказу' } satisfies ApiResponse);
       if (medicalOrder.amountMinor <= 0n) return res.status(400).json({ ok: false, error: 'В медицинском заказе отсутствуют оплачиваемые анализы' } satisfies ApiResponse);
       if (medicalOrder.amountMinor !== minor) return res.status(409).json({ ok: false, error: `Сумма не совпадает с медицинским заказом: ожидалось ${medicalOrder.amountMinor}, получено ${minor}` } satisfies ApiResponse);
     }
