@@ -54,7 +54,16 @@ beforeEach(() => {
     status: 'delivered',
     serviceId: 'service-1',
     servicePriceSnapshot: 15_000,
-    files: { meta: { laboratoryId: 'lab-1', technicianId: 'tech-1' } },
+    files: { meta: {
+      laboratoryId: 'lab-1',
+      technicianId: 'tech-1',
+      clinicAcceptance: { status: 'accepted', shipmentId: 'shipment-1' },
+    } },
+    dentalLabShipments: [{
+      id: 'shipment-1', laboratoryId: 'lab-1', status: 'delivered',
+      deliveredAt: new Date('2026-11-24T10:00:00.000Z'),
+      proofUrl: 'https://proof.example/receipt', recipientName: 'Clinic Reception',
+    }],
     dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
     patient: { branchId: 'branch-1' },
   });
@@ -247,7 +256,14 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
   it('dental lab branch: rolls back when the paid amount differs from the immutable service snapshot', async () => {
     fakeTx.labOrder.findUnique.mockResolvedValueOnce({
       id: 'lab-order-1', clinicId: 'clinic-1', status: 'delivered', serviceId: 'service-1',
-      servicePriceSnapshot: 15_000, files: { meta: { laboratoryId: 'lab-1' } }, patient: { branchId: 'branch-1' },
+      servicePriceSnapshot: 15_000,
+      files: { meta: { laboratoryId: 'lab-1', clinicAcceptance: { status: 'accepted', shipmentId: 'shipment-1' } } },
+      dentalLabShipments: [{
+        id: 'shipment-1', laboratoryId: 'lab-1', status: 'delivered',
+        deliveredAt: new Date('2026-11-24T10:00:00.000Z'),
+        proofUrl: 'https://proof.example/receipt', recipientName: 'Clinic Reception',
+      }],
+      patient: { branchId: 'branch-1' },
       dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
     });
     await expect(settlePaidPayment(
@@ -269,6 +285,31 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
       fakeTx,
     )).rejects.toThrow('должен быть передан клинике');
     expect(recordPartnerEconomics).not.toHaveBeenCalled();
+  });
+
+  it('dental lab branch: refuses settlement until the clinic accepts the latest delivery', async () => {
+    fakeTx.labOrder.findUnique.mockResolvedValueOnce({
+      id: 'lab-order-1',
+      clinicId: 'clinic-1',
+      status: 'delivered',
+      serviceId: 'service-1',
+      servicePriceSnapshot: 15_000,
+      files: { meta: { laboratoryId: 'lab-1' } },
+      dentalLabShipments: [{
+        id: 'shipment-1', laboratoryId: 'lab-1', status: 'delivered',
+        deliveredAt: new Date('2026-11-24T10:00:00.000Z'),
+        proofUrl: 'https://proof.example/receipt', recipientName: 'Clinic Reception',
+      }],
+      dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
+      patient: { branchId: 'branch-1' },
+    });
+    await expect(settlePaidPayment(
+      { id: 'pay-dental-unaccepted', refType: 'dental_lab_order', refId: 'lab-order-1', domain: 'dental_lab', sellerType: null, sellerId: null, amount: 1_500_000n, meta: { invoiceId: 'invoice-1' } },
+      fakeTx,
+    )).rejects.toThrow('клиникой последней поставки');
+    expect(recordPartnerEconomics).not.toHaveBeenCalled();
+    expect(fakeTx.dentalLabInvoice.update).not.toHaveBeenCalled();
+    expect(fakeTx.labOrder.update).not.toHaveBeenCalled();
   });
 
   it('medical lab branch: derives the order amount and records canonical partner economics', async () => {
