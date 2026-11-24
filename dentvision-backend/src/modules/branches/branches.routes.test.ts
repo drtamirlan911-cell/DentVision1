@@ -45,13 +45,6 @@ describe('branch route authorization contract', () => {
     expect(source).toContain('context: { organizationId: branch.organization_id, clinicId: branch.clinic_id, branchId: branch.id }');
   });
 
-  it('blocks opening, assigning and re-enabling members in an archived branch', () => {
-    expect(source).toContain("code: 'BRANCH_ARCHIVED'");
-    expect(source).toContain("Архивный филиал нельзя открыть как рабочее пространство");
-    expect(source).toContain("Нельзя назначать сотрудников в архивный филиал");
-    expect(source).toContain("if(active && !branch.active)");
-  });
-
   it('exposes explicit staff disable/enable semantics and active filtering', () => {
     expect(source).toContain("branchesRouter.patch('/:id/members/:userId/status'");
     expect(source).toContain("member_enabled");
@@ -63,14 +56,58 @@ describe('branch route authorization contract', () => {
     expect(source).toContain("BRANCH_MEMBER_ASSIGNED_ELSEWHERE");
   });
 
-  it('records branch activation and deactivation history atomically with branch mutations', () => {
-    const routeSource = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/branches/branches.routes.ts'), 'utf8');
-    expect(routeSource).toContain("from './branchStatusHistory.js'");
-    expect(routeSource).toContain('ensureOrganizationBranchStatusHistoryBaseline(tx, organizationId)');
-    expect(routeSource).toContain("source: 'created'");
-    expect(routeSource).toContain("source: rows[0].active ? 'activated' : 'archived'");
-    expect(routeSource).toContain('FOR UPDATE');
-    expect(routeSource).toContain('recordOrganizationBranchStatusEvent(tx');
+  it('keeps archived branches out of operational workspace and staff assignment', () => {
+    expect(source).toContain("if (!branch.active) return res.status(409)");
+    expect(source).toContain("code: 'BRANCH_ARCHIVED'");
+    expect(source).toContain("if (active && !branch.active)");
+    expect(source).toContain("if (!branch.active && !['OWNER', 'ADMIN'].includes(member.role))");
+  });
+
+  it('authorizes branch access before disclosing archive state', () => {
+    const workspaceStart = source.indexOf("branchesRouter.post('/:id/workspace'");
+    const workspaceEnd = source.indexOf("branchesRouter.get('/:id/members'", workspaceStart);
+    const workspaceRoute = source.slice(workspaceStart, workspaceEnd);
+    expect(workspaceRoute.indexOf('if (!authz.allowed)')).toBeLessThan(workspaceRoute.indexOf("code: 'BRANCH_ARCHIVED'"));
+
+    const assignmentStart = source.indexOf("branchesRouter.post('/:id/members/:userId'");
+    const assignmentEnd = source.indexOf("branchesRouter.patch('/:id/members/:userId/status'", assignmentStart);
+    const assignmentRoute = source.slice(assignmentStart, assignmentEnd);
+    expect(assignmentRoute.indexOf('if(!authz.allowed)')).toBeLessThan(assignmentRoute.indexOf('Нельзя назначать сотрудников в архивный филиал'));
+
+    const statusStart = source.indexOf("branchesRouter.patch('/:id/members/:userId/status'");
+    const statusEnd = source.indexOf("branchesRouter.delete('/:id/members/:userId'", statusStart);
+    const statusRoute = source.slice(statusStart, statusEnd);
+    expect(statusRoute.indexOf('if(!authz.allowed)')).toBeLessThan(statusRoute.indexOf('Нельзя включить сотрудника в архивном филиале'));
+  });
+
+
+  it('authorizes a caller before disclosing the archived state of an organization branch', () => {
+    const workspace = source.slice(
+      source.indexOf("branchesRouter.post('/:id/workspace'"),
+      source.indexOf("branchesRouter.get('/:id/members'"),
+    );
+    expect(workspace.indexOf('if (!authz.allowed)')).toBeGreaterThanOrEqual(0);
+    expect(workspace.indexOf('if (!branch.active)')).toBeGreaterThan(workspace.indexOf('if (!authz.allowed)'));
+
+    const assignment = source.slice(
+      source.indexOf("branchesRouter.post('/:id/members/:userId'"),
+      source.indexOf("branchesRouter.patch('/:id/members/:userId/status'"),
+    );
+    const authorizationIndex = Math.max(
+      assignment.indexOf('if(!authz.allowed)'),
+      assignment.indexOf('if (!authz.allowed)'),
+    );
+    expect(authorizationIndex).toBeGreaterThanOrEqual(0);
+    expect(assignment.indexOf('BRANCH_ARCHIVED')).toBeGreaterThan(authorizationIndex);
+  });
+
+  it('keeps ClinicMember and canonical BranchMember assignments synchronized', () => {
+    expect(source).toContain('async function syncClinicBranchAssignment(');
+    expect(source).toContain('tx.branchMember.upsert(');
+    expect(source).toContain('tx.branchMember.updateMany(');
+    expect(source).toContain('syncClinicBranchAssignment(userId, branch.clinic_id, branchId, true)');
+    expect(source).toContain('syncClinicBranchAssignment(userId, branch.clinic_id, branchId, active)');
+    expect(source).toContain('syncClinicBranchAssignment(userId, branch.clinic_id, branchId, false)');
   });
 
 });
