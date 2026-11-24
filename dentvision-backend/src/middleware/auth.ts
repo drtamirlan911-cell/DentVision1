@@ -66,9 +66,16 @@ function normalizeScopedRole(roleKey: string): UserRole | undefined {
 }
 
 /** Merge canonical BranchMember assignments with legacy clinic memberships. */
-export function shouldUseLegacyClinicFallback(effectiveOrganizationId?: string | null, effectiveClinicId?: string | null): boolean {
-  // A verified active organization is authoritative even when an old JWT still carries clinicId.
-  return !effectiveOrganizationId && !effectiveClinicId;
+export function shouldUseLegacyClinicFallback(
+  effectiveOrganizationId?: string | null,
+  effectiveClinicId?: string | null,
+  hasOrganizationClaim = false,
+): boolean {
+  // A supplied organization claim is authoritative. If that organization or
+  // PersonRole cannot be revalidated, never fall back to a retained clinicId.
+  // This prevents a stale/revoked partner token from re-entering a clinic via
+  // an unrelated legacy ClinicMember row.
+  return !hasOrganizationClaim && !effectiveOrganizationId && !effectiveClinicId;
 }
 
 export function mergeBranchIds(unifiedBranchIds: readonly string[], legacyBranchIds: readonly string[]): string[] {
@@ -83,6 +90,29 @@ export function resolveAssignedBranchId(
   if (unifiedBranchIds.length === 1) return unifiedBranchIds[0];
   if (unifiedBranchIds.length > 1) return undefined;
   return legacyBranchId || undefined;
+}
+
+const BRANCH_CONTEXT_RECOVERY_PATHS = new Set([
+  '/api/auth/me', '/api/auth/refresh', '/api/auth/logout',
+  '/api/iam/me/contexts', '/api/iam/switch-context',
+]);
+
+export function isBranchContextRecoveryPath(pathname: string): boolean {
+  return BRANCH_CONTEXT_RECOVERY_PATHS.has(String(pathname || '').split('?')[0]);
+}
+
+export function isOrganizationBranchManagerRoleKey(roleKey: string): boolean {
+  const key = String(roleKey || '').trim().toLowerCase();
+  return ['owner', 'org_owner', 'admin', 'org_admin'].includes(key) || /_(owner|admin)$/.test(key);
+}
+
+/** A legacy clinic branch may have no organization_id; only then may clinic_id map it to the canonical clinic Organization. */
+export function branchMatchesOrganization(
+  branch: { organizationId: string | null; clinicId: string | null },
+  organization: { id: string; type: string; originalId: string | null },
+): boolean {
+  if (branch.organizationId) return branch.organizationId === organization.id;
+  return organization.type === 'CLINIC' && Boolean(organization.originalId) && branch.clinicId === organization.originalId;
 }
 
 export function resolveActivePersonRole(
@@ -113,7 +143,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       where: { id: payload.sub },
       select: {
         id: true, email: true, firstName: true, lastName: true, role: true,
-        memberships: { select: { id: true, clinicId: true, role: true, branchId: true } },
+        memberships: { select: { id: true, clinicId: true, role: true, branchId: true, branch: { select: { active: true } } } },
       },
     });
     if (!user) return res.status(401).json({ ok: false, error: 'Пользователь не найден' });
@@ -141,6 +171,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     let effectiveClinicId: string | undefined;
     let effectiveSupplierId: string | undefined;
     let unifiedBranchIds: string[] = [];
+    let organizationWideBranchIds: string[] = [];
     let effectiveRole = user.role;
     let effectiveBranchId: string | undefined;
 
@@ -151,7 +182,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
           include: {
             organization: { select: { type: true, originalId: true, archivedAt: true } },
             personRoles: { select: { scopeType: true, scopeId: true, role: { select: { key: true } } } },
-            branchMemberships: { where: { active: true }, select: { branchId: true } },
+            branchMemberships: { where: { active: true, branch: { is: { active: true } } }, select: { branchId: true } },
           },
         });
         if (person?.organization) {
@@ -176,27 +207,43 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
           effectiveRole = scopedRole;
           unifiedBranchIds = person.branchMemberships.map((membership) => membership.branchId);
           if (payload.branchId) {
-            const requestedBranch = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null }>>`SELECT "id", "organization_id" FROM "branches" WHERE "id" = ${payload.branchId} LIMIT 1`;
-            if (!requestedBranch[0] || requestedBranch[0].organization_id !== payload.organizationId) return res.status(403).json({ ok: false, error: 'Филиал не относится к активной организации' });
-            const roleKeys = person.personRoles.map((pr) => pr.role.key.toLowerCase());
-            const orgManager = roleKeys.some((key) => ['owner', 'org_owner', 'admin', 'org_admin'].includes(key));
-            if (!orgManager && !unifiedBranchIds.includes(payload.branchId)) return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
-            effectiveBranchId = payload.branchId;
+            const requestedBranch = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null; clinic_id: string | null; active: boolean }>>`SELECT "id", "organization_id", "clinic_id", "active" FROM "branches" WHERE "id" = ${payload.branchId} LIMIT 1`;
+            if (!requestedBranch[0] || !branchMatchesOrganization(
+              { organizationId: requestedBranch[0].organization_id, clinicId: requestedBranch[0].clinic_id },
+              { id: payload.organizationId, type: person.organization.type, originalId: person.organization.originalId },
+            )) return res.status(403).json({ ok: false, error: 'Филиал не относится к активной организации' });
+            const roleKeys = person.personRoles
+              .filter((pr) => pr.scopeType === 'organization' && pr.scopeId === payload.organizationId)
+              .map((pr) => pr.role.key.toLowerCase());
+            const orgManager = roleKeys.some(isOrganizationBranchManagerRoleKey);
+            if (!requestedBranch[0].active) {
+              if (!orgManager && !isBranchContextRecoveryPath(requestPath)) return res.status(403).json({ ok: false, error: 'Филиал архивирован. Выберите активный филиал или обратитесь к руководителю.', code: 'BRANCH_ARCHIVED' });
+            } else {
+              const legacyAssignedBranch = person.organization.type === 'CLINIC' && person.organization.originalId
+                ? user.memberships?.some((membership) =>
+                    membership.clinicId === person.organization.originalId &&
+                    membership.branchId === payload.branchId &&
+                    membership.branch?.active === true,
+                  )
+                : false;
+              if (!orgManager && !unifiedBranchIds.includes(payload.branchId) && !legacyAssignedBranch) {
+                return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
+              }
+              effectiveBranchId = payload.branchId;
+            }
           }
           if (person.organization.type === 'CLINIC') effectiveClinicId = person.organization.originalId || undefined;
         }
       }
 
-      if (shouldUseLegacyClinicFallback(effectiveOrgId, effectiveClinicId) && payload.clinicId) {
+      if (shouldUseLegacyClinicFallback(effectiveOrgId, effectiveClinicId, Boolean(payload.organizationId)) && payload.clinicId) {
         const activeMember = user.memberships?.find((m) => m.clinicId === payload.clinicId);
         if (activeMember) {
           const requestPath = String(req.originalUrl || req.url || '').split('?')[0];
-          const canRecoverArchivedContext = [
-            '/api/iam/switch-context',
-            '/api/iam/me/contexts',
-            '/api/auth/refresh',
-            '/api/auth/logout',
-          ].includes(requestPath);
+          if (activeMember.branchId && activeMember.branch?.active !== true && !['OWNER', 'ADMIN'].includes(activeMember.role) && !isBranchContextRecoveryPath(requestPath)) {
+            return res.status(403).json({ ok: false, error: 'Филиал архивирован. Рабочий доступ к нему отключён.', code: 'BRANCH_ARCHIVED' });
+          }
+          const canRecoverArchivedContext = isBranchContextRecoveryPath(requestPath);
           const archivedClinicOrganization = await prisma.organization.findFirst({
             where: { originalType: 'Clinic', originalId: payload.clinicId, archivedAt: { not: null } },
             select: { id: true },
@@ -215,14 +262,34 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       if (!effectiveOrgId && payload.supplierId) effectiveSupplierId = payload.supplierId;
     }
 
+    // Organization owners/admins are scoped to every ACTIVE branch in their
+    // current organization. This is a positive branch list, not a wildcard:
+    // archived branches remain excluded from normal operational routes.
+    if (['OWNER', 'ADMIN'].includes(String(effectiveRole).toUpperCase())) {
+      const activeBranches = effectiveOrgType === 'CLINIC' && effectiveOrgOriginalId && effectiveOrgId
+        ? await prisma.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "branches"
+              WHERE "active" = true
+                AND (
+                  "organization_id" = ${effectiveOrgId}
+                  OR ("organization_id" IS NULL AND "clinic_id" = ${effectiveOrgOriginalId})
+                )`
+        : effectiveClinicId
+          ? await prisma.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "branches" WHERE "clinic_id" = ${effectiveClinicId} AND "active" = true`
+          : effectiveOrgId
+            ? await prisma.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "branches" WHERE "organization_id" = ${effectiveOrgId} AND "active" = true`
+            : [];
+      organizationWideBranchIds = activeBranches.map((branch) => branch.id);
+    }
+
     const activeMembership = effectiveClinicId
       ? user.memberships?.find((m) => m.clinicId === effectiveClinicId)
       : undefined;
     const legacyBranchIds = user.memberships
-      ?.filter((membership) => membership.clinicId === effectiveClinicId && membership.branchId)
+      ?.filter((membership) => membership.clinicId === effectiveClinicId && membership.branchId && membership.branch?.active === true)
       .map((membership) => membership.branchId as string) || [];
-    const branchIds = mergeBranchIds(unifiedBranchIds, legacyBranchIds);
-    const assignedBranchId = resolveAssignedBranchId(unifiedBranchIds, activeMembership?.branchId);
+    const branchIds = mergeBranchIds(mergeBranchIds(unifiedBranchIds, legacyBranchIds), organizationWideBranchIds);
+    const legacyAssignedBranchId = activeMembership?.branchId && activeMembership.branch?.active === true ? activeMembership.branchId : undefined;
+    const assignedBranchId = resolveAssignedBranchId(unifiedBranchIds, legacyAssignedBranchId);
 
     req.user = {
       id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName,
