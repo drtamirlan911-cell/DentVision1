@@ -1561,7 +1561,19 @@ diagnosticsRouter.get('/dashboard', async (req: AuthRequest, res) => {
           : 'Рабочая сводка лаборатории доступна сотрудникам с правом lab.read.',
       } satisfies ApiResponse);
     }
-    const stats = await svc.getDashboardStats({ clinicId: q.clinicId, centerId: q.centerId, labId: q.labId });
+    // The clinic dashboard must use the same verified branch allow-list as the
+    // referral catalogue. Partner dashboards are scoped by their own center/lab
+    // organization and must not inherit a stale clinic claim.
+    const branchIds = requestedScope.clinicId && !requestedScope.centerId && !requestedScope.labId
+      ? await referralListBranchIds(req.user, requestedScope.clinicId)
+      : undefined;
+    if (branchIds !== undefined && branchIds.length === 0) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к филиалам клиники' } satisfies ApiResponse);
+    }
+    const stats = await svc.getDashboardStats({
+      ...requestedScope,
+      ...(branchIds !== undefined ? { branchIds } : {}),
+    });
     const isPartnerScope = Boolean(q.centerId || q.labId);
     const visibleStats = isPartnerScope
       ? redactPartnerDashboardStats(stats, {
