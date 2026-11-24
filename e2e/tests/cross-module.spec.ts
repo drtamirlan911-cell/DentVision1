@@ -210,8 +210,9 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
       headers: auth(doctorToken),
       data: { patientId, patientName: 'CrossModule Patient', labType: 'crown', material: 'zirconia', doctorId },
     });
-    expect(res.status()).toBe(201);
-    const order = (await res.json()).data;
+    const responseText = await res.text();
+    expect(res.status(), responseText).toBe(201);
+    const order = JSON.parse(responseText).data;
     labOrderId = order.id;
     expect(order.status).toBe('pending');
   });
