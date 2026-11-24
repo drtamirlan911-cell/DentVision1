@@ -1921,6 +1921,13 @@ test.describe('Partner operational lifecycle', () => {
     expect(deliveryBypass.status()).toBe(409);
     expect((await deliveryBypass.json()).code).toBe('LAB_SHIPMENT_REQUIRED');
 
+    const acceptanceBeforeDelivery = await api.post(`${BASE}/api/lab-orders/${order.id}/acceptance`, {
+      headers: auth(ownerToken),
+      data: { note: 'The clinic cannot accept a case before proof of delivery.' },
+    });
+    expect(acceptanceBeforeDelivery.status()).toBe(409);
+    expect((await acceptanceBeforeDelivery.json()).code).toBe('LAB_DELIVERY_CONFIRMATION_REQUIRED');
+
     const invalidShipment = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment`, {
       headers: auth(dentalLabOwnerToken),
       data: { method: 'COURIER', carrier: 'Test Carrier', trackingNumber: 'TRACK-003', trackingUrl: 'http://tracking.example/003' },
@@ -2084,8 +2091,34 @@ test.describe('Partner operational lifecycle', () => {
       data: { proofUrl: 'https://proof.example/receipts/partner-003-pickup', recipientName: 'Clinic Courier', note: 'PARTNER-003 pickup handed to clinic courier' },
     });
     expect(pickupDelivery.status()).toBe(200);
-    expect((await pickupDelivery.json()).data.order.status).toBe('delivered');
+    const pickupDeliveryBody = (await pickupDelivery.json()).data;
+    expect(pickupDeliveryBody.order.status).toBe('delivered');
+
+    const firstClinicAcceptance = await api.post(`${BASE}/api/lab-orders/${unrelatedOrder.id}/acceptance`, {
+      headers: auth(ownerToken),
+      data: { note: 'Первичная примерка подтверждена; требуется уточнить оттенок.' },
+    });
+    expect(firstClinicAcceptance.status()).toBe(200);
+    const firstAcceptanceBody = (await firstClinicAcceptance.json()).data;
+    expect(firstAcceptanceBody.clinicAcceptance).toMatchObject({
+      status: 'accepted',
+      shipmentId: pickupDeliveryBody.shipment.id,
+      note: 'Первичная примерка подтверждена; требуется уточнить оттенок.',
+    });
+    const firstClinicAcceptanceRetry = await api.post(`${BASE}/api/lab-orders/${unrelatedOrder.id}/acceptance`, {
+      headers: auth(ownerToken),
+      data: { note: 'Повторная отправка запроса не должна создать второе событие.' },
+    });
+    expect(firstClinicAcceptanceRetry.status()).toBe(200);
+    expect((await firstClinicAcceptanceRetry.json()).data.idempotent).toBe(true);
+
     const pickupLifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/lifecycle`, { headers: auth(dentalLabOwnerToken) });
+    expect(pickupLifecycle.status()).toBe(200);
+    expect((await pickupLifecycle.json()).data.order.clinicAcceptance).toMatchObject({
+      status: 'accepted',
+      shipmentId: pickupDeliveryBody.shipment.id,
+      note: 'Первичная примерка подтверждена; требуется уточнить оттенок.',
+    });
     expect(pickupLifecycle.status()).toBe(200);
     expect((await pickupLifecycle.json()).data.shipmentEvents.map((event: any) => event.eventType)).toEqual(['READY_FOR_PICKUP', 'DELIVERED']);
 
@@ -2094,7 +2127,9 @@ test.describe('Partner operational lifecycle', () => {
       data: { reason: 'Clinic requested correction after fitting review.' },
     });
     expect(remakeRequest.status()).toBe(201);
-    expect((await remakeRequest.json()).data.remakeRequest.status).toBe('requested');
+    const remakeRequestBody = (await remakeRequest.json()).data;
+    expect(remakeRequestBody.remakeRequest.status).toBe('requested');
+    expect(remakeRequestBody.clinicAcceptance).toBeNull();
 
     const acceptedRemake = await api.patch(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/remake-request`, {
       headers: auth(dentalLabOwnerToken),
@@ -2136,11 +2171,36 @@ test.describe('Partner operational lifecycle', () => {
       },
     });
     expect(remakeDelivery.status()).toBe(200);
-    expect((await remakeDelivery.json()).data.order.status).toBe('delivered');
+    const remakeDeliveryBody = (await remakeDelivery.json()).data;
+    expect(remakeDeliveryBody.order.status).toBe('delivered');
+
+    const finalClinicAcceptance = await api.post(`${BASE}/api/lab-orders/${unrelatedOrder.id}/acceptance`, {
+      headers: auth(ownerToken),
+      data: { note: 'После переделки посадка, окклюзия и оттенок приняты врачом.' },
+    });
+    expect(finalClinicAcceptance.status()).toBe(200);
+    const finalAcceptanceBody = (await finalClinicAcceptance.json()).data;
+    expect(finalAcceptanceBody.clinicAcceptance).toMatchObject({
+      status: 'accepted',
+      shipmentId: remakeDeliveryBody.shipment.id,
+      note: 'После переделки посадка, окклюзия и оттенок приняты врачом.',
+    });
+    const finalAcceptanceRetry = await api.post(`${BASE}/api/lab-orders/${unrelatedOrder.id}/acceptance`, {
+      headers: auth(ownerToken),
+      data: { note: 'Idempotent retry after final remake acceptance.' },
+    });
+    expect(finalAcceptanceRetry.status()).toBe(200);
+    expect((await finalAcceptanceRetry.json()).data.idempotent).toBe(true);
 
     const remakeLifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/lifecycle`, { headers: auth(dentalLabOwnerToken) });
     expect(remakeLifecycle.status()).toBe(200);
     const remakeHistory = (await remakeLifecycle.json()).data;
+    expect(remakeHistory.order.clinicAcceptance).toMatchObject({
+      status: 'accepted',
+      shipmentId: remakeDeliveryBody.shipment.id,
+      note: 'После переделки посадка, окклюзия и оттенок приняты врачом.',
+    });
+    expect(remakeHistory.events.some((event: any) => event.note === 'Клиника подтвердила приём доставленной работы.')).toBe(true);
     expect(remakeHistory.shipments).toHaveLength(2);
     expect(remakeHistory.shipmentEvents.map((event: any) => event.eventType)).toEqual([
       'READY_FOR_PICKUP', 'DELIVERED', 'READY_FOR_PICKUP', 'DELIVERED',
