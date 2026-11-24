@@ -35,53 +35,18 @@ function traceAcademyCourseMutationHandler(method: 'PUT' | 'DELETE', req: AuthRe
     method, requestMethod: req.method, originalUrl: req.originalUrl, courseId: req.params.id,
   });
 
-  // Record the actual response writer, not just route entry. This is isolated
-  // to E2E fixtures and logs only synthetic course identifiers and error codes.
-  const originalStatus = res.status.bind(res);
-  res.status = ((statusCode: number) => {
-    console.warn('[E2E_ACADEMY_RESPONSE_STATUS]', {
-      routeMethod: method,
-      requestMethod: req.method,
-      originalUrl: req.originalUrl,
-      statusCode,
-    });
-    return originalStatus(statusCode);
-  }) as typeof res.status;
-
-  const originalJson = res.json.bind(res);
-  res.json = ((body: unknown) => {
-    const payload = body && typeof body === 'object' ? body as Record<string, unknown> : {};
-    const code = typeof payload.code === 'string' ? payload.code : '';
-    const error = typeof payload.error === 'string' ? payload.error : '';
-    const detail = code || (
-      error === 'Course not found' ? 'course-not-found'
-        : error === 'Курс не найден' ? 'course-not-found-ru'
-          : 'other'
-    );
-    const marker = `${method}:${req.method}:${res.statusCode}:${detail}`;
-    if (!res.headersSent) res.setHeader('X-DV-Academy-Mutation-Json', marker);
-    console.warn('[E2E_ACADEMY_RESPONSE_JSON]', {
-      routeMethod: method,
-      requestMethod: req.method,
-      originalUrl: req.originalUrl,
-      statusCode: res.statusCode,
-      detail,
-      headersSent: res.headersSent,
-    });
-    return originalJson(body);
-  }) as typeof res.json;
-
+  // Observe the final response without monkey-patching Express response methods.
+  // Mutating res.status/res.json here can corrupt the status seen by API clients.
   res.once('finish', () => {
     console.warn('[E2E_ACADEMY_RESPONSE_FINISH]', {
       routeMethod: method,
       requestMethod: req.method,
       originalUrl: req.originalUrl,
       statusCode: res.statusCode,
-      jsonMarker: res.getHeader('X-DV-Academy-Mutation-Json') || null,
+      headersSent: res.headersSent,
     });
   });
 }
-
 function academyCourseMutationTrace(method: 'PUT' | 'DELETE') {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (process.env.SEED_E2E_FIXTURES === 'true') {
