@@ -3075,3 +3075,13 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Updated branch-management E2E to use the real POST /api/branches/:id/members/:userId flow for doctor-a, then verify stale branch token denial, refresh claim removal, owner restoration and preserved staff assignment.
 - Additional regression tests cover route assignment synchronization, clinic branch allow-list, diagnostics dashboard branch aggregates and medical-lab context/branch access.
 - PR #350 remains open; latest exact-head CI/E2E/Quality Gate/RB-034 are pending. No live DB/PHI, schema migration, staging/production write, key/secret/provider/legal change or production deployment was made.
+
+
+## 2026-11-24 — Partner dental-lab clinic acceptance workflow (PR #352 candidate)
+
+- Added clinic-side delivery acceptance scoped to the authenticated clinic and verified branch. Acceptance requires a partner-owned order, delivered order status and the latest shipment's stored HTTPS proof, recipient and delivery timestamp.
+- Acceptance is idempotent per shipment and blocked while a remake decision is pending. A new remake request clears the previous delivery-cycle acceptance while retaining shipment and lifecycle history.
+- Stored acceptance actor/time, shipment and remake references plus optional feedback; emitted a distinct same-status lifecycle event, audit record, partner notification and ecosystem event. The production state remains `delivered` until an actual remake cycle changes it.
+- CRM gained the explicit clinical acceptance action. Partner production roles receive feedback; logistics views do not receive the feedback note.
+- Added static contract coverage and extended PARTNER-003 E2E for first acceptance, remake reset, second acceptance, pre-delivery denial and idempotent retries.
+- Exact-head CI/Quality Gate/RB-034 must pass before considering the candidate verified. D10 remains PARTIAL/OPEN: financial settlement gates, CAD/CAM file lifecycle, material/lot traceability, case costs, tax/fiscal documents, warranties, refunds/chargebacks and desktop/mobile/operator acceptance remain open. No production/staging data, real payment provider, payout, migration or deployment was touched.
