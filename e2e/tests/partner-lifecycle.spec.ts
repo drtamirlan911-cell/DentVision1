@@ -2020,6 +2020,20 @@ test.describe('Partner operational lifecycle', () => {
     expect(invoiceBeforeAcceptance.status()).toBe(409);
     expect((await invoiceBeforeAcceptance.json()).code).toBe('LAB_CLINIC_ACCEPTANCE_REQUIRED');
 
+    const paymentBeforeAcceptance = await api.post(`${BASE}/api/payments`, {
+      headers: { ...auth(ownerToken), 'Idempotency-Key': `partner-003-unaccepted-${order.id}` },
+      data: {
+        amountMinor: '5200000',
+        invoiceId: 'not-issued-before-acceptance',
+        domain: 'dental_lab',
+        refType: 'dental_lab_order',
+        refId: order.id,
+        meta: { title: 'Коронка из диоксида циркония' },
+      },
+    });
+    expect(paymentBeforeAcceptance.status()).toBe(409);
+    expect((await paymentBeforeAcceptance.json()).code).toBe('DENTAL_LAB_CLINIC_ACCEPTANCE_REQUIRED');
+
     const clinicAcceptance = await api.post(`${BASE}/api/lab-orders/${order.id}/acceptance`, {
       headers: auth(ownerToken),
       data: { note: 'Fit, margins, shade and occlusion accepted by the clinic.' },
@@ -2046,6 +2060,54 @@ test.describe('Partner operational lifecycle', () => {
     expect(issuedInvoiceRetry.status()).toBe(200);
     expect((await issuedInvoiceRetry.json()).data.id).toBe(issuedInvoiceData.id);
     expect((await issuedInvoiceRetry.json()).idempotent).toBe(true);
+
+    const paymentCreated = await api.post(`${BASE}/api/payments`, {
+      headers: { ...auth(ownerToken), 'Idempotency-Key': `partner-003-accepted-invoice-${issuedInvoiceData.id}` },
+      data: {
+        amountMinor: issuedInvoiceData.amountMinor,
+        invoiceId: issuedInvoiceData.id,
+        domain: 'dental_lab',
+        refType: 'dental_lab_order',
+        refId: order.id,
+        meta: { title: 'Коронка из диоксида циркония' },
+      },
+    });
+    const paymentCreatedBody = await paymentCreated.json();
+    expect(paymentCreated.status(), JSON.stringify(paymentCreatedBody)).toBe(201);
+    expect(paymentCreatedBody.data.status).toBe('pending');
+
+    const paymentConfirmation = await api.post(`${BASE}/api/payments/${paymentCreatedBody.data.id}/confirm`, {
+      headers: auth(ownerToken),
+    });
+    const paymentConfirmationBody = await paymentConfirmation.json();
+    expect(paymentConfirmation.status(), JSON.stringify(paymentConfirmationBody)).toBe(200);
+    expect(paymentConfirmationBody.data.status).toBe('paid');
+
+    const paidInvoice = await prisma.dentalLabInvoice.findUnique({ where: { id: issuedInvoiceData.id } });
+    expect(paidInvoice).toMatchObject({ status: 'paid', paymentId: paymentCreatedBody.data.id });
+
+    await expect.poll(
+      () => prisma.transaction.count({ where: { type: 'partner_economics', refType: 'DENTAL_LAB', refId: order.id } }),
+      { timeout: 10_000, interval: 250 },
+    ).toBe(1);
+    const settledEconomics = await prisma.transaction.findFirst({
+      where: { type: 'partner_economics', refType: 'DENTAL_LAB', refId: order.id },
+    });
+    expect(settledEconomics?.amount).toBe(5_200_000n);
+    const economicsMeta = (settledEconomics?.meta || {}) as Record<string, unknown>;
+    const commissionMinor = BigInt(String(economicsMeta.commissionMinor || '0'));
+    const partnerRevenueMinor = BigInt(String(economicsMeta.partnerRevenueMinor || '0'));
+    expect(commissionMinor).toBeGreaterThan(0n);
+    expect(commissionMinor + partnerRevenueMinor).toBe(5_200_000n);
+
+    // Delivery and acceptance alone never create partner economics. The only
+    // operation above is the confirmed payment settlement.
+    const deliveryEconomics = await prisma.transaction.findMany({
+      where: { type: 'partner_economics', refType: 'DENTAL_LAB', refId: order.id },
+      include: { ledgerEntries: true },
+    });
+    expect(deliveryEconomics).toHaveLength(1);
+    expect(deliveryEconomics[0].ledgerEntries.reduce((sum: bigint, entry: any) => sum + entry.amount, 0n)).toBe(10_400_000n);
 
     // Delivery confirms operational completion, not a commercial settlement.
     // Allow the in-process event queue to drain, then assert there is no partner
