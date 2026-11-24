@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { Prisma } from '@prisma/client';
-import { authenticate } from '../../middleware/auth.js';
+import { authenticate, branchMatchesOrganization } from '../../middleware/auth.js';
 import { generateTokens } from '../../lib/jwt.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { uid } from '../../lib/helpers.js';
@@ -461,17 +461,29 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         const orgManager = hasOrganizationPartnerRole || legacyOrganizationManager;
         let selectedBranchId: string | undefined;
         if (branchId) {
-          const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null; active: boolean }>>`SELECT "id", "organization_id", "active" FROM "branches" WHERE "id" = ${branchId} LIMIT 1`;
-          if (!rows[0] || rows[0].organization_id !== org.id || !rows[0].active) {
-            return res.status(403).json({ ok: false, error: 'Филиал не относится к активным филиалам выбранной организации' });
+          const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null; clinic_id: string | null; active: boolean }>>`SELECT "id", "organization_id", "clinic_id", "active" FROM "branches" WHERE "id" = ${branchId} LIMIT 1`;
+          if (!rows[0] || !branchMatchesOrganization(
+            { organizationId: rows[0].organization_id, clinicId: rows[0].clinic_id },
+            { id: org.id, type: org.type, originalId: org.originalId },
+          )) {
+            return res.status(403).json({ ok: false, error: 'Филиал не относится к выбранной организации' });
+          }
+          if (!rows[0].active) {
+            return res.status(409).json({ ok: false, error: 'Архивный филиал нельзя выбрать рабочим контекстом', code: 'BRANCH_ARCHIVED' });
           }
           if (hasAssignedPartnerRole && !hasOrganizationPartnerRole && !hasBranchPartnerRole) {
             return res.status(403).json({ ok: false, error: 'Эта роль работает по назначенным задачам, а не по филиалу' });
           }
-          const assigned = await prisma.branchMember.findUnique({
-            where: { personId_branchId: { personId: person.id, branchId } },
+          const assigned = await prisma.branchMember.findFirst({
+            where: { personId: person.id, branchId, active: true, branch: { is: { active: true } } },
           });
-          if (!orgManager && (!assigned || !assigned.active)) {
+          const legacyAssigned = org.type === 'CLINIC' && org.originalId
+            ? await prisma.clinicMember.findFirst({
+                where: { userId: user.id, clinicId: org.originalId, branchId },
+                select: { id: true },
+              })
+            : null;
+          if (!orgManager && !assigned && !legacyAssigned) {
             return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
           }
           selectedBranchId = branchId;
