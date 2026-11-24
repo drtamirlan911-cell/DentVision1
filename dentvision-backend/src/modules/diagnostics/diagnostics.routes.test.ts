@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { authorizeReferralListScope, diagnosticsRouter, partnerReferralReadPermission, partnerRoleKeysHavePermission, redactPartnerReferralFinancials, redactPartnerReferralForList, redactPartnerDashboardStats, partnerCatalogReadPermission } from './diagnostics.routes.js';
+import { authorizeReferralListScope, diagnosticsRouter, partnerReferralReadPermission, partnerRoleKeysHavePermission, redactPartnerReferralFinancials, redactPartnerReferralForList, redactPartnerDashboardStats, partnerCatalogReadPermission, resolveTrustedReferralBranchIds } from './diagnostics.routes.js';
 import { canReadDiagnosticCenterCatalog, canReadPartnerCatalog } from './diagnostics.service.js';
 
 const user = (overrides: Record<string, unknown> = {}) => ({
@@ -212,6 +212,27 @@ describe('diagnostics partner finance authorization', () => {
       paid: true,
       status: 'DELIVERED',
     });
+  });
+});
+
+describe('diagnostics referral branch-context authorization', () => {
+  it('fails closed outside the exact active clinic and uses only verified context claims', () => {
+    const clinicActor = user({
+      role: 'DOCTOR',
+      organizationId: 'clinic-org-1',
+      organizationOriginalId: 'clinic-1',
+      organizationType: 'CLINIC',
+      clinicId: 'clinic-1',
+      branchId: 'branch-active',
+      assignedBranchId: null,
+      branchIds: ['branch-second'],
+    });
+    expect(resolveTrustedReferralBranchIds(clinicActor, 'clinic-1')).toEqual([
+      'branch-active',
+      'branch-second',
+    ]);
+    expect(resolveTrustedReferralBranchIds(clinicActor, 'clinic-other')).toEqual([]);
+    expect(resolveTrustedReferralBranchIds(user({ role: 'SUPERADMIN' }), 'clinic-1')).toBeUndefined();
   });
 });
 
