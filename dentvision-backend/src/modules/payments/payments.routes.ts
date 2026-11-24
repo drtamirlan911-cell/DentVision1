@@ -150,7 +150,7 @@ async function canAccessClinicBranch(
   branchId: string | null,
 ): Promise<boolean> {
   if (String(user?.role || '').toUpperCase() === 'SUPERADMIN') return true;
-  if (!user?.id || !branchId || user.clinicId !== clinicId) return false;
+  if (!user?.id || user.clinicId !== clinicId) return false;
 
   const access = await resolveClinicBranchAccess({
     userId: user.id,
@@ -160,6 +160,13 @@ async function canAccessClinicBranch(
     requestedBranchId: user.branchId,
   });
   if (!access) return false;
+
+  // Organization-scoped clinic staff may also work with legacy clinical records
+  // that predate branch assignment. A selected branch still denies branchless
+  // records, and a branch-scoped member remains restricted to that exact branch.
+  if (branchId === null) {
+    return access.branchId === null && access.roleScope === 'ORGANIZATION';
+  }
 
   // An unselected organization workspace may see any verified active branch.
   // Once a branch is selected, the payment is limited to that exact branch.
@@ -1197,7 +1204,9 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       }
     }
 
-    const clinicId = String(metaObj.clinicId || req.body?.clinicId || '');
+    const requestedClinicIds = [metaObj.clinicId, req.body?.clinicId]
+      .filter((value) => value !== undefined && value !== null && String(value).trim() !== '')
+      .map((value) => String(value).trim());
     // Platform-owned references always use the platform merchant. A client
     // cannot reroute SaaS, Academy, Shop or medical-lab payments by setting
     // domain=crm, clinicId or merchantScope in the request.
@@ -1210,28 +1219,51 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
 
     // CRM cashier → clinic's own Kaspi/bank (never platform merchant).
     if (isClinicCashier) {
-      if (!clinicId) {
-        return res.status(400).json({
-          ok: false,
-          error: 'clinicId обязателен для оплаты на кассе клиники',
-        } satisfies ApiResponse);
+      // The clinic tenant must come from the authenticated active workspace.
+      // Client metadata/body values are assertions only and may never select it.
+      const clinicId = String(req.user?.clinicId || '').trim();
+      const organizationType = String(req.user?.organizationType || '').trim().toUpperCase();
+      if (!clinicId || (organizationType && organizationType !== 'CLINIC')) {
+        return res.status(403).json({ ok: false, error: 'Откройте активный кабинет клиники для приёма оплаты' } satisfies ApiResponse);
+      }
+      if (requestedClinicIds.some((requestedId) => requestedId !== clinicId)) {
+        return res.status(403).json({ ok: false, error: 'Нельзя создать платёж для другой клиники' } satisfies ApiResponse);
+      }
+      if (!(await assertClinicOrgAccess(req.user!, clinicId))) {
+        return res.status(403).json({ ok: false, error: 'Нет доступа к активной клинике' } satisfies ApiResponse);
       }
       if (!(await assertClinicPaymentStaffAccess(req.user!.id, clinicId))) {
         return res.status(403).json({ ok: false, error: 'Нет доступа к кассе этой клиники' } satisfies ApiResponse);
       }
-      // Renewal checkout is platform-owned and handled below; clinic cashier
-      // payment creation is a clinic mutation and must obey the read-only gate.
+      const branchAccess = await resolveClinicBranchAccess({
+        userId: req.user!.id,
+        clinicId,
+        organizationId: req.user?.organizationId,
+        role: String(req.user?.role || ''),
+        requestedBranchId: req.user?.branchId,
+      });
+      if (!branchAccess) {
+        return res.status(403).json({ ok: false, error: 'Нет доступа к активному филиалу клиники' } satisfies ApiResponse);
+      }
+      let paymentBranchId: string | null = branchAccess.branchId;
+
+      // Clinic cash mutations obey the same 30-day write boundary as CRM modules.
       if (!(await requireClinicPaymentWritable(req, res, clinicId))) return;
 
-      // A referenced clinical object must belong to this exact clinic. A valid
-      // cashier role alone must not allow cross-clinic payment via a substituted refId.
+      // A referenced clinical object must belong to this exact clinic and the
+      // authenticated branch scope. Branch attribution comes from that object,
+      // never from browser metadata or a stale client-selected identifier.
       if (refType === 'appointment' && refId) {
         const appointment = await prisma.appointment.findFirst({
           where: { id: String(refId), clinicId },
-          select: { id: true, clinicId: true },
+          select: { id: true, clinicId: true, branchId: true },
         });
         if (!appointment) {
           return res.status(404).json({ ok: false, error: 'Приём не найден в выбранной клинике' } satisfies ApiResponse);
+        }
+        paymentBranchId = appointment.branchId ?? null;
+        if (!(await canAccessClinicBranch(req.user, clinicId, paymentBranchId))) {
+          return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу этого приёма' } satisfies ApiResponse);
         }
       }
 
@@ -1240,10 +1272,17 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       if ((refType === 'crm_invoice' || (!refType && domain === 'crm')) && refId) {
         const invoice = await prisma.invoice.findFirst({
           where: { id: String(refId), clinicId, deletedAt: null },
-          select: { id: true, clinicId: true, amount: true, paidAmount: true, status: true },
+          select: {
+            id: true, clinicId: true, amount: true, paidAmount: true, status: true,
+            patient: { select: { branchId: true } },
+          },
         });
         if (!invoice) {
           return res.status(404).json({ ok: false, error: 'Счёт не найден в выбранной клинике' } satisfies ApiResponse);
+        }
+        paymentBranchId = invoice.patient?.branchId ?? null;
+        if (!(await canAccessClinicBranch(req.user, clinicId, paymentBranchId))) {
+          return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу пациента по этому счёту' } satisfies ApiResponse);
         }
         const outstandingTenge = Math.max(0, Number(invoice.amount) - Number(invoice.paidAmount || 0));
         const outstandingMinor = tengeToMinor(outstandingTenge);
@@ -1257,6 +1296,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
           return res.status(409).json({ ok: false, error: 'Сумма превышает остаток по счёту' } satisfies ApiResponse);
         }
       }
+      trustedMeta = { ...trustedMeta, clinicId, branchId: paymentBranchId };
 
       if (!(await reserveForPayment())) return;
 
