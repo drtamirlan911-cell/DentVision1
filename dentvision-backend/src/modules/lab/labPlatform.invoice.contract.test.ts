@@ -72,6 +72,8 @@ describe('Dental Lab partner invoice lifecycle', () => {
     expect(settlement).toContain("paymentMeta.invoiceId");
     expect(settlement).toContain('hasAcceptedLatestDentalLabDelivery(order.clinicAcceptance, order.latestShipment, order.laboratoryId)');
     expect(create).toContain('hasAcceptedLatestDentalLabDelivery(labOrder.clinicAcceptance, labOrder.latestShipment, labOrder.laboratoryId)');
+    expect(payments).toContain('hasAcceptedLatestDentalLabDelivery(\n            currentOrder.clinicAcceptance,\n            currentOrder.latestShipment,\n            currentOrder.laboratoryId,\n          )');
+    expect(payments).toContain('FOR UPDATE');
     expect(create).toContain("code: 'DENTAL_LAB_CLINIC_ACCEPTANCE_REQUIRED'");
     expect(settlement).toContain("status: 'paid', paymentId: payment.id, paidAt: new Date()");
     expect(settlement).toContain('recordPartnerEconomics');
