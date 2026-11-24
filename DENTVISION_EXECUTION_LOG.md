@@ -3058,3 +3058,20 @@ Added route-contract tests covering all write routes and the laboratory-context 
 
 - SHA `2d7acbf9743d85f809400be19a4af8058dbfb437` backend-lint had 0 errors but 75 `no-console` warnings against the existing max of 73. The three new E2E-only response trace log sites caused the increase; no lint threshold was raised.
 - Converted the `[E2E_ACADEMY_*]` diagnostic entries to allowed `console.warn` calls. Exact-head lint/type-check and all E2E suites must rerun on the follow-up SHA.
+
+
+## 2026-11-19 — PR #349 merged; RB-035 archived branch candidate
+
+- PR #349 exact head `3dd1d17bc1978a0f7d695adbadc59969950505cf`: CI [44376106619] SUCCESS, Quality Gate [44376106517] SUCCESS and Vercel Preview SUCCESS. Squash merge to main: `da1257fc650f536c76583bdff570906290b92bcd`.
+- RB-029's specific raw AI Admin booking exception logger issue is closed in main. Overall RB-029 remains P0/open for historical PHI inventory/backfill, compatibility worker drain, strict cutover, key lifecycle, retention, backup/restore and approved staging reconciliation.
+- RB-035 finding: stale JWT branch claims and legacy/canonical assignments were still usable after branch archive. Candidate branch `security/rb035-inactive-branch-access-main-20261119` adds active-state enforcement, four executable scope regressions, context refresh test, branch route test, owner restore UI and direct API E2E. Exact-head CI is pending.
+- No staging/production DB or PHI, secret/key, provider, legal signature or deployment was changed.
+
+
+## 2026-11-19 — RB-035 cross-domain branch-access remediation (PR #350 candidate)
+
+- Extended the archived-branch revocation candidate beyond middleware: diagnostics dashboard aggregates now use active branch allow-lists; medical-lab direct order access requires matching active clinic context plus an allowed branch; clinic branch assignment APIs synchronize legacy ClinicMember and canonical BranchMember in one transaction.
+- IAM/context switching supports exact legacy clinic branch mappings only when organization_id is null and clinic_id equals Organization.originalId. Auth accepts a legacy assignment only when ClinicMember.branchId matches the selected branch and the branch relation is active.
+- Updated branch-management E2E to use the real POST /api/branches/:id/members/:userId flow for doctor-a, then verify stale branch token denial, refresh claim removal, owner restoration and preserved staff assignment.
+- Additional regression tests cover route assignment synchronization, clinic branch allow-list, diagnostics dashboard branch aggregates and medical-lab context/branch access.
+- PR #350 remains open; latest exact-head CI/E2E/Quality Gate/RB-034 are pending. No live DB/PHI, schema migration, staging/production write, key/secret/provider/legal change or production deployment was made.
