@@ -163,8 +163,11 @@ beforeEach(() => {
   m.resolveClinicBranchAccess.mockResolvedValue({ roleScope: 'ASSIGNED', branchId: 'branch-1', allowedBranchIds: ['branch-1'] });
   m.queryRawUnsafe.mockResolvedValue([]);
   m.resolveClinicMemberAccess.mockResolvedValue({ role: 'OWNER' });
-  m.appointmentFindFirst.mockResolvedValue({ id: 'appointment-1', clinicId: 'clinic-owned' });
-  m.invoiceFindFirst.mockResolvedValue({ id: 'invoice-1', clinicId: 'clinic-owned', amount: 1000, paidAmount: 0, status: 'unpaid' });
+  m.appointmentFindFirst.mockResolvedValue({ id: 'appointment-1', clinicId: 'clinic-owned', branchId: 'branch-1' });
+  m.invoiceFindFirst.mockResolvedValue({
+    id: 'invoice-1', clinicId: 'clinic-owned', amount: 1000, paidAmount: 0, status: 'unpaid',
+    patient: { branchId: 'branch-1' },
+  });
   m.organizationFindFirst.mockResolvedValue({
     id: 'org-center-1', type: 'DIAGNOSTIC_CENTER', originalType: 'DiagnosticCenter',
   });
@@ -632,7 +635,7 @@ describe('clinic cashier reference boundaries', () => {
     expect(body.ok).toBe(false);
     expect(m.appointmentFindFirst).toHaveBeenCalledWith({
       where: { id: 'foreign-appointment', clinicId: 'clinic-owned' },
-      select: { id: true, clinicId: true },
+      select: { id: true, clinicId: true, branchId: true },
     });
     expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
     expect(m.createClinicKaspiPayment).not.toHaveBeenCalled();
@@ -654,7 +657,10 @@ describe('clinic cashier reference boundaries', () => {
     expect(body.ok).toBe(false);
     expect(m.invoiceFindFirst).toHaveBeenCalledWith({
       where: { id: 'foreign-invoice', clinicId: 'clinic-owned', deletedAt: null },
-      select: { id: true, clinicId: true, amount: true, paidAmount: true, status: true },
+      select: {
+        id: true, clinicId: true, amount: true, paidAmount: true, status: true,
+        patient: { select: { branchId: true } },
+      },
     });
     expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
     expect(m.createClinicKaspiPayment).not.toHaveBeenCalled();
