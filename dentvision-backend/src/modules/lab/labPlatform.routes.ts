@@ -33,6 +33,7 @@ type LabMeta = {
   tryInDate?: string;
   qualityControl?: { checks: Record<string, boolean>; passed: boolean; note: string | null; checkedByUserId: string; checkedAt: string };
   remakeRequest?: { id: string; status: 'requested' | 'accepted' | 'rejected'; reason: string; requestedByUserId: string; requestedAt: string; laboratoryId: string; decidedByUserId?: string; decidedAt?: string; responseNote?: string | null };
+  clinicAcceptance?: { status: 'accepted'; acceptedAt: string; shipmentId: string; remakeRequestId?: string | null; note?: string | null } | null;
   payment?: Prisma.InputJsonValue;
 };
 
