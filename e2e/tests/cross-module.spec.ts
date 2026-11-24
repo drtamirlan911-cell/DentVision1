@@ -2,6 +2,7 @@ import { test, expect, APIRequestContext, request as apiRequest } from '@playwri
 import { randomUUID } from 'node:crypto';
 import bcrypt from '../../dentvision-backend/node_modules/bcryptjs/index.js';
 import { prisma } from '../helpers/db';
+import { switchToAssignedClinicBranch } from '../helpers/branch-context';
 import { makeIin } from '../helpers/iin';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
@@ -105,34 +106,16 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
     });
     centerToken = await login(api, centerUser.email, E2E_PASSWORD);
 
-    // Branch-management E2E may assign this doctor to several active branches.
-    // Select one canonical BranchMember explicitly; narrow clinical roles must
-    // never rely on the first membership as an implicit active branch.
-    const clinicOrganization = await prisma.organization.findFirstOrThrow({
-      where: { originalType: 'Clinic', originalId: clinicId, archivedAt: null },
-      select: { id: true },
+    // A doctor may have several active branch memberships after BRANCH-002.
+    // Select one through the shared IAM helper; never guess the first branch.
+    const selectedContext = await switchToAssignedClinicBranch({
+      request: api,
+      baseUrl: BASE_URL,
+      accessToken: doctorToken,
+      userId: doctorId,
+      clinicId,
     });
-    const doctorPerson = await prisma.person.findFirstOrThrow({
-      where: { userId: doctorId, organizationId: clinicOrganization.id },
-      select: { id: true },
-    });
-    const selectedBranch = await prisma.branch.findFirst({
-      where: {
-        organizationId: clinicOrganization.id,
-        active: true,
-        members: { some: { personId: doctorPerson.id, active: true } },
-      },
-      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-      select: { id: true },
-    });
-    expect(selectedBranch?.id, 'Doctor must have an active canonical branch assignment').toBeTruthy();
-    const selectedContext = await api.post(`${BASE_URL}/api/iam/switch-context`, {
-      headers: auth(doctorToken),
-      data: { scopeType: 'CLINIC', scopeId: clinicOrganization.id, branchId: selectedBranch!.id },
-    });
-    expect(selectedContext.status(), await selectedContext.text()).toBe(200);
-    doctorToken = (await selectedContext.json()).data.accessToken;
-    expect(doctorToken).toBeTruthy();
+    doctorToken = selectedContext.accessToken;
 
     // The doctor who performs the referral and lab handoff must own the
     // patient context used by the downstream branch-scoped workflows.
