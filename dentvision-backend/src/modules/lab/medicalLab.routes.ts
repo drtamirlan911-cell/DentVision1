@@ -226,18 +226,17 @@ async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, _write
   // With no branch selected, only a verified organization role may use the
   // full active branch allow-list. A selected context narrows every role to
   // that exact branch; ambiguous or revoked assignments fail closed.
+  const organizationWide = access.roleScope === 'ORGANIZATION' && access.branchId === null;
   const branchIds = access.branchId
     ? [access.branchId]
-    : access.roleScope === 'ORGANIZATION'
-      ? access.allowedBranchIds
-      : [];
-  if (!branchIds.length) return false;
+    : access.allowedBranchIds;
+  if (!organizationWide && !branchIds.length) return false;
 
   const patient = await prisma.patient.findFirst({
     where: {
       id: order.patientId,
       clinicId: order.clinicId,
-      branchId: { in: branchIds },
+      ...(organizationWide ? {} : { branchId: { in: branchIds } }),
     },
     select: { id: true },
   });
