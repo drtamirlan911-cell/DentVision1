@@ -93,7 +93,7 @@ async function ensureClinicSubscriptionWritableIfClinicActor(req: AuthRequest, r
   }
 }
 
-async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, write = false): Promise<boolean> {
+async function canAccessOrder(user: AuthRequest['user'], order: OrderRow): Promise<boolean> {
   if (user?.role === 'SUPERADMIN') return true;
 
   // Receiving laboratory context is authoritative. Some lab users also carry
@@ -103,20 +103,18 @@ async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, write 
     return Boolean(order.labId && (await resolveLaboratoryScopeId(user)) === order.labId);
   }
 
-  if (order.clinicId === user?.clinicId) {
-    const role = String(user?.role || '').toUpperCase();
-    if (['OWNER', 'ADMIN'].includes(role)) return true;
-    const branchIds = (user?.branchIds ?? []).filter(Boolean);
-    if (branchIds.length === 0 || !order.patientId) return false;
-    const patient = await prisma.patient.findFirst({
-      where: { id: order.patientId, clinicId: order.clinicId, branchId: { in: branchIds } },
-      select: { id: true },
-    });
-    return Boolean(patient);
-  }
+  // A multi-clinic user must switch to the order's clinic context before
+  // reading its data. Membership in another clinic is not a substitute for
+  // the active tenant/branch context.
+  if (order.clinicId !== user?.clinicId) return false;
 
-  if (!write && order.clinicId) return assertClinicOrgAccess(user!, order.clinicId);
-  return false;
+  const branchIds = (user?.branchIds ?? []).filter(Boolean);
+  if (branchIds.length === 0 || !order.patientId) return false;
+  const patient = await prisma.patient.findFirst({
+    where: { id: order.patientId, clinicId: order.clinicId, branchId: { in: branchIds } },
+    select: { id: true },
+  });
+  return Boolean(patient);
 }
 
 async function recordEvent(orderId: string, clinicId: string, fromStatus: string | null, toStatus: string, userId: string, note?: string) {
@@ -143,7 +141,7 @@ medicalLabLifecycleRouter.get('/orders', async (req: AuthRequest, res) => {
       args.push(clinicId); where.push(`o."clinicId" = $1`);
       const role = String(req.user?.role || '').toUpperCase();
       const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
-      if (!['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) {
+      if (role !== 'SUPERADMIN') {
         if (branchIds.length === 0) return res.json({ ok: true, data: [] } satisfies ApiResponse);
         args.push(branchIds); where.push(`EXISTS (SELECT 1 FROM "patients" p WHERE p."id" = o."patientId" AND p."branchId" = ANY(${args.length}::text[]))`);
       }
@@ -170,7 +168,7 @@ medicalLabLifecycleRouter.post('/orders', requirePermission('patient.read'), asy
       const role = String(req.user?.role || '').toUpperCase();
       const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
       const patient = await prisma.patient.findFirst({
-        where: { id: String(patientId), clinicId, ...(['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role) ? {} : { branchId: branchIds.length > 0 ? { in: branchIds } : '__NO_BRANCH_ACCESS__' }) },
+        where: { id: String(patientId), clinicId, ...(role === 'SUPERADMIN' ? {} : { branchId: branchIds.length > 0 ? { in: branchIds } : '__NO_BRANCH_ACCESS__' }) },
         select: { id: true },
       });
       if (!patient) return res.status(400).json({ ok: false, error: 'Пациент не относится к выбранной клинике' });
@@ -224,7 +222,7 @@ medicalLabLifecycleRouter.post('/orders/:id/status', async (req: AuthRequest, re
   try {
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
-    if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+    if (!(await canAccessOrder(req.user!, order))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
     if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId))) return;
     const next = String(req.body?.status || '');
     if (!STATUSES.includes(next as any) || !isMedicalLabTransitionAllowed(order.status, next)) return res.status(400).json({ ok: false, error: `Недопустимый переход ${order.status} → ${next}` });
@@ -243,7 +241,7 @@ medicalLabLifecycleRouter.post('/orders/:id/results', async (req: AuthRequest, r
   try {
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
-    if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+    if (!(await canAccessOrder(req.user!, order))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
     if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId))) return;
     const rows = Array.isArray(req.body?.results) ? req.body.results : [];
     if (!rows.length) return res.status(400).json({ ok: false, error: 'Результаты не переданы' });
@@ -264,7 +262,7 @@ medicalLabLifecycleRouter.post('/orders/:id/verify', async (req: AuthRequest, re
   try {
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
-    if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+    if (!(await canAccessOrder(req.user!, order))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
     if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId))) return;
     if (order.status !== 'result_ready') return res.status(400).json({ ok: false, error: 'Результат ещё не готов к верификации' });
     await prisma.$executeRawUnsafe(`UPDATE "medical_lab_order_tests" SET "verifiedAt"=CURRENT_TIMESTAMP,"verifiedByUserId"=$1,"updatedAt"=CURRENT_TIMESTAMP WHERE "orderId"=$2`, req.user!.id, order.id);
@@ -279,7 +277,7 @@ medicalLabLifecycleRouter.post('/orders/:id/interpretation', async (req: AuthReq
   try {
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
-    if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+    if (!(await canAccessOrder(req.user!, order))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
     if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId))) return;
     const interpretation = String(req.body?.interpretation || '').trim();
     if (!interpretation) return res.status(400).json({ ok: false, error: 'Интерпретация не может быть пустой' });

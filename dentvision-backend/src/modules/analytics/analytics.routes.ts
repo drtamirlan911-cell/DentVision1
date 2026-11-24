@@ -10,7 +10,7 @@ const analyticsRouter = Router();
 
 function branchScope(req: AuthRequest): Record<string, unknown> {
   const role = String(req.user?.role || '').toUpperCase();
-  if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {};
+  if (role === 'SUPERADMIN') return {};
   const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
   return branchIds.length > 0
     ? { branchId: { in: branchIds } }
@@ -18,7 +18,7 @@ function branchScope(req: AuthRequest): Record<string, unknown> {
 }
 function analyticsBranchIds(req: AuthRequest): string[] | null {
   const role = String(req.user?.role || '').toUpperCase();
-  if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return null;
+  if (role === 'SUPERADMIN') return null;
   return (req.user?.branchIds ?? []).filter(Boolean);
 }
 

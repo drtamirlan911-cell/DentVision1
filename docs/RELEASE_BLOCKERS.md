@@ -1,3 +1,29 @@
+## Current checkpoint — 2026-11-19 (RB-035 expanded source review)
+
+- **Current main remains** da1257fc650f536c76583bdff570906290b92bcd; PR #349 is merged with exact CI/Quality Gate/Vercel success. The next candidate is PR #350 / security/rb035-inactive-branch-access-main-20261119; it is not merged.
+- RB-035 now covers more than stale JWT rejection: active-only patient/finance/diagnostic/inventory scopes; diagnostics referral list and direct reads; branch-filtered diagnostics dashboard aggregates; appointments, analytics, treatment cases, dental-lab and medical-lab filters; archived workspace/switch/default/assignment guards; owner/admin restore; legacy clinic context recovery.
+- **Additional confirmed parity fixes in PR #350:** diagnostics dashboard totals/status/overdue/recent referrals now use the same active branch allow-list as the referral catalogue; medical-lab direct reads require the active clinic context and branch allow-list instead of membership-only cross-clinic fallback; clinic branch assignment/enable/disable/unassign now synchronizes legacy ClinicMember and canonical BranchMember in one transaction. IAM/auth accept a legacy assignment only for an active branch mapped to the exact clinic; a non-null mismatched organization_id is never bypassed.
+- Branch-management E2E now assigns a real seeded doctor through POST /api/branches/:id/members/:userId, issues a branch-scoped token, verifies stale-token 403 BRANCH_ARCHIVED, refreshes to drop the claim, restores the branch and reuses the preserved assignment.
+- **Verification pending for the latest PR #350 HEAD:** CI, E2E, Quality Gate and RB-034 must complete on the exact current SHA. Previous SHA runs do not certify later commits.
+- RB-035 remains OPEN for the full patient-route × role × tenant × organization × clinic × branch × active/revoked/expired-session matrix, partner-branch coverage, and a separately authorized archive-history read policy.
+- RB-029 historical PHI lifecycle, RB-031 WebKit/CORS/WebSocket, RB-033 branch-protection evidence, D1/D2 staging and restore, legal/EDS, Kaspi provider, physical Android, diagnostics/medical-lab workflows, D10 settlement, Marketplace/Supplier, Academy/Community, employer lifecycle, public discovery and true 32-tooth WebGL remain open/partial.
+- **Release remains NOT READY.** No production/staging DB, PHI, secret/key, payment provider, legal signature or production deployment was accessed or modified.
+
+---
+
+## Current checkpoint — 2026-11-19 (post PR #349)
+
+- **Current main:** `da1257fc650f536c76583bdff570906290b92bcd`. PR #349 was squash-merged as `da1257fc650f536c76583bdff570906290b92bcd`; raw AI Admin booking exception logging is removed and a regression test proves patient name/phone do not reach console logs.
+- **PR #349 exact HEAD:** `3dd1d17bc1978a0f7d695adbadc59969950505cf`; CI [44376106619](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44376106619) SUCCESS (lint-test, backend-lint, frontend-lint, E2E); Quality Gate [44376106517](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44376106517) SUCCESS; Vercel Preview SUCCESS.
+- **RB-029:** the raw booking-exception logger defect is closed in source. RB-029 overall remains P0/OPEN for historical PHI inventory/count/backfill, legacy worker drain, strict cutover, key lifecycle, retention/export/deletion, encrypted derived copies, verified backup/restore, rollback and approved staging reconciliation. No historical PHI write or live cutover was performed.
+- **New RB-035 source finding:** `branches.active=false` previously hid a UI control but did not consistently revoke stale JWT claims or legacy/canonical branch assignments in auth and patient/finance/diagnostic/inventory scope readers. Candidate `security/rb035-inactive-branch-access-main-20261119` validates active state, drops inactive branch claims on refresh, denies operational use, filters inactive assignments, blocks opening/switch/default/staff assignment and adds owner/admin restoration without deleting history.
+- RB-035 candidate includes executable tests for all four scoped readers, auth refresh/recovery policy, branch route contract and E2E direct API denial plus owner restore. **Candidate CI has not yet been verified.**
+- RB-035 broader patient-route × role × organization × clinic × branch × active/revoked/expired-session matrix remains OPEN, including partner organization branches and explicitly authorized historical archive reads.
+- RB-031 WebKit OPTIONS/CORS/WebSocket, RB-033 branch-protection proof, D1/D2 staging/restore, Kaspi provider evidence, physical Android runtime, diagnostics/medical lab, D10 settlement, Marketplace/Supplier, Academy/Community, employer lifecycle, public discovery and 32-tooth WebGL remain open/partial.
+- **Release remains NOT READY.** No staging/production database, PHI, secret/key, payment provider, legal signature or production deployment was accessed or modified.
+
+---
+
 ## Current release reconciliation — 2026-11-18
 
 - **Current main:** `7289f369b1effa28db94e3e1e4541e4500bc5ee0`. PR #346 merged as `4bbd61a339d5f3c4d40d1d5990f633a7b9a87864`; PR #347 merged as `ad2b8651432073ba3c1426a59f3b31f704479557`; PR #348 merged as `7289f369b1effa28db94e3e1e4541e4500bc5ee0`. PR #322 is also merged as `462c6fcc1994c345b51feabff5f2357debdfffba` and contains isolated Codespaces developer infrastructure.

@@ -1,3 +1,27 @@
+## Continuation checkpoint — 2026-11-19 (RB-035 expanded review)
+
+- Canonical repository: drtamirlan911-cell/DentVision1; current main remains da1257fc650f536c76583bdff570906290b92bcd.
+- PR #349 is merged and verified. PR #350 is the active RB-035 candidate; still open, not merged.
+- Candidate now covers active archived-branch revocation and filters patient, finance, diagnostics, inventory, appointments, analytics, treatment cases, dental-lab, medical-lab and diagnostics aggregates/referral paths.
+- Diagnostics dashboard counts and recent referrals now receive explicit branch allow-lists. Medical-lab direct order reads require the active clinic context and branch allow-list. Legacy clinic branch assignment APIs now keep ClinicMember and BranchMember synchronized atomically; IAM/auth can use only an exact active legacy ClinicMember assignment where organization_id is absent and clinic_id maps to the selected clinic.
+- E2E assigns a doctor through the real branch-management API, checks stale branch token denial, refreshes away the archived claim, restores the branch and verifies the doctor can switch back using the preserved assignment.
+- **Latest PR #350 exact-head CI/E2E, Quality Gate, RB-034 and Preview remain pending.** Do not treat earlier SHA runs as final.
+- RB-035 broader patient-route × role × tenant × organization × clinic × branch × active/revoked/expired-session matrix remains open, as does authorized history reading from archived branches.
+- Other release gaps remain RB-029 historical PHI lifecycle, RB-031 WebKit/CORS/WebSocket, RB-033 branch-protection evidence, D1/D2 staging/restore, legal/EDS, Kaspi provider, physical Android, diagnostics/medical-lab depth, D10 settlement, Marketplace/Supplier, Academy/Community, Employer lifecycle, public discovery and 32-tooth WebGL.
+- No live DB/PHI, keys/secrets, provider, legal signature or production deployment was touched. Release remains NOT READY.
+
+---
+## Continuation checkpoint — 2026-11-19
+
+- Canonical repo: `drtamirlan911-cell/DentVision1`; current main: `da1257fc650f536c76583bdff570906290b92bcd`.
+- PR #349 merged as `da1257fc650f536c76583bdff570906290b92bcd`. Exact PR HEAD `3dd1d17bc1978a0f7d695adbadc59969950505cf` passed CI [44376106619], Quality Gate [44376106517] and Vercel Preview. The raw AI Admin booking exception is redacted; RB-029 overall remains P0/open for historical PHI lifecycle and staging evidence.
+- RB-035 candidate is on `security/rb035-inactive-branch-access-main-20261119`, based on post-#349 main. It validates active branch state, drops inactive branch context from refresh, blocks stale-branch operational access, filters four data scopes, blocks open/switch/default/assignment and adds owner/admin restore without deleting history.
+- Candidate tests cover recovery policy, auth refresh, patient/finance/diagnostic/inventory helper execution, branch route contract and E2E direct API denial/owner restore. Exact-head CI has not yet run.
+- No schema migration, historical patient data move, PHI read/backfill, staging/production write, key/secret/provider/legal signature change or production deployment was made.
+- Remaining blockers: RB-029 historical PHI lifecycle; RB-035 broad IAM matrix; RB-031 WebKit/CORS/WebSocket; RB-033 branch protection; D1/D2 staging; diagnostic/medical lab; Dental Lab D10; Marketplace/Supplier; Academy/Community; employer workflow depth; public discovery; 32-tooth WebGL; physical Android runtime.
+- Release remains **NOT READY**.
+
+---
 ## Current continuation checkpoint — 2026-11-18
 
 - Canonical repository: `drtamirlan911-cell/DentVision1`; current `main`: `7289f369b1effa28db94e3e1e4541e4500bc5ee0`.

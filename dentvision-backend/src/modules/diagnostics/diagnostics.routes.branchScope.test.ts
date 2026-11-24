@@ -20,6 +20,19 @@ describe('diagnostics referral branch enforcement', () => {
     expect(source).toContain('referralListBranchIds');
     expect(source).toContain('branchIds');
     expect(source).toContain('Нет доступа к филиалам клиники');
+    expect(source).toContain('Нет доступа к активному контексту клиники');
+  });
+
+  it('uses the authenticated allow-list plus an exact active legacy clinic assignment', () => {
+    const start = source.indexOf('async function referralListBranchIds');
+    const end = source.indexOf('export function requireReferralAccess', start);
+    const resolver = source.slice(start, end);
+    expect(resolver).toContain('resolveTrustedReferralBranchIds(user, clinicId)');
+    expect(resolver).toContain('isActiveClinicContext(user, clinicId!)');
+    expect(resolver).toContain('assertClinicOrgAccess(user, clinicId!)');
+    expect(resolver).toContain('cm."userId" = ${user.id} AND cm."clinicId" = ${clinicId}');
+    expect(resolver).toContain('COALESCE(b."active", false)');
+    expect(resolver).toContain('WHERE "clinic_id" = ${clinicId} AND "active" = true');
   });
 
   it('keeps signed diagnostic results behind referral access', () => {
@@ -29,5 +42,19 @@ describe('diagnostics referral branch enforcement', () => {
   });
   it('uses the original laboratory/diagnostic entity id for partner organization scope', () => {
     expect(source).toContain('organizationOriginalId || user.organizationId');
+  });
+});
+
+
+describe('diagnostics dashboard branch scope', () => {
+  it('uses the same active branch list as the referral catalog and denies an empty clinic branch scope', () => {
+    const start = source.indexOf("diagnosticsRouter.get('/dashboard'");
+    const end = source.indexOf("diagnosticsRouter.post('/referrals/:id/ai-result'", start);
+    const dashboard = source.slice(start, end);
+    expect(dashboard).toContain('const requestedScope = { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }');
+    expect(dashboard).toContain('authorizeReferralListScope(req.user, requestedScope)');
+    expect(dashboard).toContain('referralListBranchIds(req.user, requestedScope.clinicId)');
+    expect(dashboard).toContain('branchIds.length === 0');
+    expect(dashboard).toContain('svc.getDashboardStats({ ...requestedScope, branchIds })');
   });
 });

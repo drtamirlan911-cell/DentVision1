@@ -63,6 +63,29 @@ export async function createClinicForOwnerInTransaction(
     },
   });
   const fullName = `${ownerUser.firstName} ${ownerUser.lastName}`.trim() || 'Владелец клиники';
+  // Every new clinic starts with one active default branch. The owner is
+  // assigned in both canonical IAM and legacy compatibility membership so
+  // branch-scoped patient/finance/diagnostic access is immediately usable.
+  const branchId = uid();
+  const branch = await tx.branch.create({
+    data: {
+      id: branchId,
+      organizationId: organization.id,
+      clinicId,
+      code: 'MAIN',
+      name: 'Главный филиал',
+      city: input.city || null,
+      address: input.address || null,
+      phone: input.phone || null,
+      active: true,
+      isDefault: true,
+    },
+  });
+  await tx.clinicMember.update({
+    where: { userId_clinicId: { userId, clinicId } },
+    data: { branchId: branch.id },
+  });
+
   const person = await tx.person.upsert({
     where: { userId_organizationId: { userId, organizationId: organization.id } },
     update: {
@@ -74,6 +97,11 @@ export async function createClinicForOwnerInTransaction(
       phone: ownerUser.phone || undefined, email: ownerUser.email || undefined, specialization: ownerUser.spec || undefined,
       originalType: 'ClinicMember', originalId: `${clinicId}:${userId}`,
     },
+  });
+  await tx.branchMember.upsert({
+    where: { personId_branchId: { personId: person.id, branchId: branch.id } },
+    update: { active: true },
+    create: { id: uid(), personId: person.id, branchId: branch.id, active: true },
   });
   await tx.personRole.upsert({
     where: { personId_roleId_scopeKey: { personId: person.id, roleId: ownerRole.id, scopeKey: `organization:${organization.id}` } },

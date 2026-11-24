@@ -1,3 +1,32 @@
+## RB-035 source review update — 2026-11-19
+
+- PR #350 / security/rb035-inactive-branch-access-main-20261119 remains an open candidate based on main da1257fc650f536c76583bdff570906290b92bcd. No merge to main has occurred.
+- Confirmed and addressed the clinic branch archive gap in runtime auth, refresh, IAM switching, branch endpoints, UI and four data-scope resolvers. Archive preserves patient/financial history and membership rows; access is re-enabled only after authorized restoration.
+- Expanded review also found branch-level omissions in diagnostics dashboard aggregates and medical-lab detail reads. Dashboard totals/status/overdue/recent now share the active branch allow-list used by the referral catalog. A clinic actor can read a medical-lab order only when the order clinic matches the active clinic context and the patient branch is allowed; membership in a second clinic alone is insufficient. Laboratory organization context remains separately supported.
+- Legacy/canonical branch membership drift was also found: clinic branch assignment routes previously updated only ClinicMember while canonical workspace switching checked BranchMember. The candidate now synchronizes both in one transaction on assignment, enable, disable and unassign. IAM/auth allow a legacy assignment only when the branch is active and belongs to the exact clinic. If organization_id is non-null, it must match the Organization; fallback to clinic_id is permitted only when organization_id is null and clinic_id equals Organization.originalId.
+- Branch E2E uses the real owner-facing branch assignment API to assign doctor-a, issues a branch-scoped token, archives the branch, asserts stale-token denial, refreshes the token to drop the branch claim, restores the branch, and switches the doctor back using the preserved assignment.
+- Tests now cover four executable scope resolvers, auth refresh and recovery, route-order authorization, legacy/canonical assignment synchronization, dashboard branch scoping, medical-lab direct access and the branch lifecycle E2E.
+- **Verification pending:** exact-current-HEAD CI, E2E, Quality Gate, RB-034 and Preview must all finish. Older SHA runs do not count for the latest branch head.
+- RB-035 is still not fully closed: full patient/clinical/billing route × role × tenant × clinic × branch × active/revoked/expired-session matrix, partner branch coverage and separately authorized archive-history access remain outstanding. Release remains NOT READY.
+
+---
+## Current security continuation — 2026-11-19
+
+**Current main:** `da1257fc650f536c76583bdff570906290b92bcd`  
+**PR #349:** merged as `da1257fc650f536c76583bdff570906290b92bcd`; exact head `3dd1d17bc1978a0f7d695adbadc59969950505cf` passed CI [44376106619], Quality Gate [44376106517] and Vercel Preview. AI Admin booking raw exception logging is fixed and covered by a PHI-free log regression test. RB-029 overall remains P0/open.
+
+### RB-035 archived branch revocation — candidate
+- Finding: `branches.active=false` hid the UI control but did not consistently revoke stale JWT branch claims or stored assignments in auth and all data-scope readers.
+- Candidate branch: `security/rb035-inactive-branch-access-main-20261119`, based on current main.
+- Runtime candidate validates active branch state; stale archived-branch JWTs cannot authorize operational requests; refresh drops the inactive branch claim; Patient, Finance, Diagnostics and Inventory ignore archived assignments.
+- Branch endpoints reject archived workspace open, context switch, default selection, staff assignment and membership re-enable. Owner/admin settings access and reactivation remain available. History and assignment rows are preserved.
+- UI adds restore and client-side guards, with backend enforcement remaining authoritative.
+- Tests cover recovery policy, auth refresh, four actual data-scope helpers, route contract and E2E direct API denial/restore.
+- **Verification pending:** no exact-head CI/E2E yet. RB-035 remains OPEN for full patient-route × role × organization × clinic × branch × active/revoked/expired-session matrix and historical archive-read policy.
+- No schema migration, patient history movement/deletion, PHI operation or staging/production write.
+
+Other open blockers: RB-029 historical PHI/key/retention/backup/restore; RB-031 WebKit/CORS/WebSocket; RB-033 branch protection; D1/D2 staging; legal/EDS; Kaspi evidence; Android physical runtime; diagnostics/medical lab; Dental Lab D10; Marketplace/Supplier; Academy/Community; employer operations; public discovery; 32-tooth odontogram. Release **NOT READY**.
+
 ## Current source reconciliation — 2026-11-18 (post PR #348 merge)
 
 **Audited repository:** `drtamirlan911-cell/DentVision1`  
