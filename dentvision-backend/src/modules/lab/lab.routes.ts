@@ -39,6 +39,7 @@ interface LabOrderMeta {
   doctorId?: string;
   treatmentCaseId?: string;
   remakeRequest?: { id: string; status: 'requested' | 'accepted' | 'rejected'; reason: string; requestedByUserId: string; requestedAt: string; laboratoryId: string; decidedByUserId?: string; decidedAt?: string; responseNote?: string | null };
+  clinicAcceptance?: { status: 'accepted'; acceptedByUserId: string; acceptedAt: string; shipmentId: string; remakeRequestId?: string | null; note?: string | null } | null;
   payment?: Prisma.InputJsonValue;
 }
 
@@ -115,6 +116,7 @@ function serializeLabOrder(order: {
     remakeOfId: meta.remakeOfId || null, appointmentId: meta.appointmentId || null,
     tryInDate: meta.tryInDate || null,
     remakeRequest: meta.remakeRequest || null,
+    clinicAcceptance: meta.clinicAcceptance || null,
     payment: meta.payment || null,
     invoice: order.dentalLabInvoice ? {
       id: order.dentalLabInvoice.id,
@@ -341,7 +343,9 @@ labRouter.post('/:id/remake-request', requirePermission('lab.write'), async (req
         : {};
       const order = await tx.labOrder.update({
         where: { id: existing.id },
-        data: { files: { ...currentFiles, meta: { ...existingMeta, remakeRequest: request } } },
+        // A remake request reopens the clinic acceptance gate for the next
+        // delivery cycle. Preserve the previous shipment and request history.
+        data: { files: { ...currentFiles, meta: { ...existingMeta, remakeRequest: request, clinicAcceptance: null } } },
       });
       await tx.$executeRawUnsafe(
         `INSERT INTO "dental_lab_order_events" ("id","labOrderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP)`,
@@ -370,6 +374,126 @@ labRouter.post('/:id/remake-request', requirePermission('lab.write'), async (req
   } catch (error) {
     console.error('[Lab] remake request error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось отправить запрос на переделку' } satisfies ApiResponse);
+  }
+});
+
+labRouter.post('/:id/acceptance', requirePermission('lab.write'), async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user!.clinicId;
+    if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
+    const branchScope = await branchScopedLabOrder(req, clinicId);
+    if (req.body?.note !== undefined && typeof req.body.note !== 'string') {
+      return res.status(400).json({ ok: false, error: 'Комментарий должен быть текстом' } satisfies ApiResponse);
+    }
+    const note = String(req.body?.note || '').trim();
+    if (note.length > 1000) {
+      return res.status(400).json({ ok: false, error: 'Комментарий не должен превышать 1000 символов' } satisfies ApiResponse);
+    }
+
+    const orderId = String(req.params.id);
+    await ensureDentalLabOrderEventsTable();
+    const outcome = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} AND "clinicId"=${clinicId} FOR UPDATE`;
+      const existing = await tx.labOrder.findFirst({
+        where: { id: orderId, clinicId, ...branchScope.where },
+        include: {
+          dentalLabShipments: { orderBy: { createdAt: 'desc' }, take: 1 },
+          dentalLabInvoice: true,
+        },
+      });
+      if (!existing) return { kind: 'not_found' as const };
+      const meta = (existing.files as { meta?: LabOrderMeta } | null)?.meta || {};
+      if (!meta.laboratoryId) return { kind: 'not_partner' as const };
+      if (existing.status !== 'delivered') return { kind: 'invalid_status' as const };
+      if (meta.remakeRequest?.status === 'requested') return { kind: 'remake_pending' as const };
+
+      const latestShipment = existing.dentalLabShipments[0] || null;
+      if (
+        !latestShipment
+        || latestShipment.laboratoryId !== meta.laboratoryId
+        || latestShipment.status !== 'delivered'
+        || !latestShipment.deliveredAt
+        || !latestShipment.proofUrl
+        || !latestShipment.recipientName
+      ) {
+        return { kind: 'delivery_required' as const };
+      }
+
+      if (meta.clinicAcceptance?.status === 'accepted' && meta.clinicAcceptance.shipmentId === latestShipment.id) {
+        return { kind: 'idempotent' as const, order: existing, acceptance: meta.clinicAcceptance };
+      }
+
+      const acceptance = {
+        status: 'accepted' as const,
+        acceptedByUserId: req.user!.id,
+        acceptedAt: new Date().toISOString(),
+        shipmentId: latestShipment.id,
+        remakeRequestId: meta.remakeRequest?.id || null,
+        note: note || null,
+      };
+      const currentFiles = existing.files && typeof existing.files === 'object' && !Array.isArray(existing.files)
+        ? existing.files as Record<string, unknown>
+        : {};
+      const order = await tx.labOrder.update({
+        where: { id: existing.id },
+        data: { files: { ...currentFiles, meta: { ...meta, clinicAcceptance: acceptance } } },
+        include: { dentalLabShipments: { orderBy: { createdAt: 'desc' }, take: 1 }, dentalLabInvoice: true },
+      });
+      // This is a receipt/acceptance event, not another status transition.
+      // Keep fromStatus/toStatus equal so the production lifecycle remains truthful.
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "dental_lab_order_events" ("id","labOrderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt")
+         VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP)`,
+        uid(), order.id, clinicId, 'delivered', 'delivered',
+        'Клиника подтвердила приём доставленной работы.', req.user!.id,
+      );
+      return { kind: 'accepted' as const, order, acceptance, laboratoryId: meta.laboratoryId };
+    });
+
+    if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден в текущем филиале' } satisfies ApiResponse);
+    if (outcome.kind === 'not_partner') return res.status(409).json({ ok: false, error: 'Подтверждение приёмки доступно только для заказа внешней зуботехнической лаборатории', code: 'LAB_PARTNER_WORKFLOW_REQUIRED' } satisfies ApiResponse);
+    if (outcome.kind === 'invalid_status') return res.status(409).json({ ok: false, error: 'Клиническая приёмка доступна после подтверждённой доставки', code: 'LAB_DELIVERY_CONFIRMATION_REQUIRED' } satisfies ApiResponse);
+    if (outcome.kind === 'remake_pending') return res.status(409).json({ ok: false, error: 'Сначала дождитесь решения лаборатории по запросу переделки', code: 'LAB_REMAKE_DECISION_PENDING' } satisfies ApiResponse);
+    if (outcome.kind === 'delivery_required') return res.status(409).json({ ok: false, error: 'Нет подтверждённой доставки последней версии заказа', code: 'LAB_DELIVERY_EVIDENCE_REQUIRED' } satisfies ApiResponse);
+
+    if (outcome.kind === 'accepted') {
+      await writeAuditLog({
+        action: 'LAB_ORDER_CLINIC_ACCEPTED',
+        entity: 'lab_order',
+        entityId: orderId,
+        details: { laboratoryId: outcome.laboratoryId, shipmentId: outcome.acceptance.shipmentId, remakeRequestId: outcome.acceptance.remakeRequestId, feedbackLength: note.length },
+        userId: req.user!.id,
+        clinicId,
+      });
+      const labMembers = await prisma.laboratoryMember.findMany({
+        where: { labId: outcome.laboratoryId },
+        select: { userId: true },
+      });
+      await createNotificationForMany(labMembers.map((member) => member.userId), {
+        type: 'lab.clinic.accepted',
+        title: 'Клиника подтвердила приём работы',
+        message: `Клиника приняла доставленный заказ ${orderId.slice(-8)}. Откройте историю заказа, чтобы посмотреть обратную связь.`,
+        link: '/diagnostics/dental-lab',
+      });
+      publish('labOrder.clinic_accepted', {
+        clinicId, labOrderId: orderId, laboratoryId: outcome.laboratoryId,
+        shipmentId: outcome.acceptance.shipmentId,
+        remakeRequestId: outcome.acceptance.remakeRequestId,
+        hasFeedback: Boolean(note),
+        userId: req.user!.id,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      data: {
+        ...serializeLabOrder(outcome.order),
+        idempotent: outcome.kind === 'idempotent',
+      },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[Lab] clinic acceptance error:', safeErrorKind(error));
+    return res.status(500).json({ ok: false, error: 'Не удалось подтвердить клиническую приёмку заказа' } satisfies ApiResponse);
   }
 });
 
