@@ -34,6 +34,7 @@ type LabMeta = {
   qualityControl?: { checks: Record<string, boolean>; passed: boolean; note: string | null; checkedByUserId: string; checkedAt: string };
   remakeRequest?: { id: string; status: 'requested' | 'accepted' | 'rejected'; reason: string; requestedByUserId: string; requestedAt: string; laboratoryId: string; decidedByUserId?: string; decidedAt?: string; responseNote?: string | null };
   clinicAcceptance?: { status: 'accepted'; acceptedAt: string; shipmentId: string; remakeRequestId?: string | null; note?: string | null } | null;
+  clinicAcceptanceHistory?: Array<{ status: 'accepted'; acceptedAt: string; shipmentId: string; remakeRequestId?: string | null; note?: string | null }>;
   payment?: Prisma.InputJsonValue;
 };
 
@@ -146,6 +147,15 @@ function serialize(order: any, options: { includeClinicAcceptanceNote?: boolean 
         ...(options.includeClinicAcceptanceNote ? { note: meta.clinicAcceptance.note || null } : {}),
       }
     : null;
+  const clinicAcceptanceHistory = Array.isArray(meta.clinicAcceptanceHistory)
+    ? meta.clinicAcceptanceHistory.map((entry) => ({
+        status: entry.status,
+        acceptedAt: entry.acceptedAt,
+        shipmentId: entry.shipmentId,
+        remakeRequestId: entry.remakeRequestId || null,
+        ...(options.includeClinicAcceptanceNote ? { note: entry.note || null } : {}),
+      }))
+    : [];
   return {
     id: order.id, clinicId: order.clinicId, clinicName: order.clinic?.name || '', patientId: order.patientId,
     patientName: order.patient?.firstName ? `${order.patient.firstName} ${order.patient.lastName}`.trim() : (meta.patientName || ''),
@@ -155,6 +165,7 @@ function serialize(order: any, options: { includeClinicAcceptanceNote?: boolean 
     qualityControl: meta.qualityControl || null,
     remakeRequest: meta.remakeRequest || null,
     clinicAcceptance,
+    clinicAcceptanceHistory,
     payment: meta.payment || null,
     invoice: order.dentalLabInvoice ? {
       id: order.dentalLabInvoice.id,
