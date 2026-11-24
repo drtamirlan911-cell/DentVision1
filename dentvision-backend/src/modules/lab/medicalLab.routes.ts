@@ -11,6 +11,7 @@ import { getOrCreateWallet } from '../finance/finance.service.js';
 import { availableBalanceMinor, requestPayout, PayoutError } from '../finance/payout.service.js';
 import { getPartnerEconomicsTransparency } from '../finance/partner-economics.service.js';
 import { assertClinicOrgAccess } from '../../lib/orgContext.js';
+import { resolveClinicBranchAccess } from '../../lib/clinicBranchAccess.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { publish } from '../../lib/events.js';
 import {
@@ -206,24 +207,43 @@ medicalLabLifecycleRouter.get('/team', async (req: AuthRequest, res) => {
 async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, _write = false): Promise<boolean> {
   if (user?.role === 'SUPERADMIN') return true;
 
-  // The receiving laboratory organization is authoritative; a legacy clinicId
-  // carried by the same JWT cannot select a second tenant's orders.
-  if ((user as any)?.organizationType === 'LABORATORY') {
+  // Laboratory organization is the authoritative tenant for a receiving lab.
+  if (String(user?.organizationType || '').toUpperCase() === 'LABORATORY') {
     return Boolean(order.labId && (await resolveLaboratoryScopeId(user)) === order.labId);
   }
 
-  // Clinic membership in another tenant is not a substitute for switching to
-  // the exact clinic workspace. Owners/admins still see only active branch data.
-  if (order.clinicId !== user?.clinicId) return false;
+  // A retained clinic membership cannot be used from a different active tenant.
+  if (!user?.id || user.clinicId !== order.clinicId) return false;
+  const access = await resolveClinicBranchAccess({
+    userId: user.id,
+    clinicId: order.clinicId,
+    organizationId: user.organizationId,
+    role: String(user.role || ''),
+    requestedBranchId: user.branchId,
+  });
+  if (!access || !order.patientId) return false;
 
-  const branchIds = (user?.branchIds ?? []).filter(Boolean);
-  if (branchIds.length === 0 || !order.patientId) return false;
+  // With no branch selected, only a verified organization role may use the
+  // full active branch allow-list. A selected context narrows every role to
+  // that exact branch; ambiguous or revoked assignments fail closed.
+  const branchIds = access.branchId
+    ? [access.branchId]
+    : access.roleScope === 'ORGANIZATION'
+      ? access.allowedBranchIds
+      : [];
+  if (!branchIds.length) return false;
+
   const patient = await prisma.patient.findFirst({
-    where: { id: order.patientId, clinicId: order.clinicId, branchId: { in: branchIds } },
+    where: {
+      id: order.patientId,
+      clinicId: order.clinicId,
+      branchId: { in: branchIds },
+    },
     select: { id: true },
   });
   return Boolean(patient);
 }
+
 async function recordEvent(orderId: string, clinicId: string, fromStatus: string | null, toStatus: string, userId: string, note?: string) {
   await prisma.$executeRawUnsafe(`INSERT INTO "medical_lab_events" ("id","orderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP)`, uid(), orderId, clinicId, fromStatus, toStatus, note ?? null, userId);
 }
