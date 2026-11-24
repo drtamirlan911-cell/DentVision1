@@ -1154,12 +1154,14 @@ export async function addComment(referralId: string, authorId: string, text: str
 
 // ─── Dashboard ───
 
-export async function getDashboardStats(scope: { clinicId?: string; centerId?: string; labId?: string } = {}) {
-  const { clinicId, centerId, labId } = scope;
+export async function getDashboardStats(scope: { clinicId?: string; centerId?: string; labId?: string; branchIds?: string[] } = {}) {
+  const { clinicId, centerId, labId, branchIds } = scope;
   const where: any = {};
   if (clinicId) where.clinicId = clinicId;
   if (centerId) where.centerId = centerId;
   if (labId) where.labId = labId;
+  // An empty list is an explicit deny-all scope, not an omitted filter.
+  if (branchIds !== undefined) where.branchId = { in: branchIds };
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const [total, todayCount, pending, completed, overdue, recent] = await Promise.all([
     prisma.referral.count({ where }),
