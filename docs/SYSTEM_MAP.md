@@ -5,8 +5,8 @@
 ## Summary
 
 - Mounted routers: **69**
-- Unique route handlers: **756**
-- Registered HTTP routes after mount: **700**
+- Unique route handlers: **757**
+- Registered HTTP routes after mount: **701**
 - Routes without detected web/mobile consumer: **107**
 - Prisma models: **171**
 - Background jobs: **13**
@@ -59,7 +59,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/crm | remindersRouter | 7 | 4 |
 | /api/crm/cases | treatmentCaseRouter | 7 | 0 |
 | /api/crm | chairsRouter | 3 | 0 |
-| /api/lab-orders | labRouter | 5 | 0 |
+| /api/lab-orders | labRouter | 6 | 0 |
 | /api/community | communityRouter | 12 | 0 |
 | /api/public | publicRouter | 11 | 6 |
 | /api/profile | profileRouter | 13 | 1 |
