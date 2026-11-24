@@ -183,7 +183,18 @@ beforeEach(() => {
     status: 'delivered',
     serviceId: 'service-1',
     servicePriceSnapshot: 15000,
-    files: { meta: { laboratoryId: 'lab-1' } },
+    files: { meta: {
+      laboratoryId: 'lab-1',
+      clinicAcceptance: { status: 'accepted', shipmentId: 'shipment-1' },
+    } },
+    dentalLabShipments: [{
+      id: 'shipment-1',
+      laboratoryId: 'lab-1',
+      status: 'delivered',
+      deliveredAt: new Date('2026-11-24T10:00:00.000Z'),
+      proofUrl: 'https://proof.example/receipt',
+      recipientName: 'Clinic Reception',
+    }],
     patient: { branchId: 'branch-1' },
     dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
   });
