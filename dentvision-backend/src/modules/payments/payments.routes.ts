@@ -29,6 +29,7 @@ import { assertClinicBillingAccess, getClinicSubscriptionAmountMinor, isSaasPlan
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
 import { resolveClinicBranchAccess } from '../../lib/clinicBranchAccess.js';
+import { hasAcceptedLatestDentalLabDelivery } from '../lab/dentalLabAcceptance.js';
 import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 import { hasPartnerBranchBillingPermission, releasePartnerBranchSubscriptionInvoicePayment, settlePartnerBranchSubscriptionInvoicePayment, PartnerBranchBillingError } from '../billing/partnerBranchBilling.service.js';
@@ -111,6 +112,8 @@ async function dentalLabOrderPaymentDetails(
   servicePriceSnapshot: number;
   branchId: string | null;
   files: unknown;
+  clinicAcceptance: unknown;
+  latestShipment: unknown;
   invoice: { id: string; amountMinor: bigint; status: string; paymentId: string | null } | null;
 } | null> {
   const order = await db.labOrder.findUnique({
@@ -119,6 +122,11 @@ async function dentalLabOrderPaymentDetails(
       id: true, clinicId: true, status: true, serviceId: true,
       servicePriceSnapshot: true, files: true,
       patient: { select: { branchId: true } },
+      dentalLabShipments: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: { id: true, laboratoryId: true, status: true, deliveredAt: true, proofUrl: true, recipientName: true },
+      },
       dentalLabInvoice: { select: { id: true, amountMinor: true, status: true, paymentId: true } },
     },
   });
@@ -140,6 +148,8 @@ async function dentalLabOrderPaymentDetails(
     servicePriceSnapshot: Number(order.servicePriceSnapshot),
     branchId: order.patient?.branchId ?? null,
     files: order.files,
+    clinicAcceptance: meta.clinicAcceptance ?? null,
+    latestShipment: order.dentalLabShipments[0] ?? null,
     invoice: order.dentalLabInvoice ?? null,
   };
 }
@@ -197,6 +207,9 @@ async function settleDentalLabOrderPayment(
     throw new DentalLabPaymentStateError('Платёж не связан с действующим счётом зуботехнической лаборатории');
   }
   if (order.invoice.status === 'paid' && order.invoice.paymentId === payment.id) return true;
+  if (!hasAcceptedLatestDentalLabDelivery(order.clinicAcceptance, order.latestShipment, order.laboratoryId)) {
+    throw new DentalLabPaymentStateError('Оплата возможна только после подтверждения клиникой последней поставки.');
+  }
   if (order.invoice.status !== 'issued' || order.invoice.paymentId) {
     throw new DentalLabPaymentStateError('Счёт уже оплачен, отменён или недоступен для оплаты');
   }
@@ -1035,6 +1048,13 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       }
       if (!(await canAccessClinicBranch(req.user, labOrder.clinicId, labOrder.branchId))) {
         return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу, которому принадлежит зуботехнический заказ' } satisfies ApiResponse);
+      }
+      if (!hasAcceptedLatestDentalLabDelivery(labOrder.clinicAcceptance, labOrder.latestShipment, labOrder.laboratoryId)) {
+        return res.status(409).json({
+          ok: false,
+          error: 'Сначала подтвердите клиническую приёмку последней поставки от лаборатории.',
+          code: 'DENTAL_LAB_CLINIC_ACCEPTANCE_REQUIRED',
+        } satisfies ApiResponse);
       }
       dentalLabInvoiceId = String(req.body?.invoiceId || '').trim();
       if (!dentalLabInvoiceId || !labOrder.invoice || labOrder.invoice.id !== dentalLabInvoiceId) {
