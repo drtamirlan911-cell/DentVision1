@@ -116,7 +116,7 @@ async function branchContext(req: AuthRequest, clinicId: string) {
     clinicId,
     String(req.user!.role),
     req.user!.branchIds ?? [],
-    req.user!.assignedBranchId ?? req.user!.branchId ?? null,
+    req.user!.branchId ?? req.user!.assignedBranchId ?? null,
   );
 }
 
