@@ -65,7 +65,7 @@ WITH unique_canonical_doctor_branch AS (
     MIN(bm."branchId") AS branch_id
   FROM organizations o
   JOIN persons p
-    ON p."organizationId" = o.id
+    ON p.organization_id = o.id
    AND p."userId" IS NOT NULL
   JOIN person_roles pr
     ON pr."personId" = p.id
