@@ -312,6 +312,12 @@ export async function upsertReceipt(data: Partial<Receipt>): Promise<any> { cons
 export async function upsertLabOrder(data: Partial<LabOrder>): Promise<any> { return apiRequest('/api/lab-orders', { method: 'POST', body: JSON.stringify(data) }); }
 export async function updateLabOrderStatus(id: string, status: string): Promise<any> { return apiRequest(`/api/lab-orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
 export async function requestLabOrderRemake(id: string, reason: string): Promise<any> { return apiRequest(`/api/lab-orders/${id}/remake-request`, { method: 'POST', body: JSON.stringify({ reason }) }); }
+export async function acceptLabOrderDelivery(id: string, note?: string): Promise<any> {
+  return apiRequest(`/api/lab-orders/${id}/acceptance`, {
+    method: 'POST',
+    body: JSON.stringify({ note: note?.trim() || undefined }),
+  });
+}
 export async function upsertExpense(data: Partial<Expense>): Promise<any> { return apiRequest('/api/crm/expenses', { method: 'POST', body: JSON.stringify(data) }); }
 function inventoryPayload(data: Partial<InventoryItem>): Record<string, unknown> { const out: Record<string, unknown> = { ...data }; if (data.minQuantity !== undefined || data.min !== undefined) out.minimum = data.minQuantity ?? data.min ?? 0; const cost = (data as any).cost ?? (data as any).price; if (cost !== undefined) out.price = cost; delete out.id; return out; }
 export async function createInventoryItem(data: Partial<InventoryItem>): Promise<any> { return apiRequest('/api/inventory', { method: 'POST', body: JSON.stringify({ quantity: 0, ...inventoryPayload(data) }) }); }
