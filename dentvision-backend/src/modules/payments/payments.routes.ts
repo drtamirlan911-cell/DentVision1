@@ -1406,6 +1406,16 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
           if (!currentOrder || currentOrder.status !== 'delivered') {
             throw new DentalLabPaymentStateError('Заказ изменился: оплата доступна только после подтверждённой доставки');
           }
+          // Revalidate under the same row lock used by remake requests. The
+          // preflight check above is for fast feedback; this is the authoritative
+          // race-safe gate immediately before the pending QR is persisted.
+          if (!hasAcceptedLatestDentalLabDelivery(
+            currentOrder.clinicAcceptance,
+            currentOrder.latestShipment,
+            currentOrder.laboratoryId,
+          )) {
+            throw new DentalLabPaymentStateError('Клиническая приёмка последней поставки изменилась до создания оплаты.');
+          }
           const currentFiles = currentOrder.files && typeof currentOrder.files === 'object' && !Array.isArray(currentOrder.files)
             ? currentOrder.files as Record<string, unknown>
             : {};
