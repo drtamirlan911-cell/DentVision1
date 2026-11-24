@@ -105,8 +105,10 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
     });
     centerToken = await login(api, centerUser.email, E2E_PASSWORD);
 
+    // The doctor who performs the referral and lab handoff must own the
+    // patient context used by the downstream branch-scoped workflows.
     const patientRes = await api.post(`${BASE_URL}/api/patients`, {
-      headers: auth(ownerToken),
+      headers: auth(doctorToken),
       data: { iin: makeIin(), firstName: 'CrossModule', lastName: 'Patient', phone: `+7700${Date.now() % 10000000}` },
     });
     expect(patientRes.status()).toBe(201);
