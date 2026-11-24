@@ -2130,6 +2130,11 @@ test.describe('Partner operational lifecycle', () => {
     const remakeRequestBody = (await remakeRequest.json()).data;
     expect(remakeRequestBody.remakeRequest.status).toBe('requested');
     expect(remakeRequestBody.clinicAcceptance).toBeNull();
+    expect(remakeRequestBody.clinicAcceptanceHistory).toHaveLength(1);
+    expect(remakeRequestBody.clinicAcceptanceHistory[0]).toMatchObject({
+      shipmentId: pickupDeliveryBody.shipment.id,
+      note: 'Первичная примерка подтверждена; требуется уточнить оттенок.',
+    });
 
     const acceptedRemake = await api.patch(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/remake-request`, {
       headers: auth(dentalLabOwnerToken),
@@ -2199,6 +2204,11 @@ test.describe('Partner operational lifecycle', () => {
       status: 'accepted',
       shipmentId: remakeDeliveryBody.shipment.id,
       note: 'После переделки посадка, окклюзия и оттенок приняты врачом.',
+    });
+    expect(remakeHistory.order.clinicAcceptanceHistory).toHaveLength(1);
+    expect(remakeHistory.order.clinicAcceptanceHistory[0]).toMatchObject({
+      shipmentId: pickupDeliveryBody.shipment.id,
+      note: 'Первичная примерка подтверждена; требуется уточнить оттенок.',
     });
     expect(remakeHistory.events.some((event: any) => event.note === 'Клиника подтвердила приём доставленной работы.')).toBe(true);
     expect(remakeHistory.shipments).toHaveLength(2);
