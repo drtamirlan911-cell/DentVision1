@@ -2013,6 +2013,40 @@ test.describe('Partner operational lifecycle', () => {
     expect(repeatedDelivery.status()).toBe(200);
     expect((await repeatedDelivery.json()).data.idempotent).toBe(true);
 
+    const invoiceBeforeAcceptance = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/invoice`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { notes: 'Must wait for clinic sign-off.' },
+    });
+    expect(invoiceBeforeAcceptance.status()).toBe(409);
+    expect((await invoiceBeforeAcceptance.json()).code).toBe('LAB_CLINIC_ACCEPTANCE_REQUIRED');
+
+    const clinicAcceptance = await api.post(`${BASE}/api/lab-orders/${order.id}/acceptance`, {
+      headers: auth(ownerToken),
+      data: { note: 'Fit, margins, shade and occlusion accepted by the clinic.' },
+    });
+    expect(clinicAcceptance.status()).toBe(200);
+    expect((await clinicAcceptance.json()).data.clinicAcceptance).toMatchObject({
+      status: 'accepted',
+      shipmentId: deliveryBody.shipment.id,
+      note: 'Fit, margins, shade and occlusion accepted by the clinic.',
+    });
+
+    const issuedInvoice = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/invoice`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { notes: 'Issued after clinic acceptance.' },
+    });
+    expect(issuedInvoice.status()).toBe(201);
+    const issuedInvoiceData = (await issuedInvoice.json()).data;
+    expect(issuedInvoiceData).toMatchObject({ status: 'issued', labOrderId: order.id, amountMinor: '5200000' });
+
+    const issuedInvoiceRetry = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/invoice`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { notes: 'Idempotent retry.' },
+    });
+    expect(issuedInvoiceRetry.status()).toBe(200);
+    expect((await issuedInvoiceRetry.json()).data.id).toBe(issuedInvoiceData.id);
+    expect((await issuedInvoiceRetry.json()).idempotent).toBe(true);
+
     // Delivery confirms operational completion, not a commercial settlement.
     // Allow the in-process event queue to drain, then assert there is no partner
     // economics transaction (and therefore no delivery-triggered ledger snapshot).
