@@ -125,8 +125,9 @@ async function dentalLabOrderPaymentDetails(
 
 function canAccessDentalLabOrderBranch(user: AuthRequest['user'], branchId: string | null): boolean {
   if (!branchId) return true;
-  const role = String(user?.role || '').toUpperCase();
-  if (['SUPERADMIN', 'OWNER', 'DIRECTOR', 'ADMIN'].includes(role)) return true;
+  if (String(user?.role || '').toUpperCase() === 'SUPERADMIN') return true;
+  // Branch IDs are re-resolved by authentication against active canonical and
+  // legacy assignments. Organization-level roles do not bypass this filter.
   return (user?.branchIds ?? []).filter(Boolean).includes(branchId);
 }
 
