@@ -10,6 +10,9 @@ describe('medical lab branch isolation contract', () => {
     expect(source).toContain('await resolveClinicBranchAccess({');
     expect(source).toContain('requestedBranchId: user.branchId');
     expect(source).toContain("access.roleScope === 'ORGANIZATION'");
+    expect(source).toContain("const organizationWide = access.roleScope === 'ORGANIZATION' && access.branchId === null");
+    expect(source).toContain('if (!organizationWide && !branchIds.length) return false;');
+    expect(source).toContain('...(organizationWide ? {} : { branchId: { in: branchIds } })');
     expect(source).toContain('o."clinicId" = $1');
     expect(source).not.toContain('o."clinicId" = ${args.length}');
     expect(source).toContain('o."labId" = $1');
