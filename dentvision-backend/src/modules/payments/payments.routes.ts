@@ -28,6 +28,7 @@ import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { assertClinicBillingAccess, getClinicSubscriptionAmountMinor, isSaasPlanId } from '../billing/clinicSubscription.service.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
+import { resolveClinicBranchAccess } from '../../lib/clinicBranchAccess.js';
 import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 import { hasPartnerBranchBillingPermission, releasePartnerBranchSubscriptionInvoicePayment, settlePartnerBranchSubscriptionInvoicePayment, PartnerBranchBillingError } from '../billing/partnerBranchBilling.service.js';
@@ -123,12 +124,28 @@ async function dentalLabOrderPaymentDetails(
   };
 }
 
-function canAccessDentalLabOrderBranch(user: AuthRequest['user'], branchId: string | null): boolean {
-  if (!branchId) return true;
+async function canAccessDentalLabOrderBranch(
+  user: AuthRequest['user'],
+  clinicId: string,
+  branchId: string | null,
+): Promise<boolean> {
   if (String(user?.role || '').toUpperCase() === 'SUPERADMIN') return true;
-  // Branch IDs are re-resolved by authentication against active canonical and
-  // legacy assignments. Organization-level roles do not bypass this filter.
-  return (user?.branchIds ?? []).filter(Boolean).includes(branchId);
+  if (!user?.id || !branchId || user.clinicId !== clinicId) return false;
+
+  const access = await resolveClinicBranchAccess({
+    userId: user.id,
+    clinicId,
+    organizationId: user.organizationId,
+    role: String(user.role || ''),
+    requestedBranchId: user.branchId,
+  });
+  if (!access) return false;
+
+  // An unselected organization workspace may see any verified active branch.
+  // Once a branch is selected, the payment is limited to that exact branch.
+  return access.branchId === null && access.roleScope === 'ORGANIZATION'
+    ? access.allowedBranchIds.includes(branchId)
+    : access.branchId === branchId;
 }
 
 async function settleDentalLabOrderPayment(
@@ -702,7 +719,7 @@ async function assertPaymentOwner(
           order
           && order.clinicId === clinicId
           && await canManageClinicBillingMutation(req.user!, clinicId)
-          && canAccessDentalLabOrderBranch(req.user, order.branchId),
+          && canAccessDentalLabOrderBranch(req.user, order.clinicId, order.branchId),
         );
       } catch {
         return false;
@@ -944,7 +961,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       if (!(await canManageClinicBillingMutation(req.user!, labOrder.clinicId))) {
         return res.status(403).json({ ok: false, error: 'Нет полномочий на оплату заказа от имени этой клиники' } satisfies ApiResponse);
       }
-      if (!canAccessDentalLabOrderBranch(req.user, labOrder.branchId)) {
+      if (!(await canAccessDentalLabOrderBranch(req.user, labOrder.clinicId, labOrder.branchId))) {
         return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу, которому принадлежит зуботехнический заказ' } satisfies ApiResponse);
       }
       dentalLabInvoiceId = String(req.body?.invoiceId || '').trim();
