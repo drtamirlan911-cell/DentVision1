@@ -674,6 +674,7 @@ describe('clinic cashier reference boundaries', () => {
       amount: 1000,
       paidAmount: 800,
       status: 'partial',
+      patient: { branchId: 'branch-1' },
     });
 
     const { response, body } = await postPayment({
@@ -698,6 +699,7 @@ describe('clinic cashier reference boundaries', () => {
       amount: 1000,
       paidAmount: 200,
       status: 'partial',
+      patient: { branchId: 'branch-1' },
     });
 
     const { response, body } = await postPayment({
