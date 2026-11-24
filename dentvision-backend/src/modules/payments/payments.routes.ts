@@ -149,7 +149,7 @@ async function dentalLabOrderPaymentDetails(
     branchId: order.patient?.branchId ?? null,
     files: order.files,
     clinicAcceptance: meta.clinicAcceptance ?? null,
-    latestShipment: order.dentalLabShipments[0] ?? null,
+    latestShipment: order.dentalLabShipments?.[0] ?? null,
     invoice: order.dentalLabInvoice ?? null,
   };
 }
