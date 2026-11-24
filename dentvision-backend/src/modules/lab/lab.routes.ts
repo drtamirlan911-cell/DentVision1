@@ -64,13 +64,35 @@ export function isDentalLabTransitionAllowed(from: string, to: string): boolean 
   return from === to || (DENTAL_LAB_TRANSITIONS[from] || []).includes(to);
 }
 
-function branchScopedLabOrder(req: AuthRequest): Record<string, unknown> {
-  const role = String(req.user?.role || '').toUpperCase();
-  if (role === 'SUPERADMIN') return {};
-  const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
-  return branchIds.length > 0
-    ? { patient: { branchId: { in: branchIds } } }
-    : { patient: { branchId: '__NO_BRANCH_ACCESS__' } };
+interface VerifiedLabBranchScope {
+  where: Record<string, unknown>;
+  branchIds: string[] | null;
+}
+
+async function branchScopedLabOrder(req: AuthRequest, clinicId: string): Promise<VerifiedLabBranchScope> {
+  if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN') return { where: {}, branchIds: null };
+  if (!req.user?.id || req.user.clinicId !== clinicId) {
+    return { where: { patient: { branchId: '__NO_BRANCH_ACCESS__' } }, branchIds: [] };
+  }
+  const access = await resolveClinicBranchAccess({
+    userId: req.user.id,
+    clinicId,
+    organizationId: req.user.organizationId,
+    role: String(req.user.role || ''),
+    requestedBranchId: req.user.branchId,
+  });
+  if (!access) return { where: { patient: { branchId: '__NO_BRANCH_ACCESS__' } }, branchIds: [] };
+
+  const organizationWide = access.roleScope === 'ORGANIZATION' && access.branchId === null;
+  const branchIds = access.branchId ? [access.branchId] : access.allowedBranchIds;
+  return {
+    where: organizationWide
+      ? {}
+      : branchIds.length
+        ? { patient: { branchId: { in: branchIds } } }
+        : { patient: { branchId: '__NO_BRANCH_ACCESS__' } },
+    branchIds,
+  };
 }
 
 function serializeLabOrder(order: {
@@ -129,7 +151,8 @@ labRouter.get('/', requirePermission('lab.read'), async (req: AuthRequest, res) 
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '200'), 10) || 200, 1), 1000);
-    const orders = await prisma.labOrder.findMany({ where: { clinicId, ...branchScopedLabOrder(req) }, include: { dentalLabInvoice: true }, orderBy: { createdAt: 'desc' }, take: limit });
+    const branchScope = await branchScopedLabOrder(req, clinicId);
+    const orders = await prisma.labOrder.findMany({ where: { clinicId, ...branchScope.where }, include: { dentalLabInvoice: true }, orderBy: { createdAt: 'desc' }, take: limit });
     return res.json({ ok: true, data: orders.map(serializeLabOrder) } satisfies ApiResponse);
   } catch (error: any) {
     console.error('[Lab] list error:', safeErrorKind(error));
@@ -191,15 +214,15 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
       return res.status(409).json({ ok: false, error: 'Новый заказ должен начинаться со статуса «Ожидает». Используйте endpoint перехода статуса для дальнейшего workflow.', code: 'LAB_STATUS_ENDPOINT_REQUIRED' } satisfies ApiResponse);
     }
 
-    const role = String(req.user?.role || '').toUpperCase();
-    const branchIds = ['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role) ? null : (req.user?.branchIds ?? []).filter(Boolean);
+    const branchScope = await branchScopedLabOrder(req, clinicId);
+    const branchIds = branchScope.branchIds;
     const writeBody = { ...body, status: id ? body.status : 'pending', laboratoryId: undefined, technicianId: undefined };
     let order: any;
 
     if (id) {
       const outcome = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${id} AND "clinicId"=${clinicId} FOR UPDATE`;
-        const existing = await tx.labOrder.findFirst({ where: { id, clinicId, ...branchScopedLabOrder(req) } });
+        const existing = await tx.labOrder.findFirst({ where: { id, clinicId, ...branchScope.where } });
         if (!existing) return { kind: 'not_found' as const };
         const existingMeta = (existing.files as { meta?: LabOrderMeta } | null)?.meta || {};
         if (existingMeta.laboratoryId) return { kind: 'partner_owned' as const };
@@ -246,13 +269,14 @@ labRouter.patch('/:id/status', requirePermission('lab.write'), async (req: AuthR
   try {
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
+    const branchScope = await branchScopedLabOrder(req, clinicId);
     const { status } = req.body as { status?: string };
     if (!status || !VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) return res.status(400).json({ ok: false, error: `Недопустимый статус. Допустимые: ${VALID_STATUSES.join(', ')}` } satisfies ApiResponse);
     await ensureDentalLabOrderEventsTable();
     const outcome = await prisma.$transaction(async (tx) => {
       const orderId = String(req.params.id);
       await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} AND "clinicId"=${clinicId} FOR UPDATE`;
-      const existing = await tx.labOrder.findFirst({ where: { id: orderId, clinicId, ...branchScopedLabOrder(req) } });
+      const existing = await tx.labOrder.findFirst({ where: { id: orderId, clinicId, ...branchScope.where } });
       if (!existing) return { kind: 'not_found' as const };
       const existingMeta = (existing.files as { meta?: LabOrderMeta } | null)?.meta || {};
       if (existingMeta.laboratoryId) return { kind: 'partner_owned' as const };
@@ -281,6 +305,7 @@ labRouter.post('/:id/remake-request', requirePermission('lab.write'), async (req
   try {
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
+    const branchScope = await branchScopedLabOrder(req, clinicId);
     const reason = validateLabRemakeRequestReason(req.body?.reason);
     if (!reason) return res.status(400).json({ ok: false, error: 'Укажите причину переделки (от 5 до 2000 символов)' } satisfies ApiResponse);
     const orderId = String(req.params.id);
@@ -288,7 +313,7 @@ labRouter.post('/:id/remake-request', requirePermission('lab.write'), async (req
 
     const outcome = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} AND "clinicId"=${clinicId} FOR UPDATE`;
-      const existing = await tx.labOrder.findFirst({ where: { id: orderId, clinicId, ...branchScopedLabOrder(req) } });
+      const existing = await tx.labOrder.findFirst({ where: { id: orderId, clinicId, ...branchScope.where } });
       if (!existing) return { kind: 'not_found' as const };
       const existingMeta = (existing.files as { meta?: LabOrderMeta } | null)?.meta || {};
       if (!existingMeta.laboratoryId) return { kind: 'not_partner' as const };
@@ -348,14 +373,15 @@ labRouter.delete('/:id', requirePermission('appointment.write'), async (req: Aut
   try {
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
+    const branchScope = await branchScopedLabOrder(req, clinicId);
     const orderId = String(req.params.id);
     const outcome = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} AND "clinicId"=${clinicId} FOR UPDATE`;
-      const existing = await tx.labOrder.findFirst({ where: { id: orderId, clinicId, ...branchScopedLabOrder(req) } });
+      const existing = await tx.labOrder.findFirst({ where: { id: orderId, clinicId, ...branchScope.where } });
       if (!existing) return 'not_found' as const;
       const meta = (existing.files as { meta?: LabOrderMeta } | null)?.meta || {};
       if (meta.laboratoryId) return 'partner_owned' as const;
-      const deleted = await tx.labOrder.deleteMany({ where: { id: orderId, clinicId, ...branchScopedLabOrder(req) } });
+      const deleted = await tx.labOrder.deleteMany({ where: { id: orderId, clinicId, ...branchScope.where } });
       return deleted.count === 1 ? 'deleted' as const : 'not_found' as const;
     });
     if (outcome === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
