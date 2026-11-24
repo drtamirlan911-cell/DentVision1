@@ -34,6 +34,7 @@ const m = vi.hoisted(() => ({
   assertClinicOrgAccess: vi.fn(),
   resolveClinicSubscriptionAccess: vi.fn(),
   resolveOrganizationIdForClinic: vi.fn(),
+  resolveClinicBranchAccess: vi.fn(),
   reserveIdempotencyKey: vi.fn(),
   completeIdempotencyKey: vi.fn(),
   deleteIdempotencyKey: vi.fn(),
@@ -86,6 +87,9 @@ vi.mock('./clinicPayments.js', () => ({
   createClinicKaspiPayment: m.createClinicKaspiPayment,
   getClinicGatewayStatus: m.getClinicGatewayStatus,
   loadClinicPaymentsConfig: m.loadClinicPaymentsConfig,
+}));
+vi.mock('../../lib/clinicBranchAccess.js', () => ({
+  resolveClinicBranchAccess: m.resolveClinicBranchAccess,
 }));
 vi.mock('../../lib/orgContext.js', () => ({
   assertOrgAccess: m.assertOrgAccess,
@@ -154,6 +158,7 @@ beforeEach(() => {
   m.assertOrgAccess.mockResolvedValue(true);
   m.assertClinicOrgAccess.mockResolvedValue(true);
   m.resolveOrganizationIdForClinic.mockImplementation((clinicId: string) => clinicId);
+  m.resolveClinicBranchAccess.mockResolvedValue({ roleScope: 'ASSIGNED', branchId: 'branch-1', allowedBranchIds: ['branch-1'] });
   m.resolveClinicMemberAccess.mockResolvedValue({ role: 'OWNER' });
   m.appointmentFindFirst.mockResolvedValue({ id: 'appointment-1', clinicId: 'clinic-owned' });
   m.invoiceFindFirst.mockResolvedValue({ id: 'invoice-1', clinicId: 'clinic-owned', amount: 1000, paidAmount: 0, status: 'unpaid' });
@@ -391,7 +396,8 @@ describe('payment creation server-side pricing and metadata protection', () => {
   });
 
   it('rejects dental-lab payment from a user without access to the order branch', async () => {
-    m.user = { id: 'authenticated-user', role: 'DOCTOR', clinicId: 'clinic-owned', branchIds: ['another-branch'] };
+    m.user = { id: 'authenticated-user', role: 'DOCTOR', clinicId: 'clinic-owned', branchId: 'another-branch', branchIds: ['another-branch'] };
+    m.resolveClinicBranchAccess.mockResolvedValue({ roleScope: 'ASSIGNED', branchId: 'another-branch', allowedBranchIds: ['another-branch'] });
     const { response } = await postPayment({
       amountMinor: '1500000', refType: 'dental_lab_order', refId: 'lab-order-1', meta: {},
     });
@@ -401,7 +407,8 @@ describe('payment creation server-side pricing and metadata protection', () => {
   });
 
   it('does not let OWNER read or settle a dental-lab invoice from an archived/unassigned branch', async () => {
-    m.user = { id: 'authenticated-user', role: 'OWNER', clinicId: 'clinic-owned', branchIds: [] };
+    m.user = { id: 'authenticated-user', role: 'OWNER', clinicId: 'clinic-owned', branchId: null, branchIds: [] };
+    m.resolveClinicBranchAccess.mockResolvedValue(null);
     const { response } = await postPayment({
       amountMinor: '1500000', refType: 'dental_lab_order', refId: 'lab-order-1', meta: {},
     });
@@ -409,6 +416,37 @@ describe('payment creation server-side pricing and metadata protection', () => {
     expect(m.providerCreate).not.toHaveBeenCalled();
     expect(m.paymentCreate).not.toHaveBeenCalled();
     expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
+  });
+
+  it('narrows an OWNER dental-lab payment to the selected active branch', async () => {
+    m.user = { id: 'authenticated-user', role: 'OWNER', clinicId: 'clinic-owned', branchId: 'branch-1' };
+    m.resolveClinicBranchAccess.mockResolvedValue({
+      roleScope: 'ORGANIZATION',
+      branchId: 'branch-1',
+      allowedBranchIds: ['branch-1', 'branch-2'],
+    });
+    m.labOrderFindUnique.mockResolvedValue({
+      id: 'lab-order-1',
+      clinicId: 'clinic-owned',
+      status: 'delivered',
+      serviceId: 'service-1',
+      servicePriceSnapshot: 15000,
+      files: { meta: { laboratoryId: 'lab-1' } },
+      patient: { branchId: 'branch-2' },
+      dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
+    });
+    const { response } = await postPayment({
+      amountMinor: '1500000', refType: 'dental_lab_order', refId: 'lab-order-1',
+      meta: { invoiceId: 'invoice-1' },
+    });
+    expect(response.status).toBe(403);
+    expect(m.resolveClinicBranchAccess).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'authenticated-user',
+      clinicId: 'clinic-owned',
+      requestedBranchId: 'branch-1',
+    }));
+    expect(m.providerCreate).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
   });
 
   it('rejects enrollment underpayment against the persisted course price', async () => {
