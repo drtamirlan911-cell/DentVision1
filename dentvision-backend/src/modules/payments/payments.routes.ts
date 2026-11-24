@@ -719,7 +719,7 @@ async function assertPaymentOwner(
           order
           && order.clinicId === clinicId
           && await canManageClinicBillingMutation(req.user!, clinicId)
-          && canAccessDentalLabOrderBranch(req.user, order.clinicId, order.branchId),
+          && await canAccessDentalLabOrderBranch(req.user, order.clinicId, order.branchId),
         );
       } catch {
         return false;
