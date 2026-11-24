@@ -40,6 +40,7 @@ interface LabOrderMeta {
   treatmentCaseId?: string;
   remakeRequest?: { id: string; status: 'requested' | 'accepted' | 'rejected'; reason: string; requestedByUserId: string; requestedAt: string; laboratoryId: string; decidedByUserId?: string; decidedAt?: string; responseNote?: string | null };
   clinicAcceptance?: { status: 'accepted'; acceptedByUserId: string; acceptedAt: string; shipmentId: string; remakeRequestId?: string | null; note?: string | null } | null;
+  clinicAcceptanceHistory?: Array<{ status: 'accepted'; acceptedByUserId: string; acceptedAt: string; shipmentId: string; remakeRequestId?: string | null; note?: string | null }>;
   payment?: Prisma.InputJsonValue;
 }
 
@@ -117,6 +118,7 @@ function serializeLabOrder(order: {
     tryInDate: meta.tryInDate || null,
     remakeRequest: meta.remakeRequest || null,
     clinicAcceptance: meta.clinicAcceptance || null,
+    clinicAcceptanceHistory: meta.clinicAcceptanceHistory || [],
     payment: meta.payment || null,
     invoice: order.dentalLabInvoice ? {
       id: order.dentalLabInvoice.id,
@@ -341,11 +343,29 @@ labRouter.post('/:id/remake-request', requirePermission('lab.write'), async (req
       const currentFiles = existing.files && typeof existing.files === 'object' && !Array.isArray(existing.files)
         ? existing.files as Record<string, unknown>
         : {};
+      const previousAcceptance = existingMeta.clinicAcceptance?.status === 'accepted'
+        ? existingMeta.clinicAcceptance
+        : null;
+      const acceptanceHistory = Array.isArray(existingMeta.clinicAcceptanceHistory)
+        ? existingMeta.clinicAcceptanceHistory
+        : [];
       const order = await tx.labOrder.update({
         where: { id: existing.id },
-        // A remake request reopens the clinic acceptance gate for the next
-        // delivery cycle. Preserve the previous shipment and request history.
-        data: { files: { ...currentFiles, meta: { ...existingMeta, remakeRequest: request, clinicAcceptance: null } } },
+        // A remake request reopens the acceptance gate without erasing the
+        // clinic's signed-off feedback from the previous delivery cycle.
+        data: {
+          files: {
+            ...currentFiles,
+            meta: {
+              ...existingMeta,
+              remakeRequest: request,
+              clinicAcceptance: null,
+              clinicAcceptanceHistory: previousAcceptance
+                ? [...acceptanceHistory, previousAcceptance]
+                : acceptanceHistory,
+            },
+          },
+        },
       });
       await tx.$executeRawUnsafe(
         `INSERT INTO "dental_lab_order_events" ("id","labOrderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP)`,
