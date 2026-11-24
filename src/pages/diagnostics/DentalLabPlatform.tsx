@@ -135,6 +135,14 @@ function OrderCard({
   const next = NEXT[order.status] || [];
   const primary = next.find((s) => !['remake', 'delayed'].includes(s));
   const shipment = order.shipment;
+  const clinicAcceptedCurrentShipment = Boolean(
+    order.clinicAcceptance?.status === 'accepted'
+    && order.clinicAcceptance.shipmentId === shipment?.id
+    && shipment?.status === 'delivered'
+    && shipment.deliveredAt
+    && shipment.proofUrl
+    && shipment.recipientName,
+  );
   const shipmentLabel = shipment?.status === 'delivered' ? 'Вручено'
     : shipment?.status === 'ready_for_pickup' ? 'Ожидает самовывоза'
     : shipment?.status === 'dispatched' ? 'Передано перевозчику' : '';
@@ -146,7 +154,7 @@ function OrderCard({
           <p className="truncate text-sm font-semibold text-txt-primary">{order.type || 'Лабораторная работа'}</p>
           <p className="mt-1 text-xs text-txt-muted">{order.patientName || 'Пациент'} · {order.clinicName || 'Клиника'}</p>
           {order.serviceName && <p className="mt-1 text-xs text-txt-secondary">{order.serviceName}{order.servicePriceSnapshot != null ? ` · ${Number(order.servicePriceSnapshot).toLocaleString('ru-RU')} ₸` : ''}</p>}
-          {order.invoice ? <div className="mt-2 rounded-lg border border-bdr-subtle bg-surface-2 p-2"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold text-txt-primary">Счёт {order.invoice.invoiceNumber}</p><Badge variant={order.invoice.status === 'paid' ? 'success' : order.invoice.status === 'refunded' ? 'error' : order.invoice.status === 'issued' ? 'warning' : 'outline'}>{order.invoice.status === 'paid' ? 'Оплачен' : order.invoice.status === 'issued' ? 'Ожидает оплаты' : order.invoice.status === 'partially_refunded' ? 'Частичный возврат' : order.invoice.status === 'refunded' ? 'Возвращён' : order.invoice.status}</Badge></div><p className="mt-1 text-xs text-txt-secondary">{(Number(BigInt(order.invoice.amountMinor)) / 100).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₸ · {new Date(order.invoice.issuedAt).toLocaleDateString('ru-RU')}</p></div> : order.status === 'delivered' && canManageFinance && <Button size="sm" variant="primary" className="mt-2 w-full" disabled={invoiceBusy} loading={invoiceBusy} onClick={() => onIssueInvoice(order.id)}>Выставить счёт клинике</Button>}
+          {order.invoice ? <div className="mt-2 rounded-lg border border-bdr-subtle bg-surface-2 p-2"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold text-txt-primary">Счёт {order.invoice.invoiceNumber}</p><Badge variant={order.invoice.status === 'paid' ? 'success' : order.invoice.status === 'refunded' ? 'error' : order.invoice.status === 'issued' ? 'warning' : 'outline'}>{order.invoice.status === 'paid' ? 'Оплачен' : order.invoice.status === 'issued' ? 'Ожидает оплаты' : order.invoice.status === 'partially_refunded' ? 'Частичный возврат' : order.invoice.status === 'refunded' ? 'Возвращён' : order.invoice.status}</Badge></div><p className="mt-1 text-xs text-txt-secondary">{(Number(BigInt(order.invoice.amountMinor)) / 100).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₸ · {new Date(order.invoice.issuedAt).toLocaleDateString('ru-RU')}</p></div> : order.status === 'delivered' && canManageFinance && clinicAcceptedCurrentShipment ? <Button size="sm" variant="primary" className="mt-2 w-full" disabled={invoiceBusy} loading={invoiceBusy} onClick={() => onIssueInvoice(order.id)}>Выставить счёт клинике</Button> : order.status === 'delivered' && canManageFinance ? <p className="mt-2 rounded-lg bg-surface-2 p-2 text-[11px] text-txt-muted">Счёт будет доступен после подтверждения клиникой последней поставки.</p> : null}
       {order.payment?.status === 'paid' && <div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant="success">Оплачено</Badge><span className="text-[11px] text-txt-muted">{new Date(order.payment.paidAt).toLocaleString('ru-RU')}</span></div>}
         </div>
         <Status status={order.status} />
