@@ -11,6 +11,7 @@ const payments = read('dentvision-backend/src/modules/payments/payments.routes.t
 const refunds = read('dentvision-backend/src/modules/payments/refund.service.ts');
 const labUi = read('src/pages/diagnostics/DentalLabPlatform.tsx');
 const clinicUi = read('src/pages/crm/Lab.tsx');
+const acceptance = read('dentvision-backend/src/modules/lab/dentalLabAcceptance.ts');
 
 describe('Dental Lab partner invoice lifecycle', () => {
   it('persists a separate invoice with one immutable issued amount per partner case', () => {
@@ -24,7 +25,7 @@ describe('Dental Lab partner invoice lifecycle', () => {
     expect(migration).toContain('dental_lab_invoices_labOrderId_key');
   });
 
-  it('allows only the active laboratory finance role to issue an invoice after delivery', () => {
+  it('allows only the active laboratory finance role to issue an invoice after delivery and clinic acceptance', () => {
     const start = partnerRoutes.indexOf("labPlatformRouter.post('/orders/:id/invoice'");
     const end = partnerRoutes.indexOf("labPlatformRouter.get('/team'", start);
     const route = partnerRoutes.slice(start, end);
@@ -33,7 +34,13 @@ describe('Dental Lab partner invoice lifecycle', () => {
     expect(route).toContain('canLabManageFinance(membership.role)');
     expect(route).toContain('FOR UPDATE');
     expect(route).toContain("order.status !== 'delivered'");
+    expect(route).toContain('dentalLabShipments: {');
+    expect(route).toContain('hasAcceptedLatestDentalLabDelivery(meta.clinicAcceptance, latestShipment, membership.labId)');
+    expect(route).toContain("kind: 'clinic_acceptance_required'");
+    expect(route).toContain("code: 'LAB_CLINIC_ACCEPTANCE_REQUIRED'");
     expect(route).toContain('order.servicePriceSnapshot');
+    expect(acceptance).toContain("acceptance.status !== 'accepted'");
+    expect(acceptance).toContain('latestShipment.id !== acceptance.shipmentId');
     expect(route).toContain('if (order.dentalLabInvoice) return { kind:');
     expect(route).toContain("status: 'issued'");
     expect(route).toContain('DENTAL_LAB_INVOICE_ISSUED');
@@ -63,6 +70,9 @@ describe('Dental Lab partner invoice lifecycle', () => {
     expect(create).toContain("idempotencyKey = `dental-lab-invoice:");
     const settlement = payments.slice(payments.indexOf('async function settleDentalLabOrderPayment'), payments.indexOf('async function settleMedicalLabOrderPayment'));
     expect(settlement).toContain("paymentMeta.invoiceId");
+    expect(settlement).toContain('hasAcceptedLatestDentalLabDelivery(order.clinicAcceptance, order.latestShipment, order.laboratoryId)');
+    expect(create).toContain('hasAcceptedLatestDentalLabDelivery(labOrder.clinicAcceptance, labOrder.latestShipment, labOrder.laboratoryId)');
+    expect(create).toContain("code: 'DENTAL_LAB_CLINIC_ACCEPTANCE_REQUIRED'");
     expect(settlement).toContain("status: 'paid', paymentId: payment.id, paidAt: new Date()");
     expect(settlement).toContain('recordPartnerEconomics');
   });
