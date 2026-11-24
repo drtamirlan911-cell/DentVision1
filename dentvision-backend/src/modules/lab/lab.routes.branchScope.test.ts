@@ -6,7 +6,10 @@ describe('dental lab branch isolation contract', () => {
   const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/lab/lab.routes.ts'), 'utf8');
 
   it('derives order visibility from authenticated branch memberships', () => {
-    expect(source).toContain('req.user?.branchIds ?? []');
+    expect(source).toContain("from '../../lib/clinicBranchAccess.js'");
+    expect(source).toContain('await resolveClinicBranchAccess({');
+    expect(source).toContain('requestedBranchId: req.user.branchId');
+    expect(source).toContain('const organizationWide = access.roleScope === \'ORGANIZATION\' && access.branchId === null');
     expect(source).toContain('patient: { branchId: { in: branchIds } }');
     expect(source).toContain('__NO_BRANCH_ACCESS__');
     expect(source).toContain("if (role === 'SUPERADMIN') return {};");
@@ -14,12 +17,12 @@ describe('dental lab branch isolation contract', () => {
   });
 
   it('scopes list, transactional upsert, status and delete operations', () => {
-    expect(source).toContain('where: { clinicId, ...branchScopedLabOrder(req) }');
+    expect(source).toContain('where: { clinicId, ...branchScope.where }');
     const upsertStart = source.indexOf("labRouter.post('/',");
     const statusStart = source.indexOf("labRouter.patch('/:id/status'", upsertStart);
     const upsert = source.slice(upsertStart, statusStart);
     expect(upsert).toContain('FOR UPDATE');
-    expect(upsert).toContain('tx.labOrder.findFirst({ where: { id, clinicId, ...branchScopedLabOrder(req) } })');
+    expect(upsert).toContain('tx.labOrder.findFirst({ where: { id, clinicId, ...branchScope.where } })');
     expect(upsert).toContain('prepareLabOrderWrite(clinicId, { ...writeBody, status: existing.status }, existingMeta, branchIds)');
     expect(upsert.indexOf('FOR UPDATE')).toBeLessThan(upsert.indexOf('tx.labOrder.findFirst'));
     expect(upsert).toContain("if (existingMeta.laboratoryId) return { kind: 'partner_owned' as const }");
@@ -27,12 +30,12 @@ describe('dental lab branch isolation contract', () => {
     const statusEnd = source.indexOf("labRouter.delete('/:id'", statusStart);
     const status = source.slice(statusStart, statusEnd);
     expect(status).toContain('FOR UPDATE');
-    expect(status).toContain('...branchScopedLabOrder(req)');
+    expect(status).toContain('...branchScope.where');
 
     const deleteStart = statusEnd;
     const deletedOrder = source.slice(deleteStart);
     expect(deletedOrder).toContain('FOR UPDATE');
-    expect(deletedOrder).toContain('...branchScopedLabOrder(req)');
+    expect(deletedOrder).toContain('...branchScope.where');
     expect(deletedOrder).toContain("if (meta.laboratoryId) return 'partner_owned' as const");
   });
 
@@ -52,7 +55,7 @@ describe('clinic-authorized dental-lab remake request boundary', () => {
     expect(route).toContain("requirePermission('lab.write')");
     expect(route).toContain('validateLabRemakeRequestReason');
     expect(route).toContain('FOR UPDATE');
-    expect(route).toContain('...branchScopedLabOrder(req)');
+    expect(route).toContain('...branchScope.where');
     expect(route).toContain('existingMeta.laboratoryId');
     expect(route).toContain("existing.status !== 'delivered'");
     expect(route).toContain("existingMeta.remakeRequest?.status === 'requested'");
