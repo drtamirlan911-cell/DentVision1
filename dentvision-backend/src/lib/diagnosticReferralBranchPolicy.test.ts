@@ -1,108 +1,104 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { resolveClinicBranchAccess } = vi.hoisted(() => ({
-  resolveClinicBranchAccess: vi.fn(),
+const { queryRaw } = vi.hoisted(() => ({ queryRaw: vi.fn() }));
+
+vi.mock('./prisma.js', () => ({
+  default: { $queryRaw: queryRaw },
 }));
 
-vi.mock('./clinicBranchAccess.js', () => ({ resolveClinicBranchAccess }));
+import { canAccessReferralBranch, resolveReferralBranchId } from './diagnosticReferralBranchPolicy.js';
 
-import {
-  assertReferralBranchAccess,
-  canAccessReferralBranch,
-} from './diagnosticReferralBranchPolicy.js';
-
-const user = (overrides: Record<string, unknown> = {}) => ({
-  id: 'user-a',
-  role: 'DOCTOR',
-  organizationId: 'org-a',
-  clinicId: 'clinic-a',
-  branchId: null,
-  ...overrides,
-});
-
-const referral = (overrides: Record<string, unknown> = {}) => ({
-  clinicId: 'clinic-a',
-  branchId: 'branch-a',
-  ...overrides,
+const resource = { clinicId: 'clinic-1', branchId: 'branch-1' };
+const clinicUser = (role: string, branchIds: string[] = []) => ({
+  id: 'user-1',
+  role,
+  organizationId: 'org-1',
+  organizationOriginalId: 'clinic-1',
+  organizationType: 'CLINIC',
+  clinicId: 'clinic-1',
+  assignedBranchId: null,
+  branchIds,
 });
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  queryRaw.mockReset().mockResolvedValue([{ id: 'branch-1' }]);
 });
 
 describe('diagnostic referral branch policy', () => {
-  it('fails closed when clinic or referral branch context is missing', async () => {
-    await expect(canAccessReferralBranch(user() as never, referral({ clinicId: '' }))).resolves.toBe(false);
-    await expect(canAccessReferralBranch(user() as never, referral({ branchId: null }))).resolves.toBe(false);
-    expect(resolveClinicBranchAccess).not.toHaveBeenCalled();
+  it('requires the exact active clinic context and a trusted active branch allow-list', async () => {
+    queryRaw.mockResolvedValueOnce([{ branch_id: null, branch_active: false }]);
+    expect(await canAccessReferralBranch(clinicUser('DOCTOR'), resource)).toBe(false);
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+
+    queryRaw.mockReset()
+      .mockResolvedValueOnce([{ branch_id: null, branch_active: false }])
+      .mockResolvedValueOnce([{ id: 'branch-1' }]);
+    expect(await canAccessReferralBranch(clinicUser('DOCTOR', ['branch-1']), resource)).toBe(true);
+    expect(queryRaw).toHaveBeenCalledTimes(2);
   });
 
-  it('allows SUPERADMIN through its explicit platform bypass', async () => {
-    await expect(canAccessReferralBranch(
-      user({ role: 'SUPERADMIN' }) as never,
-      referral(),
-    )).resolves.toBe(true);
-    expect(resolveClinicBranchAccess).not.toHaveBeenCalled();
+  it('does not let organization role names widen access beyond the branch allow-list', async () => {
+    for (const role of ['OWNER', 'ADMIN', 'ACCOUNTANT', 'MANAGER']) {
+      queryRaw.mockReset().mockResolvedValueOnce([{ branch_id: null, branch_active: false }]);
+      expect(await canAccessReferralBranch(clinicUser(role), resource)).toBe(false);
+    }
   });
 
-  it('allows an unselected organization role across verified active branches', async () => {
-    resolveClinicBranchAccess.mockResolvedValue({
-      roleScope: 'ORGANIZATION',
-      branchId: null,
-      allowedBranchIds: ['branch-a', 'branch-b'],
-    });
+  it('denies a branch that is archived or belongs to a different clinic', async () => {
+    queryRaw.mockReset()
+      .mockResolvedValueOnce([{ branch_id: null, branch_active: false }])
+      .mockResolvedValueOnce([]);
+    expect(await canAccessReferralBranch(clinicUser('OWNER', ['branch-1']), resource)).toBe(false);
+  });
 
-    await expect(canAccessReferralBranch(
-      user({ role: 'OWNER' }) as never,
-      referral({ branchId: 'branch-b' }),
-    )).resolves.toBe(true);
-    expect(resolveClinicBranchAccess).toHaveBeenCalledWith({
-      userId: 'user-a',
-      clinicId: 'clinic-a',
-      organizationId: 'org-a',
-      role: 'OWNER',
+
+  it('recovers an active exact-clinic legacy assignment but rejects archived assignments', async () => {
+    queryRaw.mockReset()
+      .mockResolvedValueOnce([{ branch_id: 'branch-1', branch_active: true }])
+      .mockResolvedValueOnce([{ id: 'branch-1' }]);
+    expect(await canAccessReferralBranch(clinicUser('DOCTOR'), resource)).toBe(true);
+
+    queryRaw.mockReset().mockResolvedValueOnce([{ branch_id: 'branch-1', branch_active: false }]);
+    expect(await canAccessReferralBranch(clinicUser('DOCTOR'), resource)).toBe(false);
+  });
+
+  it('keeps the explicit platform superadmin exception', async () => {
+    expect(await canAccessReferralBranch(clinicUser('SUPERADMIN'), resource)).toBe(true);
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('diagnostic referral patient branch binding', () => {
+  it('derives the target branch from the patient record when the client omits branchId', () => {
+    expect(resolveReferralBranchId({
+      patientId: 'patient-1',
+      patientBranchId: 'branch-patient',
       requestedBranchId: null,
-    });
+    })).toBe('branch-patient');
   });
 
-  it('narrows an organization role to the selected active branch', async () => {
-    resolveClinicBranchAccess.mockResolvedValue({
-      roleScope: 'ORGANIZATION',
-      branchId: 'branch-a',
-      allowedBranchIds: ['branch-a', 'branch-b'],
-    });
-
-    await expect(canAccessReferralBranch(
-      user({ role: 'ADMIN', branchId: 'branch-a' }) as never,
-      referral({ branchId: 'branch-a' }),
-    )).resolves.toBe(true);
-    await expect(canAccessReferralBranch(
-      user({ role: 'ADMIN', branchId: 'branch-a' }) as never,
-      referral({ branchId: 'branch-b' }),
-    )).resolves.toBe(false);
+  it('rejects an owner-selected branch that differs from the canonical patient branch', () => {
+    expect(resolveReferralBranchId({
+      patientId: 'patient-1',
+      patientBranchId: 'branch-patient',
+      requestedBranchId: 'another-active-branch',
+    })).toBeNull();
   });
 
-  it('allows a narrow role only in its DB-verified active branch', async () => {
-    resolveClinicBranchAccess.mockResolvedValue({
-      roleScope: 'ASSIGNED',
-      branchId: 'branch-a',
-      allowedBranchIds: ['branch-a'],
-    });
-
-    await expect(canAccessReferralBranch(user() as never, referral())).resolves.toBe(true);
-    await expect(canAccessReferralBranch(user() as never, referral({ branchId: 'branch-b' }))).resolves.toBe(false);
+  it('fails closed when the selected clinic patient has no canonical branch', () => {
+    expect(resolveReferralBranchId({
+      patientId: 'patient-1',
+      patientBranchId: null,
+      requestedBranchId: 'another-active-branch',
+    })).toBeNull();
   });
 
-  it('denies missing, revoked, ambiguous or forged branch membership', async () => {
-    resolveClinicBranchAccess.mockResolvedValue(null);
-    await expect(canAccessReferralBranch(user({ branchId: 'branch-victim' }) as never, referral())).resolves.toBe(false);
-    expect(resolveClinicBranchAccess).toHaveBeenCalledWith(expect.objectContaining({
-      requestedBranchId: 'branch-victim',
-    }));
-  });
-
-  it('provides a fail-closed assertion for callers that need exceptions', () => {
-    expect(() => assertReferralBranchAccess(true)).not.toThrow();
-    expect(() => assertReferralBranchAccess(false)).toThrow('DIAGNOSTIC_REFERRAL_BRANCH_FORBIDDEN');
+  it('allows an unlinked referral to select a branch for subsequent active-membership validation', () => {
+    expect(resolveReferralBranchId({
+      patientId: null,
+      patientBranchId: null,
+      requestedBranchId: 'branch-selected',
+    })).toBe('branch-selected');
   });
 });
