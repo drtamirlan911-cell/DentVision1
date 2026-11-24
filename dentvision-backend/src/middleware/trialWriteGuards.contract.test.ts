@@ -109,7 +109,8 @@ describe('D1 medical-lab clinic write boundary', () => {
 
   it('preserves laboratory-context processing after the originating clinic expires', async () => {
     const text = await source('dentvision-backend/src/modules/lab/medicalLab.routes.ts');
-    expect(text).toContain("if ((user as any)?.organizationType === 'LABORATORY')");
+    expect(text).toContain("if (String(user?.organizationType || '').toUpperCase() === 'LABORATORY')");
+    expect(text).toContain('return Boolean(order.labId && (await resolveLaboratoryScopeId(user)) === order.labId);');
     expect(text).toContain("if (req.user?.role === 'SUPERADMIN' || (req.user as any)?.organizationType === 'LABORATORY') return true;");
   });
 });
