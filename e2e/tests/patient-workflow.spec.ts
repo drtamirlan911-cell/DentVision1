@@ -1,5 +1,6 @@
 import { test, expect, APIRequestContext } from '@playwright/test';
 import { payload as apiPayload } from '../helpers/api';
+import { switchToAssignedClinicBranch } from '../helpers/branch-context';
 import { makeIin } from '../helpers/iin';
 
 const BASE = 'http://localhost:3001';
@@ -26,6 +27,30 @@ test.describe('Patient Workflow', () => {
     ownerToken = await login(request, 'owner-a@test.com', 'Test1234!');
     doctorToken = await login(request, 'doctor-a@test.com', 'Test1234!');
     assistantToken = await login(request, 'assistant-a@test.com', 'Test1234!');
+
+    // Patient creation is branch-scoped. Select a verified BranchMember context
+    // explicitly because other sequential E2E suites may assign this doctor to
+    // more than one active clinic branch.
+    const meResponse = await request.get(`${BASE}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${doctorToken}` },
+    });
+    expect(meResponse.status(), await meResponse.text()).toBe(200);
+    const me = (await meResponse.json()).data;
+    const clinicId = String(
+      me.activeMembership?.clinicId
+      || me.memberships?.[0]?.clinicId
+      || me.user?.organizationOriginalId
+      || '',
+    );
+    expect(clinicId, 'Doctor must have an active clinic membership').toBeTruthy();
+    const selectedContext = await switchToAssignedClinicBranch({
+      request,
+      baseUrl: BASE,
+      accessToken: doctorToken,
+      userId: me.user.id,
+      clinicId,
+    });
+    doctorToken = selectedContext.accessToken;
   });
 
   test('PATIENT-001: Create patient → 201 + data persisted', async ({ request }) => {
