@@ -349,6 +349,29 @@ async function seedE2EClinicCanonicalContexts() {
       },
     });
 
+    // E2E clinic contexts must mirror the production branch-assignment
+    // invariant: every legacy ClinicMember assignment for a canonical Person
+    // is represented by the same active/inactive BranchMember row. This keeps
+    // clinical browser workflows on the unified IAM path instead of silently
+    // depending on a partially populated legacy fixture.
+    if (member.branchId) {
+      const branch = await prisma.branch.findFirst({
+        where: { id: member.branchId, clinicId: member.clinicId },
+        select: { id: true, organizationId: true, active: true },
+      });
+      if (!branch) {
+        throw new Error(`E2E clinic branch assignment references a missing or foreign branch for ${member.user.email}`);
+      }
+      if (branch.organizationId && branch.organizationId !== organization.id) {
+        throw new Error(`E2E clinic branch belongs to a different organization for ${member.user.email}`);
+      }
+      await prisma.branchMember.upsert({
+        where: { personId_branchId: { personId: person.id, branchId: branch.id } },
+        create: { id: randomUUID(), personId: person.id, branchId: branch.id, active: branch.active },
+        update: { active: branch.active },
+      });
+    }
+
     const persisted = await prisma.personRole.findFirst({
       where: {
         personId: person.id,
