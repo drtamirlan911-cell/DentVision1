@@ -203,32 +203,27 @@ medicalLabLifecycleRouter.get('/team', async (req: AuthRequest, res) => {
   }
 });
 
-async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, write = false): Promise<boolean> {
+async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, _write = false): Promise<boolean> {
   if (user?.role === 'SUPERADMIN') return true;
 
-  // Receiving laboratory context is authoritative. Some lab users also carry
-  // a legacy clinicId in the JWT; checking the clinic first would silently
-  // scope them to the wrong tenant and could expose/deny the wrong orders.
+  // The receiving laboratory organization is authoritative; a legacy clinicId
+  // carried by the same JWT cannot select a second tenant's orders.
   if ((user as any)?.organizationType === 'LABORATORY') {
     return Boolean(order.labId && (await resolveLaboratoryScopeId(user)) === order.labId);
   }
 
-  if (order.clinicId === user?.clinicId) {
-    const role = String(user?.role || '').toUpperCase();
-    if (['OWNER', 'ADMIN'].includes(role)) return true;
-    const branchIds = (user?.branchIds ?? []).filter(Boolean);
-    if (branchIds.length === 0 || !order.patientId) return false;
-    const patient = await prisma.patient.findFirst({
-      where: { id: order.patientId, clinicId: order.clinicId, branchId: { in: branchIds } },
-      select: { id: true },
-    });
-    return Boolean(patient);
-  }
+  // Clinic membership in another tenant is not a substitute for switching to
+  // the exact clinic workspace. Owners/admins still see only active branch data.
+  if (order.clinicId !== user?.clinicId) return false;
 
-  if (!write && order.clinicId) return assertClinicOrgAccess(user!, order.clinicId);
-  return false;
+  const branchIds = (user?.branchIds ?? []).filter(Boolean);
+  if (branchIds.length === 0 || !order.patientId) return false;
+  const patient = await prisma.patient.findFirst({
+    where: { id: order.patientId, clinicId: order.clinicId, branchId: { in: branchIds } },
+    select: { id: true },
+  });
+  return Boolean(patient);
 }
-
 async function recordEvent(orderId: string, clinicId: string, fromStatus: string | null, toStatus: string, userId: string, note?: string) {
   await prisma.$executeRawUnsafe(`INSERT INTO "medical_lab_events" ("id","orderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP)`, uid(), orderId, clinicId, fromStatus, toStatus, note ?? null, userId);
 }
