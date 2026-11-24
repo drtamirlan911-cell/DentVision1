@@ -8,21 +8,33 @@ export class ClinicalSignoffAuthorizationError extends Error {
   }
 }
 
+type VerifiedClinicDoctorContext = {
+  organizationId: string;
+  organizationOriginalId: string;
+  organizationType: 'CLINIC';
+  branchIds: string[];
+};
+
 /**
- * Check the complete scoped role set, not resolveClinicAccess()'s single
- * primary role. Master Spec 5.0 permits OWNER + DOCTOR in one organization;
- * the owner capability must not erase a separate doctor capability.
+ * Resolve the complete clinical identity and its active branch allow-list.
+ * Do not call the referral policy with an incomplete synthetic user: that
+ * policy correctly requires a verified clinic Organization context and either
+ * canonical BranchMember or exact active legacy ClinicMember evidence.
  */
-async function hasScopedClinicDoctorRole(userId: string, clinicId: string): Promise<boolean> {
+async function resolveScopedClinicDoctorContext(
+  userId: string,
+  clinicId: string,
+): Promise<VerifiedClinicDoctorContext | null> {
   const organization = await prisma.organization.findFirst({
     where: { originalType: 'Clinic', originalId: clinicId },
-    select: { id: true, archivedAt: true },
+    select: { id: true, originalId: true, type: true, archivedAt: true },
   });
 
-  if (organization?.archivedAt) return false;
+  if (organization?.archivedAt) return null;
 
   if (organization) {
-    const doctorPerson = await prisma.person.findFirst({
+    if (organization.type !== 'CLINIC' || organization.originalId !== clinicId) return null;
+    const person = await prisma.person.findFirst({
       where: {
         userId,
         organizationId: organization.id,
@@ -34,17 +46,37 @@ async function hasScopedClinicDoctorRole(userId: string, clinicId: string): Prom
           },
         },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        branchMemberships: {
+          where: { active: true, branch: { is: { active: true } } },
+          select: { branchId: true },
+        },
+      },
     });
-    return Boolean(doctorPerson);
+    if (!person) return null;
+    return {
+      organizationId: organization.id,
+      organizationOriginalId: clinicId,
+      organizationType: 'CLINIC',
+      branchIds: Array.from(new Set(person.branchMemberships.map((membership) => membership.branchId))),
+    };
   }
 
   // Legacy fallback is valid only before a clinic has a canonical Organization.
+  // The selected Branch relation is checked as active before the ID is trusted.
   const member = await prisma.clinicMember.findUnique({
     where: { userId_clinicId: { userId, clinicId } },
-    select: { role: true },
+    select: { role: true, branchId: true, branch: { select: { active: true } } },
   });
-  return String(member?.role || '').toUpperCase() === 'DOCTOR';
+  if (String(member?.role || '').toUpperCase() !== 'DOCTOR') return null;
+  const branchIds = member?.branchId && member.branch?.active === true ? [member.branchId] : [];
+  return {
+    organizationId: clinicId,
+    organizationOriginalId: clinicId,
+    organizationType: 'CLINIC',
+    branchIds,
+  };
 }
 
 export async function assertClinicDoctorSignoff(input: {
@@ -63,18 +95,21 @@ export async function assertClinicDoctorSignoff(input: {
     throw new ClinicalSignoffAuthorizationError('Подписать результат может только назначенный врач');
   }
 
-  if (!(await hasScopedClinicDoctorRole(userId, clinicId))) {
-    throw new ClinicalSignoffAuthorizationError();
-  }
+  const context = await resolveScopedClinicDoctorContext(userId, clinicId);
+  if (!context) throw new ClinicalSignoffAuthorizationError();
 
-  // Independently re-check the persisted clinic membership's branch assignment
-  // at the service boundary; a route guard alone is not enough.
+  // Revalidate exact active clinic/branch ownership at the service boundary.
+  // Canonical-only BranchMember users and legacy ClinicMember users are both
+  // supported, but an archived/foreign branch never enters this allow-list.
   const branchAllowed = await canAccessReferralBranch(
     {
       id: userId,
       role: 'DOCTOR',
-      organizationId: null,
-      branchId,
+      organizationId: context.organizationId,
+      organizationOriginalId: context.organizationOriginalId,
+      organizationType: context.organizationType,
+      assignedBranchId: null,
+      branchIds: context.branchIds,
       clinicId,
     },
     { clinicId, branchId },
