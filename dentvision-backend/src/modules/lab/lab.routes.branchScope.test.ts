@@ -54,7 +54,7 @@ describe('dental lab branch isolation contract', () => {
   it('preserves clinic-wide reads only for organization roles with no selected branch', () => {
     expect(source).toContain("const organizationWide = access.roleScope === 'ORGANIZATION' && access.branchId === null");
     expect(source).toContain('where: organizationWide');
-    expect(source).toContain("organizationWide ? {}");
+    expect(source).toMatch(/where:\s*organizationWide\s*\?\s*\{\}/);
     expect(source).toContain('access.branchId ? [access.branchId] : access.allowedBranchIds');
     expect(source).toContain('configured: organizationWide || branchIds.length > 0');
   });
