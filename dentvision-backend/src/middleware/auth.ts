@@ -271,9 +271,6 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       organizationWideBranchIds = activeBranches.map((branch) => branch.id);
     }
 
-    const activeMembership = effectiveClinicId
-      ? user.memberships?.find((m) => m.clinicId === effectiveClinicId)
-      : undefined;
     const legacyBranchIds = user.memberships
       ?.filter((membership) => membership.clinicId === effectiveClinicId && membership.branchId && membership.branch?.active === true)
       .map((membership) => membership.branchId as string) || [];
