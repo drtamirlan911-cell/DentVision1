@@ -45,6 +45,13 @@ describe('branch route authorization contract', () => {
     expect(source).toContain('context: { organizationId: branch.organization_id, clinicId: branch.clinic_id, branchId: branch.id }');
   });
 
+  it('blocks opening, assigning and re-enabling members in an archived branch', () => {
+    expect(source).toContain("code: 'BRANCH_ARCHIVED'");
+    expect(source).toContain("Архивный филиал нельзя открыть как рабочее пространство");
+    expect(source).toContain("Нельзя назначать сотрудников в архивный филиал");
+    expect(source).toContain("if(active && !branch.active)");
+  });
+
   it('exposes explicit staff disable/enable semantics and active filtering', () => {
     expect(source).toContain("branchesRouter.patch('/:id/members/:userId/status'");
     expect(source).toContain("member_enabled");
