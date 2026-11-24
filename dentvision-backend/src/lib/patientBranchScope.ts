@@ -66,7 +66,7 @@ export async function resolvePatientBranchContext(
 
   const activeBranchId = assignedBranchId && allowed.includes(assignedBranchId)
     ? assignedBranchId
-    : roleScope === 'ORGANIZATION'
+    : ORGANIZATION_ROLES.has(role)
       ? (legacyBranchId && allowed.includes(legacyBranchId) ? legacyBranchId : allowed[0] ?? null)
       : allowed.length === 1
         ? allowed[0]
