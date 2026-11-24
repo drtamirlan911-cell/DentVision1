@@ -60,6 +60,7 @@ describe('clinic acceptance for partner dental-lab deliveries', () => {
     expect(partnerSource).toContain('clinicAcceptance');
     expect(partnerSource).toContain('includeClinicAcceptanceNote: !logisticsOnly');
     expect(partnerSource).toContain('includeClinicAcceptanceNote: !isLabLogisticsRole(membership.role)');
-    expect(partnerSource).toContain('clinicAcceptance: null');
+    expect(partnerSource).toContain('options.includeClinicAcceptanceNote ? { note: meta.clinicAcceptance.note || null } : {}');
+    expect(partnerSource).toContain('clinicAcceptance,');
   });
 });
