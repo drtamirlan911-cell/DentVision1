@@ -9,6 +9,8 @@ describe('dental lab branch isolation contract', () => {
     expect(source).toContain('req.user?.branchIds ?? []');
     expect(source).toContain('patient: { branchId: { in: branchIds } }');
     expect(source).toContain('__NO_BRANCH_ACCESS__');
+    expect(source).toContain("if (role === 'SUPERADMIN') return {};");
+    expect(source).not.toContain("['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)");
   });
 
   it('scopes list, transactional upsert, status and delete operations', () => {
