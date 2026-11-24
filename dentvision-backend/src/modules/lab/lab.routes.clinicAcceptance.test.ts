@@ -57,6 +57,7 @@ describe('clinic acceptance for partner dental-lab deliveries', () => {
   });
 
   it('exposes acceptance feedback to production roles but not logistics projections', () => {
+    expect(partnerSource).toContain("clinicAcceptance?: { status: 'accepted'; acceptedAt: string; shipmentId: string; remakeRequestId?: string | null; note?: string | null } | null;");
     expect(partnerSource).toContain('clinicAcceptance');
     expect(partnerSource).toContain('includeClinicAcceptanceNote: !logisticsOnly');
     expect(partnerSource).toContain('includeClinicAcceptanceNote: !isLabLogisticsRole(membership.role)');
