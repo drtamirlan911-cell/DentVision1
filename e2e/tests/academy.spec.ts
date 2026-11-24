@@ -480,7 +480,7 @@ test.describe('Academy / Course Workflow', () => {
     expect(update.headers()['x-dv-academy-mutation-handler']).toBe('PUT');
     expect(update.headers()['x-dv-academy-mutation-lookup']).toBe('found');
     expect(update.headers()['x-dv-academy-mutation-outcome']).toBe('history-conflict');
-    expect(update.headers()['x-dv-academy-mutation-json']).toBe('PUT:PUT:409:ACADEMY_LEARNING_HISTORY_PROTECTED');
+    expect(JSON.parse(updateText).code).toBe('ACADEMY_LEARNING_HISTORY_PROTECTED');
     expect(update.url()).toBe(`${BASE_URL}/api/school/courses/${fixture.courseId}`);
     expect(update.status(), updateText).toBe(409);
 
@@ -514,7 +514,7 @@ test.describe('Academy / Course Workflow', () => {
     expect(deletion.headers()['x-dv-academy-mutation-handler']).toBe('DELETE');
     expect(deletion.headers()['x-dv-academy-mutation-lookup']).toBe('found');
     expect(deletion.headers()['x-dv-academy-mutation-outcome']).toBe('has-history');
-    expect(deletion.headers()['x-dv-academy-mutation-json']).toBe('DELETE:DELETE:409:ACADEMY_LEARNING_HISTORY_PROTECTED');
+    expect(JSON.parse(deletionText).code).toBe('ACADEMY_LEARNING_HISTORY_PROTECTED');
     expect(deletion.url()).toBe(`${BASE_URL}/api/school/courses/${fixture.courseId}`);
     expect(deletion.status(), deletionText).toBe(409);
 
