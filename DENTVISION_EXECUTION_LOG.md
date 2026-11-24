@@ -3080,8 +3080,8 @@ Added route-contract tests covering all write routes and the laboratory-context 
 ## 2026-11-24 — Partner dental-lab clinic acceptance workflow (PR #352 candidate)
 
 - Added clinic-side delivery acceptance scoped to the authenticated clinic and verified branch. Acceptance requires a partner-owned order, delivered order status and the latest shipment's stored HTTPS proof, recipient and delivery timestamp.
-- Acceptance is idempotent per shipment and blocked while a remake decision is pending. A new remake request clears the previous delivery-cycle acceptance while retaining shipment and lifecycle history.
+- Acceptance is idempotent per shipment and blocked while a remake decision is pending. A new remake request appends the prior accepted actor/time/shipment/remake reference/feedback to `clinicAcceptanceHistory` and clears only the current acceptance; subsequent cycles do not overwrite earlier acknowledgements.
 - Stored acceptance actor/time, shipment and remake references plus optional feedback; emitted a distinct same-status lifecycle event, audit record, partner notification and ecosystem event. The production state remains `delivered` until an actual remake cycle changes it.
-- CRM gained the explicit clinical acceptance action. Partner production roles receive feedback; logistics views do not receive the feedback note.
+- CRM gained the explicit clinical acceptance action and expandable prior-cycle history. Partner production roles receive feedback/history; logistics views do not receive feedback notes.
 - Added static contract coverage and extended PARTNER-003 E2E for first acceptance, remake reset, second acceptance, pre-delivery denial and idempotent retries.
 - Exact-head CI/Quality Gate/RB-034 must pass before considering the candidate verified. D10 remains PARTIAL/OPEN: financial settlement gates, CAD/CAM file lifecycle, material/lot traceability, case costs, tax/fiscal documents, warranties, refunds/chargebacks and desktop/mobile/operator acceptance remain open. No production/staging data, real payment provider, payout, migration or deployment was touched.
