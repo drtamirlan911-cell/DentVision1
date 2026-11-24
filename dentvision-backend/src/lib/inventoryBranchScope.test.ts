@@ -114,7 +114,7 @@ describe('inventory route selected-branch contract', () => {
   it('does not silently choose a second branch for a selected or branch-scoped user', () => {
     expect(source).toContain('context.organizationWide ? context.branchIds[0] : null');
     expect(source).toContain('if (!context.organizationWide && context.branchId !== branchId) return null;');
-    expect(source).toContain('if (!context.branchIds.includes(branchId)) return null;');
+    expect(source).toContain('if (!branchId || !context.branchIds.includes(branchId)) return null;');
   });
 
   it('scopes item reads, movements, adjustments and deletes through scopedWhere', () => {
