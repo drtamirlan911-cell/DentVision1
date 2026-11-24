@@ -74,6 +74,8 @@ export interface LabPlatformOrder {
   payment?: { paymentId: string; status: 'paid'; amountMinor: string; paidAt: string } | null;
   invoice?: DentalLabInvoice | null;
   shipment?: DentalLabShipment | null;
+  clinicAcceptance?: { status: 'accepted'; acceptedAt: string; shipmentId: string; remakeRequestId?: string | null; note?: string | null } | null;
+  clinicAcceptanceHistory?: Array<{ status: 'accepted'; acceptedAt: string; shipmentId: string; remakeRequestId?: string | null; note?: string | null }>;
 }
 
 export interface LabPlatformDashboard {
