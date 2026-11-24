@@ -8,6 +8,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import { isClinicMember, resolveClinicAccess } from '../../lib/orgContext.js';
+import { resolveClinicBranchAccess } from '../../lib/clinicBranchAccess.js';
 import { publish } from '../../lib/events.js';
 import { labPlatformRouter } from './labPlatform.routes.js';
 import { medicalLabLifecycleRouter } from './medicalLab.routes.js';
