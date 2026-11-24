@@ -40,6 +40,7 @@ export interface DomainEventMap {
   'labOrder.qc_failed': { clinicId: string; labOrderId: string; laboratoryId: string; status: string; previousStatus: string; userId?: string };
   'labOrder.remake_requested': { clinicId: string; labOrderId: string; laboratoryId: string; requestId: string; userId?: string };
   'labOrder.remake_response': { clinicId: string; labOrderId: string; laboratoryId: string; requestId: string; decision: 'accept' | 'reject'; userId?: string };
+  'labOrder.clinic_accepted': { clinicId: string; labOrderId: string; laboratoryId: string; shipmentId: string; remakeRequestId: string | null; hasFeedback: boolean; userId?: string };
   'labOrder.invoice_issued': { clinicId: string; labOrderId: string; laboratoryId: string; invoiceId: string; userId?: string };
   'medicalLabOrder.created': { orderId: string; clinicId: string; patientId?: string | null; treatmentCaseId?: string | null; labId?: string | null; userId?: string };
   'medicalLabOrder.status_changed': { orderId: string; clinicId: string; fromStatus: string; toStatus: string; userId?: string };
