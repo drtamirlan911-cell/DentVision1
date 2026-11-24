@@ -134,8 +134,18 @@ async function appendEventInTransaction(
   );
 }
 
-function serialize(order: any) {
+function serialize(order: any, options: { includeClinicAcceptanceNote?: boolean } = {}) {
   const meta = metaOf(order.files);
+  const clinicAcceptance = meta.clinicAcceptance && typeof meta.clinicAcceptance === 'object'
+    ? {
+        status: meta.clinicAcceptance.status,
+        acceptedByUserId: meta.clinicAcceptance.acceptedByUserId,
+        acceptedAt: meta.clinicAcceptance.acceptedAt,
+        shipmentId: meta.clinicAcceptance.shipmentId,
+        remakeRequestId: meta.clinicAcceptance.remakeRequestId || null,
+        ...(options.includeClinicAcceptanceNote ? { note: meta.clinicAcceptance.note || null } : {}),
+      }
+    : null;
   return {
     id: order.id, clinicId: order.clinicId, clinicName: order.clinic?.name || '', patientId: order.patientId,
     patientName: order.patient?.firstName ? `${order.patient.firstName} ${order.patient.lastName}`.trim() : (meta.patientName || ''),
@@ -144,6 +154,7 @@ function serialize(order: any) {
     technicianId: meta.technicianId || null, remakeOfId: meta.remakeOfId || null, appointmentId: meta.appointmentId || null,
     qualityControl: meta.qualityControl || null,
     remakeRequest: meta.remakeRequest || null,
+    clinicAcceptance,
     payment: meta.payment || null,
     invoice: order.dentalLabInvoice ? {
       id: order.dentalLabInvoice.id,
@@ -187,7 +198,10 @@ async function ordersForLab(labId: string, role: string, userId: string, status?
     orderBy: [{ deadline: 'asc' }, { createdAt: 'desc' }], take: 500,
   });
   return Promise.all(rows.map(async (order) => {
-    const result = serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) });
+    const result = serialize(
+      { ...order, treatmentCaseId: await caseIdOf(order.id) },
+      { includeClinicAcceptanceNote: !logisticsOnly },
+    );
     if (!logisticsOnly) return result;
     // A courier needs the handoff and recipient context, not clinical identifiers or treatment details.
     return {
@@ -493,7 +507,10 @@ labPlatformRouter.get('/orders/:id/lifecycle', async (req: AuthRequest, res) => 
     ]);
     const shipmentEvents = existing.dentalLabShipments.flatMap((shipment) => shipment.events);
     const latestFirst = [...existing.dentalLabShipments].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    return res.json({ ok: true, data: { order: serialize({ ...existing, dentalLabShipments: latestFirst, treatmentCaseId: await caseIdOf(existing.id) }), events, shipments: existing.dentalLabShipments, shipmentEvents } } satisfies ApiResponse);
+    return res.json({ ok: true, data: { order: serialize(
+      { ...existing, dentalLabShipments: latestFirst, treatmentCaseId: await caseIdOf(existing.id) },
+      { includeClinicAcceptanceNote: !isLabLogisticsRole(membership.role) },
+    ), events, shipments: existing.dentalLabShipments, shipmentEvents } } satisfies ApiResponse);
   } catch (error) { console.error('[LabPlatform] lifecycle error:', safeErrorKind(error)); return res.status(500).json({ ok: false, error: 'Не удалось загрузить историю заказа' } satisfies ApiResponse); }
 });
 
