@@ -105,6 +105,35 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
     });
     centerToken = await login(api, centerUser.email, E2E_PASSWORD);
 
+    // Branch-management E2E may assign this doctor to several active branches.
+    // Select one canonical BranchMember explicitly; narrow clinical roles must
+    // never rely on the first membership as an implicit active branch.
+    const clinicOrganization = await prisma.organization.findFirstOrThrow({
+      where: { originalType: 'Clinic', originalId: clinicId, archivedAt: null },
+      select: { id: true },
+    });
+    const doctorPerson = await prisma.person.findFirstOrThrow({
+      where: { userId: doctorId, organizationId: clinicOrganization.id },
+      select: { id: true },
+    });
+    const selectedBranch = await prisma.branch.findFirst({
+      where: {
+        organizationId: clinicOrganization.id,
+        active: true,
+        members: { some: { personId: doctorPerson.id, active: true } },
+      },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    });
+    expect(selectedBranch?.id, 'Doctor must have an active canonical branch assignment').toBeTruthy();
+    const selectedContext = await api.post(`${BASE_URL}/api/iam/switch-context`, {
+      headers: auth(doctorToken),
+      data: { scopeType: 'CLINIC', scopeId: clinicOrganization.id, branchId: selectedBranch!.id },
+    });
+    expect(selectedContext.status(), await selectedContext.text()).toBe(200);
+    doctorToken = (await selectedContext.json()).data.accessToken;
+    expect(doctorToken).toBeTruthy();
+
     // The doctor who performs the referral and lab handoff must own the
     // patient context used by the downstream branch-scoped workflows.
     const patientRes = await api.post(`${BASE_URL}/api/patients`, {
