@@ -9,6 +9,7 @@ import { recordMovement, isMovementApplied } from './ledger.js';
 import { SUPPLY_CATALOG, SUPPLY_CATEGORIES } from './supplyCatalog.js';
 import { normalizeItemName } from './orderRestock.js';
 import { resolveInventoryBranchContext, assertInventoryBranch } from '../../lib/inventoryBranchScope.js';
+import { resolveUnambiguousWriteBranch } from '../../lib/clinicBranchAccess.js';
 
 const inventoryRouter = Router();
 
@@ -46,9 +47,11 @@ async function resolveCreateBranch(req: AuthRequest, clinicId: string) {
   if (!context || !context.branchIds.length) return null;
 
   const requested = typeof req.body?.branchId === 'string' ? req.body.branchId : null;
-  // Organization-wide access permits an explicitly chosen target branch;
-  // it must not silently write stock into the first branch in an allow-list.
-  const branchId = requested || context.branchId || null;
+  // Organization-wide writes may use a single permitted branch or one
+  // explicitly configured default. With multiple ambiguous branches, require
+  // an explicit branchId instead of selecting by array order.
+  const branchId = requested || context.branchId
+    || (context.organizationWide ? await resolveUnambiguousWriteBranch(context.branchIds) : null);
   if (!branchId || !context.branchIds.includes(branchId)) return null;
   // A selected organization role is no longer organization-wide for writes:
   // the request cannot silently move/create stock in a different branch.
