@@ -109,22 +109,57 @@ export async function getAvailableSlots(
   date: string,
   doctorId?: string | null,
   branchId?: string | null,
+  patientId?: string | null,
 ): Promise<AvailableSlotsResult> {
   const clinic = await (prisma as any).clinic.findUnique({ where: { id: clinicId }, select: { settings: true } });
   if (!clinic) throw new PortalActionError('Клиника не найдена', 'NOT_FOUND');
+
+  // Patient-facing AI resolves the branch from the authenticated patient's
+  // canonical record. It must never fall back to clinic-wide availability.
+  let effectiveBranchId = branchId || null;
+  if (patientId) {
+    const patient = await (prisma as any).patient.findUnique({
+      where: { id: patientId },
+      select: { clinicId: true, branchId: true },
+    });
+    if (!patient || patient.clinicId !== clinicId) {
+      throw new PortalActionError('Карта пациента не найдена', 'NOT_FOUND');
+    }
+    const patientBranchId = patient.branchId ? String(patient.branchId) : null;
+    if (!patientBranchId) {
+      throw new PortalActionError('Филиал карточки пациента ещё не определён. Обратитесь в клинику.', 'BAD_STATUS');
+    }
+    if (effectiveBranchId && effectiveBranchId !== patientBranchId) {
+      throw new PortalActionError('Выбранный филиал не совпадает с филиалом карточки пациента.', 'BAD_STATUS');
+    }
+    effectiveBranchId = patientBranchId;
+  }
+
+  if (effectiveBranchId) {
+    const activeBranch = await (prisma as any).branch.findFirst({
+      where: { id: effectiveBranchId, clinicId, active: true },
+      select: { id: true },
+    });
+    if (!activeBranch) {
+      throw new PortalActionError('Филиал карточки пациента недоступен для записи.', 'BAD_STATUS');
+    }
+  }
+
   const settings = mergeClinicSettings(clinic.settings);
   const day = new Date(`${date}T12:00:00.000Z`);
   if (!isWorkingDay(day, settings)) return { date, workingDay: false, slots: [] };
 
   // Legacy unassigned rows may belong to a doctor working across branches.
   // They must block the same slot in every branch until their branch is resolved.
-  const branchFilter = branchId && !doctorId ? { OR: [{ branchId }, { branchId: null }] } : {};
+  const branchFilter = effectiveBranchId && !doctorId
+    ? { OR: [{ branchId: effectiveBranchId }, { branchId: null }] }
+    : {};
   const dayStart = new Date(`${date}T00:00:00.000Z`);
   const dayEnd = new Date(`${date}T23:59:59.999Z`);
 
   let doctorCount: number;
-  if (branchId) {
-    const bookableDoctors = await listBookableDoctorsForBranch(clinicId, branchId);
+  if (effectiveBranchId) {
+    const bookableDoctors = await listBookableDoctorsForBranch(clinicId, effectiveBranchId);
     if (doctorId) {
       const selectedDoctor = bookableDoctors.find((doctor) => doctor.id === doctorId);
       if (!selectedDoctor) throw new PortalActionError('Врач не доступен в филиале пациента', 'NOT_FOUND');
@@ -132,9 +167,9 @@ export async function getAvailableSlots(
         userId: doctorId,
         clinicId,
         role: selectedDoctor.role,
-        requestedBranchId: branchId,
+        requestedBranchId: effectiveBranchId,
       });
-      if (!doctorAccess || doctorAccess.branchId !== branchId) {
+      if (!doctorAccess || doctorAccess.branchId !== effectiveBranchId) {
         throw new PortalActionError('Врач не доступен в филиале пациента', 'NOT_FOUND');
       }
       doctorCount = 1;
