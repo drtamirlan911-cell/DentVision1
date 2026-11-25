@@ -39,7 +39,7 @@ describe('patient portal online booking branch contract', () => {
 
 describe('patient portal canonical branch validation', () => {
   it('accepts an active branch linked through the canonical clinic organization', () => {
-    expect(source).toContain('OR: [{ clinicId }, { clinicId: null, organizationId: organization.id }]');
-    expect(source).toContain('organization?.archivedAt');
+    expect(source).toContain('portalSvc.isActiveClinicBranch(clinicId, branchId)');
+    expect(source).toContain('portalSvc.getAvailableSlots(clinicId, date, doctorId, branchId, patientId)');
   });
 });

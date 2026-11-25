@@ -51,7 +51,7 @@ vi.mock('../../lib/prisma.js', () => ({ default: {
 
 vi.mock('../../lib/clinicBranchAccess.js', () => ({ resolveClinicBranchAccess }));
 
-import { getAvailableSlots, requestAppointment, PortalActionError } from './patientPortal.service.js';
+import { getAvailableSlots, requestAppointment, PortalActionError, isActiveClinicBranch } from './patientPortal.service.js';
 
 const OPEN_CLINIC = {
   settings: {
