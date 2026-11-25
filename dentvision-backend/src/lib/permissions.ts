@@ -100,7 +100,6 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     appointments: ['read', 'write'],
     medical:      ['read', 'write', 'manage'],
     billing:      ['read'],
-    inventory:    ['read'],
     lab:          ['read', 'write'],
     diagnostics:  ['read'],
     shop:         ['read'],
