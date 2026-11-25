@@ -1,126 +1,125 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const { queryRaw } = vi.hoisted(() => ({ queryRaw: vi.fn() }));
-vi.mock('./prisma.js', () => ({ default: { $queryRaw: queryRaw } }));
-
-beforeEach(() => queryRaw.mockReset().mockResolvedValue([]));
-import { inventoryBranchWhere, resolveInventoryBranchContext } from './inventoryBranchScope.js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-describe('inventory branch scope contract', () => {
-  it('keeps organization roles explicit', () => {
-    const file = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/lib/inventoryBranchScope.ts'), 'utf8');
-    expect(file).toContain("new Set(['OWNER', 'ADMIN', 'ACCOUNTANT'])");
-    expect(file).toContain('authorizedBranchIds');
-    expect(file).toContain('ORGANIZATION_ROLES.has');
-    expect(file).toContain('inventoryBranchWhere');
-  });
-  it('fails closed when no branch is assigned', () => {
-    const file = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/lib/inventoryBranchScope.ts'), 'utf8');
-    expect(file).toContain('if (!branchIds.length) return []');
-    expect(file).toContain('if (!branchId) return false');
-  });
+const { resolveClinicBranchAccess, queryRaw } = vi.hoisted(() => ({
+  resolveClinicBranchAccess: vi.fn(),
+  queryRaw: vi.fn(),
+}));
+
+vi.mock('./clinicBranchAccess.js', () => ({ resolveClinicBranchAccess }));
+vi.mock('./prisma.js', () => ({ default: { $queryRaw: queryRaw } }));
+
+import {
+  assertInventoryBranch,
+  getInventoryIdsForBranches,
+  resolveInventoryBranchContext,
+} from './inventoryBranchScope.js';
+
+beforeEach(() => {
+  vi.clearAllMocks();
 });
 
-describe('inventory branch query allow-list', () => {
-  it('applies the active branch allow-list even to organization-wide roles', () => {
-    expect(inventoryBranchWhere({
+describe('resolveInventoryBranchContext', () => {
+  it('preserves organization-wide inventory access only when no branch is selected', async () => {
+    resolveClinicBranchAccess.mockResolvedValue({
+      roleScope: 'ORGANIZATION',
+      branchId: null,
+      allowedBranchIds: ['branch-a', 'branch-b'],
+    });
+
+    await expect(resolveInventoryBranchContext('user-a', 'clinic-a', 'OWNER', {
+      organizationId: 'org-a',
+      requestedBranchId: null,
+    })).resolves.toEqual({
       clinicId: 'clinic-a',
       role: 'OWNER',
-      organizationWide: true,
       branchId: null,
-      branchIds: ['active-a', 'active-b'],
-    })).toEqual({
+      organizationWide: true,
+      branchIds: ['branch-a', 'branch-b'],
+    });
+    expect(resolveClinicBranchAccess).toHaveBeenCalledWith({
+      userId: 'user-a',
       clinicId: 'clinic-a',
-      branchId: { in: ['active-a', 'active-b'] },
+      organizationId: 'org-a',
+      role: 'OWNER',
+      requestedBranchId: null,
     });
   });
 
-  it('fails closed when an organization has no active branches', () => {
-    expect(inventoryBranchWhere({
-      clinicId: 'clinic-a',
-      role: 'ADMIN',
-      organizationWide: true,
-      branchId: null,
-      branchIds: [],
-    })).toEqual({
-      clinicId: 'clinic-a',
-      branchId: { in: [] },
+  it('narrows an organization role to the selected active branch', async () => {
+    resolveClinicBranchAccess.mockResolvedValue({
+      roleScope: 'ORGANIZATION',
+      branchId: 'branch-b',
+      allowedBranchIds: ['branch-a', 'branch-b'],
     });
+
+    await expect(resolveInventoryBranchContext('user-a', 'clinic-a', 'OWNER', {
+      organizationId: 'org-a',
+      requestedBranchId: 'branch-b',
+    })).resolves.toEqual({
+      clinicId: 'clinic-a',
+      role: 'OWNER',
+      branchId: 'branch-b',
+      organizationWide: false,
+      branchIds: ['branch-b'],
+    });
+  });
+
+  it('uses only the resolved branch for a branch-scoped role', async () => {
+    resolveClinicBranchAccess.mockResolvedValue({
+      roleScope: 'ASSIGNED',
+      branchId: 'branch-a',
+      allowedBranchIds: ['branch-a'],
+    });
+
+    await expect(resolveInventoryBranchContext('user-a', 'clinic-a', 'DOCTOR')).resolves.toMatchObject({
+      organizationWide: false,
+      branchId: 'branch-a',
+      branchIds: ['branch-a'],
+    });
+  });
+
+  it('fails closed when canonical or legacy membership cannot be resolved', async () => {
+    resolveClinicBranchAccess.mockResolvedValue(null);
+
+    await expect(resolveInventoryBranchContext('user-a', 'clinic-a', 'MANAGER')).resolves.toBeNull();
   });
 });
 
-describe('inventory branch context resolution', () => {
-  it('uses the trusted active canonical branch allow-list and preserves it when legacy membership is absent', async () => {
-    queryRaw.mockResolvedValueOnce([]);
-    await expect(resolveInventoryBranchContext(
-      'user-1',
-      'clinic-a',
-      'DOCTOR',
-      ['active-a'],
-      'active-a',
-    )).resolves.toMatchObject({
-      clinicId: 'clinic-a',
-      role: 'DOCTOR',
-      branchId: 'active-a',
-      organizationWide: false,
-      branchIds: ['active-a'],
-    });
+describe('inventory branch resource guards', () => {
+  it('rejects a missing branch without querying the database', async () => {
+    await expect(assertInventoryBranch(null, 'clinic-a')).resolves.toBe(false);
+    expect(queryRaw).not.toHaveBeenCalled();
   });
 
-  it('keeps organization roles limited to the authenticated active branch list', async () => {
-    queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'active-a' }, { id: 'active-b' }]);
-    await expect(resolveInventoryBranchContext(
-      'owner-1',
-      'clinic-a',
-      'OWNER',
-      ['active-a', 'active-b'],
-      'active-b',
-    )).resolves.toMatchObject({
-      branchId: 'active-b',
-      organizationWide: true,
-      branchIds: ['active-a', 'active-b'],
-    });
+  it('returns no inventory identifiers for an empty branch set', async () => {
+    await expect(getInventoryIdsForBranches('clinic-a', [])).resolves.toEqual([]);
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+});
+
+describe('inventory route selected-branch contract', () => {
+  const source = readFileSync(
+    resolve(process.cwd(), 'dentvision-backend/src/modules/inventory/inventory.routes.ts'),
+    'utf8',
+  );
+
+  it('passes the active organization and selected branch into the shared resolver', () => {
+    expect(source).toContain('organizationId: user.organizationId');
+    expect(source).toContain('requestedBranchId: user.branchId');
+    expect(source).not.toContain('context.branchIds[0] ||');
   });
 
-  it('denies an empty canonical assignment instead of expanding to every clinic branch', async () => {
-    queryRaw.mockResolvedValueOnce([]);
-    await expect(resolveInventoryBranchContext(
-      'doctor-1',
-      'clinic-a',
-      'DOCTOR',
-      [],
-      null,
-    )).resolves.toMatchObject({
-      branchId: null,
-      organizationWide: false,
-      branchIds: [],
-    });
+  it('does not silently choose a second branch for a selected or branch-scoped user', () => {
+    expect(source).toContain('context.organizationWide ? context.branchIds[0] : null');
+    expect(source).toContain('if (!context.organizationWide && context.branchId !== branchId) return null;');
+    expect(source).toContain('if (!branchId || !context.branchIds.includes(branchId)) return null;');
   });
 
-
-  it('recovers only an active branch from exact legacy clinic membership', async () => {
-    queryRaw.mockResolvedValueOnce([{ branch_id: 'legacy-a', branch_active: true }]);
-    await expect(resolveInventoryBranchContext('doctor-a', 'clinic-a', 'DOCTOR', [], null))
-      .resolves.toMatchObject({ branchId: 'legacy-a', branchIds: ['legacy-a'] });
-
-    queryRaw.mockReset().mockResolvedValueOnce([{ branch_id: 'archived-a', branch_active: false }]);
-    await expect(resolveInventoryBranchContext('doctor-a', 'clinic-a', 'DOCTOR', [], null))
-      .resolves.toMatchObject({ branchId: null, branchIds: [] });
-  });
-
-  it('ignores a selected branch that is not in the authenticated active list', async () => {
-    queryRaw.mockResolvedValueOnce([]);
-    await expect(resolveInventoryBranchContext(
-      'doctor-1',
-      'clinic-a',
-      'DOCTOR',
-      ['active-a'],
-      'archived-a',
-    )).resolves.toMatchObject({
-      branchId: 'active-a',
-      branchIds: ['active-a'],
-    });
+  it('scopes item reads, movements, adjustments and deletes through scopedWhere', () => {
+    expect(source).toContain('prisma.inventoryItem.findMany({ where,');
+    expect(source).toContain('where: { id, ...scopedWhere(context) }');
+    expect(source).toContain('deleteMany({ where: { id, ...scopedWhere(context) } })');
   });
 });

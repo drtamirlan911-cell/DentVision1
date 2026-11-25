@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../lib/safeError.js';
 /**
  * Reminder cron — scan upcoming appointments and send WhatsApp/SMS.
  * Spec §05: server cron (deep-link UI remains as manual fallback).
@@ -190,7 +191,7 @@ export function startReminderCronInterval(ms = 15 * 60 * 1000): void {
         console.log(`[ReminderCron] scanned=${r.scanned} sent=${r.sent} skipped=${r.skipped} errors=${r.errors}`);
       }
     } catch (err) {
-      console.error('[ReminderCron] tick failed', err);
+      console.error('[ReminderCron] tick failed', safeErrorKind(err));
     }
   };
   // Delay first tick so DB is warm
@@ -241,6 +242,6 @@ export async function cleanupAbandonedOrders(): Promise<void> {
     }
     console.log(`[OrderCleanup] cancelled ${stale.length} abandoned orders`);
   } catch (err) {
-    console.warn('[OrderCleanup] failed (non-fatal):', err);
+    console.warn('[OrderCleanup] failed (non-fatal):', safeErrorKind(err));
   }
 }
