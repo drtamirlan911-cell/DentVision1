@@ -928,6 +928,7 @@ model LabOrder {
   dentalLabService DentalLabService? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   dentalLabInvoice DentalLabInvoice?
   dentalLabShipments DentalLabShipment[]
+  dentalLabMaterialConsumptions DentalLabCaseMaterial[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -3311,6 +3312,8 @@ model Laboratory {
   bookings  DiagnosticBooking[]
   dentalServices DentalLabService[]
   dentalLabShipments DentalLabShipment[]
+  dentalMaterials DentalLabMaterial[]
+  dentalMaterialLots DentalLabMaterialLot[]
 
   @@map("laboratories")
 }
@@ -3350,6 +3353,85 @@ model DentalLabService {
   @@unique([labId, code])
   @@index([labId, active])
   @@map("dental_lab_services")
+}
+
+model DentalLabMaterial {
+  id                String   @id @default(uuid())
+  labId             String
+  code              String
+  name              String
+  category          String
+  unit              String
+  minimumStockMilli BigInt   @default(0)
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  lab          Laboratory             @relation(fields: [labId], references: [id], onDelete: Cascade)
+  lots         DentalLabMaterialLot[]
+  consumptions DentalLabCaseMaterial[]
+
+  @@unique([labId, code])
+  @@unique([id, labId])
+  @@index([labId, active])
+  @@map("dental_lab_materials")
+}
+
+model DentalLabMaterialLot {
+  id                  String   @id @default(uuid())
+  labId               String
+  materialId          String
+  lotNumber           String
+  supplierName        String?
+  supplierLotNumber   String?
+  receivedQuantityMilli BigInt
+  remainingQuantityMilli BigInt
+  unitCostMinor       BigInt
+  currency            String   @default("KZT")
+  receivedAt          DateTime @default(now())
+  expiresAt           DateTime?
+  receivedByUserId    String
+  note                String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  lab          Laboratory             @relation(fields: [labId], references: [id], onDelete: Cascade)
+  material     DentalLabMaterial      @relation(fields: [materialId, labId], references: [id, labId], onDelete: Restrict)
+  consumptions DentalLabCaseMaterial[]
+
+  @@unique([labId, materialId, lotNumber])
+  @@unique([id, labId])
+  @@index([labId, materialId, expiresAt])
+  @@index([labId, remainingQuantityMilli])
+  @@map("dental_lab_material_lots")
+}
+
+model DentalLabCaseMaterial {
+  id                    String   @id @default(uuid())
+  labId                 String
+  labOrderId            String
+  materialId            String
+  lotId                 String
+  quantityMilli         BigInt
+  unitCostMinorSnapshot BigInt
+  totalCostMinorSnapshot BigInt
+  idempotencyKey        String
+  payloadFingerprint    String
+  consumedByUserId      String
+  consumedAt            DateTime @default(now())
+  note                  String?
+  reversedAt            DateTime?
+  reversedByUserId      String?
+  reversalReason        String?
+
+  labOrder  LabOrder              @relation(fields: [labOrderId], references: [id], onDelete: Cascade)
+  material  DentalLabMaterial     @relation(fields: [materialId, labId], references: [id, labId], onDelete: Restrict)
+  lot       DentalLabMaterialLot  @relation(fields: [lotId, labId], references: [id, labId], onDelete: Restrict)
+
+  @@unique([labId, idempotencyKey])
+  @@index([labId, labOrderId, consumedAt])
+  @@index([lotId, consumedAt])
+  @@map("dental_lab_case_materials")
 }
 
 model DentalLabInvoice {
