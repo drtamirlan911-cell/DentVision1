@@ -22,7 +22,7 @@ import { applyToothFindings as applyToothFindingsToChart, isValidFdi } from '../
 import { searchClinicalNotes } from '../lib/clinicalSearch.js';
 import { uid } from '../../../lib/helpers.js';
 import { publish } from '../../../lib/events.js';
-import { resolveClinicAccess } from '../../../lib/orgContext.js';
+import { resolveAppointmentDoctor } from './appointmentDoctorAccess.js';
 import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
 import { scrubToolOutput } from '../lib/piiScrubber.js';
 import {
@@ -156,13 +156,7 @@ function labOrderBranchWhere(ctx: ToolContext): Prisma.LabOrderWhereInput {
   return labOrderBranchFilter(requireBranchScope(ctx));
 }
 
-const APPOINTMENT_DOCTOR_ROLES = new Set(['DOCTOR', 'OWNER', 'DIRECTOR']);
 
-async function resolveAppointmentDoctor(doctorId: string, clinicId: string): Promise<boolean> {
-  if (!doctorId || !clinicId) return false;
-  const access = await resolveClinicAccess(doctorId, clinicId);
-  return Boolean(access && APPOINTMENT_DOCTOR_ROLES.has(String(access.role).toUpperCase()));
-}
 
 /**
  * `{ id, clinicId }` for a single-record by-id lookup scoped to the caller's
@@ -411,7 +405,8 @@ export const TOOLS: Record<string, ToolSpec> = {
       if (!patient) return { ok: false, error: 'Пациент не найден' };
 
       const doctorId = String(args.doctorId || ctx.userId);
-      if (!(await resolveAppointmentDoctor(doctorId, clinicId))) {
+      const appointmentBranchId = ctx.branchScope?.branchId || patient.branchId || null;
+      if (!(await resolveAppointmentDoctor(doctorId, clinicId, appointmentBranchId))) {
         return {
           ok: false,
           error: args.doctorId
@@ -467,7 +462,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         data: {
           id: uid(),
           clinicId,
-          branchId: ctx.branchScope?.branchId || patient.branchId || null,
+          branchId: appointmentBranchId,
           patientId: patient.id,
           doctorId,
           date: new Date(date),
@@ -614,14 +609,15 @@ export const TOOLS: Record<string, ToolSpec> = {
       const { findScheduleConflicts, parseMeta, serializeAppointment } = await import('../../crm/appointmentMeta.js');
       const existing = await prisma.appointment.findFirst({
         where: { ...scopedId(clinicId, String(args.appointmentId)), ...appointmentBranchWhere(ctx) },
-        include: { patient: { select: { firstName: true, lastName: true } } },
+        include: { patient: { select: { firstName: true, lastName: true, branchId: true } } },
       });
       if (!existing) return { ok: false, error: 'Запись не найдена' };
 
       const date = String(args.date);
       const time = String(args.time);
       const doctorId = String(args.doctorId || existing.doctorId);
-      if (!(await resolveAppointmentDoctor(doctorId, clinicId))) {
+      const appointmentBranchId = ctx.branchScope?.branchId || existing.branchId || existing.patient?.branchId || null;
+      if (!(await resolveAppointmentDoctor(doctorId, clinicId, appointmentBranchId))) {
         return { ok: false, error: 'Указанный пользователь не является врачом в этой клинике' };
       }
       const name = existing.patient
@@ -667,7 +663,7 @@ export const TOOLS: Record<string, ToolSpec> = {
 
       const appointment = await prisma.appointment.update({
         where: { id: existing.id },
-        data: { date: new Date(date), time, doctorId, ...(ctx.branchScope?.branchId ? { branchId: ctx.branchScope.branchId } : {}) },
+        data: { date: new Date(date), time, doctorId, ...(appointmentBranchId ? { branchId: appointmentBranchId } : {}) },
         include: { patient: { select: { id: true, firstName: true, lastName: true, phone: true } } },
       });
       return { ok: true, data: serializeAppointment(appointment), navigate: '/crm/schedule' };

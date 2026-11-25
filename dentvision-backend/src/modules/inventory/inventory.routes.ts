@@ -36,9 +36,9 @@ async function getBranchContext(req: AuthRequest, clinicId: string) {
 }
 
 function scopedWhere(context: NonNullable<Awaited<ReturnType<typeof resolveInventoryBranchContext>>>) {
-  return context.organizationWide
-    ? { clinicId: context.clinicId }
-    : { clinicId: context.clinicId, branchId: { in: context.branchIds } };
+  // Organization-wide authority means every ACTIVE branch, not archived stock.
+  // resolveInventoryBranchContext rebuilds this allow-list from current IAM.
+  return { clinicId: context.clinicId, branchId: { in: context.branchIds } };
 }
 
 async function resolveCreateBranch(req: AuthRequest, clinicId: string) {

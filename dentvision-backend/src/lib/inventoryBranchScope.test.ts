@@ -117,6 +117,10 @@ describe('inventory route selected-branch contract', () => {
     expect(source).toContain('if (!branchId || !context.branchIds.includes(branchId)) return null;');
   });
 
+  it('restricts organization-wide reads to the currently active branch allow-list', () => {
+    expect(source).toContain('return { clinicId: context.clinicId, branchId: { in: context.branchIds } };');
+  });
+
   it('scopes item reads, movements, adjustments and deletes through scopedWhere', () => {
     expect(source).toContain('prisma.inventoryItem.findMany({ where,');
     expect(source).toContain('where: { id, ...scopedWhere(context) }');

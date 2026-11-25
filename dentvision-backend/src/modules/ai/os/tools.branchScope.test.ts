@@ -61,6 +61,11 @@ describe('AI clinic tools — branch filtering allow-list', () => {
     expect(candidateLookup).toContain('...appointmentBranchWhere(ctx)');
   });
 
+  it('validates both creation and rescheduling doctors against the resolved appointment branch', () => {
+    expect(toolBlock('createAppointment')).toContain('resolveAppointmentDoctor(doctorId, clinicId, appointmentBranchId)');
+    expect(toolBlock('rescheduleAppointment')).toContain('resolveAppointmentDoctor(doctorId, clinicId, appointmentBranchId)');
+  });
+
   it('does not allow unfiltered clinic-wide tools for narrow branch contexts', () => {
     for (const tool of [
       'getPromotions',

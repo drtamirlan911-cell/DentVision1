@@ -116,7 +116,9 @@ export async function getAvailableSlots(
   const day = new Date(`${date}T12:00:00.000Z`);
   if (!isWorkingDay(day, settings)) return { date, workingDay: false, slots: [] };
 
-  const branchFilter = branchId ? { branchId } : {};
+  // Legacy unassigned rows may belong to a doctor working across branches.
+  // They must block the same slot in every branch until their branch is resolved.
+  const branchFilter = branchId ? { OR: [{ branchId }, { branchId: null }] } : {};
   const dayStart = new Date(`${date}T00:00:00.000Z`);
   const dayEnd = new Date(`${date}T23:59:59.999Z`);
 
@@ -215,7 +217,7 @@ export async function requestAppointment(input: RequestAppointmentInput) {
     (prisma as any).appointment.findFirst({
       where: {
         clinicId: input.clinicId,
-        branchId: patientBranchId,
+        OR: [{ branchId: patientBranchId }, { branchId: null }],
         date: { gte: dayStart, lte: dayEnd },
         time: input.time,
         status: { notIn: ['cancelled', 'no_show'] },
@@ -225,7 +227,7 @@ export async function requestAppointment(input: RequestAppointmentInput) {
     (prisma as any).booking.findFirst({
       where: {
         clinicId: input.clinicId,
-        branchId: patientBranchId,
+        OR: [{ branchId: patientBranchId }, { branchId: null }],
         date: dayStart,
         time: input.time,
         status: { in: ['pending', 'confirmed'] },

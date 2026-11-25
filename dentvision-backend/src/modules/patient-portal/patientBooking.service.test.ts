@@ -116,8 +116,8 @@ describe('getAvailableSlots', () => {
 
     await getAvailableSlots('clinic-1', '2026-08-17', null, 'branch-1');
 
-    expect(appointmentFindMany.mock.calls[0][0].where).toMatchObject({ branchId: 'branch-1' });
-    expect(bookingFindMany.mock.calls[0][0].where).toMatchObject({ branchId: 'branch-1' });
+    expect(appointmentFindMany.mock.calls[0][0].where.OR).toEqual([{ branchId: 'branch-1' }, { branchId: null }]);
+    expect(bookingFindMany.mock.calls[0][0].where.OR).toEqual([{ branchId: 'branch-1' }, { branchId: null }]);
     expect(clinicMemberFindMany.mock.calls[0][0].where).toMatchObject({
       clinicId: 'clinic-1',
       branchId: 'branch-1',
@@ -231,8 +231,18 @@ describe('requestAppointment', () => {
 
     await requestAppointment(baseInput);
 
-    expect(appointmentFindFirst.mock.calls[0][0].where).toMatchObject({ branchId: 'branch-1' });
-    expect(bookingFindFirst.mock.calls[0][0].where).toMatchObject({ branchId: 'branch-1' });
+    expect(appointmentFindFirst.mock.calls[0][0].where.OR).toEqual([{ branchId: 'branch-1' }, { branchId: null }]);
+    expect(bookingFindFirst.mock.calls[0][0].where.OR).toEqual([{ branchId: 'branch-1' }, { branchId: null }]);
+  });
+
+  it('blocks an unresolved legacy booking for the requested doctor in every branch', async () => {
+    patientFindUnique.mockResolvedValueOnce(PATIENT);
+    clinicFindUnique.mockResolvedValueOnce(OPEN_CLINIC);
+    appointmentFindFirst.mockResolvedValueOnce(null);
+    bookingFindFirst.mockResolvedValueOnce({ id: 'legacy-unassigned-booking' });
+    await expect(requestAppointment({ ...baseInput, doctorId: 'doctor-1' })).rejects.toMatchObject({ code: 'BAD_STATUS' });
+    expect(bookingFindFirst.mock.calls[0][0].where).toMatchObject({ OR: [{ branchId: 'branch-1' }, { branchId: null }], doctorId: 'doctor-1' });
+    expect(bookingCreate).not.toHaveBeenCalled();
   });
 
   it('rejects a doctor who is not assigned to the patient branch', async () => {
