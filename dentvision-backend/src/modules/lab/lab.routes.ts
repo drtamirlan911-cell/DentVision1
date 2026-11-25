@@ -70,18 +70,21 @@ export function isDentalLabTransitionAllowed(from: string, to: string): boolean 
 interface VerifiedLabBranchScope {
   where: Record<string, unknown>;
   branchIds: string[] | null;
+  /** Explicitly selected branch; null is an organization-wide context. */
+  selectedBranchId: string | null;
   /** False when the actor has no verified active branch or organization scope. */
   configured: boolean;
 }
 
 async function branchScopedLabOrder(req: AuthRequest, clinicId: string): Promise<VerifiedLabBranchScope> {
   if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN') {
-    return { where: {}, branchIds: null, configured: true };
+    return { where: {}, branchIds: null, selectedBranchId: null, configured: true };
   }
   if (!req.user?.id || req.user.clinicId !== clinicId) {
     return {
       where: { patient: { branchId: '__NO_BRANCH_ACCESS__' } },
       branchIds: [],
+      selectedBranchId: null,
       configured: false,
     };
   }
@@ -101,24 +104,29 @@ async function branchScopedLabOrder(req: AuthRequest, clinicId: string): Promise
   }
 
   const organizationWide = access.roleScope === 'ORGANIZATION' && access.branchId === null;
-  const branchIds = access.branchId ? [access.branchId] : access.allowedBranchIds;
+  const selectedBranchId = access.branchId;
+  const branchIds = selectedBranchId ? [selectedBranchId] : access.allowedBranchIds;
   // Organization-wide users have no branch restriction. Do not pass their
   // branch inventory as a write allow-list: legacy patients may have branchId=null.
   return {
+    // LabOrder owns its branch directly so name-only/patientless orders remain
+    // visible only to the branch that created them. The migration backfills
+    // proven legacy patient branches and leaves unprovable rows organization-only.
     where: organizationWide
       ? {}
       : branchIds.length
-        ? { patient: { branchId: { in: branchIds } } }
-        : { patient: { branchId: '__NO_BRANCH_ACCESS__' } },
+        ? { branchId: { in: branchIds } }
+        : { branchId: '__NO_BRANCH_ACCESS__' },
     // An unfiltered organization role may write to legacy patient records with
     // branchId=null. Narrow roles receive only their verified active branches.
     branchIds: organizationWide ? null : branchIds,
+    selectedBranchId,
     configured: organizationWide || branchIds.length > 0,
   };
 }
 
 function serializeLabOrder(order: {
-  id: string; clinicId: string; patientId: string | null; labName: string | null;
+  id: string; clinicId: string; patientId: string | null; branchId?: string | null; labName: string | null;
   status: string; type: string | null; notes: string | null; files: unknown;
   deadline: Date | null; price: number | null; serviceId?: string | null; serviceNameSnapshot?: string | null; servicePriceSnapshot?: number | null; createdAt: Date; updatedAt: Date;
   doctorId?: string | null;
@@ -126,7 +134,7 @@ function serializeLabOrder(order: {
 }) {
   const meta = (order.files as { meta?: LabOrderMeta } | null)?.meta || {};
   return {
-    id: order.id, clinicId: order.clinicId, patientId: order.patientId,
+    id: order.id, clinicId: order.clinicId, patientId: order.patientId, branchId: order.branchId ?? null,
     patientName: meta.patientName || order.labName || '', labType: order.type,
     material: meta.material || '', toothNumber: meta.toothNumber || '', shade: meta.shade || '',
     laboratoryId: meta.laboratoryId || null, technicianId: meta.technicianId || null,
@@ -194,8 +202,18 @@ export interface LabOrderBody {
 }
 export interface PreparedLabOrder { error?: string; data?: Record<string, unknown>; }
 
-export async function prepareLabOrderWrite(clinicId: string, body: LabOrderBody, existingMeta: LabOrderMeta = {}, branchIds: string[] | null = null): Promise<PreparedLabOrder> {
-  const { patientId, patientName, labType, material, toothNumber, shade, dueDate, notes, status, price, remakeOfId, appointmentId, tryInDate, doctorId, laboratoryId, technicianId, treatmentCaseId } = body;
+export async function prepareLabOrderWrite(
+  clinicId: string,
+  body: LabOrderBody,
+  existingMeta: LabOrderMeta = {},
+  branchIds: string[] | null = null,
+  selectedBranchId: string | null = null,
+  existingOrder?: { patientId: string | null; branchId: string | null },
+): Promise<PreparedLabOrder> {
+  const { patientName, labType, material, toothNumber, shade, dueDate, notes, status, price, remakeOfId, appointmentId, tryInDate, doctorId, laboratoryId, technicianId, treatmentCaseId } = body;
+  const patientId = body.patientId !== undefined
+    ? String(body.patientId).trim() || null
+    : existingOrder?.patientId ?? null;
   if (doctorId) {
     // Canonical Organization → Person → PersonRole is authoritative for clinic
     // membership once the clinic has been migrated. Legacy ClinicMember is only
@@ -206,10 +224,20 @@ export async function prepareLabOrderWrite(clinicId: string, body: LabOrderBody,
       return { error: 'Указанный врач не найден в этой клинике' };
     }
   }
-  if (patientId && branchIds !== null) {
-    const patient = await prisma.patient.findFirst({ where: { id: patientId, clinicId, branchId: branchIds.length > 0 ? { in: branchIds } : '__NO_BRANCH_ACCESS__' }, select: { id: true } });
+  let patientBranchId: string | null = null;
+  if (patientId) {
+    const patient = await prisma.patient.findFirst({
+      where: {
+        id: patientId,
+        clinicId,
+        ...(branchIds !== null ? { branchId: { in: branchIds } } : {}),
+      },
+      select: { id: true, branchId: true },
+    });
     if (!patient) return { error: 'Пациент недоступен в текущем филиале' };
+    patientBranchId = patient.branchId ?? null;
   }
+  const branchId = patientBranchId || selectedBranchId || existingOrder?.branchId || null;
   if (laboratoryId) {
     const lab = await prisma.laboratory.findUnique({ where: { id: laboratoryId }, select: { id: true, name: true } });
     if (!lab) return { error: 'Указанная лаборатория не найдена' };
@@ -223,7 +251,7 @@ export async function prepareLabOrderWrite(clinicId: string, body: LabOrderBody,
     if (!rows[0] || rows[0].clinicId !== clinicId || (patientId && rows[0].patientId !== patientId)) return { error: 'Клинический кейс не принадлежит пациенту или клинике' };
   }
   const meta = buildMeta({ patientName, material, toothNumber, shade, remakeOfId, appointmentId, tryInDate, laboratoryId, technicianId, treatmentCaseId }, existingMeta);
-  return { data: { patientId: patientId || null, ...(doctorId ? { doctorId } : {}), type: labType || null, notes: notes || null, status: status || 'pending', deadline: dueDate ? new Date(dueDate) : null, price: price ?? null, files: { meta } } };
+  return { data: { patientId, branchId, ...(doctorId ? { doctorId } : {}), type: labType || null, notes: notes || null, status: status || 'pending', deadline: dueDate ? new Date(dueDate) : null, price: price ?? null, files: { meta } } };
 }
 
 labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
@@ -255,7 +283,14 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
         if (existingMeta.laboratoryId) return { kind: 'partner_owned' as const };
         if (body.status && body.status !== existing.status) return { kind: 'status_endpoint_required' as const };
 
-        const prepared = await prepareLabOrderWrite(clinicId, { ...writeBody, status: existing.status }, existingMeta, branchIds);
+        const prepared = await prepareLabOrderWrite(
+          clinicId,
+          { ...writeBody, status: existing.status },
+          existingMeta,
+          branchIds,
+          branchScope.selectedBranchId,
+          { patientId: existing.patientId, branchId: existing.branchId },
+        );
         if (prepared.error) return { kind: 'invalid' as const, error: prepared.error };
         const data = prepared.data as any;
         // POST is a specification/details editor, not a lifecycle transition endpoint.
@@ -274,7 +309,7 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
       order = outcome.order;
       await writeAuditLog({ action: 'LAB_ORDER_UPDATED', entity: 'lab_order', entityId: order.id, details: { fields: Object.keys(body).filter((field) => field !== 'status') }, userId: req.user!.id, clinicId });
     } else {
-      const prepared = await prepareLabOrderWrite(clinicId, writeBody, {}, branchIds);
+      const prepared = await prepareLabOrderWrite(clinicId, writeBody, {}, branchIds, branchScope.selectedBranchId);
       if (prepared.error) return res.status(400).json({ ok: false, error: prepared.error } satisfies ApiResponse);
       const data = prepared.data as any;
       data.status = 'pending';
