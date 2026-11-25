@@ -111,7 +111,8 @@ test.describe('RBAC - Role-Based Access Control', () => {
   test('RBAC-007: DOCTOR can read inventory → 200', async () => {
     const token = tokens['doctor-a'];
     const res = await api.get(`${BASE_URL}/api/inventory`, { headers: authHeaders(token) });
-    expect(res.status()).toBe(200);
+    const responseBody = await res.text();
+    expect(res.status(), `RBAC-007 inventory read failed: ${responseBody}`).toBe(200);
   });
 
   test('RBAC-008: STUDENT cannot delete users → 403', async () => {

@@ -24,7 +24,8 @@ describe('patient portal online booking branch contract', () => {
     expect(source).toContain("select: { clinicId: true, branchId: true }");
     expect(source).toContain("code: 'PATIENT_BRANCH_UNASSIGNED'");
     expect(source).toContain("code: 'PATIENT_BRANCH_INACTIVE'");
-    expect(source).toContain('portalSvc.getAvailableSlots(clinicId, date, doctorId, branchId)');
+    expect(source).toContain('portalSvc.isActiveClinicBranch(clinicId, branchId)');
+    expect(source).toContain('portalSvc.getAvailableSlots(clinicId, date, doctorId, branchId, patientId)');
   });
 
   it('does not accept a branch from the patient request body', () => {
@@ -32,5 +33,13 @@ describe('patient portal online booking branch contract', () => {
     const route = source.slice(start);
     expect(route).toContain('portalSvc.requestAppointment({ patientId, clinicId');
     expect(route).not.toContain('branchId: body.branchId');
+  });
+});
+
+
+describe('patient portal canonical branch validation', () => {
+  it('accepts an active branch linked through the canonical clinic organization', () => {
+    expect(source).toContain('portalSvc.isActiveClinicBranch(clinicId, branchId)');
+    expect(source).toContain('portalSvc.getAvailableSlots(clinicId, date, doctorId, branchId, patientId)');
   });
 });
