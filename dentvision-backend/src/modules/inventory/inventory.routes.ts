@@ -8,7 +8,7 @@ import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.j
 import { recordMovement, isMovementApplied } from './ledger.js';
 import { SUPPLY_CATALOG, SUPPLY_CATEGORIES } from './supplyCatalog.js';
 import { normalizeItemName } from './orderRestock.js';
-import { resolveInventoryBranchContext, assertInventoryBranch } from '../../lib/inventoryBranchScope.js';
+import { resolveInventoryBranchContext } from '../../lib/inventoryBranchScope.js';
 
 const inventoryRouter = Router();
 
@@ -26,12 +26,15 @@ function nonNegativeNumber(v: unknown): number | undefined {
   return n;
 }
 
-async function getBranchContext(req: AuthRequest, clinicId: string) {
+async function getBranchContext(req: AuthRequest, clinicId: string, requestedBranchId?: string | null) {
   const user = req.user;
   if (!user?.id) return null;
+  const selectedBranchId = requestedBranchId === undefined
+    ? user.branchId ?? user.assignedBranchId ?? null
+    : requestedBranchId;
   return resolveInventoryBranchContext(user.id, clinicId, String(user.role || ''), {
     organizationId: user.organizationId,
-    requestedBranchId: user.branchId,
+    requestedBranchId: selectedBranchId,
   });
 }
 
@@ -42,16 +45,17 @@ function scopedWhere(context: NonNullable<Awaited<ReturnType<typeof resolveInven
 }
 
 async function resolveCreateBranch(req: AuthRequest, clinicId: string) {
-  const context = await getBranchContext(req, clinicId);
+  const requested = typeof req.body?.branchId === 'string' && req.body.branchId.trim()
+    ? req.body.branchId.trim()
+    : undefined;
+  // A requested target is re-resolved through canonical IAM. Organization
+  // owners may create in any active branch they manage; narrow roles can only
+  // select a branch already assigned to them. Never silently choose branchIds[0].
+  const context = await getBranchContext(req, clinicId, requested);
   if (!context || !context.branchIds.length) return null;
 
-  const requested = typeof req.body?.branchId === 'string' ? req.body.branchId : null;
-  const branchId = requested || context.branchId || (context.organizationWide ? context.branchIds[0] : null);
-  if (!branchId || !context.branchIds.includes(branchId)) return null;
-  // A selected organization role is no longer organization-wide for writes:
-  // the request cannot silently move/create stock in a different branch.
-  if (!context.organizationWide && context.branchId !== branchId) return null;
-  if (!(await assertInventoryBranch(branchId, clinicId))) return null;
+  const branchId = requested || context.branchId;
+  if (!branchId || !context.branchIds.includes(branchId) || context.branchId !== branchId) return null;
   return { context, branchId };
 }
 
@@ -151,11 +155,22 @@ inventoryRouter.patch('/:id', requirePermission('inventory.write'), async (req: 
     const { name, category, quantity, minimum, price, unit, supplier, sku, productId, autoRestock, expiryDate, branchId } = req.body;
     const existing = await prisma.inventoryItem.findFirst({ where: { id, ...scopedWhere(context) }, select: { id: true, quantity: true, branchId: true } });
     if (!existing) { res.status(404).json({ ok: false, error: 'Позиция склада не найдена' }); return; }
-    if (branchId !== undefined && (!context.organizationWide || !(await assertInventoryBranch(branchId, clinicId)))) { res.status(403).json({ ok: false, error: 'Недопустимый филиал' }); return; }
-    if (branchId !== undefined && !context.branchIds.includes(branchId)) { res.status(403).json({ ok: false, error: 'Недопустимый филиал' }); return; }
+    let targetBranchId: string | undefined;
+    if (branchId !== undefined) {
+      if (typeof branchId !== 'string' || !branchId.trim()) { res.status(403).json({ ok: false, error: 'Недопустимый филиал' }); return; }
+      const normalizedBranchId = branchId.trim();
+      // Resolve a transfer destination independently. The current item must
+      // still be visible in the caller's selected branch, while the destination
+      // must be an active branch permitted by the caller's canonical IAM role.
+      const targetContext = await getBranchContext(req, clinicId, normalizedBranchId);
+      if (!targetContext || targetContext.branchId !== normalizedBranchId || !targetContext.branchIds.includes(normalizedBranchId)) {
+        res.status(403).json({ ok: false, error: 'Недопустимый филиал' }); return;
+      }
+      targetBranchId = normalizedBranchId;
+    }
     const qty = nonNegativeNumber(quantity), min = nonNegativeNumber(minimum), prc = nonNegativeNumber(price);
     if (Number.isNaN(qty) || Number.isNaN(min) || Number.isNaN(prc)) { res.status(400).json({ ok: false, error: 'quantity, minimum и price должны быть числом ≥ 0' }); return; }
-    await prisma.inventoryItem.update({ where: { id }, data: { ...(name !== undefined && { name }), ...(category !== undefined && { category }), ...(min !== undefined && { minimum: min }), ...(prc !== undefined && { price: prc }), ...(unit !== undefined && { unit }), ...(supplier !== undefined && { supplier }), ...(sku !== undefined && { sku: sku || null }), ...(productId !== undefined && { productId: productId || null }), ...(autoRestock !== undefined && { autoRestock: autoRestock !== false }), ...(expiryDate !== undefined && { expiryDate: parseExpiry(expiryDate) ?? null }), ...(branchId !== undefined && { branchId }) } });
+    await prisma.inventoryItem.update({ where: { id }, data: { ...(name !== undefined && { name }), ...(category !== undefined && { category }), ...(min !== undefined && { minimum: min }), ...(prc !== undefined && { price: prc }), ...(unit !== undefined && { unit }), ...(supplier !== undefined && { supplier }), ...(sku !== undefined && { sku: sku || null }), ...(productId !== undefined && { productId: productId || null }), ...(autoRestock !== undefined && { autoRestock: autoRestock !== false }), ...(expiryDate !== undefined && { expiryDate: parseExpiry(expiryDate) ?? null }), ...(targetBranchId !== undefined && { branchId: targetBranchId }) } });
     if (qty !== undefined && qty !== existing.quantity) await prisma.$transaction((tx) => recordMovement(tx, { clinicId, itemId: id, delta: qty - existing.quantity, reason: 'correction', note: 'Правка остатка вручную', userId: req.user?.id || null }));
     const item = await prisma.inventoryItem.findUnique({ where: { id } });
     res.json({ ok: true, data: item });
