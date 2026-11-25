@@ -103,28 +103,66 @@ async function listBookableDoctorsForBranch(clinicId: string, branchId: string):
   }));
 }
 
+/** Check a branch against either the canonical clinic organization or its legacy clinic link. */
+export async function isActiveClinicBranch(clinicId: string, branchId: string): Promise<boolean> {
+  if (!clinicId || !branchId) return false;
+  const organization = await (prisma as any).organization.findFirst({
+    where: { originalType: 'Clinic', originalId: clinicId },
+    select: { id: true, archivedAt: true },
+  });
+  if (organization?.archivedAt) return false;
+  const branchScope = organization?.id
+    ? { OR: [{ clinicId }, { clinicId: null, organizationId: organization.id }] }
+    : { clinicId };
+  const branch = await (prisma as any).branch.findFirst({
+    where: { id: branchId, active: true, ...branchScope },
+    select: { id: true },
+  });
+  return Boolean(branch);
+}
+
 export interface AvailableSlotsResult { date: string; workingDay: boolean; slots: string[]; }
 export async function getAvailableSlots(
   clinicId: string,
   date: string,
   doctorId?: string | null,
   branchId?: string | null,
+  patientId?: string | null,
 ): Promise<AvailableSlotsResult> {
   const clinic = await (prisma as any).clinic.findUnique({ where: { id: clinicId }, select: { settings: true } });
   if (!clinic) throw new PortalActionError('Клиника не найдена', 'NOT_FOUND');
+  let effectiveBranchId = branchId ? String(branchId) : null;
+  if (patientId) {
+    const patient = await (prisma as any).patient.findUnique({
+      where: { id: patientId },
+      select: { clinicId: true, branchId: true },
+    });
+    if (!patient || (patient.clinicId && patient.clinicId !== clinicId)) {
+      throw new PortalActionError('Карта пациента не найдена', 'NOT_FOUND');
+    }
+    const linkedBranchId = patient.branchId ? String(patient.branchId) : null;
+    if (!linkedBranchId) throw new PortalActionError('Филиал карточки пациента ещё не определён.', 'BAD_STATUS');
+    if (effectiveBranchId && effectiveBranchId !== linkedBranchId) {
+      throw new PortalActionError('Филиал запроса не совпадает с филиалом карточки пациента.', 'NOT_FOUND');
+    }
+    effectiveBranchId = linkedBranchId;
+  }
+  if (effectiveBranchId && !(await isActiveClinicBranch(clinicId, effectiveBranchId))) {
+    throw new PortalActionError('Филиал карточки пациента недоступен для записи.', 'BAD_STATUS');
+  }
   const settings = mergeClinicSettings(clinic.settings);
   const day = new Date(`${date}T12:00:00.000Z`);
   if (!isWorkingDay(day, settings)) return { date, workingDay: false, slots: [] };
 
   // Legacy unassigned rows may belong to a doctor working across branches.
   // They must block the same slot in every branch until their branch is resolved.
-  const branchFilter = branchId && !doctorId ? { OR: [{ branchId }, { branchId: null }] } : {};
+  const branchFilter = effectiveBranchId && !doctorId ? { OR: [{ branchId: effectiveBranchId }, { branchId: null }] } : {};
   const dayStart = new Date(`${date}T00:00:00.000Z`);
   const dayEnd = new Date(`${date}T23:59:59.999Z`);
 
   let doctorCount: number;
-  if (branchId) {
-    const bookableDoctors = await listBookableDoctorsForBranch(clinicId, branchId);
+  if (effectiveBranchId) {
+    const bookableDoctors = await listBookableDoctorsForBranch(clinicId, effectiveBranchId);
     if (doctorId) {
       const selectedDoctor = bookableDoctors.find((doctor) => doctor.id === doctorId);
       if (!selectedDoctor) throw new PortalActionError('Врач не доступен в филиале пациента', 'NOT_FOUND');
@@ -132,9 +170,9 @@ export async function getAvailableSlots(
         userId: doctorId,
         clinicId,
         role: selectedDoctor.role,
-        requestedBranchId: branchId,
+        requestedBranchId: effectiveBranchId,
       });
-      if (!doctorAccess || doctorAccess.branchId !== branchId) {
+      if (!doctorAccess || doctorAccess.branchId !== effectiveBranchId) {
         throw new PortalActionError('Врач не доступен в филиале пациента', 'NOT_FOUND');
       }
       doctorCount = 1;
@@ -199,11 +237,9 @@ export async function requestAppointment(input: RequestAppointmentInput) {
   const patientBranchId = patient.branchId ? String(patient.branchId) : null;
   if (!patientBranchId) throw new PortalActionError('Филиал карточки пациента ещё не определён. Обратитесь в клинику.', 'BAD_STATUS');
 
-  const activeBranch = await (prisma as any).branch.findFirst({
-    where: { id: patientBranchId, clinicId: input.clinicId, active: true },
-    select: { id: true },
-  });
-  if (!activeBranch) throw new PortalActionError('Филиал карточки пациента недоступен для записи.', 'BAD_STATUS');
+  if (!(await isActiveClinicBranch(input.clinicId, patientBranchId))) {
+    throw new PortalActionError('Филиал карточки пациента недоступен для записи.', 'BAD_STATUS');
+  }
 
   const settings = mergeClinicSettings(clinic.settings);
   if (settings.onlineBookingEnabled === false) throw new PortalActionError('Онлайн-запись в этой клинике сейчас недоступна', 'BAD_STATUS');
@@ -245,10 +281,15 @@ export async function requestAppointment(input: RequestAppointmentInput) {
 
   let doctorName: string | null = null;
   if (input.doctorId) {
+    // Use the same canonical/legacy provider list and role for discovery and
+    // submission. Owner-only clinicians must not be shown slots they cannot book.
+    const bookableDoctors = await listBookableDoctorsForBranch(input.clinicId, patientBranchId);
+    const selectedDoctor = bookableDoctors.find((entry) => entry.id === input.doctorId);
+    if (!selectedDoctor) throw new PortalActionError('Врач не доступен в филиале пациента', 'NOT_FOUND');
     const doctorAccess = await resolveClinicBranchAccess({
       userId: input.doctorId,
       clinicId: input.clinicId,
-      role: 'DOCTOR',
+      role: selectedDoctor.role,
       requestedBranchId: patientBranchId,
     });
     if (!doctorAccess || doctorAccess.branchId !== patientBranchId) {

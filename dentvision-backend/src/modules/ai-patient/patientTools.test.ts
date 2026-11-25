@@ -84,3 +84,14 @@ describe('the patient registry is separate from the staff one', () => {
     ).rejects.toThrow('APPOINTMENT_ID_REQUIRED');
   });
 });
+
+
+describe('patient AI slot lookup', () => {
+  it('passes the linked patient identity so slots are resolved in their branch', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/ai-patient/patientTools.ts'),
+      'utf8',
+    );
+    expect(source).toContain('getAvailableSlots(ctx.clinicId, date, (args.doctorId as string) || null, null, ctx.patientId)');
+  });
+});
