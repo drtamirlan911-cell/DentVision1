@@ -48,7 +48,7 @@ export async function resolvePatientBranchContext(
     const visibleBranchIds = access.branchId ? [access.branchId] : access.allowedBranchIds;
     return { clinicId, userId, role, branchId: access.branchId, allowedBranchIds: access.allowedBranchIds, scope: { kind, branchIds: visibleBranchIds } };
   }
-  const authorizedBranchIds = optionsOrAuthorizedBranchIds;
+  const authorizedBranchIds = optionsOrAuthorizedBranchIds as readonly string[];
   // Start from the branch allow-list rebuilt by authenticate from canonical
   // BranchMember + active legacy assignments. Recheck the exact legacy clinic
   // membership here as a compatibility path for older E2E/deployed sessions
