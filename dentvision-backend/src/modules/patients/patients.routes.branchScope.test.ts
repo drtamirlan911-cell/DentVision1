@@ -8,12 +8,20 @@ describe('patients route branch scope contract', () => {
   it('uses the shared patient branch resolver', () => {
     expect(source).toContain("from '../../lib/patientBranchScope.js'");
     expect(source).toContain('resolvePatientBranchContext');
-    expect(source).toContain('req.user!.branchIds ?? []');
-    expect(source).toContain('req.user!.branchId ?? req.user!.assignedBranchId ?? null');
+    expect(source).toContain('organizationId: req.user?.organizationId');
+    expect(source).toContain('requestedBranchId: req.user?.branchId ?? req.user?.assignedBranchId ?? null');
+    expect(source).not.toContain('req.user!.branchIds');
     expect(source).toContain('getPatientIdsForBranchScope');
   });
-  it('uses the explicitly selected branch before any compatibility assignment hint', () => {
-    expect(source).toContain('req.user!.branchId ?? req.user!.assignedBranchId ?? null');
+  it('resolves selected branch context through canonical IAM instead of trusting a JWT branch array', () => {
+    expect(source).toContain('requestedBranchId: req.user?.branchId ?? req.user?.assignedBranchId ?? null');
+    expect(source).not.toContain('req.user!.branchIds');
+  });
+
+  it('does not silently choose the first branch for organization-wide patient creation', () => {
+    expect(source).toContain('targetBranchId = context.branchId && context.scope.branchIds.includes(context.branchId)');
+    expect(source).toContain(': null;');
+    expect(source).not.toContain('context.scope.branchIds[0] ?? null');
   });
 
   it('filters patient lists by branch at query construction time', () => {
