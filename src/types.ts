@@ -220,6 +220,7 @@ export interface ReceiptItem {
 export interface Receipt {
   id: string
   clinicId?: string
+  branchId?: string | null
   patientId?: string
   patientName?: string
   doctorId?: string
