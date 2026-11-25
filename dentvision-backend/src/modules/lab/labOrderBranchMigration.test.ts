@@ -10,8 +10,22 @@ const schema = readFileSync(
   resolve(process.cwd(), 'dentvision-backend/prisma/schema.prisma'),
   'utf8',
 );
+const ciWorkflow = readFileSync(
+  resolve(process.cwd(), '.github/workflows/ci.yml'),
+  'utf8',
+);
 
 describe('lab order branch ownership migration', () => {
+  it('applies the database trigger migration in the isolated E2E bootstrap before backend startup', () => {
+    const migrationStep = ciWorkflow.indexOf('- name: Apply dental-lab branch ownership migration to E2E database');
+    const backendStep = ciWorkflow.indexOf('- name: Start backend', migrationStep);
+    expect(migrationStep).toBeGreaterThanOrEqual(0);
+    expect(backendStep).toBeGreaterThan(migrationStep);
+    expect(ciWorkflow.slice(migrationStep, backendStep)).toContain(
+      'prisma/migrations/20261125130000_lab_order_branch_scope/migration.sql',
+    );
+  });
+
   it('adds a nullable branch foreign key and indexes the scoped clinic queue', () => {
     expect(migration).toContain('ADD COLUMN IF NOT EXISTS "branch_id" TEXT');
     expect(migration).toContain('REFERENCES "branches"("id")');
