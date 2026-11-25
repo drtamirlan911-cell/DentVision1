@@ -19,7 +19,10 @@ describe('dental lab branch isolation contract', () => {
     expect(source).toContain('defaultWriteBranchId');
     expect(source).toContain('branchId: order.branchId ?? null');
     expect(source).toContain('branchScope.selectedBranchId ?? branchScope.defaultWriteBranchId');
-    expect((source.match(/prepareLabOrderWrite\(/g) || [])).toHaveLength(2);
+    const upsertStart = source.indexOf("labRouter.post('/',");
+    const statusStart = source.indexOf("labRouter.patch('/:id/status'", upsertStart);
+    const upsertSource = source.slice(upsertStart, statusStart);
+    expect((upsertSource.match(/prepareLabOrderWrite\(/g) || [])).toHaveLength(2);
     expect(source).toContain('branchScope.selectedBranchId,');
     expect(source).toContain('branchScope.selectedBranchId ?? branchScope.defaultWriteBranchId,');
     expect(source).toContain('{ patientId: existing.patientId, branchId: existing.branchId },');
