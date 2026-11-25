@@ -31,7 +31,7 @@ async function getBranchContext(req: AuthRequest, clinicId: string) {
   if (!user?.id) return null;
   return resolveInventoryBranchContext(user.id, clinicId, String(user.role || ''), {
     organizationId: user.organizationId,
-    requestedBranchId: user.branchId,
+    requestedBranchId: user.branchId ?? user.assignedBranchId ?? null,
   });
 }
 

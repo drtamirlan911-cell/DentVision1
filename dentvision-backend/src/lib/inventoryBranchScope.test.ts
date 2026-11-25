@@ -107,7 +107,7 @@ describe('inventory route selected-branch contract', () => {
 
   it('passes the active organization and selected branch into the shared resolver', () => {
     expect(source).toContain('organizationId: user.organizationId');
-    expect(source).toContain('requestedBranchId: user.branchId');
+    expect(source).toContain('requestedBranchId: user.branchId ?? user.assignedBranchId ?? null');
     expect(source).not.toContain('context.branchIds[0] ||');
   });
 
