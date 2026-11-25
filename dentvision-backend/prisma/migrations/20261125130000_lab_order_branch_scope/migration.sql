@@ -10,10 +10,21 @@ CREATE INDEX IF NOT EXISTS "lab_orders_branch_id_idx"
 CREATE INDEX IF NOT EXISTS "lab_orders_clinic_branch_created_idx"
   ON "lab_orders"("clinicId", "branch_id", "createdAt" DESC);
 
-ALTER TABLE "lab_orders"
-  ADD CONSTRAINT "lab_orders_branch_id_fkey"
-  FOREIGN KEY ("branch_id") REFERENCES "branches"("id")
-  ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'lab_orders_branch_id_fkey'
+      AND conrelid = 'lab_orders'::regclass
+  ) THEN
+    ALTER TABLE "lab_orders"
+      ADD CONSTRAINT "lab_orders_branch_id_fkey"
+      FOREIGN KEY ("branch_id") REFERENCES "branches"("id")
+      ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END;
+$;
 
 -- Backfill only where the existing patient record proves the order's branch.
 -- Patientless orders are intentionally left NULL: their historical branch
