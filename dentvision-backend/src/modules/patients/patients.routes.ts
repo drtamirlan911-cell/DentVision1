@@ -24,6 +24,7 @@ import { ensurePatientAssignment, revokePatientAssignment, isAssignmentRole } fr
 import { isClinicMember } from '../../lib/orgContext.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 import { assertPatientBranchBelongsToClinic, canAccessPatientBranch, canManagePatientBranch, getPatientBranchId, getPatientIdsForBranchScope, resolvePatientBranchContext, setPatientBranch } from '../../lib/patientBranchScope.js';
+import { resolveUnambiguousWriteBranch } from '../../lib/clinicBranchAccess.js';
 
 export const patientsRouter = Router();
 patientsRouter.use(authenticate);
@@ -173,7 +174,7 @@ patientsRouter.post('/', requirePatientMutationPermission, guardPatientCreate, a
         // Require an explicit selection when the active context has no branch.
         targetBranchId = context.branchId && context.scope.branchIds.includes(context.branchId)
           ? context.branchId
-          : null;
+          : await resolveUnambiguousWriteBranch(context.scope.branchIds);
       }
     }else if(!targetBranchId)return res.status(403).json({ok:false,error:'Сотруднику не назначен филиал'} satisfies ApiResponse);
     if(!targetBranchId)return res.status(403).json({ok:false,error:'Нет активного филиала для создания пациента'} satisfies ApiResponse);
