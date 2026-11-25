@@ -117,7 +117,7 @@ export async function isActiveClinicBranch(clinicId: string, branchId: string): 
   if (organization?.archivedAt) return false;
 
   const clinicBranchScope = organization?.id
-    ? { OR: [{ clinicId }, { clinicId: null, organizationId: organization.id }] }
+    ? { OR: [{ organizationId: organization.id }, { organizationId: null, clinicId }] }
     : { clinicId };
   const branch = await (prisma as any).branch.findFirst({
     where: { id: branchId, active: true, ...clinicBranchScope },

@@ -196,8 +196,8 @@ describe('getAvailableSlots', () => {
         id: 'branch-canonical',
         active: true,
         OR: [
-          { clinicId: 'clinic-1' },
-          { clinicId: null, organizationId: 'org-1' },
+          { organizationId: 'org-1' },
+          { organizationId: null, clinicId: 'clinic-1' },
         ],
       },
       select: { id: true },
