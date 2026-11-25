@@ -17,7 +17,7 @@ describe('dental lab branch isolation contract', () => {
     expect(source).toContain('const selectedBranchId = access.branchId');
     expect(source).toContain('branchId: order.branchId ?? null');
     expect(source).toContain('prepareLabOrderWrite(clinicId, writeBody, {}, branchIds, branchScope.selectedBranchId)');
-    expect(source).toContain('prepareLabOrderWrite(clinicId, writeBody, {}, branchIds)');
+    expect(source).toContain('prepareLabOrderWrite(clinicId, writeBody, {}, branchIds, branchScope.selectedBranchId)');
     expect(source).toContain('__NO_BRANCH_ACCESS__');
     expect(source).toContain("if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN')");
     expect(source).toContain('configured: true');
@@ -31,7 +31,8 @@ describe('dental lab branch isolation contract', () => {
     const upsert = source.slice(upsertStart, statusStart);
     expect(upsert).toContain('FOR UPDATE');
     expect(upsert).toContain('tx.labOrder.findFirst({ where: { id, clinicId, ...branchScope.where } })');
-    expect(upsert).toContain('prepareLabOrderWrite(clinicId, { ...writeBody, status: existing.status }, existingMeta, branchIds)');
+    expect(upsert).toContain('branchScope.selectedBranchId');
+    expect(upsert).toContain('{ patientId: existing.patientId, branchId: existing.branchId }');
     expect(upsert.indexOf('FOR UPDATE')).toBeLessThan(upsert.indexOf('tx.labOrder.findFirst'));
     expect(upsert).toContain("if (existingMeta.laboratoryId) return { kind: 'partner_owned' as const }");
 
