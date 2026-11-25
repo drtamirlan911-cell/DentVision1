@@ -46,7 +46,9 @@ async function resolveCreateBranch(req: AuthRequest, clinicId: string) {
   if (!context || !context.branchIds.length) return null;
 
   const requested = typeof req.body?.branchId === 'string' ? req.body.branchId : null;
-  const branchId = requested || context.branchId || (context.organizationWide ? context.branchIds[0] : null);
+  // Organization-wide access permits an explicitly chosen target branch;
+  // it must not silently write stock into the first branch in an allow-list.
+  const branchId = requested || context.branchId || null;
   if (!branchId || !context.branchIds.includes(branchId)) return null;
   // A selected organization role is no longer organization-wide for writes:
   // the request cannot silently move/create stock in a different branch.
