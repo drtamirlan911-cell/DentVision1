@@ -107,7 +107,7 @@ export default function DentalLabMaterialsTab({
   });
   const ordersQuery = useQuery({
     queryKey: ['lab-platform', cacheScope, 'materials-orders'],
-    queryFn: getLabPlatformOrders,
+    queryFn: () => getLabPlatformOrders(),
     enabled: canConsume,
     refetchInterval: 30_000,
   });
