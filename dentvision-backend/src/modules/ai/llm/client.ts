@@ -114,6 +114,7 @@ export async function chatCompletion(request: LLMRequest): Promise<LLMResponse> 
     return { content: '', toolCalls: [], model: '', tier: 'free', tokensUsed: 0, finishReason: 'no_key' };
   }
 
+  const requiresVision = request.messages.some((item) => isChatMessage(item) && Boolean(item.imageUrl));
   const choice = await chooseOpenAIModel({
     task: request.task,
     text: request.text,
@@ -122,6 +123,7 @@ export async function chatCompletion(request: LLMRequest): Promise<LLMResponse> 
     round: request.round,
     toolsUsed: request.toolsUsed,
     escalate: request.escalate,
+    requiresVision,
   });
 
   const systemMessage = request.messages.find(
@@ -223,7 +225,7 @@ export async function chatCompletion(request: LLMRequest): Promise<LLMResponse> 
           .join(''),
         content,
       );
-  await recordModelUsage(choice.tier, tokens);
+  await recordModelUsage(choice.tier, tokens, choice.model);
 
   return {
     content,
