@@ -48,11 +48,28 @@ export async function resolveInventoryBranchContext(
 export async function assertInventoryBranch(
   branchId: string | null | undefined,
   clinicId: string,
+  organizationId?: string | null,
 ): Promise<boolean> {
-  if (!branchId) return false;
+  if (!branchId || !clinicId) return false;
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT id FROM branches
-    WHERE id = ${branchId} AND clinic_id = ${clinicId} AND active = true
+    WHERE id = ${branchId}
+      AND active = true
+      AND (
+        organization_id = ${organizationId ?? null}
+        OR (organization_id IS NULL AND clinic_id = ${clinicId})
+        OR (
+          organization_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1
+            FROM "organizations" o
+            WHERE o."id" = branches.organization_id
+              AND o."type" = 'CLINIC'
+              AND o."originalId" = ${clinicId}
+              AND o."archivedAt" IS NULL
+          )
+        )
+      )
     LIMIT 1
   `;
   return rows.length > 0;
