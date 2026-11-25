@@ -517,12 +517,14 @@ labPlatformRouter.post('/materials/:id/lots', async (req: AuthRequest, res) => {
       || unitCostMinor < 0n
       || (req.body?.supplierName !== undefined && supplierName.length > 120)
       || (req.body?.supplierLotNumber !== undefined && supplierLotNumber.length > 120)
-      || (req.body?.note !== undefined && req.body?.note !== null && note === null)) {
+      || (req.body?.note !== undefined && req.body?.note !== null && req.body?.note !== '' && note === null)) {
       return res.status(400).json({ ok: false, error: 'Проверьте номер партии, количество, закупочную цену и данные поставщика' } satisfies ApiResponse);
     }
     let expiresAt: Date | null = null;
     if (req.body?.expiresAt !== undefined && req.body?.expiresAt !== null && req.body?.expiresAt !== '') {
-      expiresAt = new Date(String(req.body.expiresAt));
+      const expiryDateInput = String(req.body.expiresAt).trim();
+      const validDateOnly = /^\\d{4}-\\d{2}-\\d{2}$/.test(expiryDateInput);
+      expiresAt = validDateOnly ? new Date(`${expiryDateInput}T23:59:59.999Z`) : new Date(Number.NaN);
       if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
         return res.status(400).json({ ok: false, error: 'Срок годности партии должен быть корректной будущей датой' } satisfies ApiResponse);
       }
@@ -635,7 +637,7 @@ labPlatformRouter.post('/orders/:id/material-consumptions', async (req: AuthRequ
     const note = validMaterialNote(req.body?.note);
     if (!orderId || !materialId || !lotId || idempotencyKey.length < 8 || idempotencyKey.length > 120
       || quantityMilli === null
-      || (req.body?.note !== undefined && req.body?.note !== null && note === null)) {
+      || (req.body?.note !== undefined && req.body?.note !== null && req.body?.note !== '' && note === null)) {
       return res.status(400).json({ ok: false, error: 'Укажите заказ, материал, партию, положительное количество и ключ операции' } satisfies ApiResponse);
     }
     const readScope = labMemberOrderReadScope({
