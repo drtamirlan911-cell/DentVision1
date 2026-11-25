@@ -1,9 +1,10 @@
-import { Router } from 'express';
+import { NextFunction, Response, Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { requirePermission, requireSuperadmin } from '../../middleware/rbac.js';
 import { AuthRequest } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
+import { serializeBigInt } from '../../lib/money.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import {
   CLINICAL_CASES,
@@ -24,6 +25,52 @@ import {
 
 const schoolRouter = Router();
 
+/** Emit the terminal learning-history conflict as one immutable HTTP response. */
+function sendAcademyLearningHistoryConflict(res: Response, error: string) {
+  res.statusCode = 409;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.end(JSON.stringify({
+    ok: false,
+    error,
+    code: 'ACADEMY_LEARNING_HISTORY_PROTECTED',
+  }));
+}
+
+// Test-only route provenance: keeps a failing API contract traceable without
+// changing authorization or error semantics. Enabled only by isolated E2E CI.
+
+function traceAcademyCourseMutationHandler(method: 'PUT' | 'DELETE', req: AuthRequest, res: Response) {
+  if (process.env.SEED_E2E_FIXTURES !== 'true') return;
+  res.setHeader('X-DV-Academy-Mutation-Handler', method);
+  console.warn('[E2E_ACADEMY_MUTATION_HANDLER]', {
+    method, requestMethod: req.method, originalUrl: req.originalUrl, courseId: req.params.id,
+  });
+
+  // Observe the final response without monkey-patching Express response methods.
+  // Mutating res.status/res.json here can corrupt the status seen by API clients.
+  res.once('finish', () => {
+    console.warn('[E2E_ACADEMY_RESPONSE_FINISH]', {
+      routeMethod: method,
+      requestMethod: req.method,
+      originalUrl: req.originalUrl,
+      statusCode: res.statusCode,
+      headersSent: res.headersSent,
+    });
+  });
+}
+function academyCourseMutationTrace(method: 'PUT' | 'DELETE') {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (process.env.SEED_E2E_FIXTURES === 'true') {
+      res.setHeader('X-DV-Academy-Mutation-Route', method);
+      console.warn('[E2E_ACADEMY_MUTATION_ROUTE]', method, req.originalUrl, {
+        organizationId: req.user?.organizationId || null,
+        academyId: req.user?.organizationOriginalId || null,
+      });
+    }
+    next();
+  };
+}
+
 async function activeAcademyScope(req: AuthRequest): Promise<{ academyId: string; lecturerId?: string } | null> {
   const user = req.user;
   const organizationType = String(user?.organizationType || '').toUpperCase();
@@ -39,6 +86,49 @@ async function activeAcademyScope(req: AuthRequest): Promise<{ academyId: string
     academyId,
     ...(lecturer?.id ? { lecturerId: lecturer.id } : {}),
   };
+}
+
+/**
+ * Owner operations are authorized by the Academy's own ownership record and
+ * exact active organization context. Do not reuse academy.manage here: that
+ * permission governs the platform-wide Academy/Lecturer registry and must not
+ * be granted to ordinary clinic owners.
+ */
+async function requireAcademyOwner(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const user = req.user;
+    const organizationId = String((user as any)?.organizationId || '').trim();
+    const academyId = String((user as any)?.organizationOriginalId || '').trim();
+    const organizationType = String((user as any)?.organizationType || '').toUpperCase();
+    if (!user || organizationType !== 'ACADEMY' || !organizationId || !academyId) {
+      return res.status(403).json({ ok: false, error: 'Требуется активный контекст владельца Academy' });
+    }
+
+    const [organization, academy] = await Promise.all([
+      prisma.organization.findFirst({
+        where: {
+          id: organizationId,
+          type: 'ACADEMY',
+          originalType: 'Academy',
+          originalId: academyId,
+          archivedAt: null,
+        },
+        select: { id: true },
+      }),
+      prisma.academy.findFirst({
+        where: { id: academyId, ownerId: user.id },
+        select: { id: true },
+      }),
+    ]);
+
+    if (!organization || !academy) {
+      return res.status(403).json({ ok: false, error: 'У вас нет прав владельца этой академии' });
+    }
+    return next();
+  } catch (error) {
+    console.error('[academy-owner] scope verification failed:', error);
+    return res.status(503).json({ ok: false, error: 'Не удалось проверить права владельца Academy' });
+  }
 }
 
 const PUBLIC_COURSE_META_KEYS = [
@@ -73,6 +163,7 @@ function mapCourse(course: any, options: { includePrivateFile?: boolean } = {}) 
   const safeMeta = catalogMeta(course.meta);
   return {
     id: course.id,
+    publicationStatus: course.publicationStatus || 'published',
     title: course.title,
     subtitle: course.author || course.lecturer?.userId || '',
     description: course.description,
@@ -134,7 +225,7 @@ function lessonsFromModules(modules: any): Array<{ title: string; videoUrl: stri
 
 async function loadDbOfferings(format: 'webinar' | 'textbook' | 'office' | 'course') {
   return prisma.course.findMany({
-    where: { format },
+    where: { format, publicationStatus: 'published' },
     include: {
       _count: { select: { enrollments: true, lessons: true } },
       academy: { select: { id: true, name: true, city: true } },
@@ -148,6 +239,7 @@ async function loadDbOfferings(format: 'webinar' | 'textbook' | 'office' | 'cour
 function mapCourseDetail(course: any) {
   const lessons = (course.lessons || []).map((l: any, idx: number) => {
     const content = String(l.content || '');
+    const resourceUrl = /^https?:\/\//i.test(content.trim()) ? content.trim() : null;
     const type = content.includes('[EXAM]')
       ? 'exam'
       : content.includes('[TEST]')
@@ -156,7 +248,9 @@ function mapCourseDetail(course: any) {
           ? 'homework'
           : l.videoUrl
             ? 'video'
-            : 'pdf';
+            : resourceUrl
+              ? 'pdf'
+              : 'text';
     return {
       id: l.id,
       title: l.title,
@@ -165,6 +259,7 @@ function mapCourseDetail(course: any) {
       duration: l.duration,
       duration_minutes: l.duration ? Number(String(l.duration).replace(/[^\d.]/g, '')) || 15 : 15,
       videoUrl: l.videoUrl,
+      fileUrl: type === 'pdf' ? resourceUrl : null,
       content: l.content,
       module_id: 'm1',
     };
@@ -203,6 +298,7 @@ schoolRouter.get('/hub', optionalAuth, async (req: AuthRequest, res) => {
   try {
     const [courses, academies, lecturers, enrollments] = await Promise.all([
       prisma.course.findMany({
+        where: { publicationStatus: 'published' },
         include: {
           _count: { select: { lessons: true, enrollments: true } },
           academy: { select: { id: true, name: true, city: true } },
@@ -322,6 +418,7 @@ schoolRouter.get('/courses', optionalAuth, async (req: AuthRequest, res) => {
     const { category, search, format } = req.query;
     const where: Record<string, unknown> = {
       format: format ? normalizeSchoolFormat(format) : 'course',
+      publicationStatus: 'published',
     };
 
     if (category && typeof category === 'string') where.category = category;
@@ -350,6 +447,36 @@ schoolRouter.get('/courses', optionalAuth, async (req: AuthRequest, res) => {
   }
 });
 
+schoolRouter.get('/courses/managed', authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
+  try {
+    const academyScope = await activeAcademyScope(req);
+    if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
+
+    const courses = await prisma.course.findMany({
+      where: { academyId: academyScope.academyId },
+      include: {
+        _count: { select: { lessons: true, enrollments: true, assessmentAttempts: true, certificates: true } },
+        academy: { select: { id: true, name: true } },
+        lecturer: { select: { id: true, level: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return res.json({
+      ok: true,
+      data: courses.map((course) => ({
+        ...mapCourse(course),
+        publicationStatus: course.publicationStatus,
+        _count: course._count,
+        modules: course.meta && typeof course.meta === 'object' && !Array.isArray(course.meta)
+          ? (course.meta as Record<string, unknown>).modules || []
+          : [],
+      })),
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить управляемые курсы Academy' });
+  }
+});
+
 schoolRouter.get('/courses/:id', optionalAuth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -374,31 +501,35 @@ schoolRouter.get('/courses/:id', optionalAuth, async (req, res) => {
       return;
     }
 
-    // Paid course detail contains lesson content. The public catalog may show
-    // price/metadata, but it must never expose the paid curriculum itself.
+    // Archived products leave discovery and sales, but the purchased learner's
+    // entitlement survives and continues to unlock the existing course materials.
     const userId = (req as AuthRequest).user?.id;
-    if (Number(course.price || 0) > 0) {
-      if (!userId) {
-        res.status(401).json({ ok: false, error: 'Требуется авторизация для платного курса' });
-        return;
-      }
-      const enrollment = await prisma.schoolEnrollment.findUnique({
-        where: { userId_courseId: { userId, courseId: course.id } },
-        select: { id: true },
-      });
-      if (!enrollment) {
-        res.status(403).json({ ok: false, error: 'Требуется запись на курс' });
-        return;
-      }
+    const enrollment = userId
+      ? await prisma.schoolEnrollment.findUnique({
+          where: { userId_courseId: { userId, courseId: course.id } },
+          select: { id: true, accessStatus: true, accessExpiresAt: true },
+        })
+      : null;
+    const hasActiveEntitlement = Boolean(
+      enrollment
+      && enrollment.accessStatus === 'active'
+      && (!enrollment.accessExpiresAt || enrollment.accessExpiresAt > new Date()),
+    );
+
+    if (course.publicationStatus !== 'published' && !hasActiveEntitlement) {
+      return res.status(404).json({ ok: false, error: 'Курс пока не опубликован или больше не доступен для новых учащихся' });
+    }
+    if (Number(course.price || 0) > 0 && !hasActiveEntitlement) {
+      return res.json({ ok: true, data: mapCourse(course) });
     }
 
-    res.json({ ok: true, data: mapCourseDetail(course) });
+    return res.json({ ok: true, data: mapCourseDetail(course) });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch course' });
   }
 });
 
-schoolRouter.post('/courses', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
+schoolRouter.post('/courses', authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
   try {
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
@@ -417,6 +548,7 @@ schoolRouter.post('/courses', authenticate, requirePermission('academy.manage'),
         category: b.category || null,
         duration: b.durationHours ? `${Number(b.durationHours) || 0} ч` : null,
         format: 'course',
+        publicationStatus: 'draft',
         lecturerId: academyScope.lecturerId || null,
         academyId: academyScope.academyId,
         meta: {
@@ -437,55 +569,237 @@ schoolRouter.post('/courses', authenticate, requirePermission('academy.manage'),
   } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to create course' }); }
 });
 
-schoolRouter.put('/courses/:id', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
+schoolRouter.put('/courses/:id', authenticate, academyCourseMutationTrace('PUT'), requireAcademyOwner, async (req: AuthRequest, res) => {
+  traceAcademyCourseMutationHandler('PUT', req, res);
   try {
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
     const id = req.params.id as string;
     const b = req.body || {};
-    const existing = await prisma.course.findUnique({ where: { id } });
-    if (!existing) return res.status(404).json({ ok: false, error: 'Курс не найден' });
-    if (existing.academyId !== academyScope.academyId) return res.status(403).json({ ok: false, error: 'Курс принадлежит другой Academy организации' });
-    await prisma.lesson.deleteMany({ where: { courseId: id } });
-    const course = await prisma.course.update({
-      where: { id },
-      data: {
-        title: b.title != null ? String(b.title).trim() : undefined,
-        description: b.description ?? null,
-        author: b.instructor ?? null,
-        imageUrl: b.imageUrl ?? null,
-        price: b.price != null ? Number(b.price) : undefined,
-        category: b.category ?? null,
-        duration: b.durationHours ? `${Number(b.durationHours) || 0} ч` : null,
-        meta: {
-          subtitle: b.subtitle || null,
-          instructorTitle: b.instructorTitle || null,
-          difficulty: b.difficulty || 'beginner',
-          durationHours: b.durationHours || null,
-          lessonCount: b.lessonCount || null,
-          rating: b.rating || null,
-          tags: Array.isArray(b.tags) ? b.tags : [],
-          certificateEnabled: b.certificateEnabled !== false,
-          modules: Array.isArray(b.modules) ? b.modules : [],
+
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.course.findFirst({
+        where: { id, academyId: academyScope.academyId },
+        select: { id: true, meta: true },
+      });
+      if (process.env.SEED_E2E_FIXTURES === 'true') {
+        res.setHeader('X-DV-Academy-Mutation-Lookup', existing ? 'found' : 'not-found');
+        console.warn('[E2E_ACADEMY_MUTATION_LOOKUP]', {
+          method: 'PUT',
+          courseId: id,
+          academyId: academyScope.academyId,
+          found: Boolean(existing),
+        });
+      }
+      if (!existing) return { kind: 'not-found' as const };
+
+      const [enrollmentCount, attemptCount, certificateCount] = await Promise.all([
+        tx.schoolEnrollment.count({ where: { courseId: id } }),
+        tx.schoolAssessmentAttempt.count({ where: { courseId: id } }),
+        tx.schoolCertificate.count({ where: { courseId: id } }),
+      ]);
+      const hasLearningHistory = enrollmentCount + attemptCount + certificateCount > 0;
+      const modulesProvided = Array.isArray(b.modules);
+      const desiredLessons = modulesProvided ? lessonsFromModules(b.modules) : null;
+
+      // Lesson IDs are referenced by learner progress and assessment attempts.
+      // Never replace them once a student has history on this course.
+      if (hasLearningHistory && desiredLessons) {
+        const currentLessons = await tx.lesson.findMany({
+          where: { courseId: id },
+          orderBy: { order: 'asc' },
+          select: { title: true, videoUrl: true, content: true, duration: true, order: true },
+        });
+        const lessonStructureUnchanged =
+          currentLessons.length === desiredLessons.length
+          && currentLessons.every((lesson, index) => {
+            const desired = desiredLessons[index];
+            return lesson.title === desired.title
+              && lesson.videoUrl === desired.videoUrl
+              && lesson.content === desired.content
+              && (lesson.duration ?? 0) === desired.duration
+              && lesson.order === desired.order;
+          });
+        if (!lessonStructureUnchanged) return { kind: 'history-conflict' as const };
+      }
+
+      if (modulesProvided && !hasLearningHistory) {
+        await tx.lesson.deleteMany({ where: { courseId: id } });
+        if (desiredLessons.length > 0) {
+          await tx.lesson.createMany({
+            data: desiredLessons.map((lesson) => ({ ...lesson, id: uid(), courseId: id })),
+          });
+        }
+      }
+
+      const currentMeta = existing.meta && typeof existing.meta === 'object' && !Array.isArray(existing.meta)
+        ? existing.meta as Record<string, unknown>
+        : {};
+      const nextMeta = {
+        ...currentMeta,
+        ...(b.subtitle !== undefined && { subtitle: b.subtitle || null }),
+        ...(b.instructorTitle !== undefined && { instructorTitle: b.instructorTitle || null }),
+        ...(b.difficulty !== undefined && { difficulty: b.difficulty || 'beginner' }),
+        ...(b.durationHours !== undefined && { durationHours: b.durationHours || null }),
+        ...(b.lessonCount !== undefined && { lessonCount: b.lessonCount || null }),
+        ...(b.rating !== undefined && { rating: b.rating || null }),
+        ...(Array.isArray(b.tags) && { tags: b.tags }),
+        ...(b.certificateEnabled !== undefined && { certificateEnabled: b.certificateEnabled !== false }),
+        ...(modulesProvided && { modules: b.modules }),
+      };
+
+      const course = await tx.course.update({
+        where: { id },
+        data: {
+          ...(b.title !== undefined && { title: String(b.title).trim() }),
+          ...(b.description !== undefined && { description: b.description || null }),
+          ...(b.instructor !== undefined && { author: b.instructor || null }),
+          ...(b.imageUrl !== undefined && { imageUrl: b.imageUrl || null }),
+          ...(b.price !== undefined && { price: Number(b.price) }),
+          ...(b.category !== undefined && { category: b.category || null }),
+          ...(b.durationHours !== undefined && { duration: b.durationHours ? `${Number(b.durationHours) || 0} ч` : null }),
+          meta: nextMeta as object,
         },
-        lessons: { create: lessonsFromModules(b.modules) },
-      },
-    });
-    res.json({ ok: true, data: course });
-  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to update course' }); }
+      });
+      return { kind: 'updated' as const, course };
+    }, { isolationLevel: 'Serializable' });
+
+    if (process.env.SEED_E2E_FIXTURES === 'true') {
+      res.setHeader('X-DV-Academy-Mutation-Outcome', result.kind);
+    }
+    if (result.kind === 'not-found') return res.status(404).json({ ok: false, error: 'Курс не найден' });
+    if (result.kind === 'history-conflict') {
+      return sendAcademyLearningHistoryConflict(
+        res,
+        'Нельзя заменить уроки курса: у учащихся уже есть учебная история. Создайте новую редакцию курса, чтобы сохранить результаты и сертификаты.',
+      );
+    }
+    return res.json({ ok: true, data: result.course });
+  } catch (error: any) {
+    if (error?.code === 'P2034') {
+      return res.status(409).json({ ok: false, error: 'Курс одновременно изменяется. Обновите страницу и повторите действие.' });
+    }
+    return res.status(500).json({ ok: false, error: 'Failed to update course' });
+  }
 });
 
-schoolRouter.delete('/courses/:id', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
+schoolRouter.patch('/courses/:id/publication', authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
+  try {
+    const academyScope = await activeAcademyScope(req);
+    if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
+    const publicationStatus = req.body?.publicationStatus;
+    if (!['draft', 'published', 'archived'].includes(publicationStatus)) {
+      return res.status(400).json({ ok: false, error: 'publicationStatus должен быть draft, published или archived' });
+    }
+
+    const id = String(req.params.id);
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.course.findFirst({
+        where: { id, academyId: academyScope.academyId },
+        select: { id: true, publicationStatus: true },
+      });
+      if (!existing) return { kind: 'not-found' as const };
+
+      if (existing.publicationStatus === publicationStatus) {
+        return { kind: 'unchanged' as const };
+      }
+
+      if (publicationStatus === 'published') {
+        const courseForReview = await tx.course.findFirst({
+          where: { id: existing.id, academyId: academyScope.academyId },
+          select: { title: true, description: true, _count: { select: { lessons: true } } },
+        });
+        if (!courseForReview?.title.trim() || !courseForReview.description?.trim() || courseForReview._count.lessons < 1) {
+          return { kind: 'not-ready' as const };
+        }
+      }
+
+      await tx.course.update({
+        where: { id: existing.id },
+        data: { publicationStatus },
+      });
+      await writeAuditLog({
+        action: publicationStatus === 'archived' ? 'ACADEMY_COURSE_ARCHIVED' : 'ACADEMY_COURSE_PUBLISHED',
+        entity: 'course',
+        entityId: id,
+        details: { publicationStatus, academyId: academyScope.academyId },
+        userId: req.user!.id,
+      }, tx);
+      return { kind: 'updated' as const };
+    }, { isolationLevel: 'Serializable' });
+
+    if (result.kind === 'not-found') {
+      return res.status(404).json({ ok: false, error: 'Курс не найден в активной академии' });
+    }
+    if (result.kind === 'not-ready') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Для публикации добавьте описание и хотя бы один урок.',
+        code: 'ACADEMY_COURSE_NOT_READY',
+      });
+    }
+    return res.json({ ok: true, data: { id, publicationStatus } });
+  } catch (error: any) {
+    if (error?.code === 'P2034') {
+      return res.status(409).json({ ok: false, error: 'Курс одновременно изменяется. Обновите страницу и повторите действие.' });
+    }
+    return res.status(500).json({ ok: false, error: 'Не удалось изменить публикацию курса' });
+  }
+});
+
+schoolRouter.delete('/courses/:id', authenticate, academyCourseMutationTrace('DELETE'), requireAcademyOwner, async (req: AuthRequest, res) => {
+  traceAcademyCourseMutationHandler('DELETE', req, res);
   try {
     const academyScope = await activeAcademyScope(req);
     if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
     const id = req.params.id as string;
-    const existing = await prisma.course.findUnique({ where: { id }, select: { academyId: true } });
-    if (!existing) return res.status(404).json({ ok: false, error: 'Курс не найден' });
-    if (existing.academyId !== academyScope.academyId) return res.status(403).json({ ok: false, error: 'Курс принадлежит другой Academy организации' });
-    await prisma.course.delete({ where: { id } });
-    res.json({ ok: true });
-  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to delete course' }); }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.course.findFirst({
+        where: { id, academyId: academyScope.academyId },
+        select: { id: true },
+      });
+      if (process.env.SEED_E2E_FIXTURES === 'true') {
+        res.setHeader('X-DV-Academy-Mutation-Lookup', existing ? 'found' : 'not-found');
+        console.warn('[E2E_ACADEMY_MUTATION_LOOKUP]', {
+          method: 'DELETE',
+          courseId: id,
+          academyId: academyScope.academyId,
+          found: Boolean(existing),
+        });
+      }
+      if (!existing) return { kind: 'not-found' as const };
+
+      const [enrollmentCount, attemptCount, certificateCount] = await Promise.all([
+        tx.schoolEnrollment.count({ where: { courseId: id } }),
+        tx.schoolAssessmentAttempt.count({ where: { courseId: id } }),
+        tx.schoolCertificate.count({ where: { courseId: id } }),
+      ]);
+      if (enrollmentCount + attemptCount + certificateCount > 0) {
+        return { kind: 'has-history' as const };
+      }
+
+      await tx.course.delete({ where: { id } });
+      return { kind: 'deleted' as const };
+    }, { isolationLevel: 'Serializable' });
+
+    if (process.env.SEED_E2E_FIXTURES === 'true') {
+      res.setHeader('X-DV-Academy-Mutation-Outcome', result.kind);
+    }
+    if (result.kind === 'not-found') return res.status(404).json({ ok: false, error: 'Курс не найден' });
+    if (result.kind === 'has-history') {
+      return sendAcademyLearningHistoryConflict(
+        res,
+        'Удаление запрещено: курс содержит историю обучения. Закройте курс для новых учащихся, сохранив зачисления, результаты оценивания и сертификаты.',
+      );
+    }
+    return res.json({ ok: true });
+  } catch (error: any) {
+    if (error?.code === 'P2034') {
+      return res.status(409).json({ ok: false, error: 'Курс одновременно изменяется. Обновите страницу и повторите действие.' });
+    }
+    return res.status(500).json({ ok: false, error: 'Failed to delete course' });
+  }
 });
 
 schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) => {
@@ -509,6 +823,14 @@ schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) =>
     if (existing) {
       res.status(409).json({ ok: false, error: 'Already enrolled in this course' });
       return;
+    }
+    if (course.publicationStatus !== 'published') {
+      const isArchived = course.publicationStatus === 'archived';
+      return res.status(409).json({
+        ok: false,
+        error: isArchived ? 'Запись закрыта: курс находится в архиве' : 'Запись откроется после публикации курса',
+        code: isArchived ? 'ACADEMY_COURSE_ARCHIVED' : 'ACADEMY_COURSE_NOT_PUBLISHED',
+      });
     }
 
     const price = Number(course.price || 0);
@@ -551,7 +873,7 @@ schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) =>
     }
 
     const enrollment = await prisma.schoolEnrollment.create({
-      data: { id: uid(), userId, courseId },
+      data: { id: uid(), userId, courseId, acquisitionType: 'free', accessStatus: 'active' },
       include: { course: true },
     });
     await writeAuditLog({
@@ -570,6 +892,46 @@ schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) =>
   }
 });
 
+schoolRouter.get('/enrollments/managed', authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
+  try {
+    const academyScope = await activeAcademyScope(req);
+    if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
+
+    const enrollments = await prisma.schoolEnrollment.findMany({
+      where: { course: { academyId: academyScope.academyId } },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        course: { select: { id: true, title: true, publicationStatus: true } },
+      },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      take: 500,
+    });
+
+    return res.json({
+      ok: true,
+      data: enrollments.map((enrollment) => ({
+        id: enrollment.id,
+        userId: enrollment.userId,
+        learner: {
+          id: enrollment.user.id,
+          name: [enrollment.user.firstName, enrollment.user.lastName].filter(Boolean).join(' ').trim() || 'Учащийся',
+          email: enrollment.user.email,
+        },
+        course: enrollment.course,
+        progress: enrollment.progress,
+        completed: enrollment.completed,
+        accessStatus: enrollment.accessStatus,
+        acquisitionType: enrollment.acquisitionType,
+        enrolledAt: enrollment.createdAt,
+        updatedAt: enrollment.updatedAt,
+        accessExpiresAt: enrollment.accessExpiresAt,
+      })),
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить учащихся Academy' });
+  }
+});
+
 schoolRouter.get('/enrollments', authenticate, async (req: AuthRequest, res) => {
   try {
     const enrollments = await prisma.schoolEnrollment.findMany({
@@ -577,7 +939,13 @@ schoolRouter.get('/enrollments', authenticate, async (req: AuthRequest, res) => 
       include: { course: true },
       orderBy: { createdAt: 'desc' },
     });
-    res.json({ ok: true, data: enrollments });
+    // Prisma BigInt cannot be serialized by JSON.stringify. Return the minor-unit
+    // amount as a decimal string so the candidate can see the confirmed purchase.
+    const data = enrollments.map((enrollment) => ({
+      ...enrollment,
+      paidAmountMinor: enrollment.paidAmountMinor == null ? null : enrollment.paidAmountMinor.toString(),
+    }));
+    return res.json({ ok: true, data });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch enrollments' });
   }
@@ -585,44 +953,66 @@ schoolRouter.get('/enrollments', authenticate, async (req: AuthRequest, res) => 
 
 schoolRouter.patch('/enrollments/:id', authenticate, async (req: AuthRequest, res) => {
   try {
-    const id = req.params.id as string;
-    const { progress, completed, completedLessons } = req.body;
-    const enrollment = await prisma.schoolEnrollment.findUnique({ where: { id } });
+    const id = String(req.params.id);
+    const enrollment = await prisma.schoolEnrollment.findFirst({
+      where: { id, userId: req.user!.id },
+    });
     if (!enrollment) {
-      res.status(404).json({ ok: false, error: 'Enrollment not found' });
-      return;
+      return res.status(404).json({ ok: false, error: 'Enrollment not found' });
     }
-    if (enrollment.userId !== req.user!.id) {
-      res.status(403).json({ ok: false, error: 'Not your enrollment' });
-      return;
-    }
-    if (progress !== undefined && (typeof progress !== 'number' || progress < 0 || progress > 100)) {
-      res.status(400).json({ ok: false, error: 'progress must be a number between 0 and 100' });
-      return;
+    if (enrollment.accessStatus !== 'active' || (enrollment.accessExpiresAt && enrollment.accessExpiresAt <= new Date())) {
+      return res.status(403).json({ ok: false, error: 'Доступ к курсу не активен', code: 'LEARNING_ENTITLEMENT_INACTIVE' });
     }
 
-    const updated = await prisma.schoolEnrollment.update({
-      where: { id },
-      data: {
-        ...(progress !== undefined && { progress: Math.round(progress) }),
-        ...(completed !== undefined && { completed }),
-        ...(completedLessons !== undefined && { completedLessons }),
-        ...(completed === true && !enrollment.certificateUrl
-          ? { certificateUrl: `academy-cert://${id}` }
-          : {}),
-      },
-      include: { course: true },
+    const requested = req.body?.completedLessons;
+    if (!Array.isArray(requested) || requested.some((item: unknown) => typeof item !== 'string' || !item.trim())) {
+      return res.status(400).json({ ok: false, error: 'completedLessons должен содержать список идентификаторов уроков' });
+    }
+    const lessons = await prisma.lesson.findMany({
+      where: { courseId: enrollment.courseId },
+      select: { id: true },
     });
-    await writeAuditLog({
-      action: completed === true ? 'ACADEMY_COURSE_COMPLETED' : 'ACADEMY_PROGRESS_UPDATED',
-      entity: 'school_enrollment',
-      entityId: updated.id,
-      details: { workflow: 'learning', queueKey: 'courses', courseId: updated.courseId, progress: updated.progress, completed: updated.completed, completedLessons: updated.completedLessons },
-      userId: req.user!.id,
+    const validLessonIds = new Set(lessons.map((lesson) => lesson.id));
+    const uniqueRequested = Array.from(new Set(requested as string[]));
+    if (uniqueRequested.some((lessonId) => !validLessonIds.has(lessonId))) {
+      return res.status(400).json({ ok: false, error: 'Список содержит урок другого курса или неизвестный урок', code: 'INVALID_COURSE_LESSON' });
+    }
+
+    const previous = Array.isArray(enrollment.completedLessons)
+      ? (enrollment.completedLessons as unknown[]).filter((value): value is string => typeof value === 'string')
+      : [];
+    const completedSet = new Set([...previous, ...uniqueRequested].filter((lessonId) => validLessonIds.has(lessonId)));
+    const completedLessons = Array.from(completedSet);
+    const progress = lessons.length > 0 ? Math.min(99, Math.round((completedLessons.length / lessons.length) * 100)) : 0;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const saved = await tx.schoolEnrollment.update({
+        where: { id },
+        data: {
+          progress: enrollment.completed ? 100 : progress,
+          completedLessons,
+          // Completion and certificate issuance are exam/issuer-controlled.
+          // Client-supplied progress and completed fields are intentionally ignored.
+        },
+        include: { course: true },
+      });
+      await writeAuditLog({
+        action: 'ACADEMY_PROGRESS_UPDATED',
+        entity: 'school_enrollment',
+        entityId: saved.id,
+        details: {
+          workflow: 'learning', queueKey: 'courses', courseId: saved.courseId,
+          progress: saved.progress, completed: saved.completed,
+          completedLessonCount: completedLessons.length, lessonCount: lessons.length,
+        },
+        userId: req.user!.id,
+      }, tx);
+      return saved;
     });
-    res.json({ ok: true, data: updated });
+    return res.json({ ok: true, data: serializeBigInt(updated) });
   } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to update enrollment' });
+    console.error('Update learning progress error:', error);
+    return res.status(500).json({ ok: false, error: 'Failed to update enrollment' });
   }
 });
 
@@ -750,6 +1140,16 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
       res.status(404).json({ ok: false, error: 'Продукт не найден' });
       return;
     }
+    if (dbProduct?.publicationStatus !== 'published') {
+      const isArchived = dbProduct?.publicationStatus === 'archived';
+      return res.status(409).json({
+        ok: false,
+        error: isArchived
+          ? 'Продажа закрыта: продукт находится в архиве'
+          : 'Продажа ещё не открыта: продукт не опубликован',
+        code: isArchived ? 'ACADEMY_COURSE_ARCHIVED' : 'ACADEMY_COURSE_NOT_PUBLISHED',
+      });
+    }
 
     const contentContext = resolveActiveContentContext(req);
     if (!canExposeCatalogItem('ACADEMY', contentContext, audiencesFromCourseMeta(dbProduct?.meta))) {
@@ -773,7 +1173,7 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
       if (dbProduct) {
         await prisma.schoolEnrollment.upsert({
           where: { userId_courseId: { userId: req.user!.id, courseId: dbProduct.id } },
-          create: { id: uid(), userId: req.user!.id, courseId: dbProduct.id },
+          create: { id: uid(), userId: req.user!.id, courseId: dbProduct.id, acquisitionType: 'free', accessStatus: 'active' },
           update: {},
         });
       }
@@ -844,32 +1244,55 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
   }
 });
 
+schoolRouter.get('/certificates/verify/:verificationCode', async (req, res) => {
+  try {
+    const certificate = await prisma.schoolCertificate.findUnique({
+      where: { verificationCode: String(req.params.verificationCode) },
+      include: { course: { select: { title: true, category: true } } },
+    });
+    if (!certificate || certificate.status !== 'issued' || certificate.revokedAt || (certificate.expiresAt && certificate.expiresAt <= new Date())) {
+      return res.status(404).json({ ok: false, error: 'Сертификат не найден или недействителен' });
+    }
+    return res.json({
+      ok: true,
+      data: {
+        certificateNumber: certificate.certificateNumber,
+        status: certificate.status,
+        issuedAt: certificate.issuedAt,
+        issuer: certificate.issuerNameSnapshot,
+        courseTitle: certificate.course.title,
+        category: certificate.course.category,
+      },
+    });
+  } catch {
+    return res.status(500).json({ ok: false, error: 'Не удалось проверить сертификат' });
+  }
+});
+
 schoolRouter.get('/certificates', authenticate, async (req: AuthRequest, res) => {
   try {
-    const rows = await prisma.schoolEnrollment.findMany({
-      where: {
-        userId: req.user!.id,
-        OR: [{ completed: true }, { certificateUrl: { not: null } }],
-      },
+    const rows = await prisma.schoolCertificate.findMany({
+      where: { userId: req.user!.id, status: 'issued', revokedAt: null },
       include: { course: { select: { id: true, title: true, category: true, author: true } } },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { issuedAt: 'desc' },
     });
-    res.json({
+    return res.json({
       ok: true,
-      data: rows.map((e) => ({
-        id: e.id,
-        courseId: e.courseId,
-        title: e.course.title,
-        category: e.course.category,
-        instructor: e.course.author,
-        issuedAt: e.updatedAt,
-        certificateUrl: e.certificateUrl || `academy-cert://${e.id}`,
-        certificateNumber: `AOS-${e.id.slice(0, 8).toUpperCase()}`,
-        status: 'issued',
+      data: rows.map((certificate) => ({
+        id: certificate.id,
+        courseId: certificate.courseId,
+        title: certificate.course.title,
+        category: certificate.course.category,
+        instructor: certificate.course.author,
+        issuedAt: certificate.issuedAt,
+        certificateUrl: `/school/certificates/verify/${certificate.verificationCode}`,
+        certificateNumber: certificate.certificateNumber,
+        verificationCode: certificate.verificationCode,
+        status: certificate.status,
       })),
     });
   } catch {
-    res.status(500).json({ ok: false, error: 'Failed to fetch certificates' });
+    return res.status(500).json({ ok: false, error: 'Failed to fetch certificates' });
   }
 });
 
@@ -888,83 +1311,144 @@ async function resolveExamLesson(lessonId: string) {
 schoolRouter.get('/lessons/:lessonId/exam', authenticate, async (req: AuthRequest, res) => {
   try {
     const lesson = await resolveExamLesson(req.params.lessonId as string);
-    if (!lesson) {
-      res.status(404).json({ ok: false, error: 'Урок не найден' });
-      return;
-    }
-    // Only enrolled users may access the exam.
+    if (!lesson) return res.status(404).json({ ok: false, error: 'Урок не найден' });
     const enrollment = await prisma.schoolEnrollment.findFirst({
       where: { userId: req.user!.id, courseId: lesson.courseId },
+      select: { id: true, accessStatus: true, accessExpiresAt: true },
     });
-    if (!enrollment) {
-      res.status(403).json({ ok: false, error: 'Требуется запись на курс' });
-      return;
+    if (!enrollment || enrollment.accessStatus !== 'active' || (enrollment.accessExpiresAt && enrollment.accessExpiresAt <= new Date())) {
+      return res.status(403).json({ ok: false, error: 'Требуется активный доступ к курсу', code: 'LEARNING_ENTITLEMENT_INACTIVE' });
     }
-    res.json({
+    return res.json({
       ok: true,
       data: {
         lessonId: lesson.id,
         courseId: lesson.courseId,
-        ...DEFAULT_EXAM,
+        title: DEFAULT_EXAM.title,
+        description: DEFAULT_EXAM.description,
+        passScore: DEFAULT_EXAM.passScore,
         passingScore: DEFAULT_EXAM.passScore,
         questionCount: DEFAULT_EXAM.questions.length,
-        questions: DEFAULT_EXAM.questions.map(({ correctIndex, ...q }) => q),
+        questions: DEFAULT_EXAM.questions.map(({ correctIndex, ...question }) => question),
       },
     });
-  } catch {
-    res.status(500).json({ ok: false, error: 'Failed to load exam' });
+  } catch (error) {
+    console.error('Load course exam error:', error);
+    return res.status(500).json({ ok: false, error: 'Failed to load exam' });
   }
 });
 
 schoolRouter.post('/lessons/:lessonId/exam/submit', authenticate, async (req: AuthRequest, res) => {
   try {
     const lesson = await resolveExamLesson(req.params.lessonId as string);
-    if (!lesson) {
-      res.status(404).json({ ok: false, error: 'Урок не найден' });
-      return;
-    }
-    // Same rule as GET /exam above: without this, a signed-in user who never
-    // bought the course could still probe question ids and submit answers —
-    // no certificate would be issued (that already checked enrollment below),
-    // but they'd get a real pass/fail score for content they never paid for.
+    if (!lesson) return res.status(404).json({ ok: false, error: 'Урок не найден' });
     const enrollment = await prisma.schoolEnrollment.findFirst({
       where: { userId: req.user!.id, courseId: lesson.courseId },
     });
-    if (!enrollment) {
-      res.status(403).json({ ok: false, error: 'Требуется запись на курс' });
-      return;
+    if (!enrollment || enrollment.accessStatus !== 'active' || (enrollment.accessExpiresAt && enrollment.accessExpiresAt <= new Date())) {
+      return res.status(403).json({ ok: false, error: 'Требуется активный доступ к курсу', code: 'LEARNING_ENTITLEMENT_INACTIVE' });
     }
 
-    const answers = (req.body?.answers || {}) as Record<string, number>;
+    const suppliedAnswers = req.body?.answers;
+    if (!suppliedAnswers || typeof suppliedAnswers !== 'object' || Array.isArray(suppliedAnswers)) {
+      return res.status(400).json({ ok: false, error: 'answers должен быть объектом ответов' });
+    }
+    const normalizedAnswers: Record<string, number | null> = {};
     let correct = 0;
-    for (const q of DEFAULT_EXAM.questions) {
-      if (Number(answers[q.id]) === q.correctIndex) correct += 1;
+    for (const question of DEFAULT_EXAM.questions) {
+      const raw = suppliedAnswers[question.id];
+      const selected = Number.isInteger(Number(raw)) ? Number(raw) : -1;
+      normalizedAnswers[question.id] = selected >= 0 && selected < question.options.length ? selected : null;
+      if (selected === question.correctIndex) correct += 1;
     }
     const score = Math.round((correct / DEFAULT_EXAM.questions.length) * 100);
     const passed = score >= DEFAULT_EXAM.passScore;
 
-    let certificate = null;
-    if (passed) {
-      // Enrollment is already confirmed above — no need to re-fetch it.
-      const updated = await prisma.schoolEnrollment.update({
-        where: { id: enrollment.id },
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${enrollment.id}), 20261120)`;
+      const previousAttempts = await tx.schoolAssessmentAttempt.count({ where: { enrollmentId: enrollment.id } });
+      const attempt = await tx.schoolAssessmentAttempt.create({
         data: {
-          progress: Math.max(enrollment.progress, 100),
-          completed: true,
-          certificateUrl: enrollment.certificateUrl || `academy-cert://${enrollment.id}`,
+          id: uid(),
+          userId: req.user!.id,
+          enrollmentId: enrollment.id,
+          courseId: lesson.courseId,
+          lessonId: lesson.virtual ? null : lesson.id,
+          attemptNumber: previousAttempts + 1,
+          score,
+          correct,
+          total: DEFAULT_EXAM.questions.length,
+          passed,
+          answers: normalizedAnswers,
         },
-        include: { course: true },
       });
-      certificate = {
-        id: updated.id,
-        courseTitle: updated.course.title,
-        certificateUrl: updated.certificateUrl,
-        certificateNumber: `AOS-${updated.id.slice(0, 8).toUpperCase()}`,
-        score,
-      };
-    }
 
-    res.json({
+      const course = await tx.course.findUnique({
+        where: { id: lesson.courseId },
+        include: { academy: { select: { name: true } } },
+      });
+      if (!course) throw new Error('Course was removed before the assessment was persisted');
+
+      let issuedCertificate: {
+        id: string; certificateNumber: string; verificationCode: string;
+        status: string; issuedAt: Date; issuerNameSnapshot: string;
+      } | null = null;
+
+      if (passed) {
+        const certificateEnabled = !(course.meta && typeof course.meta === 'object' && !Array.isArray(course.meta) && (course.meta as Record<string, unknown>).certificateEnabled === false);
+        await tx.schoolEnrollment.update({
+          where: { id: enrollment.id },
+          data: { progress: 100, completed: true },
+        });
+
+        if (certificateEnabled) {
+          issuedCertificate = await tx.schoolCertificate.findUnique({ where: { enrollmentId: enrollment.id } });
+          if (!issuedCertificate) {
+            const verificationCode = uid();
+            const certificateNumber = `DV-${new Date().getFullYear()}-${uid().slice(0, 8).toUpperCase()}`;
+            issuedCertificate = await tx.schoolCertificate.create({
+              data: {
+                id: uid(),
+                enrollmentId: enrollment.id,
+                userId: req.user!.id,
+                courseId: lesson.courseId,
+                certificateNumber,
+                verificationCode,
+                issuerNameSnapshot: course.academy?.name || course.author || 'DentVision Academy',
+                status: 'issued',
+                metadata: {
+                  assessmentAttemptId: attempt.id,
+                  score,
+                  passingScore: DEFAULT_EXAM.passScore,
+                },
+              },
+              select: {
+                id: true, certificateNumber: true, verificationCode: true,
+                status: true, issuedAt: true, issuerNameSnapshot: true,
+              },
+            });
+          }
+          await tx.schoolEnrollment.update({
+            where: { id: enrollment.id },
+            data: { certificateUrl: `/school/certificates/verify/${issuedCertificate.verificationCode}` },
+          });
+        }
+      }
+
+      return { attempt, certificate: issuedCertificate, certificateEnabled: Boolean(issuedCertificate) };
+    });
+
+    const certificate = result.certificate ? {
+      id: result.certificate.id,
+      certificateNumber: result.certificate.certificateNumber,
+      verificationCode: result.certificate.verificationCode,
+      certificateUrl: `/school/certificates/verify/${result.certificate.verificationCode}`,
+      issuer: result.certificate.issuerNameSnapshot,
+      issuedAt: result.certificate.issuedAt,
+      status: result.certificate.status,
+    } : null;
+
+    return res.json({
       ok: true,
       data: {
         score,
@@ -972,15 +1456,16 @@ schoolRouter.post('/lessons/:lessonId/exam/submit', authenticate, async (req: Au
         correct,
         total: DEFAULT_EXAM.questions.length,
         passingScore: DEFAULT_EXAM.passScore,
+        attemptNumber: result.attempt.attemptNumber,
         certificate,
         message: passed
-          ? 'Экзамен сдан. Сертификат добавлен в портфолио Academy OS.'
+          ? certificate ? 'Экзамен сдан. Сертификат выдан и доступен для проверки.' : 'Экзамен сдан. Курс завершён; сертификат для этой программы не предусмотрен.'
           : `Нужно ${DEFAULT_EXAM.passScore}% для сдачи. Ваш результат: ${score}%.`,
       },
     });
   } catch (error) {
     console.error('Exam submit error:', error);
-    res.status(500).json({ ok: false, error: 'Failed to submit exam' });
+    return res.status(500).json({ ok: false, error: 'Failed to submit exam' });
   }
 });
 

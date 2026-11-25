@@ -24,6 +24,17 @@
 
 ---
 
+## Current release reconciliation — 2026-11-22 (candidate PR #352)
+
+- **Current main:** `758ffe7f39112848df701a8b988f44af03845597`.
+- **Partner-workspace candidate:** PR [#352](https://github.com/drtamirlan911-cell/DentVision1/pull/352), branch `fix/partner-workspace-context-ux-20261120`, current documented source/document head before this reconciliation: `dc682d5eabe0a4438fd8b380ee8e77a9a6278db9`. PR is **OPEN / UNMERGED**. The branch contains 651 commits ahead of the common base and 142 changed files; despite being up to date with current main (0 commits behind), this is a large accumulated candidate and must not be merged without full diff/history review and green exact-head checks.
+- **Partner workspace corrections in the candidate:** distinct `diagnostics.read` vs `lab.read` authorization; active-membership access to private center/laboratory catalogues while keeping public discovery gated; exact static staff route before dynamic referral detail route; IAM-gated partner workspace tabs; role-scoped referral redaction for clinical, finance and attachments; finance-only dashboard omits recent patient referrals. Regression coverage was added for route matching, partner catalog access, family-specific read permissions, minimum data projection and finance-only dashboard behavior.
+- **Exact-head verification:** CI / Quality Gate / RB-034 were still queued or in progress for the latest source/document head at the time of this entry. Earlier attempts on intermediate heads were cancelled after subsequent branch updates. No green exact-head result is claimed. Do not merge PR #352 until the final SHA has successful CI, Quality Gate and RB-034, the 142-file diff has been reviewed for unrelated changes, and required approvals are present.
+- **Release classification:** diagnostic center, medical laboratory and dental laboratory remain **PARTIAL**. This candidate addresses workspace routing/permissions/data boundaries only; it does not close DICOM network/PACS viewer, full LIS accession and QC/analyzer integration, dental-lab remake/logistics/settlement, staging evidence, Android/operator acceptance, or other release blockers.
+- **Environment boundary:** no production/staging database, PHI, secret/key, payment provider, migration, legal signature or production deployment was accessed or changed. Main was not modified or merged.
+
+---
+
 ## Current release reconciliation — 2026-11-18
 
 - **Current main:** `7289f369b1effa28db94e3e1e4541e4500bc5ee0`. PR #346 merged as `4bbd61a339d5f3c4d40d1d5990f633a7b9a87864`; PR #347 merged as `ad2b8651432073ba3c1426a59f3b31f704479557`; PR #348 merged as `7289f369b1effa28db94e3e1e4541e4500bc5ee0`. PR #322 is also merged as `462c6fcc1994c345b51feabff5f2357debdfffba` and contains isolated Codespaces developer infrastructure.
@@ -899,3 +910,69 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - Codex P2 datasource binding is addressed in the candidate: write mode requires Prisma's actual DATABASE_URL to exactly match AI_ADMIN_EXTERNAL_ID_BACKFILL_STAGING_DATABASE_URL or AI_ADMIN_EXTERNAL_ID_BACKFILL_PRODUCTION_DATABASE_URL for the selected target. Missing or mismatched values fail closed; URLs are never logged. Regression coverage includes staging/production mismatch and missing expected URL; focused tests 11/11, backend TypeScript, changed-file ESLint and diff check passed locally. Exact-head GitHub CI, Quality Gate and Codex re-review remain pending.
 
 - 2026-11-14 audit addendum: book_appointment.tool.ts also wrote patientName/patientPhone into AiAdminSession in plaintext. The candidate now stops this duplicate write and extends the guarded backfill to encrypt legacy copies into dedicated ciphertext fields; RB-029 remains open until staging reconciliation.
+
+## Partner settlement permission / finance UI follow-up — 2026-11-22
+
+- Settlement read now requires the active partner's canonical `billing.read`; issuing/reusing a Kaspi invoice requires canonical `billing.manage`. The server returns an explicit `canRequestPayment` capability so a read-only user is not offered a button that will fail with 403.
+- Diagnostic center/laboratory Finance tabs use actual settlement records rather than the legacy dashboard fields that the backend does not provide.
+- This is source-level correction only. Do not certify it until the current final HEAD has one successful CI run (lint-test including all unit tests, backend lint, frontend lint, E2E), plus Quality Gate and RB-034. Earlier heads with unit-test failures are superseded, not passed.
+- Diagnostic center, medical laboratory and dental laboratory remain **PARTIAL**; platform remittance execution, tax invoices/EDS/VAT evidence, refunds/chargebacks, branch-level finance reconciliation, external integrations and operator/staging evidence remain release blockers.
+
+  
+## Partner billing checkpoint — 2026-11-22 (candidate PR #352)
+
+- The approved diagnostic-center, medical-laboratory and dental-laboratory monthly branch tariffs now have one code-level price book aligned to `docs/business/DENTVISION_PARTNER_ECONOMICS.md` v1.2.
+- The quote primitive enforces activation and minimum billable quantity, validates branch counts and safe KZT totals, and is the source for Finance's persisted per-vertical subscription price snapshots.
+- Added unit tests for all published rates, inactive organizations, the one-branch minimum, additional billable branches, invalid counts and numeric overflow. Finance tests assert that persisted minor-unit rule snapshots match the published KZT values.
+- **Not closed:** recurring invoice generation, payment-provider collection/callback reconciliation, paid/overdue/failed entitlement transitions, activation/deactivation effective dates, proration/credits, refunds, tax invoices/EDS/VAT, dunning/retries, and independent payout/bank settlement evidence. This quote helper does not bill or collect money.
+- **Release classification unchanged:** Diagnostic Center, Medical Laboratory and Dental Laboratory remain PARTIAL; D10 and production readiness remain OPEN/NOT READY until full billing lifecycle, vertical workflows, approved staging evidence, provider/legal acceptance, RB-035 and required release gates pass. No production/staging database, PHI, secrets or payment provider was accessed or changed.
+
+
+## Partner branch subscription invoice issuance — 2026-11-23 (candidate PR #352)
+
+- Added the immutable partner branch invoice schema/migration and an idempotent issuance service with period overlap protection and canonical price/branch snapshots.
+- Added scoped Finance invoice listing for authorized members of their active partner Organization and a platform-finance-only issuance endpoint. Diagnostic centers use the approved diagnostic price; laboratory vertical must be explicitly typed. Unverified/inactive/unpublished partners are rejected; dental laboratories must satisfy existing lifecycle, verification and legal-ready gates.
+- The E2E database bootstrap applies the new additive migration. The generated System Map was reconciled for two Finance routes without detected client consumers; billing UI integration remains open.
+- **Still OPEN:** recurring invoice scheduling, branch activation/deactivation effective-date history, next-period quantity reconciliation, proration/credits, payment intent/QR creation for the exact invoice, atomic callback settlement and paid/overdue/failed state transitions, subscription entitlement gating, retry/dunning, tax invoices/EDS/VAT, credit notes/refunds, bank settlement evidence and production accounting reconciliation.
+- **Release classification unchanged:** diagnostic center, medical laboratory and dental laboratory remain **PARTIAL**; D10 remains **OPEN**. An issued invoice does not establish payment, active paid entitlement or production billing readiness. No staging/production migration, provider operation, wallet movement or main merge was performed. Exact-head CI, Quality Gate, RB-034 and complete E2E are mandatory.
+
+
+## Partner branch subscription payment settlement — 2026-11-23 (candidate PR #352)
+
+- Added platform checkout for an immutable partner branch invoice using the existing Payment provider abstraction. The request is bound to the exact active Organization and requires scoped billing/finance management; amount, currency, vertical and partner identity are re-derived from the invoice.
+- Invoice-specific idempotency and a row lock prevent duplicate pending payments. Successful platform settlement validates the linked Payment ID and immutable amount/currency, marks the invoice paid, updates the PARTNER Subscription period state and records revenue as `PARTNER_BRANCH_SUBSCRIPTION` in the same database transaction.
+- Failed/expired callbacks and 24-hour lazy expiry release only the hold belonging to that Payment ID. Refund is explicitly blocked pending a subscription credit-note/period-adjustment workflow.
+- **Still OPEN:** scheduled recurring billing, effective branch history, next-period quantity calculation/proration, partner entitlement middleware on every scoped API, billing UI/notifications, dunning and failed-payment recovery, subscription refund/credit-note, VAT/tax invoices/EDS, ledger/accounting exports and bank reconciliation.
+- **Provider/release boundary:** this reuses the repository's current platform provider abstraction; the official merchant-issued Kaspi integration contract, live callback verification and production credentials have not been certified. The Vercel preview status is currently an external build-rate limit and is not a source-code pass.
+- Diagnostic Center, Medical Laboratory and Dental Laboratory remain **PARTIAL**; D10 and production readiness remain **OPEN / NOT READY**. Exact-head CI/E2E, Quality Gate, RB-034, entitlement/role matrix, staging migration and provider/legal acceptance are still mandatory. No staging/production migration, payment, wallet movement or main merge was performed.
+
+
+## Academy course deletion and learner-history protection — 2026-11-23 (candidate PR #352)
+
+- Source audit confirmed that lecturer course deletion cascaded through `SchoolEnrollment`, `SchoolAssessmentAttempt` and `SchoolCertificate`, risking loss of student progress, assessment evidence and issued certificates.
+- Lecturer deletion now checks all three history relations in a serializable transaction and returns HTTP 409 when any history exists; serialization conflicts also fail closed with 409. The lecturer course list exposes the matching counts; the UI explains why deletion is unavailable and disables the destructive control. Products without learner history require explicit confirmation before deletion.
+- `ACADEMY-009` covers a real lecturer context, a persisted enrollment, the 409 response and post-request existence checks for both course and enrollment. The first CI run was cancelled by a subsequent source update before this test completed; only the new exact-head CI can verify it.
+- **Still OPEN:** a first-class course archive/close/reopen lifecycle, owner-managed cohorts, attendance, grading/assignment operations, learner purchase/refund history, instructor settlement and complete mobile acceptance. This change is a data-safety correction, not Academy completion. Academy / Student OS remain **PARTIAL / CANDIDATE** pending exact-head CI/E2E and all role, mobile and visual gates. No production/staging database was changed and no main merge was performed.
+
+
+## 2026-11-23 correction — partner branch billing lifecycle evidence in PR #352
+
+Earlier entries above describe pre-scheduler/pre-payment-UI milestones and are superseded by the source audit of the current PR #352 candidate. The candidate now contains:
+
+- Hourly, idempotent current-month invoice issuance for legally activated Diagnostic Center and explicitly classified Medical/Dental Laboratory organizations.
+- In-app invoice-issued notices to members with scoped Billing/Finance permissions.
+- Platform Finance invoice issuance and partner-facing invoice list / Kaspi QR initiation.
+- Provider-status polling, invoice-bound payment identity and amount/currency checks, atomic payment settlement and distinct PARTNER_BRANCH_SUBSCRIPTION revenue recognition.
+- Prospective branch-status events and month-start billable-quantity snapshots. This does not reconstruct history before the baseline.
+
+This is invoice scheduling and payment initiation/settlement support, **not automatic recurring debit**. Remaining release blockers are entitlement enforcement on every partner-scoped API, dunning and automated failed-payment recovery, proration/credits, refunds/credit notes, VAT/tax invoices and EDS, bank reconciliation/accounting exports, live Kaspi merchant and callback acceptance, and approved staging/operator evidence. The three verticals remain PARTIAL; D10 and release remain OPEN / NOT READY.
+
+ACADEMY-010/011 are not resolved: core E2E on ce6347e4 had 259 passed, 5 skipped and 2 failed, with a “Course not found” 404 for protected PUT/DELETE. The old route marker established middleware entry only. The follow-up records async-handler entry and scoped lookup outcome, disables automatic redirects, and preserves the expected 409 and data-integrity assertions. Do not merge PR #352 before fresh exact-head full CI, Quality Gate, RB-034 and every role/mobile/visual gate succeeds.
+
+
+## 2026-11-23 — Latest PR #352 security and Academy test update
+
+- The partner subscription read route is being hardened to require exact active Organization context (`organizationId` + `organizationOriginalId`) and scoped Billing/Finance permission through the canonical PersonRole permission resolver. E2E tests cover valid partner finance/owner reads and denial of staff without billing permissions, clinic context and cross-organization context. This is candidate code until exact-head CI passes.
+- Academy protected update/delete still fail E2E on 404 despite route/handler/course-found/history-conflict markers matching; new response writer instrumentation records the actual status/JSON writer. Keep ACADEMY-010/011 OPEN until 409 is returned and learner course/lesson/enrollment records are proven unchanged.
+- On previous SHA b580006, core E2E 259 passed, 5 skipped, 2 failed; backend/frontend lint, full lint/test, Quality Gate, RB-034, Browser UX and Mobile Design succeeded. Role/context and later owner/visual gates were still running when checked. This does not satisfy merge/release gate.
+- Partner branch monthly invoicing/QR/payment initiation/settlement is present, not automatic recurring debit. Partner verticals remain PARTIAL; paid-entitlement enforcement across all APIs, dunning, proration, refunds/credit notes, tax/EDS, bank reconciliation and live Kaspi acceptance remain OPEN.

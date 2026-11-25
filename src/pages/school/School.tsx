@@ -137,7 +137,7 @@ export default function School() {
 
   return (
     <div className="dv-page p-3 sm:p-4 md:p-6 max-w-full overflow-x-hidden xl:max-w-[1120px] mx-auto space-y-4 md:space-y-5">
-      <PageHeader title="Academy OS" subtitle="Вебинары · учебники · офис-курсы · сертификация" icon={<GraduationCap size={22} />} actions={<div className="flex gap-2 flex-wrap justify-end"><Button size="sm" variant="secondary" onClick={() => navigate('/school-workspace')}>Кабинет лектора</Button><Button size="sm" onClick={() => setTab('webinars')} icon={<Radio size={14} />}>Купить вебинар</Button><Button size="sm" variant="secondary" onClick={() => setTab('textbooks')} icon={<FileText size={14} />}>Учебники</Button></div>} />
+      <PageHeader title="Academy OS" subtitle="Вебинары · учебники · офис-курсы · сертификация" icon={<GraduationCap size={22} />} actions={<div className="flex gap-2 flex-wrap justify-end"><Button size="sm" onClick={() => navigate('/school/my-learning')}>Моё обучение</Button><Button size="sm" variant="secondary" onClick={() => navigate('/school-workspace')}>Кабинет лектора</Button><Button size="sm" onClick={() => setTab('webinars')} icon={<Radio size={14} />}>Купить вебинар</Button><Button size="sm" variant="secondary" onClick={() => setTab('textbooks')} icon={<FileText size={14} />}>Учебники</Button></div>} />
 
       {pendingPay && <PaymentQrPanel payment={pendingPay} title={pendingPay.title || 'Academy OS'} amount={pendingPay.price} currency={pendingPay.currency || 'KZT'} busy={payBusy} onConfirm={confirmEventPay} onCancel={() => setPendingPay(null)} hint="Оплатите по QR, затем нажмите «Проверить оплату». В демо место подтверждается сразу." />}
 

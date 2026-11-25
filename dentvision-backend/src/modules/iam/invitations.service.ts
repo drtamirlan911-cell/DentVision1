@@ -28,6 +28,18 @@ const DIAGNOSTIC_ORG_TYPES: Record<string, 'DiagnosticCenter' | 'Laboratory'> = 
 /** Roles a diagnostics invite may carry, in that module's own vocabulary. */
 export const DIAGNOSTIC_INVITE_ROLES = ['admin', 'manager', 'radiologist', 'operator'] as const;
 
+export const MEDICAL_LAB_INVITE_ROLES = [
+  'medical_lab_admin', 'medical_lab_manager', 'medical_lab_reception',
+  'medical_lab_technician', 'medical_lab_validator', 'medical_lab_doctor',
+  'medical_lab_finance', 'medical_lab_quality',
+] as const;
+
+export const DENTAL_LAB_INVITE_ROLES = [
+  'dental_lab_admin', 'dental_lab_manager', 'lab_coordinator',
+  'dental_technician', 'cad_designer', 'ceramist', 'orthodontic_technician',
+  'qc_specialist', 'lab_finance',
+] as const;
+
 /** Employer invitations grant scoped hiring access, never ownership or platform roles. */
 export const EMPLOYER_INVITE_ROLES = ['employer_recruiter', 'employer_viewer'] as const;
 
@@ -81,6 +93,23 @@ export function normalizeDiagnosticInviteRole(role?: string): string {
   return (DIAGNOSTIC_INVITE_ROLES as readonly string[]).includes(wanted) ? wanted : 'operator';
 }
 
+export function laboratoryTypeFromSettings(settings: unknown): 'DENTAL_LAB' | 'MEDICAL_LAB' {
+  const value = settings && typeof settings === 'object' && !Array.isArray(settings)
+    ? String((settings as Record<string, unknown>).laboratoryType || '').trim().toUpperCase()
+    : '';
+  return value === 'DENTAL_LAB' ? 'DENTAL_LAB' : 'MEDICAL_LAB';
+}
+
+/** Lab invitations use the vertical pinned in Organization.settings, never a caller-supplied type. */
+export function normalizeLaboratoryInviteRole(role?: string, laboratoryType?: string): string {
+  const dental = String(laboratoryType || '').trim().toUpperCase() === 'DENTAL_LAB';
+  const allowed = dental ? DENTAL_LAB_INVITE_ROLES : MEDICAL_LAB_INVITE_ROLES;
+  const wanted = String(role || '').trim().toLowerCase();
+  return (allowed as readonly string[]).includes(wanted)
+    ? wanted
+    : dental ? 'dental_technician' : 'medical_lab_technician';
+}
+
 export function normalizeEmployerInviteRole(role?: string): string {
   const wanted = String(role || '').toLowerCase();
   return (EMPLOYER_INVITE_ROLES as readonly string[]).includes(wanted) ? wanted : 'employer_viewer';
@@ -95,9 +124,9 @@ export function generateInviteCode(): string {
  * May this user hand out invitations for this organization?
  *
  * Read from the legacy member row rather than the unified graph on purpose:
- * `grantDiagnosticsAccess` deliberately leaves radiologists and operators
- * without a `PersonRole`, so a unified-only check would see no role at all and
- * could not tell an operator from an owner.
+ * this table is the canonical membership/manager boundary for diagnostics
+ * invites. Scoped PersonRole rows provide capabilities for each specialist,
+ * but must not allow a clinical operator or radiologist to invite colleagues.
  */
 export async function canManageMembers(
   userId: string,
@@ -170,14 +199,16 @@ export async function createInvitation(input: {
 }) {
   const organization = await prisma.organization.findUnique({
     where: { id: input.organizationId },
-    select: { id: true, type: true, archivedAt: true },
+    select: { id: true, type: true, archivedAt: true, settings: true },
   });
   if (!organization || organization.archivedAt) {
     throw Object.assign(new Error('Организация не найдена'), { status: 404 });
   }
-  const role = organization.type === 'EMPLOYER'
-    ? normalizeEmployerInviteRole(input.role)
-    : normalizeDiagnosticInviteRole(input.role);
+  let role: string;
+  if (organization.type === 'EMPLOYER') role = normalizeEmployerInviteRole(input.role);
+  else if (organization.type === 'LABORATORY') role = normalizeLaboratoryInviteRole(input.role, laboratoryTypeFromSettings(organization.settings));
+  else if (organization.type === 'DIAGNOSTIC_CENTER') role = normalizeDiagnosticInviteRole(input.role);
+  else throw Object.assign(new Error('Этот тип организации пока не поддерживает приглашения'), { status: 400 });
   const days = Number(input.expiresInDays) > 0 ? Number(input.expiresInDays) : 7;
 
   return prisma.organizationInvitation.create({
@@ -214,7 +245,7 @@ export async function acceptInvitation(
 ): Promise<AcceptResult> {
   const invitation = await prisma.organizationInvitation.findUnique({
     where: { code },
-    include: { organization: { select: { id: true, name: true, type: true, originalId: true, archivedAt: true } } },
+    include: { organization: { select: { id: true, name: true, type: true, originalId: true, archivedAt: true, settings: true } } },
   });
 
   const rejection = rejectInvitation(invitation, { userEmail: user.email });
@@ -227,6 +258,35 @@ export async function acceptInvitation(
 
   if (await isAlreadyMember(user.id, org)) {
     throw Object.assign(new Error('Вы уже состоите в этой организации'), { status: 409 });
+  }
+
+  if (org.type === 'LABORATORY') {
+    const laboratoryType = laboratoryTypeFromSettings(org.settings);
+    const expectedRole = normalizeLaboratoryInviteRole(invitation!.role, laboratoryType);
+    if (expectedRole !== String(invitation!.role || '').trim().toLowerCase()) {
+      throw Object.assign(new Error('Роль приглашения не соответствует типу лаборатории'), { status: 400 });
+    }
+
+    const granted = await grantDiagnosticsAccess('Laboratory', entityId, user.id, expectedRole);
+    if (!granted) {
+      throw Object.assign(new Error('Не удалось выдать доступ к лаборатории'), { status: 500 });
+    }
+
+    const claimed = await prisma.organizationInvitation.updateMany({
+      where: { code, usedAt: null, revokedAt: null },
+      data: { usedAt: new Date(), usedBy: user.id },
+    });
+    if (claimed.count !== 1) {
+      throw Object.assign(new Error('Приглашение уже использовано'), { status: 409 });
+    }
+
+    return {
+      organizationId: org.id,
+      organizationName: org.name,
+      organizationType: org.type,
+      entityId,
+      role: expectedRole,
+    };
   }
 
   if (org.type === 'EMPLOYER') {

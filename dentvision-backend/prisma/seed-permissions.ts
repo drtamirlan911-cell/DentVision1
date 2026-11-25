@@ -87,14 +87,25 @@ async function seedE2EPartnerFixtures() {
       select: { id: true },
     });
 
+    const laboratoryType = fixture.organizationType === 'LABORATORY'
+      ? (fixture.role.startsWith('dental_') ? 'DENTAL_LAB' : 'MEDICAL_LAB')
+      : null;
+    const organizationSettings = laboratoryType
+      ? { laboratoryType, selfServiceType: laboratoryType === 'DENTAL_LAB' ? 'dental_lab' : 'medical_lab' }
+      : undefined;
     const organization = await prisma.organization.upsert({
       where: { id: (await prisma.organization.findFirst({ where: { type: fixture.organizationType, name: fixture.organizationName }, select: { id: true } }))?.id || randomUUID() },
-      update: { type: fixture.organizationType, name: fixture.organizationName },
+      update: {
+        type: fixture.organizationType,
+        name: fixture.organizationName,
+        ...(organizationSettings ? { settings: organizationSettings } : {}),
+      },
       create: {
         id: randomUUID(),
         name: fixture.organizationName,
         type: fixture.organizationType,
         originalType: 'E2E',
+        ...(organizationSettings ? { settings: organizationSettings } : {}),
       },
     });
 
@@ -152,6 +163,38 @@ async function seedE2EPartnerFixtures() {
         where: { labId_userId: { labId: laboratory.id, userId: user.id } },
         update: { role: fixture.role.endsWith('_owner') ? 'admin' : 'technician' },
         create: { id: randomUUID(), labId: laboratory.id, userId: user.id, role: fixture.role.endsWith('_owner') ? 'admin' : 'technician' },
+      });
+    }
+
+    // Branch-scoped partner roles need a real organization BranchMember.
+    // The context API intentionally does not substitute the organization default
+    // branch for an operator/technician; the isolated E2E fixture must model the
+    // same explicit assignment a production manager would make.
+    const partnerDefinition = PARTNER_ROLE_DEFINITIONS.find(
+      (definition) => definition.key.toLowerCase() === fixture.role,
+    );
+    if (partnerDefinition?.defaultScope === 'BRANCH') {
+      const branch = await prisma.branch.upsert({
+        where: {
+          organizationId_code: {
+            organizationId: organization.id,
+            code: 'E2E-PARTNER-MAIN',
+          },
+        },
+        update: { name: `${fixture.organizationName} — Main`, active: true, isDefault: true },
+        create: {
+          id: randomUUID(),
+          organizationId: organization.id,
+          code: 'E2E-PARTNER-MAIN',
+          name: `${fixture.organizationName} — Main`,
+          active: true,
+          isDefault: true,
+        },
+      });
+      await prisma.branchMember.upsert({
+        where: { personId_branchId: { personId: person.id, branchId: branch.id } },
+        update: { active: true },
+        create: { id: randomUUID(), personId: person.id, branchId: branch.id, active: true },
       });
     }
 
@@ -322,10 +365,32 @@ async function seedE2EClinicCanonicalContexts() {
       if (branch.organizationId && branch.organizationId !== organization.id) {
         throw new Error(`E2E clinic branch belongs to a different organization for ${member.user.email}`);
       }
+      // E2E branches are initially created by the legacy clinic fixture. Once
+      // the canonical Clinic Organization exists, attach the branch to it as
+      // well as keeping clinicId for domain compatibility. BranchMember alone
+      // is insufficient: resolveOrganizationBranches queries organizationId.
+      if (!branch.organizationId) {
+        await prisma.branch.update({
+          where: { id: branch.id },
+          data: { organizationId: organization.id },
+        });
+      }
+      const canonicalBranch = await prisma.branch.findFirst({
+        where: {
+          id: branch.id,
+          clinicId: member.clinicId,
+          organizationId: organization.id,
+          active: true,
+        },
+        select: { id: true, active: true },
+      });
+      if (!canonicalBranch) {
+        throw new Error(`E2E clinic branch was not attached to the canonical organization for ${member.user.email}`);
+      }
       await prisma.branchMember.upsert({
-        where: { personId_branchId: { personId: person.id, branchId: branch.id } },
-        create: { id: randomUUID(), personId: person.id, branchId: branch.id, active: branch.active },
-        update: { active: branch.active },
+        where: { personId_branchId: { personId: person.id, branchId: canonicalBranch.id } },
+        create: { id: randomUUID(), personId: person.id, branchId: canonicalBranch.id, active: true },
+        update: { active: true },
       });
     }
 

@@ -18,6 +18,34 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body?.data as T;
 }
 
+export interface DentalLabShipment {
+  id: string;
+  labOrderId: string;
+  laboratoryId: string;
+  method: 'COURIER' | 'PICKUP';
+  carrier?: string | null;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+  status: 'dispatched' | 'ready_for_pickup' | 'delivered';
+  dispatchedAt: string;
+  deliveredAt?: string | null;
+  proofUrl?: string | null;
+  recipientName?: string | null;
+  deliveryNote?: string | null;
+}
+
+export interface DentalLabInvoice {
+  id: string;
+  invoiceNumber: string;
+  amountMinor: string;
+  refundedMinor: string;
+  currency: 'KZT' | string;
+  status: 'issued' | 'paid' | 'partially_refunded' | 'refunded' | 'void' | string;
+  issuedAt: string;
+  paidAt?: string | null;
+  paymentId?: string | null;
+}
+
 export interface LabPlatformOrder {
   id: string;
   clinicId: string;
@@ -36,9 +64,18 @@ export interface LabPlatformOrder {
   technicianId?: string | null;
   remakeOfId?: string | null;
   appointmentId?: string | null;
+  serviceId?: string | null;
+  serviceName?: string | null;
+  servicePriceSnapshot?: number | null;
   createdAt: string;
   updatedAt: string;
   qualityControl?: { checks: Record<string, boolean>; passed: boolean; note: string | null; checkedByUserId: string; checkedAt: string } | null;
+  remakeRequest?: { id: string; status: 'requested' | 'accepted' | 'rejected'; reason: string; requestedByUserId: string; requestedAt: string; laboratoryId: string; decidedByUserId?: string; decidedAt?: string; responseNote?: string | null } | null;
+  payment?: { paymentId: string; status: 'paid'; amountMinor: string; paidAt: string } | null;
+  invoice?: DentalLabInvoice | null;
+  shipment?: DentalLabShipment | null;
+  clinicAcceptance?: { status: 'accepted'; acceptedAt: string; shipmentId: string; remakeRequestId?: string | null; note?: string | null } | null;
+  clinicAcceptanceHistory?: Array<{ status: 'accepted'; acceptedAt: string; shipmentId: string; remakeRequestId?: string | null; note?: string | null }>;
 }
 
 export interface LabPlatformDashboard {
@@ -59,9 +96,155 @@ export interface AvailableDentalLab {
 }
 export const getAvailableDentalLabs = () => request<AvailableDentalLab[]>('/available-laboratories');
 export const getLabPlatformDashboard = () => request<LabPlatformDashboard>('/dashboard');
+export interface LabPlatformPayout {
+  id: string;
+  amount: string;
+  status: 'requested' | 'approved' | 'paid' | 'rejected';
+  createdAt: string;
+  updatedAt: string;
+}
+export interface LabPlatformFinance {
+  wallet: { id: string; ownerType: 'PARTNER'; ownerId: string; currency: string; balance: string };
+  availableBalanceMinor: string;
+  payouts: LabPlatformPayout[];
+  economics: {
+    period: { from: string | null; to: string | null };
+    totals: {
+      operations: number;
+      grossMinor: string;
+      commissionMinor: string;
+      partnerPayoutMinor: string;
+      costMinor: string;
+      contributionMarginMinor: string;
+      contributionMarginBps: number;
+    };
+    rows: Array<{
+      transactionId: string;
+      operationId: string;
+      grossMinor: string;
+      commissionMinor: string;
+      partnerPayoutMinor: string;
+      status: string;
+      economicsVersion: number;
+      payoutId: string | null;
+      payoutStatus: string | null;
+      payoutAmountMinor: string | null;
+    }>;
+    discrepancies: number;
+  };
+}
+export const getLabPlatformFinance = () => request<LabPlatformFinance>('/finance');
+export const requestLabPlatformPayout = (amount: string) =>
+  request<LabPlatformPayout>('/payouts', { method: 'POST', body: JSON.stringify({ amount: amount.trim() }) });
 export const getLabPlatformOrders = (status?: string) => request<LabPlatformOrder[]>(status ? `/orders?status=${encodeURIComponent(status)}` : '/orders');
+export interface LabPlatformLifecycleEvent {
+  id: string;
+  fromStatus: string | null;
+  toStatus: string;
+  note?: string | null;
+  actorUserId: string;
+  createdAt: string;
+}
+export interface LabPlatformShipmentEvent {
+  id: string;
+  shipmentId: string;
+  eventType: string;
+  fromStatus?: string | null;
+  toStatus: string;
+  note?: string | null;
+  actorUserId: string;
+  createdAt: string;
+}
+export interface LabPlatformOrderLifecycle {
+  order: LabPlatformOrder;
+  events: LabPlatformLifecycleEvent[];
+  shipments: DentalLabShipment[];
+  shipmentEvents: LabPlatformShipmentEvent[];
+}
+export const getLabPlatformOrderLifecycle = (id: string) =>
+  request<LabPlatformOrderLifecycle>(`/orders/${encodeURIComponent(id)}/lifecycle`);
+export const issueLabPlatformInvoice = (id: string, notes?: string) =>
+  request<DentalLabInvoice>(`/orders/${encodeURIComponent(id)}/invoice`, { method: 'POST', body: JSON.stringify({ notes }) });
 export const updateLabPlatformOrderStatus = (id: string, status: string) => request<LabPlatformOrder>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 export const assignLabTechnician = (id: string, technicianId: string | null) => request<LabPlatformOrder>(`/orders/${id}/technician`, { method: 'PATCH', body: JSON.stringify({ technicianId }) });
 export const updateLabPlatformQualityControl = (id: string, checks: Record<string, boolean>, note?: string) => request<LabPlatformOrder>(`/orders/${id}/qc`, { method: 'PATCH', body: JSON.stringify({ checks, note }) });
+export const updateLabPlatformRemakeRequest = (id: string, decision: 'accept' | 'reject', note?: string) => request<LabPlatformOrder>(`/orders/${id}/remake-request`, { method: 'PATCH', body: JSON.stringify({ decision, note }) });
+export const createLabPlatformShipment = (id: string, body: { method: 'COURIER' | 'PICKUP'; carrier?: string; trackingNumber?: string; trackingUrl?: string; note?: string }) =>
+  request<{ shipment: DentalLabShipment; order: LabPlatformOrder; idempotent?: boolean }>(`/orders/${id}/shipment`, { method: 'POST', body: JSON.stringify(body) });
+export const confirmLabPlatformDelivery = (id: string, body: { proofUrl: string; recipientName: string; note?: string }) =>
+  request<{ order: LabPlatformOrder; shipment: DentalLabShipment; idempotent?: boolean }>(`/orders/${id}/shipment/delivery-confirmation`, { method: 'POST', body: JSON.stringify(body) });
 export const getLabPlatformTeam = () => request<Array<{ id: string; role?: string; firstName: string; lastName: string; email: string; avatar?: string | null }>>('/team');
-export const assignClinicLabOrder = (orderId: string, laboratoryId: string) => request<LabPlatformOrder>('/assign', { method: 'POST', body: JSON.stringify({ orderId, laboratoryId }) });
+export const assignClinicLabOrder = (orderId: string, laboratoryId: string, serviceId?: string) => request<LabPlatformOrder>('/assign', { method: 'POST', body: JSON.stringify({ orderId, laboratoryId, ...(serviceId ? { serviceId } : {}) }) });
+
+export interface DentalLabService {
+  id: string; labId: string; code: string; name: string; category: string;
+  description?: string | null; material?: string | null; defaultPrice: number;
+  turnaroundDays: number; active: boolean; createdAt: string; updatedAt: string;
+}
+export interface AvailableDentalLabService {
+  id: string; code: string; name: string; category: string;
+  description?: string | null; material?: string | null; defaultPrice: number; turnaroundDays: number;
+}
+export const getDentalLabServices = () => request<DentalLabService[]>('/services');
+export const createDentalLabService = (body: { code: string; name: string; category: string; description?: string; material?: string; defaultPrice: number; turnaroundDays: number }) =>
+  request<DentalLabService>('/services', { method: 'POST', body: JSON.stringify(body) });
+export const updateDentalLabService = (id: string, body: Partial<Pick<DentalLabService, 'code' | 'name' | 'category' | 'description' | 'material' | 'defaultPrice' | 'turnaroundDays' | 'active'>>) =>
+  request<DentalLabService>(`/services/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) });
+export const getAvailableDentalLabServices = (labId: string) =>
+  request<AvailableDentalLabService[]>(`/available-laboratories/${encodeURIComponent(labId)}/services`);
+
+export interface DentalLabMaterialLot {
+  id: string;
+  lotNumber: string;
+  supplierName?: string | null;
+  supplierLotNumber?: string | null;
+  remainingQuantityMilli: string;
+  receivedQuantityMilli: string;
+  unitCostMinor?: string;
+  currency?: string;
+  receivedAt: string;
+  expiresAt?: string | null;
+  expired: boolean;
+}
+export interface DentalLabMaterial {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  unit: 'g' | 'ml' | 'pcs' | string;
+  minimumStockMilli: string;
+  availableStockMilli: string;
+  active: boolean;
+  lots: DentalLabMaterialLot[];
+  createdAt: string;
+  updatedAt: string;
+}
+export interface DentalLabCaseMaterial {
+  id: string;
+  material: { code?: string; name: string; unit: string };
+  lot: { lotNumber: string; supplierName?: string | null; expiresAt?: string | null };
+  quantityMilli: string;
+  unitCostMinorSnapshot?: string;
+  totalCostMinorSnapshot?: string;
+  consumedByUserId: string;
+  consumedAt: string;
+  note?: string | null;
+  reversedAt?: string | null;
+  reversedByUserId?: string | null;
+  reversalReason?: string | null;
+}
+export const getDentalLabMaterials = () => request<DentalLabMaterial[]>('/materials');
+export const createDentalLabMaterial = (body: {
+  code: string; name: string; category: string; unit: 'g' | 'ml' | 'pcs'; minimumStock?: string;
+}) => request<DentalLabMaterial>('/materials', { method: 'POST', body: JSON.stringify(body) });
+export const receiveDentalLabMaterialLot = (materialId: string, body: {
+  lotNumber: string; quantity: string; unitCost: string; supplierName?: string;
+  supplierLotNumber?: string; expiresAt?: string; note?: string;
+}) => request<DentalLabMaterialLot>(`/materials/${encodeURIComponent(materialId)}/lots`, { method: 'POST', body: JSON.stringify(body) });
+export const getDentalLabOrderMaterialConsumptions = (orderId: string) =>
+  request<DentalLabCaseMaterial[]>(`/orders/${encodeURIComponent(orderId)}/material-consumptions`);
+export const consumeDentalLabOrderMaterial = (orderId: string, body: {
+  materialId: string; lotId: string; quantity: string; idempotencyKey: string; note?: string;
+}) => request<DentalLabCaseMaterial>(`/orders/${encodeURIComponent(orderId)}/material-consumptions`, { method: 'POST', body: JSON.stringify(body) });
+export const reverseDentalLabOrderMaterialConsumption = (orderId: string, consumptionId: string, reason: string) =>
+  request<DentalLabCaseMaterial>(`/orders/${encodeURIComponent(orderId)}/material-consumptions/${encodeURIComponent(consumptionId)}/reversal`, { method: 'POST', body: JSON.stringify({ reason }) });

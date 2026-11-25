@@ -9,6 +9,7 @@ import { requestPayout, PayoutError } from '../finance/payout.service.js';
 import { syncPersonFromLecturer } from '../../lib/syncMembership.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { normalizeSchoolFormat, formatLabel } from '../school/schoolFormats.js';
+import { writeAuditLog } from '../compliance/audit.service.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // School Workspace — Lecturer cabinet (self-service). All routes operate on the
@@ -108,7 +109,7 @@ lecturerRouter.get('/courses', async (req: AuthRequest, res) => {
       ...(format ? { format } : {}),
     },
     orderBy: { createdAt: 'desc' },
-    include: { _count: { select: { enrollments: true, lessons: true } } },
+    include: { _count: { select: { enrollments: true, lessons: true, assessmentAttempts: true, certificates: true } } },
   });
   return res.json({
     ok: true,
@@ -183,6 +184,23 @@ lecturerRouter.patch('/courses/:id', async (req: AuthRequest, res) => {
     return res.status(404).json({ ok: false, error: 'Продукт не найден' } satisfies ApiResponse);
   }
   const b = req.body || {};
+  if (b.publicationStatus !== undefined && b.publicationStatus !== 'published' && b.publicationStatus !== 'archived') {
+    return res.status(400).json({ ok: false, error: 'publicationStatus должен быть published или archived' } satisfies ApiResponse);
+  }
+  if (b.publicationStatus === 'published') {
+    const lecturer = await prisma.lecturer.findUnique({
+      where: { id: req.user!.lecturerId },
+      select: { level: true },
+    });
+    if (!lecturer || !['verified', 'expert', 'international_speaker'].includes(lecturer.level)) {
+      return res.status(403).json({
+        ok: false,
+        error: 'Публикация доступна после проверки профиля лектора',
+        code: 'LECTURER_VERIFICATION_REQUIRED',
+      } satisfies ApiResponse);
+    }
+  }
+
   const nextMeta = {
     ...((existing.meta && typeof existing.meta === 'object' ? existing.meta : {}) as Record<string, unknown>),
   };
@@ -191,25 +209,38 @@ lecturerRouter.patch('/courses/:id', async (req: AuthRequest, res) => {
   if (b.venue !== undefined) nextMeta.venue = b.venue || null;
   if (b.certificate != null) nextMeta.certificate = Boolean(b.certificate);
 
-  const course = await prisma.course.update({
-    where: { id: existing.id },
-    data: {
-      ...(b.title !== undefined && { title: b.title }),
-      ...(b.description !== undefined && { description: b.description || null }),
-      ...(b.category !== undefined && { category: b.category || null }),
-      ...(b.price !== undefined && { price: Number(b.price) }),
-      ...(b.duration !== undefined && { duration: b.duration || null }),
-      ...(b.imageUrl !== undefined && {
-        imageUrl: typeof b.imageUrl === 'string' && b.imageUrl.trim() ? b.imageUrl.trim() : null,
-      }),
-      ...(b.format !== undefined && { format: normalizeSchoolFormat(b.format) }),
-      ...(b.startsAt !== undefined && { startsAt: b.startsAt ? new Date(b.startsAt) : null }),
-      ...(b.seats !== undefined && { seats: b.seats === '' || b.seats == null ? null : Number(b.seats) }),
-      ...(b.fileUrl !== undefined && {
-        fileUrl: typeof b.fileUrl === 'string' && b.fileUrl.trim() ? b.fileUrl.trim() : null,
-      }),
-      meta: nextMeta as object,
-    },
+  const course = await prisma.$transaction(async (tx) => {
+    const updated = await tx.course.update({
+      where: { id: existing.id },
+      data: {
+        ...(b.title !== undefined && { title: b.title }),
+        ...(b.description !== undefined && { description: b.description || null }),
+        ...(b.category !== undefined && { category: b.category || null }),
+        ...(b.price !== undefined && { price: Number(b.price) }),
+        ...(b.duration !== undefined && { duration: b.duration || null }),
+        ...(b.imageUrl !== undefined && {
+          imageUrl: typeof b.imageUrl === 'string' && b.imageUrl.trim() ? b.imageUrl.trim() : null,
+        }),
+        ...(b.format !== undefined && { format: normalizeSchoolFormat(b.format) }),
+        ...(b.startsAt !== undefined && { startsAt: b.startsAt ? new Date(b.startsAt) : null }),
+        ...(b.seats !== undefined && { seats: b.seats === '' || b.seats == null ? null : Number(b.seats) }),
+        ...(b.fileUrl !== undefined && {
+          fileUrl: typeof b.fileUrl === 'string' && b.fileUrl.trim() ? b.fileUrl.trim() : null,
+        }),
+        ...(b.publicationStatus !== undefined && { publicationStatus: b.publicationStatus }),
+        meta: nextMeta as object,
+      },
+    });
+    if (b.publicationStatus !== undefined && b.publicationStatus !== existing.publicationStatus) {
+      await writeAuditLog({
+        action: b.publicationStatus === 'archived' ? 'LECTURER_COURSE_ARCHIVED' : 'LECTURER_COURSE_PUBLISHED',
+        entity: 'course',
+        entityId: existing.id,
+        details: { publicationStatus: b.publicationStatus },
+        userId: req.user!.id,
+      }, tx);
+    }
+    return updated;
   });
   return res.json({
     ok: true,
@@ -218,14 +249,54 @@ lecturerRouter.patch('/courses/:id', async (req: AuthRequest, res) => {
 });
 
 lecturerRouter.delete('/courses/:id', async (req: AuthRequest, res) => {
-  const existing = await prisma.course.findFirst({
-    where: { id: req.params.id as string, lecturerId: req.user!.lecturerId },
-  });
-  if (!existing) {
-    return res.status(404).json({ ok: false, error: 'Продукт не найден' } satisfies ApiResponse);
+  try {
+    // Course has cascading relations to enrollments, assessment attempts and
+    // certificates. Never let a lecturer's catalogue cleanup erase a learner's
+    // academic record. Serializable isolation also closes the check/delete race
+    // with a concurrent enrollment or assessment insert.
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.course.findFirst({
+        where: { id: req.params.id as string, lecturerId: req.user!.lecturerId },
+        select: { id: true },
+      });
+      if (!existing) return { kind: 'not-found' as const };
+
+      const [enrollmentCount, attemptCount, certificateCount] = await Promise.all([
+        tx.schoolEnrollment.count({ where: { courseId: existing.id } }),
+        tx.schoolAssessmentAttempt.count({ where: { courseId: existing.id } }),
+        tx.schoolCertificate.count({ where: { courseId: existing.id } }),
+      ]);
+
+      if (enrollmentCount + attemptCount + certificateCount > 0) {
+        return { kind: 'has-history' as const };
+      }
+
+      await tx.course.delete({ where: { id: existing.id } });
+      return { kind: 'deleted' as const, id: existing.id };
+    }, { isolationLevel: 'Serializable' });
+
+    if (result.kind === 'not-found') {
+      return res.status(404).json({ ok: false, error: 'Курс не найден' } satisfies ApiResponse);
+    }
+    if (result.kind === 'has-history') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Удаление запрещено: у курса есть история обучения. Зачисления, результаты оценивания и сертификаты должны оставаться доступными учащимся.',
+      } satisfies ApiResponse);
+    }
+    return res.json({ ok: true, data: { id: result.id } } satisfies ApiResponse);
+  } catch (error) {
+    const code = typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code?: unknown }).code)
+      : null;
+    if (code === 'P2034') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Курс одновременно изменяется. Обновите список и повторите действие.',
+      } satisfies ApiResponse);
+    }
+    throw error;
   }
-  await prisma.course.delete({ where: { id: existing.id } });
-  return res.json({ ok: true, data: { id: existing.id } } satisfies ApiResponse);
 });
 
 // ─── Wallet + payouts ───

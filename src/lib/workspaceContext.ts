@@ -76,6 +76,69 @@ const normalize = (value?: string | null) => {
   return v || null
 }
 
+/**
+ * Resolve a global participant role when the authenticated user has no
+ * organization workspace. This is a presentation-only label; IAM remains
+ * authoritative for permissions and workspace selection.
+ */
+export function resolveGlobalRoleLabel(
+  candidates: readonly (string | null | undefined)[],
+  getRoleDisplayLabel: (role: string) => string,
+  fallbackLabel?: string | null,
+): string {
+  const isGenericLabel = (label?: string | null) =>
+    !label?.trim() || /^(?:участник(?: экосистемы)?|member|participant|user|пользователь)$/i.test(label.trim())
+
+  for (const candidate of candidates) {
+    const role = normalize(candidate)
+    if (!role) continue
+    const label = normalize(getRoleDisplayLabel(role))
+    if (label && !isGenericLabel(label) && label.toLowerCase() !== role.toLowerCase()) return label
+  }
+
+  const fallback = normalize(fallbackLabel)
+  return fallback && !isGenericLabel(fallback) ? fallback : 'Участник экосистемы'
+}
+
+export interface WorkspaceSelectionCandidate {
+  scopeId: string
+  organizationId?: string | null
+}
+
+export interface WorkspaceSelectionIdentity {
+  scopeId?: string | null
+  organizationId?: string | null
+}
+
+/**
+ * Preserve the workspace the user explicitly selected. The active legacy
+ * entity scope is the strongest match; Organization.id is the canonical
+ * fallback. Never silently choose among multiple organizations.
+ */
+export function selectWorkspaceContext<T extends WorkspaceSelectionCandidate>(
+  contexts: readonly T[],
+  active: WorkspaceSelectionIdentity = {},
+): T | null {
+  if (contexts.length === 0) return null
+
+  const activeScopeId = normalize(active.scopeId)
+  if (activeScopeId) {
+    const byScope = contexts.find((context) => context.scopeId === activeScopeId)
+    if (byScope) return byScope
+  }
+
+  const activeOrganizationId = normalize(active.organizationId)
+  if (activeOrganizationId) {
+    const byOrganization = contexts.find((context) => context.organizationId === activeOrganizationId)
+    if (byOrganization) return byOrganization
+  }
+
+  const hasActiveIdentity = Boolean(activeScopeId || activeOrganizationId)
+  if (hasActiveIdentity) return null
+
+  return contexts.length === 1 ? contexts[0] : null
+}
+
 export function workspaceContextFrom(source: WorkspaceContextSource, fallbackPermissions: string[] = []): WorkspaceContextContract {
   const organizationId = normalize(source.organizationId)
   const branchId = normalize(source.branchId)
@@ -135,4 +198,22 @@ export function contextRequestHeaders(context: WorkspaceContextContract): Record
   if (context.branchId) headers['X-DentVision-Branch-Id'] = context.branchId
   if (context.workflow.key !== 'workspace') headers['X-DentVision-Workflow'] = context.workflow.key
   return headers
+}
+
+
+/** Monotonic request guard for async workspace loads and mutations. */
+export interface WorkspaceRequestGenerationRef {
+  current: number;
+}
+
+export function beginWorkspaceRequest(ref: WorkspaceRequestGenerationRef): number {
+  ref.current += 1;
+  return ref.current;
+}
+
+export function isWorkspaceRequestCurrent(
+  ref: WorkspaceRequestGenerationRef,
+  generation: number,
+): boolean {
+  return ref.current === generation;
 }

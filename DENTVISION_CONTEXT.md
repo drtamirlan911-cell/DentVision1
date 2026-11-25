@@ -22,6 +22,32 @@
 - Release remains **NOT READY**.
 
 ---
+## Current continuation checkpoint — 2026-11-23 (updated after SHA b580006)
+
+- Repository: drtamirlan911-cell/DentVision1. Main remains `758ffe7f39112848df701a8b988f44af03845597`. Active PR #352: `fix/partner-workspace-context-ux-20261120`. Candidate SHA at the time of this checkpoint: `b580006e2f28bde45f05706d7cd15b5bdcd0205d`; following diagnostic/RBAC commit is pending its exact-head CI.
+- On SHA b580006: backend-lint, frontend-lint and lint-test SUCCESS; Quality Gate run `45209352349` SUCCESS; RB-034 Context Diagnostic `45209352387` SUCCESS; browser UX and mobile design release gates SUCCESS. Core E2E: 259 passed, 5 skipped, 2 failed (ACADEMY-010/011). Role/context gate was still running at the last poll; remaining owner/visual gates were pending. Do not merge this SHA.
+- Academy diagnosis: PUT/DELETE route, async handler, course lookup and expected `history-conflict`/`has-history` result headers all passed, but the final HTTP response still carried 404 and English `Course not found`. The current follow-up instruments actual `res.status()` and `res.json()` writes and requires the final JSON marker for 409 / `ACADEMY_LEARNING_HISTORY_PROTECTED`. This is diagnostic only; do not claim the Academy blocker resolved until both tests and data-integrity checks pass.
+- New subscription security correction: `GET /api/subscriptions/PARTNER/:ownerId` now validates that the requested owner equals the authenticated active organization’s `organizationOriginalId` and calls the canonical `PersonRole → Role → Permission` billing helper. E2E covers medical-lab Finance allow, diagnostic-center owner allow, and technician/radiologist/clinic-owner/cross-organization Finance denials. Exact-head tests still need to pass.
+- Partner branch billing UI, monthly invoice scheduler/notice workflow, platform invoice issuance, Kaspi QR initiation, provider status and atomic settlement are implemented candidates; no automatic recurring debit. Entitlements on every partner API, dunning/recovery, proration/credits, refunds/credit notes, tax/EDS, bank reconciliation and live Kaspi merchant/callback acceptance remain open.
+- Approved branch tariffs: Diagnostic Center ₸49,900, Medical Laboratory ₸19,900, Dental Laboratory ₸29,900 per active billable branch/month; transaction commissions separate. No fixed Academy or supplier branch fee is approved.
+- Diagnostic centers, medical labs, dental labs, suppliers and Academy remain PARTIAL—not production-certified. DICOMweb/RIS/PACS viewer/sign-off, analyzer/QC/regulatory proof, CAD/CAM, Academy cohorts/attendance/assessments/refunds and supplier refund/payout reconciliation remain open.
+- PR #350 and draft #351 remain separate, dirty/unmergeable at observed heads; do not wholesale merge or cherry-pick overlapping IAM/workspace changes. No main merge, deployment, staging/production DB write, PHI operation, live payment, key/secret update or legal signature occurred.
+
+---
+
+## Current continuation checkpoint — 2026-11-23
+
+- Canonical repository: drtamirlan911-cell/DentVision1; audited main: 758ffe7f39112848df701a8b988f44af03845597. Active candidate PR #352, branch fix/partner-workspace-context-ux-20261120, pre-diagnostic HEAD ce6347e4af3e27aca8a23c9d34ef1868b6cf7db4. Do not merge before every exact-head gate passes and merge state is clean.
+- Exact-head checks observed before this follow-up: backend lint, frontend lint and lint-test SUCCESS; Quality Gate 45200857359 SUCCESS; RB-034 Context Diagnostic 45200857516 SUCCESS; core E2E 259 passed / 5 skipped / 2 failed (ACADEMY-010 and ACADEMY-011). Browser UX and Mobile Design passed; Role/Context was still in progress when workflow telemetry stopped refreshing.
+- The old X-DV-Academy-Mutation-Route header proved only route middleware entry, not entry into the async handler. This follow-up adds a distinct handler-entry header, E2E-only safe route/lookup logs and maxRedirects:0; the expected HTTP 409 and learner-history integrity assertions stay unchanged.
+- Partner billing source now includes a monthly invoice cron, permission-scoped invoice notifications, platform issuance panel, partner invoice/QR payment UI, provider-status polling and atomic settlement, plus prospective branch-status history. The cron creates invoices and notices, not automatic debits. Entitlements on every partner API, dunning, proration, refunds/credit notes, tax/EDS, bank reconciliation and live Kaspi acceptance remain open.
+- Approved monthly branch tariffs remain Diagnostic Center ₸49,900, Medical Laboratory ₸19,900 and Dental Laboratory ₸29,900. Transaction commissions are separate. No fixed supplier or Academy branch fee is approved.
+- Partner cabinets are implemented slices, not production-certified verticals: RIS/PACS/DICOMweb and report sign-off, lab analyzer/QC/regulatory proof, full dental CAD/CAM, Academy cohorts/attendance/assignments/refunds and supplier return/refund reconciliation remain open.
+- PR #350 (archived-branch security) and PR #351 (Jarvis knowledge/read-only capabilities) remain dirty/unmergeable at their observed heads. Avoid wholesale merge/cherry-pick because the PRs overlap IAM, workspace and partner scope.
+- No staging/production DB, PHI, secrets, live provider payment, legal signature, production deployment or main merge was performed.
+
+---
+
 ## Current continuation checkpoint — 2026-11-18
 
 - Canonical repository: `drtamirlan911-cell/DentVision1`; current `main`: `7289f369b1effa28db94e3e1e4541e4500bc5ee0`.

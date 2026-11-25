@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router } from 'express';
 import { ExpertLevel } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
@@ -30,7 +31,7 @@ academiesRouter.get('/', async (req: AuthRequest, res) => {
     ]);
     return res.json({ ok: true, data: paginatedResponse(data, total, page, limit) } satisfies ApiResponse);
   } catch (error) {
-    console.error('List academies error:', error);
+    console.error('List academies error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при получении академий' } satisfies ApiResponse);
   }
 });
@@ -110,7 +111,7 @@ academiesRouter.post('/register', async (req: AuthRequest, res) => {
     });
     return res.status(201).json({ ok: true, data: { academy, organizationId: organization.id, role: 'owner', verification: 'PENDING', legal } } satisfies ApiResponse);
   } catch (error) {
-    console.error('Academy self-service registration error:', error);
+    console.error('Academy self-service registration error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось зарегистрировать академию' } satisfies ApiResponse);
   }
 });
@@ -153,7 +154,7 @@ academiesRouter.post('/', requirePermission('academy.manage'), async (req: AuthR
     }
     return res.status(201).json({ ok: true, data: academy } satisfies ApiResponse);
   } catch (error) {
-    console.error('Create academy error:', error);
+    console.error('Create academy error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при создании академии' } satisfies ApiResponse);
   }
 });
@@ -167,7 +168,7 @@ academiesRouter.patch('/:id', requirePermission('academy.manage'), async (req: A
     await prisma.organization.upsert({ where: { originalType_originalId: { originalType: 'Academy', originalId: updated.id } }, update: { name: updated.name }, create: { id: uid(), name: updated.name, type: 'ACADEMY', originalType: 'Academy', originalId: updated.id } });
     return res.json({ ok: true, data: updated } satisfies ApiResponse);
   } catch (error) {
-    console.error('Update academy error:', error);
+    console.error('Update academy error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при обновлении академии' } satisfies ApiResponse);
   }
 });
@@ -179,7 +180,7 @@ academiesRouter.delete('/:id', requirePermission('academy.manage'), async (req: 
     await prisma.organization.deleteMany({ where: { originalType: 'Academy', originalId: id } });
     return res.json({ ok: true } satisfies ApiResponse);
   } catch (error) {
-    console.error('Delete academy error:', error);
+    console.error('Delete academy error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при удалении академии' } satisfies ApiResponse);
   }
 });
@@ -202,7 +203,7 @@ lecturersRouter.get('/', async (req: AuthRequest, res) => {
     ]);
     return res.json({ ok: true, data: paginatedResponse(data, total, page, limit) } satisfies ApiResponse);
   } catch (error) {
-    console.error('List lecturers error:', error);
+    console.error('List lecturers error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при получении лекторов' } satisfies ApiResponse);
   }
 });
@@ -213,7 +214,7 @@ lecturersRouter.get('/:id', async (req: AuthRequest, res) => {
     if (!lecturer) return res.status(404).json({ ok: false, error: 'Лектор не найден' } satisfies ApiResponse);
     return res.json({ ok: true, data: lecturer } satisfies ApiResponse);
   } catch (error) {
-    console.error('Get lecturer error:', error);
+    console.error('Get lecturer error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при получении лектора' } satisfies ApiResponse);
   }
 });
@@ -230,7 +231,7 @@ lecturersRouter.post('/', requirePermission('academy.manage'), async (req: AuthR
     await syncPersonFromLecturer(lecturer.id, userId, academyId || null);
     return res.status(201).json({ ok: true, data: lecturer } satisfies ApiResponse);
   } catch (error) {
-    console.error('Create lecturer error:', error);
+    console.error('Create lecturer error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при создании лектора' } satisfies ApiResponse);
   }
 });
@@ -247,7 +248,7 @@ lecturersRouter.post('/:id/level', requirePermission('academy.manage'), async (r
     publish('lecturer.level_changed', { lecturerId: lecturer.id, level: target, from: existing.level, to: target, userId: req.user?.id });
     return res.json({ ok: true, data: lecturer } satisfies ApiResponse);
   } catch (error) {
-    console.error('Lecturer level error:', error);
+    console.error('Lecturer level error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при смене уровня' } satisfies ApiResponse);
   }
 });
@@ -261,7 +262,7 @@ lecturersRouter.post('/:id/verifications', requirePermission('academy.manage'), 
     const doc = await prisma.expertVerification.create({ data: { lecturerId: lecturer.id, type, url: url || null } });
     return res.status(201).json({ ok: true, data: doc } satisfies ApiResponse);
   } catch (error) {
-    console.error('Lecturer verification error:', error);
+    console.error('Lecturer verification error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при добавлении верификации' } satisfies ApiResponse);
   }
 });
@@ -275,7 +276,7 @@ lecturersRouter.patch('/:id/verifications/:verificationId', requirePermission('a
     const updated = await prisma.expertVerification.update({ where: { id: doc.id }, data: { verified } });
     return res.json({ ok: true, data: updated } satisfies ApiResponse);
   } catch (error) {
-    console.error('Verify document error:', error);
+    console.error('Verify document error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при верификации документа' } satisfies ApiResponse);
   }
 });

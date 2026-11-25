@@ -25,12 +25,13 @@ import type {
 } from '../types';
 import { normalizeAlertTone } from './alertTone';
 import { API_URL } from './apiOrigin';
-import { getActiveWorkspaceContext, setActiveWorkspaceContext } from '@/lib/workspaceContext';
+import { beginWorkspaceRequest, getActiveWorkspaceContext, isWorkspaceRequestCurrent, setActiveWorkspaceContext } from '@/lib/workspaceContext';
 
 // ─── Token Management ───
 let _accessToken: string | null = null;
 let _refreshToken: string | null = null;
 let _refreshPromise: Promise<string> | null = null;
+const workspaceSwitchGenerationRef = { current: 0 };
 /** Set the canonical active context used by context-aware API/AI requests. */
 export function setWorkspaceContext(context: Parameters<typeof setActiveWorkspaceContext>[0]): void { setActiveWorkspaceContext(context); }
 export function getWorkspaceContext(): ReturnType<typeof getActiveWorkspaceContext> { return getActiveWorkspaceContext(); }
@@ -159,7 +160,13 @@ export async function apiRequest(path: string, options: RequestInit = {}): Promi
   }
   const tz = clientTimezoneHeader(); if (tz) headers['X-Client-Timezone'] = tz;
   if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase())) { const csrfMatch = document.cookie.match(/(?:^|;\s*)dv_csrf=([^;]*)/); if (csrfMatch) headers['x-csrf-token'] = csrfMatch[1]; }
-  const finalOptions: RequestInit = { ...options, headers, credentials: 'include' }; headers['Content-Type'] = 'application/json';
+  if (typeof FormData !== 'undefined' && options.body instanceof FormData) {
+    // Let the browser set the multipart boundary for binary uploads.
+    delete headers['Content-Type'];
+  } else if (!headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+  const finalOptions: RequestInit = { ...options, headers, credentials: 'include' };
   let res = await fetch(`${API_URL}${path}`, finalOptions); let data = await res.json();
   if (res.status === 401) {
     try {
@@ -231,21 +238,24 @@ export async function getBranchMembers(id: string): Promise<any[]> { const res =
 export async function assignBranchMember(branchId: string, userId: string): Promise<any> { return apiRequest(`/api/branches/${encodeURIComponent(branchId)}/members/${encodeURIComponent(userId)}`, { method: 'POST', body: JSON.stringify({}) }); }
 export async function unassignBranchMember(branchId: string, userId: string): Promise<any> { return apiRequest(`/api/branches/${encodeURIComponent(branchId)}/members/${encodeURIComponent(userId)}`, { method: 'DELETE' }); }
 export async function switchContext(scopeType: string, scopeId?: string, branchId?: string): Promise<any> {
+  // Last-started workspace switch wins. An older network response must never
+  // overwrite the newer workspace's credentials merely because it completed later.
+  const generation = beginWorkspaceRequest(workspaceSwitchGenerationRef);
   const result = await apiRequest('/api/iam/switch-context', {
     method: 'POST',
     body: JSON.stringify({ scopeType, scopeId, branchId }),
   });
   // Context switching is a credential mutation, not just a data request.
-  // Persist the scoped token centrally so every workspace (including the
-  // supplier and diagnostics cabinets) survives navigation and hard reload.
-  if (result?.accessToken) {
+  // Persist only the latest scoped token centrally so every workspace (including
+  // supplier and diagnostics cabinets) survives navigation and hard reload safely.
+  if (result?.accessToken && isWorkspaceRequestCurrent(workspaceSwitchGenerationRef, generation)) {
     setTokens(result.accessToken, result.refreshToken ?? null);
   }
   return result;
 }
 export async function getOrganizationPersons(organizationId: string): Promise<any[]> { const res = await getPersons({ organizationId, limit: 200 }); return Array.isArray(res?.data) ? res.data : []; }
 async function supplierFetch(path: string, token: string, options: RequestInit = {}): Promise<any> { const res = await fetch(`${API_URL}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options.headers as Record<string, string>) } }); const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`); return data.data !== undefined ? data.data : data; }
-export const supplierWs = { me: (t: string) => supplierFetch('/api/supplier/me', t), updateMe: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/me', t, { method: 'PATCH', body: JSON.stringify(b) }), addDocument: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/documents', t, { method: 'POST', body: JSON.stringify(b) }), products: (t: string) => supplierFetch('/api/supplier/products', t), createProduct: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/products', t, { method: 'POST', body: JSON.stringify(b) }), updateProduct: (t: string, id: string, b: Record<string, unknown>) => supplierFetch(`/api/supplier/products/${id}`, t, { method: 'PATCH', body: JSON.stringify(b) }), deleteProduct: (t: string, id: string) => supplierFetch(`/api/supplier/products/${id}`, t, { method: 'DELETE' }), wallet: (t: string) => supplierFetch('/api/supplier/wallet', t), analytics: (t: string) => supplierFetch('/api/supplier/analytics', t), dashboard: (t: string) => supplierFetch('/api/supplier/dashboard', t), insights: (t: string) => supplierFetch('/api/supplier/insights', t), orders: (t: string) => supplierFetch('/api/supplier/orders', t), updateOrderStatus: (t: string, id: string, status: string) => supplierFetch(`/api/supplier/orders/${id}/status`, t, { method: 'PATCH', body: JSON.stringify({ status }) }), createPromotion: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/promotions', t, { method: 'POST', body: JSON.stringify(b) }), cashbackRules: (t: string) => supplierFetch('/api/supplier/cashback-rules', t), upsertCashbackRule: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/cashback-rules', t, { method: 'PUT', body: JSON.stringify(b) }), deleteCashbackRule: (t: string, id: string) => supplierFetch(`/api/supplier/cashback-rules/${id}`, t, { method: 'DELETE' }), requestPayout: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/payouts', t, { method: 'POST', body: JSON.stringify(b) }) };
+export const supplierWs = { me: (t: string) => supplierFetch('/api/supplier/me', t), updateMe: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/me', t, { method: 'PATCH', body: JSON.stringify(b) }), addDocument: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/documents', t, { method: 'POST', body: JSON.stringify(b) }), products: (t: string) => supplierFetch('/api/supplier/products', t), createProduct: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/products', t, { method: 'POST', body: JSON.stringify(b) }), updateProduct: (t: string, id: string, b: Record<string, unknown>) => supplierFetch(`/api/supplier/products/${id}`, t, { method: 'PATCH', body: JSON.stringify(b) }), deleteProduct: (t: string, id: string) => supplierFetch(`/api/supplier/products/${id}`, t, { method: 'DELETE' }), wallet: (t: string) => supplierFetch('/api/supplier/wallet', t), analytics: (t: string) => supplierFetch('/api/supplier/analytics', t), dashboard: (t: string) => supplierFetch('/api/supplier/dashboard', t), insights: (t: string) => supplierFetch('/api/supplier/insights', t), orders: (t: string) => supplierFetch('/api/supplier/orders', t), updateOrderStatus: (t: string, id: string, status: string) => supplierFetch(`/api/supplier/orders/${id}/status`, t, { method: 'PATCH', body: JSON.stringify({ status }) }), createPromotion: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/promotions', t, { method: 'POST', body: JSON.stringify(b) }), cashbackRules: (t: string) => supplierFetch('/api/supplier/cashback-rules', t), upsertCashbackRule: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/cashback-rules', t, { method: 'PUT', body: JSON.stringify(b) }), deleteCashbackRule: (t: string, id: string) => supplierFetch(`/api/supplier/cashback-rules/${id}`, t, { method: 'DELETE' }), requestPayout: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/payouts', t, { method: 'POST', body: JSON.stringify(b) }), createShipment: (t: string, id: string, b: Record<string, unknown>) => supplierFetch(`/api/supplier/orders/${id}/shipments`, t, { method: 'POST', body: JSON.stringify(b) }), confirmDelivery: (t: string, id: string, b: Record<string, unknown>) => supplierFetch(`/api/supplier/orders/${id}/delivery-confirmation`, t, { method: 'POST', body: JSON.stringify(b) }), orderFulfillment: (t: string, id: string) => supplierFetch(`/api/supplier/orders/${id}/fulfillment`, t), respondToReturn: (t: string, id: string, b: Record<string, unknown>) => supplierFetch(`/api/supplier/returns/${id}/respond`, t, { method: 'POST', body: JSON.stringify(b) }) };
 async function lecturerFetch(path: string, token: string, options: RequestInit = {}): Promise<any> { const res = await fetch(`${API_URL}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options.headers as Record<string, string>) } }); const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`); return data.data !== undefined ? data.data : data; }
 export const lecturerWs = { register: (b: Record<string, unknown> = {}) => apiRequest('/api/lecturer/register', { method: 'POST', body: JSON.stringify(b) }), me: (t: string) => lecturerFetch('/api/lecturer/me', t), updateMe: (t: string, b: Record<string, unknown>) => lecturerFetch('/api/lecturer/me', t, { method: 'PATCH', body: JSON.stringify(b) }), courses: (t: string) => lecturerFetch('/api/lecturer/courses', t), createCourse: (t: string, b: Record<string, unknown>) => lecturerFetch('/api/lecturer/courses', t, { method: 'POST', body: JSON.stringify(b) }), updateCourse: (t: string, id: string, b: Record<string, unknown>) => lecturerFetch(`/api/lecturer/courses/${id}`, t, { method: 'PATCH', body: JSON.stringify(b) }), deleteCourse: (t: string, id: string) => lecturerFetch(`/api/lecturer/courses/${id}`, t, { method: 'DELETE' }), wallet: (t: string) => lecturerFetch('/api/lecturer/wallet', t), analytics: (t: string) => lecturerFetch('/api/lecturer/analytics', t), requestPayout: (t: string, b: Record<string, unknown>) => lecturerFetch('/api/lecturer/payouts', t, { method: 'POST', body: JSON.stringify(b) }) };
 export async function saveClinicSettings(clinicId: string, settings: import('../types').ClinicSettings): Promise<any> { return apiRequest(`/api/clinics/${clinicId}/settings`, { method: 'PUT', body: JSON.stringify(settings) }); }
@@ -301,6 +311,13 @@ export async function upsertAppointment(data: Partial<Appointment> & { force?: b
 export async function upsertReceipt(data: Partial<Receipt>): Promise<any> { const payload = { ...data, amount: data.amount ?? data.total, items: data.items || (data.service ? [{ name: data.service, price: data.total || data.amount || 0, qty: 1 }] : []), status: data.status === 'paid' || data.status === 'completed' ? 'PAID' : data.status === 'partial' ? 'PARTIAL' : 'PENDING' }; const created = await apiRequest('/api/billing/invoices', { method: 'POST', body: JSON.stringify(payload) }); if ((data.status === 'paid' || data.status === 'completed') && created?.id) { try { await apiRequest(`/api/billing/invoices/${created.id}/pay`, { method: 'POST', body: '{}' }); } catch { /* ignore */ } } return mapReceipt(created); }
 export async function upsertLabOrder(data: Partial<LabOrder>): Promise<any> { return apiRequest('/api/lab-orders', { method: 'POST', body: JSON.stringify(data) }); }
 export async function updateLabOrderStatus(id: string, status: string): Promise<any> { return apiRequest(`/api/lab-orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+export async function requestLabOrderRemake(id: string, reason: string): Promise<any> { return apiRequest(`/api/lab-orders/${id}/remake-request`, { method: 'POST', body: JSON.stringify({ reason }) }); }
+export async function acceptLabOrderDelivery(id: string, note?: string): Promise<any> {
+  return apiRequest(`/api/lab-orders/${id}/acceptance`, {
+    method: 'POST',
+    body: JSON.stringify({ note: note?.trim() || undefined }),
+  });
+}
 export async function upsertExpense(data: Partial<Expense>): Promise<any> { return apiRequest('/api/crm/expenses', { method: 'POST', body: JSON.stringify(data) }); }
 function inventoryPayload(data: Partial<InventoryItem>): Record<string, unknown> { const out: Record<string, unknown> = { ...data }; if (data.minQuantity !== undefined || data.min !== undefined) out.minimum = data.minQuantity ?? data.min ?? 0; const cost = (data as any).cost ?? (data as any).price; if (cost !== undefined) out.price = cost; delete out.id; return out; }
 export async function createInventoryItem(data: Partial<InventoryItem>): Promise<any> { return apiRequest('/api/inventory', { method: 'POST', body: JSON.stringify({ quantity: 0, ...inventoryPayload(data) }) }); }
@@ -407,7 +424,42 @@ export async function getShopProducts(params: Record<string, string> = {}): Prom
 export async function getShopProduct(id: string): Promise<any> { try { const raw = await apiRequest(`/api/shop/products/${id}`); return raw?.data || raw; } catch { return null; } }
 export async function getShopSuppliers(params: Record<string, string> = {}): Promise<any> { try { const q = new URLSearchParams(); Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); }); let raw: any; try { raw = await apiRequest(`/api/shop/suppliers?${q}`); } catch { raw = await apiRequest(`/api/suppliers?limit=50&${q}`); } const rows = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.items) ? raw.items : []; return rows.map((s: any) => ({ id: s.id, name: s.name, country: 'Казахстан', city: s.city || String(s.legalAddress || '').split(',')[0].trim() || '', phone: s.phone, email: s.email, website: s.email ? `https://${String(s.email).split('@')[1] || 'dentvision.kz'}` : undefined, rating: s.rating ?? (s.status === 'OFFICIAL_PARTNER' ? 4.9 : s.status === 'VERIFIED' ? 4.6 : 4.2), deliveryDays: s.delivery_days ?? s.deliveryDays ?? (s.status === 'OFFICIAL_PARTNER' ? 1 : 2), deliveryCost: s.status === 'OFFICIAL_PARTNER' ? 0 : 2500, status: s.status, productCount: s.product_count ?? s._count?.products ?? 0 })); } catch { return []; } }
 export async function createShopOrder(data: any): Promise<any> { return apiRequest('/api/shop/orders', { method: 'POST', body: JSON.stringify(data) }); }
-export async function createPayment(payload: { amount: number; domain?: string; refType?: string; refId?: string | null; meta?: Record<string, unknown>; provider?: string }): Promise<any> { return apiRequest('/api/payments', { method: 'POST', body: JSON.stringify(payload) }); }
+export async function createPayment(payload: { amount?: number; amountMinor?: string; invoiceId?: string; domain?: string; refType?: string; refId?: string | null; meta?: Record<string, unknown>; provider?: string }): Promise<any> { return apiRequest('/api/payments', { method: 'POST', body: JSON.stringify(payload) }); }
+export interface PartnerBranchSubscriptionInvoice {
+  id: string;
+  organizationId: string;
+  ownerId: string;
+  invoiceNumber: string;
+  vertical: 'DIAGNOSTIC_3D' | 'MEDICAL_ANALYSIS' | 'DENTAL_LAB' | string;
+  policyVersion: string;
+  periodStart: string;
+  periodEnd: string;
+  activeBranchCount: number;
+  billableBranchCount: number;
+  unitPriceKzt: number;
+  amountMinor: string;
+  currency: string;
+  status: 'issued' | 'payment_pending' | 'paid' | 'void' | string;
+  issuedAt: string;
+  paidAt?: string | null;
+  paymentId?: string | null;
+}
+export async function getPartnerBranchSubscriptionInvoices(organizationId?: string, take = 50): Promise<PartnerBranchSubscriptionInvoice[]> {
+  const safeTake = Number.isSafeInteger(take) && take > 0 ? Math.min(take, 100) : 50;
+  const params = new URLSearchParams({ take: String(safeTake) });
+  if (organizationId?.trim()) params.set('organizationId', organizationId.trim());
+  return apiRequest(`/api/finance/partner-branch-billing/invoices?${params.toString()}`);
+}
+export async function issuePartnerBranchSubscriptionInvoice(input: {
+  organizationId: string;
+  periodStart: string;
+  periodEnd: string;
+}): Promise<PartnerBranchSubscriptionInvoice> {
+  return apiRequest('/api/finance/partner-branch-billing/invoices', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
 export async function getPayment(paymentId: string): Promise<any> { return apiRequest(`/api/payments/${paymentId}`); }
 export async function confirmPayment(paymentId: string): Promise<any> { return apiRequest(`/api/payments/${paymentId}/confirm`, { method: 'POST', body: JSON.stringify({}) }); }
 export async function getShopOrders(clinicId: string): Promise<any> { return collection(await apiRequest('/api/shop/orders')); }
@@ -424,6 +476,14 @@ export async function quoteDentCash(body: { lines: Array<Record<string, unknown>
 export const createManualTransaction = (data: { walletId: string; type: 'CREDIT' | 'DEBIT'; amount: number; description: string; refType?: string; refId?: string }) => apiRequest('/api/finance/transactions/manual', { method: 'POST', body: JSON.stringify(data) });
 export async function getAcademyHub(): Promise<any> { return apiRequest('/api/school/hub'); }
 export async function getSchoolCourses(params: Record<string, string> = {}): Promise<any> { const q = new URLSearchParams(); Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); }); const qs = q.toString(); return collection(await apiRequest(`/api/school/courses${qs ? `?${qs}` : ''}`)); }
+export async function getManagedSchoolCourses(): Promise<any> { return collection(await apiRequest('/api/school/courses/managed')); }
+export async function getManagedSchoolEnrollments(): Promise<any> { return collection(await apiRequest('/api/school/enrollments/managed')); }
+export async function updateSchoolCoursePublication(id: string, publicationStatus: 'draft' | 'published' | 'archived'): Promise<any> {
+  return apiRequest(`/api/school/courses/${id}/publication`, {
+    method: 'PATCH',
+    body: JSON.stringify({ publicationStatus }),
+  });
+}
 export async function getSchoolCourse(id: string): Promise<any> { return apiRequest(`/api/school/courses/${id}`); }
 export async function enrollCourse(data: any): Promise<any> { return apiRequest('/api/school/enrollments', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getEnrollments(userId: string): Promise<any> { return apiRequest('/api/school/enrollments'); }
@@ -436,6 +496,9 @@ export async function getSchoolOfficeCourses(): Promise<any> { return collection
 export async function getSchoolTextbooks(): Promise<any> { return collection(await apiRequest('/api/school/textbooks')); }
 export async function registerAcademyProduct(payload: { productId: string; format: 'webinar' | 'office' | 'live' | 'textbook' | 'course' }): Promise<any> { return apiRequest('/api/school/commerce/register', { method: 'POST', body: JSON.stringify(payload) }); }
 export async function getSchoolCertificates(userId: string): Promise<any> { return collection(await apiRequest('/api/school/certificates')); }
+export async function getSchoolCertificateVerification(verificationCode: string): Promise<any> {
+  return apiRequest(`/api/school/certificates/verify/${encodeURIComponent(verificationCode)}`);
+}
 export async function getAcademies(): Promise<any> { return collection(await apiRequest('/api/academies')); }
 export async function getLecturers(params: Record<string, string> = {}): Promise<any> { const q = new URLSearchParams(params).toString(); return collection(await apiRequest(`/api/lecturers${q ? `?${q}` : ''}`)); }
 export async function reviewSchoolHomework(payload: { title?: string; notes?: string; category?: string; imageCount?: number }): Promise<any> { return apiRequest('/api/school/homework/review', { method: 'POST', body: JSON.stringify(payload) }); }
@@ -626,7 +689,40 @@ export async function aiBriefing(): Promise<AIChatResponse> { const tz = clientT
 export async function getJobs(params: Record<string, string> = {}): Promise<any[]> { const q = new URLSearchParams(); Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); }); return apiRequest(`/api/jobs?${q}`); }
 export async function createJob(data: any): Promise<any> { return apiRequest('/api/jobs', { method: 'POST', body: JSON.stringify(data) }); }
 export async function createEmployerVacancy(data: any): Promise<any> { return apiRequest('/api/jobs/employer/vacancies', { method: 'POST', body: JSON.stringify(data) }); }
+export async function updateEmployerVacancy(id: string, data: { title?: string; city?: string; salary?: string; employmentType?: string; description?: string; tags?: string[]; status?: 'open' | 'closed' }): Promise<any> {
+  return apiRequest(`/api/jobs/employer/vacancies/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
 export async function getEmployerStatus(): Promise<{ organizationType: string; organizationName: string; verificationStatus: string; canPublish: boolean }> { return apiRequest('/api/jobs/employer/status'); }
+export interface JobInvitationCreateInput { resumeId: string; vacancyId?: string; message?: string; expiresAt?: string }
+export async function createEmployerInvitation(data: JobInvitationCreateInput): Promise<any> {
+  return apiRequest('/api/jobs/employer/invitations', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function getMyJobInvitations(): Promise<any[]> { return apiRequest('/api/jobs/me/invitations'); }
+export async function respondToJobInvitation(id: string, response: 'accepted' | 'declined'): Promise<any> {
+  return apiRequest(`/api/jobs/me/invitations/${encodeURIComponent(id)}/respond`, { method: 'PATCH', body: JSON.stringify({ response }) });
+}
+export interface JobInterviewCreateInput {
+  scheduledAt: string; durationMinutes?: number; timezone?: string;
+  mode: 'online' | 'in_person' | 'phone'; meetingUrl?: string; location?: string; agenda?: string;
+}
+export async function createEmployerInterview(applicationId: string, data: JobInterviewCreateInput): Promise<any> {
+  return apiRequest(`/api/jobs/employer/applications/${encodeURIComponent(applicationId)}/interviews`, { method: 'POST', body: JSON.stringify(data) });
+}
+export async function getMyJobInterviews(): Promise<any[]> { return apiRequest('/api/jobs/me/interviews'); }
+export async function respondToJobInterview(id: string, response: 'confirmed' | 'declined' | 'reschedule_requested'): Promise<any> {
+  return apiRequest(`/api/jobs/me/interviews/${encodeURIComponent(id)}/respond`, { method: 'PATCH', body: JSON.stringify({ response }) });
+}
+export interface JobOfferCreateInput {
+  title: string; salary?: string; currency?: string; employmentType: string;
+  startAt?: string; expiresAt: string; terms?: Record<string, unknown>;
+}
+export async function createEmployerJobOffer(applicationId: string, data: JobOfferCreateInput): Promise<any> {
+  return apiRequest(`/api/jobs/employer/applications/${encodeURIComponent(applicationId)}/offers`, { method: 'POST', body: JSON.stringify(data) });
+}
+export async function getMyJobOffers(): Promise<any[]> { return apiRequest('/api/jobs/me/offers'); }
+export async function respondToJobOffer(id: string, response: 'accepted' | 'declined', message?: string): Promise<any> {
+  return apiRequest(`/api/jobs/me/offers/${encodeURIComponent(id)}/respond`, { method: 'PATCH', body: JSON.stringify({ response, message }) });
+}
 export async function getEmployerVacancies(): Promise<any[]> { const data = await apiRequest('/api/jobs/employer/vacancies'); return Array.isArray(data) ? data : []; }
 export async function getEmployerResumes(): Promise<any[]> { const data = await apiRequest('/api/jobs/employer/resumes'); return Array.isArray(data) ? data : []; }
 export async function getEmployerVacancyApplications(id: string): Promise<any[]> { const data = await apiRequest(`/api/jobs/employer/vacancies/${encodeURIComponent(id)}/applications`); return Array.isArray(data) ? data : []; }
@@ -705,10 +801,37 @@ export async function updateDiagnosticReferral(id: string, data: any): Promise<a
 export async function changeDiagnosticReferralStatus(id: string, status: string, reason?: string, extra?: Record<string, any>): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${id}/status`, { method: 'POST', body: JSON.stringify({ status, reason, ...extra }) }); }
 export async function deleteDiagnosticReferral(id: string): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${id}`, { method: 'DELETE' }); }
 export async function addDiagnosticComment(referralId: string, text: string): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${referralId}/comments`, { method: 'POST', body: JSON.stringify({ text }) }); }
-export async function uploadDiagnosticFile(data: { referralId: string; fileName: string; fileData: string; fileType?: string; fileSize?: number }): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${data.referralId}/files`, { method: 'POST', body: JSON.stringify({ fileName: data.fileName, fileData: data.fileData, fileType: data.fileType, fileSize: data.fileSize }) }); }
+export async function uploadDiagnosticFile(data: { referralId: string; file: File }): Promise<any> {
+  const form = new FormData();
+  form.set('file', data.file);
+  return apiRequest(`/api/diagnostics/referrals/${encodeURIComponent(data.referralId)}/files/upload`, {
+    method: 'POST',
+    body: form,
+  });
+}
+export async function getDiagnosticReferralFileDownloadUrl(referralId: string, fileId: string): Promise<{
+  url: string;
+  expiresInSeconds: number;
+  fileName: string;
+  fileType: string;
+}> {
+  return apiRequest(
+    `/api/diagnostics/referrals/${encodeURIComponent(referralId)}/files/${encodeURIComponent(fileId)}/download-url`,
+  );
+}
 export async function deleteDiagnosticFile(id: string): Promise<any> { return apiRequest(`/api/diagnostics/referral-files/${id}`, { method: 'DELETE' }); }
 export async function aiGenerateDiagnosticResult(referralId: string): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${referralId}/ai-result`, { method: 'POST', body: '{}' }); }
 export async function signDiagnosticResult(referralId: string, reportText: string, conclusion?: string): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${referralId}/results/sign`, { method: 'POST', body: JSON.stringify({ reportText, conclusion }) }); }
+export async function amendDiagnosticResult(referralId: string, data: {
+  reportText: string;
+  conclusion: string;
+  changeReason: string;
+}): Promise<any> {
+  return apiRequest(`/api/diagnostics/referrals/${encodeURIComponent(referralId)}/results/amend`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
 export async function submitDiagnosticsRegistration(data: { type: 'center' | 'laboratory'; name: string; city?: string; address?: string; phone?: string; email?: string; comment?: string }): Promise<any> { return apiRequest('/api/diagnostics/register', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getDiagnosticsRegistrations(status?: string): Promise<any> { return apiRequest(`/api/diagnostics/registrations${status ? `?status=${status}` : ''}`); }
 export async function approveDiagnosticsRegistration(id: string): Promise<any> { return apiRequest(`/api/diagnostics/registrations/${id}/approve`, { method: 'POST', body: '{}' }); }
@@ -725,6 +848,77 @@ export const createDiagnosticsLabTest = (labId: string, data: { name: string; ca
 export const collectDiagnosticsLabCashierPayment = (labId: string, payload: { referralId: string; cost: number }) => apiRequest(`/api/diagnostics/laboratories/${labId}/cashier/collect`, { method: 'POST', body: JSON.stringify(payload) });
 export async function getDiagnosticsLabDashboard(labId: string): Promise<any> { return getDiagnosticsDashboard({ labId }); }
 export const getDiagnosticsLabPayments = (labId: string) => getDiagnosticReferrals({ labId });
+export interface DiagnosticsSettlementsResponse {
+  items: Array<{
+    id: string;
+    ownerType: 'CENTER' | 'LAB';
+    ownerId: string;
+    periodStart: string;
+    periodEnd: string;
+    referralCount: number;
+    commissionMinor: string;
+    status: 'open' | 'invoiced' | 'paid' | 'void';
+    dueDate: string | null;
+    paidAt: string | null;
+  }>;
+  count: number;
+  canRequestPayment: boolean;
+}
+export async function getDiagnosticsSettlements(): Promise<DiagnosticsSettlementsResponse> {
+  return apiRequest('/api/diagnostics/settlements');
+}
+export async function requestDiagnosticsSettlementPayment(settlementId: string): Promise<any> {
+  return apiRequest(`/api/diagnostics/settlements/${encodeURIComponent(settlementId)}/pay`, {
+    method: 'POST',
+    body: '{}',
+  });
+}
+
+export async function getDentalLabTeam(): Promise<any[]> {
+  return apiRequest('/api/lab-orders/platform/team');
+}
+export async function getMedicalLabTeam(): Promise<any[]> {
+  return apiRequest('/api/lab-orders/medical-laboratory/team');
+}
+export async function getDiagnosticCenterWorklistStaff(centerId: string): Promise<any[]> {
+  return apiRequest('/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/worklist/staff');
+}
+export async function assignDiagnosticCenterWorklistStaff(centerId: string, referralId: string, data: {
+  operatorUserId?: string | null;
+  radiologistUserId?: string | null;
+}): Promise<any> {
+  return apiRequest(
+    '/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/worklist/' + encodeURIComponent(referralId) + '/assignees',
+    { method: 'PATCH', body: JSON.stringify(data) },
+  );
+}
+export async function getDiagnosticCenterWorklistReferralDetail(centerId: string, referralId: string): Promise<any> {
+  return apiRequest('/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/worklist/' + encodeURIComponent(referralId));
+}
+export async function getDiagnosticCenterWorklist(centerId: string, params: { status?: string; priority?: string; search?: string; limit?: number; offset?: number } = {}): Promise<any> {
+  const q = new URLSearchParams();
+  if (params.status) q.set('status', params.status);
+  if (params.priority) q.set('priority', params.priority);
+  if (params.search) q.set('search', params.search);
+  if (params.limit) q.set('limit', String(params.limit));
+  if (params.offset) q.set('offset', String(params.offset));
+  return apiRequest('/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/worklist?' + q.toString());
+}
+export async function getDiagnosticModalities(centerId: string): Promise<any> {
+  return apiRequest('/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/modalities');
+}
+export async function createDiagnosticModality(centerId: string, data: {
+  name: string; kind: string; manufacturer?: string; model?: string; serialNumber?: string;
+  room?: string; aeTitle?: string; nextMaintenanceAt?: string;
+}): Promise<any> {
+  return apiRequest('/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/modalities', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function updateDiagnosticModality(centerId: string, modalityId: string, data: Record<string, unknown>): Promise<any> {
+  return apiRequest('/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/modalities/' + encodeURIComponent(modalityId), { method: 'PATCH', body: JSON.stringify(data) });
+}
+export async function assignDiagnosticModality(centerId: string, referralId: string, modalityId: string | null): Promise<any> {
+  return apiRequest('/api/diagnostics/centers/' + encodeURIComponent(centerId) + '/worklist/' + encodeURIComponent(referralId) + '/modality', { method: 'PATCH', body: JSON.stringify({ modalityId }) });
+}
 export const getDiagnosticsCommissionRules = () => apiRequest('/api/diagnostics/commission-rules');
 export const createDiagnosticsCommissionRule = (data: { centerId?: string; labId?: string; percentBps: number; description?: string }) => apiRequest('/api/diagnostics/commission-rules', { method: 'POST', body: JSON.stringify(data) });
 export const getDiagnosticsStats = () => apiRequest('/api/diagnostics/stats');

@@ -28,6 +28,9 @@ export interface DomainEventMap {
   'referral.completed': { referralId: string; clinicId: string; centerId: string; doctorId: string; status: string; userId?: string; cost?: any; platformFee?: any };
   'diagnostics.result_ready': { referralId: string; resultId: string; clinicId: string; centerId: string; doctorId: string; userId?: string };
   'diagnostics.result_confirmed': { referralId: string; resultId: string; clinicId: string; centerId?: string; doctorId: string; userId?: string; confirmedBy?: string; confirmedAt?: string };
+  'diagnostics.result_amended': { referralId: string; clinicId: string; centerId: string; doctorId: string; userId: string; version: number; requiresRedelivery: boolean };
+  'labOrder.shipment_created': { clinicId: string; labOrderId: string; laboratoryId: string; shipmentId: string; method: string; userId?: string };
+  'labOrder.delivery_confirmed': { clinicId: string; labOrderId: string; laboratoryId: string; shipmentId: string; method: string; userId?: string };
   'diagnostics.booking.created': { centerId: string; bookingId: string; status: string; userId?: string };
   'diagnostics.booking.status_changed': { centerId: string; bookingId: string; status: string; previousStatus?: string; userId?: string };
   'labOrder.created': { clinicId: string; labOrderId: string; patientId?: string; doctorId?: string; treatmentCaseId?: string; userId?: string };
@@ -35,11 +38,19 @@ export interface DomainEventMap {
   'labOrder.assigned': { clinicId: string; labOrderId: string; laboratoryId: string; laboratoryName: string; patientId?: string; doctorId?: string; treatmentCaseId?: string; userId?: string };
   'labOrder.qc_passed': { clinicId: string; labOrderId: string; laboratoryId: string; status: string; previousStatus: string; userId?: string };
   'labOrder.qc_failed': { clinicId: string; labOrderId: string; laboratoryId: string; status: string; previousStatus: string; userId?: string };
+  'labOrder.remake_requested': { clinicId: string; labOrderId: string; laboratoryId: string; requestId: string; userId?: string };
+  'labOrder.remake_response': { clinicId: string; labOrderId: string; laboratoryId: string; requestId: string; decision: 'accept' | 'reject'; userId?: string };
+  'labOrder.clinic_accepted': { clinicId: string; labOrderId: string; laboratoryId: string; shipmentId: string; remakeRequestId: string | null; hasFeedback: boolean; userId?: string };
+  'labOrder.invoice_issued': { clinicId: string; labOrderId: string; laboratoryId: string; invoiceId: string; userId?: string };
   'medicalLabOrder.created': { orderId: string; clinicId: string; patientId?: string | null; treatmentCaseId?: string | null; labId?: string | null; userId?: string };
   'medicalLabOrder.status_changed': { orderId: string; clinicId: string; fromStatus: string; toStatus: string; userId?: string };
   'medicalLabResult.ready': { orderId: string; clinicId: string; patientId?: string | null; treatmentCaseId?: string | null; userId?: string };
   'medicalLabResult.verified': { orderId: string; clinicId: string; patientId?: string | null; treatmentCaseId?: string | null; userId?: string };
   'medicalLabResult.interpreted': { orderId: string; clinicId: string; patientId?: string | null; treatmentCaseId?: string | null; userId?: string; source?: string };
+  'medicalLabQuality.completed': { orderId: string; clinicId: string; patientId?: string | null; decision: 'passed' | 'failed'; userId?: string };
+  'medicalLabSpecimen.accessioned': { orderId: string; specimenId: string; labId: string; accessionNumber: string; userId: string };
+  'medicalLabSpecimen.scanned': { orderId: string; specimenId: string; labId: string; action: 'received' | 'rejected'; orderAdvanced: boolean; userId: string };
+  'medicalLabSpecimen.aliquot_created': { orderId: string; specimenId: string; parentSpecimenId: string; labId: string; userId: string };
   'growth.event': GrowthEventPayload;
 }
 

@@ -66,9 +66,11 @@ export async function resolvePatientBranchContext(
 
   const activeBranchId = assignedBranchId && allowed.includes(assignedBranchId)
     ? assignedBranchId
-    : legacyBranchId && allowed.includes(legacyBranchId)
-      ? legacyBranchId
-      : allowed[0] ?? null;
+    : ORGANIZATION_ROLES.has(role)
+      ? (legacyBranchId && allowed.includes(legacyBranchId) ? legacyBranchId : allowed[0] ?? null)
+      : allowed.length === 1
+        ? allowed[0]
+        : null;
 
   if (ORGANIZATION_ROLES.has(role)) {
     return { clinicId, userId, role, branchId: activeBranchId, scope: { kind: 'organization', branchIds: allowed } };

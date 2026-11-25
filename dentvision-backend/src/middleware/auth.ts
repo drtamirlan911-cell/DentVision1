@@ -271,15 +271,17 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       organizationWideBranchIds = activeBranches.map((branch) => branch.id);
     }
 
-    const activeMembership = effectiveClinicId
-      ? user.memberships?.find((m) => m.clinicId === effectiveClinicId)
-      : undefined;
     const legacyBranchIds = user.memberships
       ?.filter((membership) => membership.clinicId === effectiveClinicId && membership.branchId && membership.branch?.active === true)
       .map((membership) => membership.branchId as string) || [];
-    const branchIds = mergeBranchIds(mergeBranchIds(unifiedBranchIds, legacyBranchIds), organizationWideBranchIds);
-    const legacyAssignedBranchId = activeMembership?.branchId && activeMembership.branch?.active === true ? activeMembership.branchId : undefined;
-    const assignedBranchId = unifiedBranchIds[0] || legacyAssignedBranchId;
+    const clinicAssignedBranchIds = mergeBranchIds(unifiedBranchIds, legacyBranchIds);
+    const branchIds = mergeBranchIds(clinicAssignedBranchIds, organizationWideBranchIds);
+    // A branch hint is a selected context, not "the first branch returned by
+    // the database". Narrow roles with multiple active assignments must choose
+    // one explicitly; otherwise patient writes could silently land in another
+    // branch than the lab/finance API would authorize.
+    const assignedBranchId = effectiveBranchId
+      || (clinicAssignedBranchIds.length === 1 ? clinicAssignedBranchIds[0] : undefined);
 
     req.user = {
       id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName,

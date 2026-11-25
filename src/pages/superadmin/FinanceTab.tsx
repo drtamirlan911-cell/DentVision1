@@ -7,9 +7,10 @@ import {
 import { useToast } from '../../components/ui/ds/Toast';
 import { AreaChartComponent, DonutChartComponent } from '../../components/charts';
 import * as api from '../../utils/api';
+import { PartnerBranchSubscriptionAdminPanel } from '../../components/billing/PartnerBranchSubscriptionAdminPanel';
 import {
   DollarSign, Wallet, ArrowUpDown, AlertTriangle, Check, X, Search, Plus,
-  RefreshCw, Shield, Activity, TrendingUp, CreditCard, Eye, Send,
+  RefreshCw, Shield, Activity, TrendingUp, CreditCard, Eye, Send, Building2,
 } from 'lucide-react';
 
 const fd = (d: string) => {
@@ -93,7 +94,7 @@ const DISPUTE_STATUS_LABEL: Record<string, string> = {
   rejected: 'Отклонён',
 };
 
-type SubTab = 'overview' | 'transactions' | 'wallets' | 'commissions' | 'payouts' | 'disputes' | 'ledger';
+type SubTab = 'overview' | 'transactions' | 'wallets' | 'commissions' | 'payouts' | 'disputes' | 'ledger' | 'partner-billing';
 
 const SUB_TABS: { id: SubTab; label: string; icon: React.ReactNode }[] = [
   { id: 'overview', label: 'Обзор', icon: <Activity size={14} /> },
@@ -103,6 +104,7 @@ const SUB_TABS: { id: SubTab; label: string; icon: React.ReactNode }[] = [
   { id: 'payouts', label: 'Выплаты', icon: <Send size={14} /> },
   { id: 'disputes', label: 'Споры', icon: <AlertTriangle size={14} /> },
   { id: 'ledger', label: 'Леджер', icon: <Shield size={14} /> },
+  { id: 'partner-billing', label: 'Филиальные подписки', icon: <Building2 size={14} /> },
 ];
 
 /** Mirrors the `RevenueSource` enum in schema.prisma. */
@@ -112,6 +114,7 @@ const REVENUE_SOURCE_LABELS: Record<string, string> = {
   MARKETPLACE: 'Маркетплейс',
   ACADEMY: 'Академия',
   AI: 'ИИ',
+  PARTNER_BRANCH_SUBSCRIPTION: 'Подписки филиалов партнёров',
 };
 
 const PAYOUT_STATUS_OPTIONS = [
@@ -450,7 +453,7 @@ export default function FinanceTab() {
               <EmptyState
                 icon={<DollarSign size={40} />}
                 title="Продаж за период не было"
-                description="Строка появляется на каждую продажу маркетплейса, академии и активацию подписки клиники"
+                description="Отдельно учитываются подписки клиник, филиалов партнёров, маркетплейс, академии и другие источники дохода"
               />
             ) : (
               <div className="space-y-2">
@@ -923,6 +926,8 @@ export default function FinanceTab() {
         </div>
       )}
 
+      {subTab === 'partner-billing' && <PartnerBranchSubscriptionAdminPanel />}
+
       <Modal open={manualModal} onClose={() => setManualModal(false)} title="Ручная транзакция">
         <form onSubmit={e => {
           e.preventDefault();
@@ -1006,6 +1011,32 @@ export default function FinanceTab() {
                 <p className="text-xs text-txt-muted mb-1">Описание</p>
                 <p className="text-sm text-txt-secondary">{disputeDetail.description || disputeDetail.subject || disputeDetail.title || disputeDetail.reason}</p>
               </div>
+            )}
+            {Array.isArray(disputeDetail.supplierResponses) && disputeDetail.supplierResponses.length > 0 && (
+              <section className="space-y-3 rounded-xl border border-bdr-subtle bg-surface-1 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-txt-primary">Ответы поставщиков</p>
+                    <p className="text-xs text-txt-muted">Материалы для рассмотрения платформой · сами по себе не выполняют возврат</p>
+                  </div>
+                  <Badge size="sm">{disputeDetail.supplierResponses.length}</Badge>
+                </div>
+                {disputeDetail.supplierResponses.map((response: any) => (
+                  <article key={response.id} className="rounded-lg border border-bdr-subtle bg-surface-2 p-3 space-y-2">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-txt-primary">{response.supplier?.name || 'Поставщик'}</p>
+                        <p className="text-xs text-txt-muted">
+                          {response.responseType === 'ACKNOWLEDGE_RETURN_REQUEST' ? 'Подтвердил получение претензии' : 'Оспаривает претензию'}
+                        </p>
+                      </div>
+                      <span className="text-xs text-txt-muted">{fd(response.createdAt)}</span>
+                    </div>
+                    <p className="text-sm text-txt-secondary whitespace-pre-wrap break-words">{response.note}</p>
+                    <p className="text-[11px] text-txt-muted">Участник: {response.actorUserId || '—'} · {response.supplier?.status || 'Статус не указан'}</p>
+                  </article>
+                ))}
+              </section>
             )}
             {disputeDetail.walletId && (
               <div>

@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { calculatePartnerEconomics, buildPartnerEconomicsDashboard, canonicalPartnerEconomicsRules, getPartnerEconomicsTransparency, reconcilePartnerEconomics } from './partner-economics.service.js';
+import { calculatePartnerEconomics, buildPartnerEconomicsDashboard, canonicalPartnerEconomicsRules, getPartnerEconomicsTransparency, reconcilePartnerEconomics, recordPartnerEconomics } from './partner-economics.service.js';
 
 const [diagnostic, analysis, dentalLab] = canonicalPartnerEconomicsRules();
+
+describe('canonical partner branch subscription tariffs', () => {
+  it('keeps finance minor-unit rules aligned with the approved KZT price book', () => {
+    expect(diagnostic.subscriptionMinor).toBe(4_990_000n);
+    expect(analysis.subscriptionMinor).toBe(1_990_000n);
+    expect(dentalLab.subscriptionMinor).toBe(2_990_000n);
+  });
+});
+
 
 const base = {
   partnerId: 'partner-1',
@@ -12,6 +21,46 @@ const base = {
   refundReserveMinor: 0n,
   taxMinor: 0n,
 };
+
+describe('dental laboratory monthly GMV tier resolution at settlement', () => {
+  it('includes the current case before selecting its commission tier', async () => {
+    const tx = {
+      $executeRaw: async () => undefined,
+      transaction: {
+        findFirst: async () => null,
+        findMany: async () => [{
+          amount: 99_000_000n, // prior monthly GMV: ₸990,000
+          meta: { partnerId: 'lab-1' },
+        }],
+        create: async ({ data }: any) => ({ id: 'partner-economics-current', ...data }),
+      },
+      commissionRule: {
+        findFirst: async () => null,
+        create: async ({ data }: any) => ({ domain: data.domain, percentBps: data.percentBps, splitJson: data.splitJson }),
+      },
+      wallet: {
+        findUnique: async () => null,
+        create: async ({ data }: any) => ({ id: `${data.ownerType}:${data.ownerId}`, ...data }),
+        update: async () => ({}),
+      },
+    } as any;
+
+    const result = await recordPartnerEconomics({
+      vertical: 'DENTAL_LAB',
+      partnerId: 'lab-1',
+      grossMinor: 2_000_000n, // current case: ₸20,000; monthly total crosses ₸1M
+      operationId: 'case-crosses-gmv-tier',
+      paymentId: 'payment-1',
+    }, tx);
+
+    expect(result.meta).toMatchObject({
+      partnerId: 'lab-1',
+      paymentId: 'payment-1',
+      rule: { percentBps: 800 },
+      commissionMinor: '160000',
+    });
+  });
+});
 
 describe('partner economics calculator', () => {
   it('applies diagnostic 7% with a 500 KZT floor', () => {
@@ -25,6 +74,26 @@ describe('partner economics calculator', () => {
   it('applies diagnostic 3,000 KZT cap', () => {
     const result = calculatePartnerEconomics({ ...base, vertical: 'DIAGNOSTIC_3D', grossMinor: 100_000n * 100n }, diagnostic);
     expect(result.commissionMinor).toBe(300_000n);
+  });
+
+  it('never lets a minimum fee exceed gross or create negative partner revenue', () => {
+    const smallGross = 10_000n;
+    const cases = [
+      calculatePartnerEconomics({ ...base, vertical: 'DIAGNOSTIC_3D', grossMinor: smallGross }, diagnostic),
+      calculatePartnerEconomics({ ...base, vertical: 'MEDICAL_ANALYSIS', grossMinor: smallGross }, analysis),
+      calculatePartnerEconomics({ ...base, vertical: 'DENTAL_LAB', grossMinor: smallGross, monthlyGmvMinor: smallGross }, dentalLab),
+    ];
+
+    for (const result of cases) {
+      expect(result.commissionMinor).toBe(smallGross);
+      expect(result.partnerRevenueMinor).toBe(0n);
+      expect(result.partnerRevenueMinor).toBeGreaterThanOrEqual(0n);
+      expect(result.commissionMinor).toBeLessThanOrEqual(result.grossMinor);
+    }
+
+    const zero = calculatePartnerEconomics({ ...base, vertical: 'DIAGNOSTIC_3D', grossMinor: 0n }, diagnostic);
+    expect(zero.commissionMinor).toBe(0n);
+    expect(zero.partnerRevenueMinor).toBe(0n);
   });
 
   it('applies medical analysis 6% with floor and cap', () => {

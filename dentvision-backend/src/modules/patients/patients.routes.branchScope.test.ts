@@ -9,9 +9,13 @@ describe('patients route branch scope contract', () => {
     expect(source).toContain("from '../../lib/patientBranchScope.js'");
     expect(source).toContain('resolvePatientBranchContext');
     expect(source).toContain('req.user!.branchIds ?? []');
-    expect(source).toContain('req.user!.assignedBranchId ?? req.user!.branchId ?? null');
+    expect(source).toContain('req.user!.branchId ?? req.user!.assignedBranchId ?? null');
     expect(source).toContain('getPatientIdsForBranchScope');
   });
+  it('uses the explicitly selected branch before any compatibility assignment hint', () => {
+    expect(source).toContain('req.user!.branchId ?? req.user!.assignedBranchId ?? null');
+  });
+
   it('filters patient lists by branch at query construction time', () => {
     expect(source).toContain('scopedPatientWhere');
     expect(source).toContain('prisma.patient.findMany');

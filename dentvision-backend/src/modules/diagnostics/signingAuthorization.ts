@@ -4,7 +4,7 @@ import type { AuthUser } from '../../types/index.js';
 // These are canonical Role.key values, not UserRole enum values. Specialized
 // partner roles are deliberately normalized to the least-privileged compatible
 // UserRole in auth middleware, so req.user.role cannot authorize these actions.
-export const DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS = ['radiologist'] as const;
+export const DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS = ['radiologist', 'diagnostic_radiologist'] as const;
 export const LAB_RESULT_SIGNER_ROLE_KEYS = ['medical_lab_validator', 'medical_lab_doctor'] as const;
 
 export async function hasScopedPartnerSignerRole(

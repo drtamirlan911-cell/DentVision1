@@ -78,10 +78,9 @@ function payoutStatusMessage(status: PayoutStatus, amountMinor: bigint, currency
 }
 
 /**
- * Who filed this payout, as a user id to notify — the wallet only records
- * `ownerType`/`ownerId`, which is a Lecturer or Supplier id, not a user.
- * Lecturers have exactly one linked user; a supplier can have several
- * members, so all of them are notified.
+ * Resolve payout recipients from the owner record behind the wallet. Lecturer,
+ * supplier and partner wallets use different canonical owner entities; partner
+ * payouts are visible only to laboratory management and finance members.
  */
 async function resolvePayoutRequesterUserIds(
   ownerType: WalletOwnerType,
@@ -95,6 +94,52 @@ async function resolvePayoutRequesterUserIds(
   if (ownerType === 'SUPPLIER') {
     const members = await db.supplierMember.findMany({ where: { supplierId: ownerId }, select: { userId: true } });
     return members.map((m) => m.userId);
+  }
+  if (ownerType === 'PARTNER') {
+    const [legacyLabMembers, legacyDiagnosticMembers] = await Promise.all([
+      db.laboratoryMember.findMany({
+        where: {
+          labId: ownerId,
+          role: { in: ['owner', 'admin', 'manager', 'director', 'lab_manager', 'lab_finance', 'finance', 'accountant'] },
+        },
+        select: { userId: true },
+      }),
+      db.diagnosticCenterMember.findMany({
+        where: {
+          centerId: ownerId,
+          role: { in: ['owner', 'admin', 'manager', 'director', 'finance', 'accountant'] },
+        },
+        select: { userId: true },
+      }),
+    ]);
+
+    // New partner workspaces use organization-scoped PersonRole as the
+    // authority. Resolve finance/management recipients through that contract
+    // as well as legacy member tables during migration.
+    const organization = await db.organization.findFirst({
+      where: { originalType: { in: ['Laboratory', 'DiagnosticCenter'] }, originalId: ownerId },
+      select: { id: true },
+    });
+    const canonicalRoles = new Set([
+      'diagnostic_owner', 'diagnostic_admin', 'diagnostic_manager', 'diagnostic_finance', 'diagnostic_reception',
+      'medical_lab_owner', 'medical_lab_admin', 'medical_lab_manager', 'medical_lab_reception', 'medical_lab_finance',
+      'dental_lab_owner', 'dental_lab_admin', 'dental_lab_manager', 'lab_finance',
+    ]);
+    const canonicalMembers = organization
+      ? await db.personRole.findMany({
+          where: {
+            scopeType: 'organization',
+            scopeId: organization.id,
+            person: { organizationId: organization.id, userId: { not: null } },
+          },
+          select: { role: { select: { key: true } }, person: { select: { userId: true } } },
+        })
+      : [];
+    const canonicalUserIds = canonicalMembers
+      .filter((member) => canonicalRoles.has(String(member.role.key || '').trim().toLowerCase()))
+      .map((member) => member.person.userId)
+      .filter((userId): userId is string => Boolean(userId));
+    return [...new Set([...legacyLabMembers, ...legacyDiagnosticMembers].map((member) => member.userId).concat(canonicalUserIds))];
   }
   return [];
 }
@@ -131,14 +176,18 @@ export class PayoutError extends Error {
 type Db = Prisma.TransactionClient | typeof prisma;
 
 /**
- * What this wallet may still ask for: balance minus everything already asked
- * for and not yet resolved.
+ * What this wallet may still ask for:
+ * - subtract pending payout holds;
+ * - subtract partner-economics credits for direct collections already received by
+ *   the partner, because those funds are not held by DentVision;
+ * - retain gateway-backed partner proceeds proven by paymentId or a legacy paid
+ *   Payment reference.
  *
- * Checking the raw balance is what let the same funds be requested repeatedly.
+ * Checking the raw balance alone lets mirrored partner revenue be withdrawn twice.
  */
 export async function availableBalanceMinor(walletId: string, db: Db = prisma): Promise<bigint> {
   const [wallet, pending] = await Promise.all([
-    db.wallet.findUnique({ where: { id: walletId }, select: { balance: true } }),
+    db.wallet.findUnique({ where: { id: walletId }, select: { balance: true, ownerType: true } }),
     db.payout.findMany({
       where: { walletId, status: { in: [...PENDING_PAYOUT_STATUSES] } },
       select: { amount: true },
@@ -146,7 +195,59 @@ export async function availableBalanceMinor(walletId: string, db: Db = prisma): 
   ]);
   if (!wallet) return 0n;
   const held = pending.reduce((sum, p) => sum + p.amount, 0n);
-  return wallet.balance - held;
+
+  // Diagnostic and medical-lab referrals are collected directly by the partner.
+  // Their partner_economics wallet credit is an analytics mirror of partner net,
+  // not cash held by DentVision and therefore not money the platform can pay out.
+  // Exclude only this non-cash credit; genuine Marketplace / platform-collected
+  // sale proceeds remain withdrawable under the normal payout rules.
+  let externallyCollectedPartnerRevenue = 0n;
+  if (wallet.ownerType === 'PARTNER') {
+    const mirroredCredits = await db.ledgerEntry.findMany({
+      where: { walletId, direction: 'credit', transaction: { type: 'partner_economics' } },
+      select: { amount: true, transaction: { select: { meta: true, refType: true, refId: true } } },
+    });
+    // Older medical-lab platform payments predate paymentId snapshots in
+    // partner_economics metadata. Recover their cash-backed state from the
+    // immutable Payment reference rather than freezing valid historic proceeds.
+    const legacyPlatformPaymentRefs = mirroredCredits.flatMap((entry) => {
+      const meta = entry.transaction?.meta as Record<string, unknown> | null;
+      if (meta?.paymentId || !entry.transaction?.refId) return [];
+      if (entry.transaction.refType === 'DENTAL_LAB') {
+        return [{ refType: 'dental_lab_order', refId: entry.transaction.refId }];
+      }
+      if (entry.transaction.refType === 'MEDICAL_ANALYSIS') {
+        return [{ refType: 'medical_lab_order', refId: entry.transaction.refId }];
+      }
+      return [];
+    });
+    const confirmedLegacyPayments = legacyPlatformPaymentRefs.length
+      ? await db.payment.findMany({
+          where: {
+            status: 'paid',
+            OR: legacyPlatformPaymentRefs.map((ref) => ({ refType: ref.refType, refId: ref.refId })),
+          },
+          select: { refType: true, refId: true },
+        })
+      : [];
+    const confirmedLegacyPaymentKeys = new Set(
+      confirmedLegacyPayments.map((payment) => `${payment.refType}:${payment.refId}`),
+    );
+    externallyCollectedPartnerRevenue = mirroredCredits.reduce((sum, entry) => {
+      const meta = entry.transaction?.meta as Record<string, unknown> | null;
+      if (meta?.paymentId) return sum;
+      const refType = entry.transaction?.refType === 'DENTAL_LAB' ? 'dental_lab_order'
+        : entry.transaction?.refType === 'MEDICAL_ANALYSIS' ? 'medical_lab_order'
+          : null;
+      const refId = entry.transaction?.refId;
+      // A verified legacy platform Payment also proves that the funds are
+      // held by DentVision. All other entries are direct partner collections.
+      if (refType && refId && confirmedLegacyPaymentKeys.has(`${refType}:${refId}`)) return sum;
+      return sum + entry.amount;
+    }, 0n);
+  }
+
+  return wallet.balance - held - externallyCollectedPartnerRevenue;
 }
 
 export interface RequestPayoutInput {
@@ -162,16 +263,16 @@ export interface RequestPayoutInput {
  * One function for both workspaces: the lecturer and supplier routes had the
  * same balance check copied into each, and each was wrong the same way.
  */
-export async function requestPayout(input: RequestPayoutInput) {
+export async function requestPayout(input: RequestPayoutInput, db: Db = prisma) {
   if (input.amountMinor <= 0n) {
     throw new PayoutError('INVALID_AMOUNT', 'Сумма выплаты должна быть больше нуля');
   }
 
-  return prisma.$transaction(async (tx) => {
+  const createRequest = async (tx: Prisma.TransactionClient) => {
     const wallet = await getOrCreateWallet(input.ownerType, input.ownerId, input.currency || 'KZT', tx);
     // Serialize requests for the same wallet so concurrent requests cannot
     // both observe the same available balance.
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'payout-wallet:' + wallet.id}))`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'wallet-funds:' + wallet.id}))`;
     const available = await availableBalanceMinor(wallet.id, tx);
     if (available < input.amountMinor) {
       throw new PayoutError(
@@ -182,7 +283,13 @@ export async function requestPayout(input: RequestPayoutInput) {
     return tx.payout.create({
       data: { walletId: wallet.id, amount: input.amountMinor, status: 'requested' },
     });
-  });
+  };
+
+  // Routes may pass their transaction client to keep the payout row and its
+  // audit event atomic. Standalone callers retain the service-owned transaction.
+  return db === prisma
+    ? prisma.$transaction(createRequest)
+    : createRequest(db as Prisma.TransactionClient);
 }
 
 export interface PayoutFilters {
@@ -244,17 +351,23 @@ export async function transitionPayout(
     }
 
     if (next === 'paid') {
-      // Re-check at the moment of payment rather than trusting the check made
-      // when it was requested: the balance can have moved since.
-      if (payout.wallet.balance < payout.amount) {
+      // Refunds and payouts share the same wallet-funds advisory lock. The
+      // conditional debit remains the final invariant even if another writer
+      // does not participate in that lock protocol.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'wallet-funds:' + payout.walletId}))`;
+      const debited = await tx.wallet.updateMany({
+        where: { id: payout.walletId, balance: { gte: payout.amount } },
+        data: { balance: { decrement: payout.amount } },
+      });
+      if (debited.count !== 1) {
         throw new PayoutError('INSUFFICIENT_FUNDS', 'На кошельке недостаточно средств для выплаты');
       }
 
       const gateway = await getOrCreateWallet('GATEWAY', 'system', payout.wallet.currency, tx);
 
       // The mirror of a sale: a sale debits GATEWAY and credits the seller, so
-      // a payout debits the seller and credits GATEWAY. Balanced, so
-      // `ledgerNetBalance()` stays at zero.
+      // a payout debits the seller and credits GATEWAY. The wallet debit and
+      // the double-entry ledger write are one DB transaction.
       await tx.transaction.create({
         data: {
           type: 'payout',
@@ -271,11 +384,6 @@ export async function transitionPayout(
             ],
           },
         },
-      });
-
-      await tx.wallet.update({
-        where: { id: payout.walletId },
-        data: { balance: { decrement: payout.amount } },
       });
       await tx.wallet.update({
         where: { id: gateway.id },

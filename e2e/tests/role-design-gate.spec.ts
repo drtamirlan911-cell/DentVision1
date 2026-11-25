@@ -33,6 +33,14 @@ type RequestLedger = {
 const pendingCriticalRequestsByPage = new WeakMap<Page, RequestLedger>();
 
 const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs', '/help', '/community', '/shop'];
+
+function isAnonymousPublicRoute(route: string): boolean {
+  const pathname = new URL(route, BASE_URL).pathname.replace(/\/$/, '') || '/';
+  // Academy course details are public discovery pages. Paid courses return a
+  // sanitized preview until the user has an active enrollment entitlement.
+  return PUBLIC_ROUTES.includes(pathname) || /^\/school\/course\/[^/]+$/.test(pathname);
+}
+
 const AUTH_COMMON_ROUTES = ['/', '/ai', '/help', '/notifications', '/profile'];
 const AUTHENTICATED_BASE_PAGES = ['shop','school','profile','settings','diagnostics','diagnostics-centers','diagnostics-labs','diagnostics-laboratories'] as const;
 const ROUTES = [
@@ -979,6 +987,27 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
     expect(problems.requests).toEqual([]);
   });
 
+  test('anonymous can browse a sanitized Academy course preview', async ({ page }) => {
+    await page.context().clearCookies();
+    const response = await page.request.get(API_BASE_URL + '/api/school/courses/e2e');
+    expect([200, 404], 'course preview is public only when the catalogue item exists').toContain(response.status());
+    if (response.status() === 200) {
+      const payload = await response.json();
+      const course = payload?.data || payload;
+      expect(course).toBeTruthy();
+      if (Number(course.price || 0) > 0) {
+        expect(course).not.toHaveProperty('modules');
+        expect(course).not.toHaveProperty('lessons');
+        expect(course.fileUrl ?? null).toBeNull();
+      }
+    }
+    await page.goto(BASE_URL + '/school/course/e2e', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+      timeout: 10000, message: 'Public Academy course preview did not render',
+    }).toMatch(/.{20,}/s);
+    expect(new URL(page.url()).pathname).toBe('/school/course/e2e');
+  });
+
   test('anonymous can browse public Community feed', async ({ page }, info) => {
     test.skip(info.project.name !== 'role-1280', 'Public route policy is verified once per CI run');
     await page.goto(BASE_URL + '/community', { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -1025,7 +1054,7 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       localStorage.clear();
       sessionStorage.clear();
     });
-    for (const route of ROUTES.filter((r) => !PUBLIC_ROUTES.includes(r) && r !== '/ai')) {
+    for (const route of ROUTES.filter((r) => !isAnonymousPublicRoute(r) && r !== '/ai')) {
       await page.context().clearCookies();
       await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 30000 });
 

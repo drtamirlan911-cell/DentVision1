@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router } from 'express';
 import { SupplierStatus } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
@@ -54,7 +55,7 @@ suppliersRouter.get('/', async (req: AuthRequest, res) => {
 
     return res.json({ ok: true, data: paginatedResponse(data, total, page, limit) } satisfies ApiResponse);
   } catch (error) {
-    console.error('List suppliers error:', error);
+    console.error('List suppliers error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при получении поставщиков' } satisfies ApiResponse);
   }
 });
@@ -81,7 +82,7 @@ async function ensureSupplierLegalPartner(
       commission: 10,
     });
   } catch (e) {
-    console.warn('[SUPPLIER] Legal partner onboarding failed (non-fatal):', (e as Error).message);
+    console.warn('[SUPPLIER] Legal partner onboarding failed (non-fatal):', safeErrorKind(e));
     return null;
   }
 }
@@ -169,7 +170,7 @@ suppliersRouter.post('/register', async (req: AuthRequest, res) => {
         }
       }
     } catch (e) {
-      console.warn('[SUPPLIER] Starter catalog duplication failed (non-fatal):', e);
+      console.warn('[SUPPLIER] Starter catalog duplication failed (non-fatal):', safeErrorKind(e));
     }
 
     publish('supplier.status_changed', {
@@ -179,7 +180,7 @@ suppliersRouter.post('/register', async (req: AuthRequest, res) => {
 
     return res.status(201).json({ ok: true, data: { ...supplier, organizationId: organization.id } } satisfies ApiResponse);
   } catch (error) {
-    console.error('Supplier register error:', error);
+    console.error('Supplier register error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось зарегистрировать поставщика' } satisfies ApiResponse);
   }
 });
@@ -193,7 +194,7 @@ suppliersRouter.get('/:id', async (req: AuthRequest, res) => {
     if (!supplier) return res.status(404).json({ ok: false, error: 'Поставщик не найден' } satisfies ApiResponse);
     return res.json({ ok: true, data: supplier } satisfies ApiResponse);
   } catch (error) {
-    console.error('Get supplier error:', error);
+    console.error('Get supplier error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при получении поставщика' } satisfies ApiResponse);
   }
 });
@@ -212,7 +213,7 @@ suppliersRouter.post('/', requirePermission('supplier.manage'), requirePlatformO
     });
     return res.status(201).json({ ok: true, data: supplier } satisfies ApiResponse);
   } catch (error) {
-    console.error('Create supplier error:', error);
+    console.error('Create supplier error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при создании поставщика' } satisfies ApiResponse);
   }
 });
@@ -238,7 +239,7 @@ suppliersRouter.patch('/:id', requirePermission('supplier.manage'), requirePlatf
     });
     return res.json({ ok: true, data: supplier } satisfies ApiResponse);
   } catch (error) {
-    console.error('Update supplier error:', error);
+    console.error('Update supplier error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при обновлении поставщика' } satisfies ApiResponse);
   }
 });
@@ -256,7 +257,7 @@ suppliersRouter.post('/:id/status', requirePermission('supplier.manage'), requir
     publish('supplier.status_changed', { supplierId: supplier.id, status: target, from: existing.status, to: target, userId: req.user?.id });
     return res.json({ ok: true, data: supplier } satisfies ApiResponse);
   } catch (error) {
-    console.error('Supplier status error:', error);
+    console.error('Supplier status error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при смене статуса' } satisfies ApiResponse);
   }
 });
@@ -288,7 +289,7 @@ suppliersRouter.post('/:id/members', requirePermission('supplier.manage'), requi
     await syncPersonFromSupplierMember(member.id, supplier.id, resolvedUserId);
     return res.status(201).json({ ok: true, data: member } satisfies ApiResponse);
   } catch (error) {
-    console.error('Add supplier member error:', error);
+    console.error('Add supplier member error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при добавлении участника' } satisfies ApiResponse);
   }
 });
@@ -312,7 +313,7 @@ suppliersRouter.post('/:id/documents', requirePermission('supplier.manage'), req
     const doc = await prisma.supplierDocument.create({ data: { supplierId: supplier.id, type, url } });
     return res.status(201).json({ ok: true, data: doc } satisfies ApiResponse);
   } catch (error) {
-    console.error('Supplier document error:', error);
+    console.error('Supplier document error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при добавлении документа' } satisfies ApiResponse);
   }
 });

@@ -1,7 +1,11 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import prisma from '../../lib/prisma.js';
+import { deleteObject, isStorageKey, keyFromStorageUrl, signedDownloadUrl, storageConfigured, toStorageUrl, uploadObject } from '../../lib/storage.js';
 import { resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { assertClinicDoctorSignoff } from './clinicalSignoffAuthorization.js';
+import { DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS, hasScopedPartnerSignerRole } from './signingAuthorization.js';
 import { uid } from '../../lib/helpers.js';
+import { PARTNER_ROLE_BY_KEY } from '../../lib/roleAccessRegistry.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { simpleChat } from '../ai/llm/client.js';
 import { publish } from '../../lib/events.js';
@@ -14,7 +18,8 @@ import { dispatchNotifications } from '../notifications/dispatch.service.js';
 import { assertValidIinFormat, checkIinCrossFields } from '../../lib/patientIin.js';
 import { resolveImageUrl } from '../../lib/imageUrl.js';
 import { checkImageAnalysisConsent, isImageConsentDenied, IMAGE_CONSENT_MESSAGE } from '../ai/os/imageConsent.js';
-import type { ReferralStatus, DiagnosticCategory, ReferralPriority } from '@prisma/client';
+import type { Prisma, ReferralStatus, DiagnosticCategory, ReferralPriority } from '@prisma/client';
+import type { DicomPart10Metadata } from './dicomMetadata.js';
 
 // ─── Center Subscription ───
 
@@ -55,7 +60,7 @@ export async function ensureCenterSubscription(centerId: string) {
     // Fail closed: a database/subscription verification outage must never
     // grant partner access. Callers can surface the unavailable state and
     // retry instead of exposing an unverified center.
-    console.error('[Diagnostics] center subscription verification failed:', error);
+    console.error('[Diagnostics] center subscription verification failed:', safeErrorKind(error));
     return { active: false, status: 'unavailable' as const };
   }
 }
@@ -69,16 +74,22 @@ export async function getCenterSubscription(centerId: string) {
   } catch { return null; }
 }
 
-const DIAGNOSTIC_COMMISSION_BPS = 700;
-const DIAGNOSTIC_COMMISSION_MIN = 500;
-const DIAGNOSTIC_COMMISSION_MAX = 3000;
+// ─── Centers ───
 
-function diagnosticPlatformFee(amount: number) {
-  if (!Number.isFinite(amount) || amount <= 0) return 0;
-  return Math.min(DIAGNOSTIC_COMMISSION_MAX, Math.max(DIAGNOSTIC_COMMISSION_MIN, Math.round(amount * DIAGNOSTIC_COMMISSION_BPS / 10_000)));
+export function canReadPartnerCatalog(input: {
+  isPubliclyVisible: boolean;
+  isActiveOrganizationMember: boolean;
+}): boolean {
+  return input.isPubliclyVisible || input.isActiveOrganizationMember;
 }
 
-// ─── Centers ───
+export function canReadDiagnosticCenterCatalog(input: {
+  isPubliclyVisible: boolean;
+  subscriptionActive: boolean;
+  isActiveOrganizationMember: boolean;
+}): boolean {
+  return input.subscriptionActive && canReadPartnerCatalog(input);
+}
 
 export async function listCenters(search?: string, city?: string) {
   const where: any = { active: true };
@@ -106,7 +117,7 @@ export async function listCenters(search?: string, city?: string) {
     // Fail closed. If the canonical Organization/subscription visibility
     // boundary cannot be evaluated, returning all active centers would turn
     // an infrastructure error into a tenant/data exposure.
-    console.error('[Diagnostics] center visibility resolution failed:', error);
+    console.error('[Diagnostics] center visibility resolution failed:', safeErrorKind(error));
     return [];
   }
   return prisma.diagnosticCenter.findMany({
@@ -116,7 +127,7 @@ export async function listCenters(search?: string, city?: string) {
   });
 }
 
-export async function getCenter(id: string) {
+export async function getCenter(id: string, options: { includePrivate?: boolean } = {}) {
   try {
     const org = await prisma.organization.findFirst({
       where: { type: 'DIAGNOSTIC_CENTER', originalType: 'DiagnosticCenter', originalId: id },
@@ -126,10 +137,13 @@ export async function getCenter(id: string) {
     const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings))
       ? org.settings as Record<string, unknown>
       : {};
-    if (settings.ecosystemVisible !== true) return null;
 
     const subscription = await ensureCenterSubscription(id);
-    if (!subscription.active) return null;
+    if (!canReadDiagnosticCenterCatalog({
+      isPubliclyVisible: settings.ecosystemVisible === true,
+      subscriptionActive: Boolean(subscription.active),
+      isActiveOrganizationMember: options.includePrivate === true,
+    })) return null;
 
     return prisma.diagnosticCenter.findFirst({
       where: { id, active: true },
@@ -141,7 +155,7 @@ export async function getCenter(id: string) {
       },
     });
   } catch (error) {
-    console.error('[Diagnostics] center visibility check failed:', error);
+    console.error('[Diagnostics] center visibility check failed:', safeErrorKind(error));
     return null;
   }
 }
@@ -150,9 +164,10 @@ async function syncOrgFromEntity(
   type: 'DiagnosticCenter' | 'Laboratory',
   id: string,
   data: { name: string; city?: string | null; address?: string | null; phone?: string | null; email?: string | null },
+  db: Prisma.TransactionClient | typeof prisma = prisma,
 ) {
   try {
-    await prisma.organization.upsert({
+    await db.organization.upsert({
       where: { originalType_originalId: { originalType: type, originalId: id } },
       update: { name: data.name, address: data.address || null, phone: data.phone || null, email: data.email || null, contacts: data.city ? { city: data.city } : undefined },
       create: {
@@ -168,7 +183,7 @@ async function syncOrgFromEntity(
       },
     });
   } catch (e) {
-    console.warn(`[Diagnostics] syncOrgFromEntity failed (non-fatal, table may not exist): ${type} ${id}`);
+    console.warn(`[Diagnostics] syncOrgFromEntity failed (non-fatal, table may not exist): ${type} ${id}`, safeErrorKind(e));
   }
 }
 
@@ -197,7 +212,7 @@ export async function listLaboratories(search?: string) {
   return prisma.laboratory.findMany({ where, include: { _count: { select: { tests: true } } }, orderBy: { rating: 'desc' } });
 }
 
-export async function getLaboratory(id: string) {
+export async function getLaboratory(id: string, options: { includePrivate?: boolean } = {}) {
   try {
     const org = await prisma.organization.findFirst({
       where: { type: 'LABORATORY', originalType: 'Laboratory', originalId: id },
@@ -207,13 +222,16 @@ export async function getLaboratory(id: string) {
     const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings))
       ? org.settings as Record<string, unknown>
       : {};
-    if (settings.ecosystemVisible !== true) return null;
+    if (!canReadPartnerCatalog({
+      isPubliclyVisible: settings.ecosystemVisible === true,
+      isActiveOrganizationMember: options.includePrivate === true,
+    })) return null;
     return prisma.laboratory.findFirst({
       where: { id, active: true },
       include: { tests: { where: { active: true } } },
     });
   } catch (error) {
-    console.error('[Diagnostics] laboratory visibility check failed:', error);
+    console.error('[Diagnostics] laboratory visibility check failed:', safeErrorKind(error));
     return null;
   }
 }
@@ -239,49 +257,192 @@ export async function createRegistrationRequest(data: {
   });
 }
 
-export const DIAGNOSTICS_ROLE_TO_ROLE_KEY: Record<string, string> = { owner: 'owner', admin: 'admin', manager: 'manager' };
+export const DIAGNOSTICS_ROLE_TO_ROLE_KEY: Record<string, string> = { owner: 'diagnostic_owner', admin: 'diagnostic_admin', manager: 'diagnostic_manager', operator: 'diagnostic_operator', radiologist: 'radiologist' };
 
-export async function grantDiagnosticsAccess(type: 'DiagnosticCenter' | 'Laboratory', entityId: string, userId: string, role: string) {
+const LABORATORY_LEGACY_MEMBER_ROLE: Readonly<Record<string, string>> = {
+  medical_lab_admin: 'admin',
+  medical_lab_manager: 'medical_lab_manager',
+  medical_lab_reception: 'medical_lab_reception',
+  medical_lab_technician: 'medical_lab_technician',
+  medical_lab_validator: 'medical_lab_validator',
+  medical_lab_doctor: 'medical_lab_doctor',
+  medical_lab_finance: 'medical_lab_finance',
+  medical_lab_quality: 'medical_lab_quality',
+  dental_lab_admin: 'admin',
+  dental_lab_manager: 'manager',
+  lab_coordinator: 'lab_coordinator',
+  dental_technician: 'dental_technician',
+  cad_designer: 'cad_designer',
+  ceramist: 'ceramist',
+  orthodontic_technician: 'orthodontic_technician',
+  qc_specialist: 'qc_specialist',
+  lab_finance: 'lab_finance',
+};
+
+async function grantDiagnosticsAccessInTransaction(
+  type: 'DiagnosticCenter' | 'Laboratory',
+  entityId: string,
+  userId: string,
+  role: string,
+  db: Prisma.TransactionClient,
+): Promise<boolean> {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+  });
+  if (!user) return false;
+
+  const entity = type === 'DiagnosticCenter'
+    ? await db.diagnosticCenter.findUnique({ where: { id: entityId } })
+    : await db.laboratory.findUnique({ where: { id: entityId } });
+  if (!entity) return false;
+
+  await syncOrgFromEntity(type, entityId, {
+    name: entity.name,
+    city: entity.city,
+    address: entity.address,
+    phone: entity.phone,
+    email: entity.email,
+  }, db);
+  const org = await db.organization.findFirst({
+    where: { originalType: type, originalId: entityId },
+  });
+  if (!org) return false;
+
+  const normalizedRole = String(role || '').trim().toLowerCase();
+  const organizationSettings = org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)
+    ? org.settings as Record<string, unknown>
+    : {};
+  const laboratoryFamily = String(organizationSettings.laboratoryType || organizationSettings.selfServiceType || '').toUpperCase() === 'DENTAL_LAB'
+    ? 'DENTAL_LAB'
+    : 'MEDICAL_LAB';
+  const canonicalLaboratoryRole = type === 'Laboratory'
+    && Boolean(PARTNER_ROLE_BY_KEY[normalizedRole.toUpperCase()]);
+  const legacyLaboratoryRoleKeys: Record<string, Record<string, string>> = {
+    MEDICAL_LAB: {
+      owner: 'medical_lab_owner',
+      admin: 'medical_lab_admin',
+      manager: 'medical_lab_manager',
+      technician: 'medical_lab_technician',
+      reception: 'medical_lab_reception',
+      doctor: 'medical_lab_doctor',
+      validator: 'medical_lab_validator',
+      quality: 'medical_lab_quality',
+      finance: 'medical_lab_finance',
+    },
+    DENTAL_LAB: {
+      owner: 'dental_lab_owner',
+      admin: 'dental_lab_admin',
+      manager: 'dental_lab_manager',
+      technician: 'dental_technician',
+      coordinator: 'lab_coordinator',
+      quality: 'qc_specialist',
+      finance: 'lab_finance',
+    },
+  };
+  const roleKey = type === 'Laboratory'
+    ? (canonicalLaboratoryRole
+        ? normalizedRole
+        : legacyLaboratoryRoleKeys[laboratoryFamily][normalizedRole])
+    : DIAGNOSTICS_ROLE_TO_ROLE_KEY[normalizedRole];
+  if (!roleKey) {
+    throw new Error(`No canonical role mapping for ${type} member role '${role}'`);
+  }
+
+  const dbRole = await db.role.findUnique({ where: { key: roleKey } });
+  if (!dbRole) {
+    throw new Error(`Canonical role '${roleKey}' is not seeded for ${type}`);
+  }
+
+  const legacyMemberRole = type === 'Laboratory'
+    ? (LABORATORY_LEGACY_MEMBER_ROLE[normalizedRole] || normalizedRole)
+    : normalizedRole;
+  if (type === 'DiagnosticCenter') {
+    await db.diagnosticCenterMember.upsert({
+      where: { centerId_userId: { centerId: entityId, userId } },
+      update: { role: normalizedRole },
+      create: { id: uid(), centerId: entityId, userId, role: normalizedRole },
+    });
+  } else {
+    await db.laboratoryMember.upsert({
+      where: { labId_userId: { labId: entityId, userId } },
+      update: { role: legacyMemberRole },
+      create: { id: uid(), labId: entityId, userId, role: legacyMemberRole },
+    });
+  }
+
+  const fullName = `${user.firstName} ${user.lastName}`.trim() || user.email || 'Участник';
+  const personType = type === 'DiagnosticCenter' && normalizedRole === 'radiologist' ? 'RADIOLOGIST'
+    : type === 'DiagnosticCenter' && normalizedRole === 'operator' ? 'OPERATOR'
+      : 'STAFF';
+  const originalType = type === 'DiagnosticCenter' ? 'DiagnosticCenterMember' : 'LaboratoryMember';
+  let person = await db.person.findFirst({
+    where: { originalType, originalId: `${entityId}:${userId}` },
+  });
+  if (person) {
+    person = await db.person.update({
+      where: { id: person.id },
+      data: { fullName, personType, organizationId: org.id, originalType, originalId: `${entityId}:${userId}` },
+    });
+  } else {
+    person = await db.person.create({
+      data: {
+        id: uid(),
+        fullName,
+        personType,
+        organizationId: org.id,
+        userId: user.id,
+        originalType,
+        originalId: `${entityId}:${userId}`,
+      },
+    });
+  }
+
+  const scopeKey = `organization:${org.id}`;
+  await db.personRole.upsert({
+    where: { personId_roleId_scopeKey: { personId: person.id, roleId: dbRole.id, scopeKey } },
+    update: { scopeType: 'organization', scopeId: org.id },
+    create: { id: uid(), personId: person.id, roleId: dbRole.id, scopeType: 'organization', scopeId: org.id, scopeKey },
+  });
+
+  const normalizedRoleKey = roleKey.toUpperCase();
+  const partnerRoleKey = normalizedRoleKey === 'DIAGNOSTIC_RADIOLOGIST'
+    ? 'RADIOLOGIST'
+    : normalizedRoleKey;
+  const roleDefinition = PARTNER_ROLE_BY_KEY[partnerRoleKey];
+  if (roleDefinition?.defaultScope === 'BRANCH') {
+    // Branch-scoped staff start in the active default branch only.
+    const defaultBranch = await db.branch.findFirst({
+      where: { organizationId: org.id, active: true },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    });
+    if (!defaultBranch) {
+      throw new Error(`No active default branch exists for branch-scoped role '${roleKey}'`);
+    }
+    await db.branchMember.upsert({
+      where: { personId_branchId: { personId: person.id, branchId: defaultBranch.id } },
+      update: { active: true },
+      create: { id: uid(), personId: person.id, branchId: defaultBranch.id, active: true },
+    });
+  }
+  return true;
+}
+
+export async function grantDiagnosticsAccess(
+  type: 'DiagnosticCenter' | 'Laboratory',
+  entityId: string,
+  userId: string,
+  role: string,
+  db?: Prisma.TransactionClient,
+): Promise<boolean> {
+  if (db) return grantDiagnosticsAccessInTransaction(type, entityId, userId, role, db);
   try {
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, firstName: true, lastName: true, email: true, phone: true } });
-    if (!user) return false;
-    const entity = type === 'DiagnosticCenter'
-      ? await prisma.diagnosticCenter.findUnique({ where: { id: entityId } })
-      : await prisma.laboratory.findUnique({ where: { id: entityId } });
-    if (!entity) return false;
-    await syncOrgFromEntity(type, entityId, { name: entity.name, city: entity.city, address: entity.address, phone: entity.phone, email: entity.email });
-    const org = await prisma.organization.findFirst({ where: { originalType: type, originalId: entityId } });
-    if (!org) return false;
-    if (type === 'DiagnosticCenter') {
-      await prisma.diagnosticCenterMember.upsert({ where: { centerId_userId: { centerId: entityId, userId } }, update: { role }, create: { id: uid(), centerId: entityId, userId, role } });
-    } else {
-      await prisma.laboratoryMember.upsert({ where: { labId_userId: { labId: entityId, userId } }, update: { role }, create: { id: uid(), labId: entityId, userId, role } });
-    }
-    const fullName = `${user.firstName} ${user.lastName}`.trim() || user.email || 'Участник';
-    const originalType = type === 'DiagnosticCenter' ? 'DiagnosticCenterMember' : 'LaboratoryMember';
-    let person = await prisma.person.findFirst({ where: { originalType, originalId: `${entityId}:${userId}` } });
-    if (person) {
-      person = await prisma.person.update({ where: { id: person.id }, data: { fullName, personType: 'STAFF', organizationId: org.id, originalType, originalId: `${entityId}:${userId}` } });
-    } else {
-      person = await prisma.person.create({ data: { id: uid(), fullName, personType: 'STAFF', organizationId: org.id, userId: user.id, originalType, originalId: `${entityId}:${userId}` } });
-    }
-    const roleKey = DIAGNOSTICS_ROLE_TO_ROLE_KEY[String(role).toLowerCase()];
-    if (!roleKey) {
-      console.warn(`[Diagnostics] No unified role for ${type} member role '${role}' (user ${userId}) — PersonRole not assigned`);
-      return true;
-    }
-    const dbRole = await prisma.role.findUnique({ where: { key: roleKey } });
-    if (dbRole) {
-      const scopeKey = `organization:${org.id}`;
-      await prisma.personRole.upsert({
-        where: { personId_roleId_scopeKey: { personId: person.id, roleId: dbRole.id, scopeKey } },
-        update: { scopeType: 'organization', scopeId: org.id },
-        create: { personId: person.id, roleId: dbRole.id, scopeType: 'organization', scopeId: org.id, scopeKey },
-      });
-    }
-    return true;
-  } catch (e) {
-    console.warn(`[Diagnostics] grantDiagnosticsAccess failed (${type} ${entityId}):`, (e as Error).message);
+    return await prisma.$transaction((tx) =>
+      grantDiagnosticsAccessInTransaction(type, entityId, userId, role, tx),
+    );
+  } catch (error) {
+    console.warn(`[Diagnostics] grantDiagnosticsAccess failed (${type} ${entityId}):`, safeErrorKind(error));
     return false;
   }
 }
@@ -334,6 +495,87 @@ export async function listLabTests(labId?: string, category?: string) {
   return prisma.laboratoryTest.findMany({ where, orderBy: { name: 'asc' } });
 }
 
+
+/**
+ * Diagnostic-center equipment inventory. Only operational metadata is stored:
+ * no PACS credentials, network endpoints, image payloads or patient identifiers.
+ */
+export async function listDiagnosticModalities(centerId: string) {
+  return prisma.diagnosticModality.findMany({
+    where: { centerId },
+    orderBy: [{ status: 'asc' }, { name: 'asc' }],
+  });
+}
+
+export async function createDiagnosticModality(centerId: string, data: {
+  name: string; kind: string; manufacturer?: string; model?: string;
+  serialNumber?: string; room?: string; aeTitle?: string; nextMaintenanceAt?: Date | null;
+}) {
+  return prisma.diagnosticModality.create({
+    data: {
+      id: uid(), centerId, name: data.name, kind: data.kind,
+      manufacturer: data.manufacturer || null, model: data.model || null,
+      serialNumber: data.serialNumber || null, room: data.room || null,
+      aeTitle: data.aeTitle || null, nextMaintenanceAt: data.nextMaintenanceAt || null,
+    },
+  });
+}
+
+export async function updateDiagnosticModality(centerId: string, modalityId: string, data: {
+  name?: string; kind?: string; manufacturer?: string | null; model?: string | null;
+  serialNumber?: string | null; room?: string | null; aeTitle?: string | null;
+  status?: string; lastMaintenanceAt?: Date | null; nextMaintenanceAt?: Date | null;
+}) {
+  const existing = await prisma.diagnosticModality.findFirst({
+    where: { id: modalityId, centerId }, select: { id: true },
+  });
+  if (!existing) throw new Error('Оборудование не найдено в этом диагностическом центре');
+  return prisma.diagnosticModality.update({ where: { id: modalityId }, data });
+}
+
+/**
+ * Operational worklist. Patient IIN, phone, email and clinical notes remain
+ * behind the separately authorized referral-detail endpoint.
+ */
+export async function getDiagnosticCenterWorklist(centerId: string, opts: {
+  status?: string; priority?: string; search?: string; limit?: number; offset?: number;
+} = {}) {
+  const where: any = {
+    centerId,
+    status: opts.status ? opts.status : { notIn: ['COMPLETED', 'REVIEWED', 'DELIVERED', 'CLOSED', 'CANCELLED'] },
+  };
+  if (opts.priority) where.priority = opts.priority;
+  if (opts.search) {
+    where.OR = [
+      { patientName: { contains: opts.search, mode: 'insensitive' } },
+      { studyType: { contains: opts.search, mode: 'insensitive' } },
+    ];
+  }
+  const take = Math.max(1, Math.min(Number(opts.limit) || 100, 100));
+  const skip = Math.max(0, Number(opts.offset) || 0);
+  const [items, total] = await Promise.all([
+    prisma.referral.findMany({
+      where,
+      select: {
+        id: true, patientName: true, category: true, studyType: true, status: true,
+        priority: true, scheduledDate: true, scheduledTime: true, createdAt: true,
+        modalityId: true,
+        modality: { select: { id: true, name: true, kind: true, room: true, status: true } },
+        clinic: { select: { id: true, name: true } },
+        operator: { select: { id: true, user: { select: { id: true, firstName: true, lastName: true } } } },
+        radiologist: { select: { id: true, user: { select: { id: true, firstName: true, lastName: true } } } },
+        _count: { select: { files: true } },
+      },
+      // ReferralPriority enum order is NORMAL → URGENT → EMERGENCY;
+      // descending order therefore puts the clinically urgent queue first.
+      orderBy: [{ priority: 'desc' }, { scheduledDate: 'asc' }, { createdAt: 'asc' }],
+      take, skip,
+    }),
+    prisma.referral.count({ where }),
+  ]);
+  return { items, total, limit: take, offset: skip };
+}
+
 // ─── Referrals ───
 
 const referralInclude = {
@@ -342,8 +584,8 @@ const referralInclude = {
   lab: { select: { id: true, name: true } },
   doctor: { select: { id: true, firstName: true, lastName: true } },
   patient: { select: { id: true, firstName: true, lastName: true } },
-  operator: { select: { id: true, user: { select: { firstName: true, lastName: true } } } },
-  radiologist: { select: { id: true, user: { select: { firstName: true, lastName: true } } } },
+  operator: { select: { id: true, user: { select: { id: true, firstName: true, lastName: true } } } },
+  radiologist: { select: { id: true, user: { select: { id: true, firstName: true, lastName: true } } } },
   files: { select: { id: true, fileName: true, fileType: true, createdAt: true } },
   result: { select: { id: true, aiGenerated: true, createdAt: true, reportText: true, conclusion: true, pdfUrl: true, signedBy: true, signedAt: true } },
   _count: { select: { comments: true } },
@@ -367,7 +609,114 @@ export async function listReferrals(opts: { clinicId?: string; doctorId?: string
 }
 
 export async function getReferral(id: string) {
-  return prisma.referral.findUnique({ where: { id }, include: { ...referralInclude, comments: { include: { author: { select: { id: true, firstName: true, lastName: true } } }, orderBy: { createdAt: 'asc' } } } });
+  const referral = await prisma.referral.findUnique({
+    where: { id },
+    include: {
+      ...referralInclude,
+      result: {
+        select: {
+          id: true,
+          aiGenerated: true,
+          createdAt: true,
+          reportText: true,
+          conclusion: true,
+          pdfUrl: true,
+          signedBy: true,
+          signedAt: true,
+          signer: { select: { id: true, firstName: true, lastName: true } },
+          versions: { orderBy: { version: 'asc' } },
+        },
+      },
+      files: {
+        select: {
+          id: true, fileName: true, fileType: true, fileSize: true, fileUrl: true, createdAt: true,
+          dicomInstance: {
+            select: {
+              sopInstanceUid: true, sopClassUid: true, transferSyntaxUid: true,
+              rows: true, columns: true, numberOfFrames: true, bitsAllocated: true,
+              photometricInterpretation: true,
+              series: {
+                select: {
+                  seriesInstanceUid: true, modality: true, seriesNumber: true,
+                  study: {
+                    select: {
+                      studyInstanceUid: true, accessionNumber: true, modality: true,
+                      studyDate: true, studyTime: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      },
+      comments: {
+        include: { author: { select: { id: true, firstName: true, lastName: true } } },
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+  });
+  if (!referral) return referral;
+  // Never embed expiring signed URLs into cached referral details. The
+  // authenticated download-url endpoint issues a fresh short-lived URL on an
+  // explicit click after re-checking tenant, referral and clinical-role scope.
+  const files = referral.files.map((file) => ({
+    id: file.id,
+    fileName: file.fileName,
+    fileType: file.fileType,
+    fileSize: file.fileSize,
+    createdAt: file.createdAt,
+    fileUrl: null,
+    downloadAvailable: isStorageKey(file.fileUrl || '') && storageConfigured(),
+    unavailable: !isStorageKey(file.fileUrl || '') || !storageConfigured(),
+    dicom: file.dicomInstance ? {
+      sopInstanceUid: file.dicomInstance.sopInstanceUid,
+      sopClassUid: file.dicomInstance.sopClassUid,
+      transferSyntaxUid: file.dicomInstance.transferSyntaxUid,
+      rows: file.dicomInstance.rows,
+      columns: file.dicomInstance.columns,
+      numberOfFrames: file.dicomInstance.numberOfFrames,
+      bitsAllocated: file.dicomInstance.bitsAllocated,
+      photometricInterpretation: file.dicomInstance.photometricInterpretation,
+      series: {
+        seriesInstanceUid: file.dicomInstance.series.seriesInstanceUid,
+        modality: file.dicomInstance.series.modality,
+        seriesNumber: file.dicomInstance.series.seriesNumber,
+      },
+      study: {
+        studyInstanceUid: file.dicomInstance.series.study.studyInstanceUid,
+        accessionNumber: file.dicomInstance.series.study.accessionNumber,
+        modality: file.dicomInstance.series.study.modality,
+        studyDate: file.dicomInstance.series.study.studyDate,
+        studyTime: file.dicomInstance.series.study.studyTime,
+      },
+    } : null,
+  }));
+  if (!referral.result) return { ...referral, files };
+  const signerIds = [...new Set([
+    referral.result.signedBy,
+    ...referral.result.versions.map((version) => version.signedBy),
+  ].filter((value): value is string => Boolean(value)))];
+  const signers = signerIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: signerIds } },
+        select: { id: true, firstName: true, lastName: true },
+      })
+    : [];
+  const signerById = new Map(signers.map((signer) => [signer.id, signer]));
+  return {
+    ...referral,
+    files,
+    result: {
+      ...referral.result,
+      signer: referral.result.signedBy ? signerById.get(referral.result.signedBy) || null : null,
+      versions: referral.result.versions.map((version) => ({
+        ...version,
+        signer: version.signedBy ? signerById.get(version.signedBy) || null : null,
+      })),
+    },
+  };
 }
 
 export async function createReferral(data: {
@@ -407,35 +756,137 @@ export async function updateReferral(id: string, data: any, userId: string) {
   return referral;
 }
 
-export async function changeReferralStatus(id: string, status: ReferralStatus, userId: string, reason?: string, cost?: number) {
+function normalizeStudyLabel(value: unknown): string {
+  return String(value || '').toLocaleLowerCase('ru-RU').replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
+async function resolveCenterStudyPrice(referral: {
+  centerId: string | null;
+  studyType: string | null;
+  category: unknown;
+}): Promise<number | undefined> {
+  if (!referral.centerId) return undefined;
+  const studies = await prisma.diagnosticStudy.findMany({
+    where: { centerId: referral.centerId, active: true },
+    select: { name: true, category: true, price: true },
+    orderBy: { name: 'asc' },
+  });
+  const requested = normalizeStudyLabel(referral.studyType);
+  const named = studies.filter((study) => {
+    const available = normalizeStudyLabel(study.name);
+    return available && requested && (available.includes(requested) || requested.includes(available));
+  });
+  const matches = named.length > 0
+    ? named
+    : studies.filter((study) => String(study.category).toUpperCase() === String(referral.category).toUpperCase());
+  if (matches.length !== 1) return undefined;
+  const price = Number(matches[0].price);
+  return Number.isFinite(price) && price > 0 ? price : undefined;
+}
+
+export async function changeReferralStatus(
+  id: string,
+  status: ReferralStatus,
+  userId: string,
+  reason?: string,
+  cost?: number,
+  options?: { expectedStatus?: ReferralStatus; scheduledDate?: Date; scheduledTime?: string; useCenterCatalogPrice?: boolean },
+) {
   const referral = await prisma.referral.findUnique({ where: { id } });
   if (!referral) throw new Error('Referral not found');
+  if (options?.expectedStatus && referral.status !== options.expectedStatus) {
+    throw Object.assign(new Error('Referral status changed concurrently'), { code: 'REFERRAL_STATUS_CONFLICT' });
+  }
+
+  const update: any = { status };
   if (status === 'ACCEPTED' && referral.centerId) {
     const sub = await ensureCenterSubscription(referral.centerId);
-    if (!sub.active) throw new Error('Подписка диагностического центра истекла. Для приёма направлений требуется активная подписка (20 000 ₸/мес).');
+    if (!sub.active) throw new Error('Подписка диагностического центра истекла. Приём новых направлений приостановлен до продления.');
   }
-  const update: any = { status };
-  if (status === 'ACCEPTED' || status === 'IN_PROGRESS') {
-    let resolvedCost = cost;
-    if (resolvedCost === undefined && referral.centerId && referral.studyType) {
-      try {
-        const study = await prisma.diagnosticStudy.findFirst({ where: { centerId: referral.centerId, active: true, name: { contains: referral.studyType, mode: 'insensitive' } }, select: { price: true } });
-        if (study?.price) resolvedCost = Number(study.price);
-      } catch { /* use whatever center provided */ }
+  if (status === 'ACCEPTED') {
+    const resolvedCost = options?.useCenterCatalogPrice ? await resolveCenterStudyPrice(referral) : (cost ?? await resolveCenterStudyPrice(referral));
+    if (resolvedCost === undefined || !Number.isFinite(resolvedCost) || resolvedCost <= 0) {
+      throw new Error('Для принятия направления установите положительную цену услуги в прайс-листе центра.');
     }
-    if (resolvedCost === undefined) throw new Error('Укажите стоимость исследования или установите цену в прайс-листе центра.');
     update.cost = resolvedCost;
-    update.platformFee = diagnosticPlatformFee(Number(resolvedCost));
   }
+  // IN_PROGRESS reuses the accepted price; it never requires the UI to resubmit
+  // or silently replace the immutable price agreed when the center accepted.
+  if (status === 'IN_PROGRESS' && cost !== undefined) update.cost = cost;
+  if (options?.scheduledDate) update.scheduledDate = options.scheduledDate;
+  if (options?.scheduledTime) update.scheduledTime = options.scheduledTime;
   if (status === 'COMPLETED') update.completedAt = new Date();
   if (status === 'COMPLETED' && cost !== undefined) { update.cost = cost; update.paid = false; }
   if (status === 'CANCELLED') { update.cancelledAt = new Date(); update.cancelReason = reason; }
-  const updatedReferral = await prisma.referral.update({ where: { id }, data: update });
-  if (status === 'SENT' && updatedReferral.centerId) await createNotificationForCenter(updatedReferral.centerId, { type: NOTIFICATION_TYPES.REFERRAL_SENT, title: 'Новое направление', message: 'Новое направление поступило. Откройте рабочую очередь для подробностей.', link: `/center-workspace?tab=referrals` });
-  if (status === 'ACCEPTED' && updatedReferral.doctorId) await createNotification({ userId: updatedReferral.doctorId, type: NOTIFICATION_TYPES.REFERRAL_ACCEPTED, title: 'Направление принято', message: 'Направление принято. Откройте карточку направления для деталей.', link: `/diagnostics/referrals/${id}` });
-  if (status === 'COMPLETED' && updatedReferral.doctorId) await createNotification({ userId: updatedReferral.doctorId, type: NOTIFICATION_TYPES.REFERRAL_RESULT, title: 'Результат диагностики готов', message: 'Результат диагностики готов к просмотру. Откройте направление для подробностей.', link: `/diagnostics/referrals/${id}` });
-  await writeAuditLog({ action: 'REFERRAL_STATUS_CHANGED', entity: 'referral', entityId: id, details: { status }, userId, clinicId: updatedReferral.clinicId });
-  publish(`referral.${status.toLowerCase()}` as any, { referralId: id, clinicId: updatedReferral.clinicId || '', centerId: updatedReferral.centerId || '', doctorId: updatedReferral.doctorId || '', status, userId, cost: updatedReferral.cost, platformFee: updatedReferral.platformFee });
+
+  const claimed = await prisma.referral.updateMany({
+    where: { id, status: options?.expectedStatus ?? referral.status },
+    data: update,
+  });
+  if (claimed.count !== 1) {
+    throw Object.assign(new Error('Referral status changed concurrently'), { code: 'REFERRAL_STATUS_CONFLICT' });
+  }
+  const updatedReferral = await prisma.referral.findUnique({ where: { id } });
+  if (!updatedReferral) throw new Error('Referral not found after status update');
+
+  if (status === 'SENT' && updatedReferral.centerId) await createNotificationForCenter(updatedReferral.centerId, {
+    type: NOTIFICATION_TYPES.REFERRAL_SENT,
+    title: 'Новое направление',
+    message: 'Новое направление поступило. Откройте рабочую очередь для подробностей.',
+    link: '/center-workspace?tab=worklist',
+  });
+  if (status === 'ACCEPTED' && updatedReferral.doctorId) await createNotification({
+    userId: updatedReferral.doctorId,
+    type: NOTIFICATION_TYPES.REFERRAL_ACCEPTED,
+    title: 'Направление принято',
+    message: 'Диагностический центр принял направление.',
+    link: `/diagnostics/referrals/${id}`,
+  });
+  if (status === 'COMPLETED' && updatedReferral.doctorId) await createNotification({
+    userId: updatedReferral.doctorId,
+    type: NOTIFICATION_TYPES.REFERRAL_RESULT,
+    title: 'Результат диагностики готов',
+    message: 'Подписанное заключение готово к просмотру.',
+    link: `/diagnostics/referrals/${id}`,
+  });
+  if (status === 'DELIVERED' && updatedReferral.doctorId) await createNotification({
+    userId: updatedReferral.doctorId,
+    type: NOTIFICATION_TYPES.REFERRAL_RESULT,
+    title: 'Заключение передано клинике',
+    message: 'Диагностический центр подтвердил передачу подписанного заключения.',
+    link: `/diagnostics/referrals/${id}`,
+  });
+
+  if (status === 'CANCELLED' && updatedReferral.centerId) await createNotificationForCenter(updatedReferral.centerId, {
+    type: NOTIFICATION_TYPES.REFERRAL_CANCELLED,
+    title: 'Клиника отменила направление',
+    message: 'Направление отменено клиникой до начала диагностического исследования.',
+    link: '/center-workspace?tab=worklist',
+  });
+
+  await writeAuditLog({
+    action: 'REFERRAL_STATUS_CHANGED',
+    entity: 'referral',
+    entityId: id,
+    details: {
+      fromStatus: referral.status,
+      toStatus: status,
+      ...(options?.scheduledDate ? { scheduledDate: options.scheduledDate.toISOString() } : {}),
+      ...(options?.scheduledTime ? { scheduledTime: options.scheduledTime } : {}),
+    },
+    userId,
+    clinicId: updatedReferral.clinicId,
+  });
+  publish(`referral.${status.toLowerCase()}` as any, {
+    referralId: id,
+    clinicId: updatedReferral.clinicId || '',
+    centerId: updatedReferral.centerId || '',
+    doctorId: updatedReferral.doctorId || '',
+    status,
+    previousStatus: referral.status,
+    userId,
+    cost: updatedReferral.cost,
+  });
   return updatedReferral;
 }
 
@@ -449,17 +900,250 @@ export async function deleteReferral(id: string, userId: string) {
 
 // ─── Files ───
 
-export async function uploadReferralFile(data: { referralId: string; fileName: string; fileData: string; fileType: string; fileSize?: number; uploadedBy: string; }) {
-  const file = await prisma.referralFile.create({ data: { id: uid(), referralId: data.referralId, fileName: data.fileName, fileUrl: data.fileData, fileType: data.fileType, fileSize: data.fileSize, uploadedBy: data.uploadedBy } });
-  await writeAuditLog({ action: 'FILE_UPLOADED', entity: 'referral', entityId: data.referralId, details: { fileType: data.fileType }, userId: data.uploadedBy });
-  return file;
+export async function uploadReferralFile(data: {
+  referralId: string;
+  fileName: string;
+  buffer: Buffer;
+  fileType: string;
+  fileSize?: number;
+  uploadedBy: string;
+  dicomMetadata?: DicomPart10Metadata;
+}) {
+  if (!storageConfigured()) {
+    throw Object.assign(new Error('Файловое хранилище не настроено. Обратитесь к администратору.'), { code: 'DIAGNOSTIC_STORAGE_UNAVAILABLE' });
+  }
+  const referral = await prisma.referral.findUnique({
+    where: { id: data.referralId },
+    select: { id: true, clinicId: true, centerId: true, modalityId: true },
+  });
+  if (!referral) throw new Error('Referral not found');
+  if (!referral.clinicId) throw new Error('Для файла направления не определена клиника-владелец.');
+  if (data.dicomMetadata && !referral.centerId) {
+    throw Object.assign(new Error('DICOM-исследование можно привязать только к направлению диагностического центра.'), { code: 'DICOM_CENTER_REQUIRED' });
+  }
+  if (data.dicomMetadata && referral.modalityId) {
+    const modality = await prisma.diagnosticModality.findFirst({
+      where: { id: referral.modalityId, centerId: referral.centerId! },
+      select: { id: true },
+    });
+    if (!modality) throw Object.assign(new Error('Оборудование направления не принадлежит выбранному диагностическому центру.'), { code: 'DICOM_MODALITY_SCOPE_INVALID' });
+  }
+
+  const originalName = Array.from(String(data.fileName || 'study-file').trim(), (character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x1f || '/\\\\<>:"|?*'.includes(character) ? '_' : character;
+  }).join('').slice(0, 180) || 'study-file';
+  const extension = originalName.match(/\.[A-Za-z0-9]{1,12}$/)?.[0].toLowerCase() || '';
+  const fileId = uid();
+  const storageKey = `clinics/${referral.clinicId}/diagnostics/${referral.id}/${fileId}${extension}`;
+  await uploadObject(storageKey, data.buffer, data.fileType || 'application/octet-stream');
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const file = await tx.referralFile.create({
+        data: {
+          id: fileId,
+          referralId: referral.id,
+          fileName: originalName,
+          fileUrl: toStorageUrl(storageKey),
+          fileType: data.fileType,
+          fileSize: data.fileSize ?? data.buffer.byteLength,
+          uploadedBy: data.uploadedBy,
+        },
+        select: { id: true, referralId: true, fileName: true, fileType: true, fileSize: true, createdAt: true },
+      });
+      let dicomIndex: null | { studyId: string; seriesId: string; sopInstanceUid: string; modality?: string } = null;
+      if (data.dicomMetadata) {
+        const metadata = data.dicomMetadata;
+        const centerId = referral.centerId!;
+        let study = await tx.diagnosticDicomStudy.upsert({
+          where: { centerId_studyInstanceUid: { centerId, studyInstanceUid: metadata.studyInstanceUid } },
+          update: {},
+          create: {
+            id: uid(),
+            referralId: referral.id,
+            centerId,
+            modalityId: referral.modalityId,
+            studyInstanceUid: metadata.studyInstanceUid,
+            accessionNumber: metadata.accessionNumber || null,
+            modality: metadata.modality || null,
+            studyDate: metadata.studyDate || null,
+            studyTime: metadata.studyTime || null,
+          },
+        });
+        if (study.referralId !== referral.id) {
+          throw Object.assign(new Error('Этот DICOM Study UID уже связан с другим направлением центра.'), { code: 'DICOM_STUDY_LINK_CONFLICT' });
+        }
+        if (referral.modalityId && study.modalityId && study.modalityId !== referral.modalityId) {
+          throw Object.assign(new Error('DICOM Study уже связан с другим оборудованием центра.'), { code: 'DICOM_MODALITY_LINK_CONFLICT' });
+        }
+        if (referral.modalityId && !study.modalityId) {
+          study = await tx.diagnosticDicomStudy.update({
+            where: { id: study.id },
+            data: { modalityId: referral.modalityId },
+          });
+        }
+
+        const series = await tx.diagnosticDicomSeries.upsert({
+          where: {
+            dicomStudyId_seriesInstanceUid: {
+              dicomStudyId: study.id,
+              seriesInstanceUid: metadata.seriesInstanceUid,
+            },
+          },
+          update: {
+            modality: metadata.modality || undefined,
+            seriesNumber: metadata.seriesNumber || undefined,
+          },
+          create: {
+            id: uid(),
+            dicomStudyId: study.id,
+            seriesInstanceUid: metadata.seriesInstanceUid,
+            modality: metadata.modality || null,
+            seriesNumber: metadata.seriesNumber || null,
+          },
+        });
+        await tx.diagnosticDicomInstance.create({
+          data: {
+            id: uid(),
+            seriesId: series.id,
+            referralFileId: file.id,
+            sopInstanceUid: metadata.sopInstanceUid,
+            sopClassUid: metadata.sopClassUid,
+            transferSyntaxUid: metadata.transferSyntaxUid,
+            fileName: originalName,
+            fileSize: data.fileSize ?? data.buffer.byteLength,
+            rows: metadata.rows,
+            columns: metadata.columns,
+            numberOfFrames: metadata.numberOfFrames,
+            bitsAllocated: metadata.bitsAllocated,
+            photometricInterpretation: metadata.photometricInterpretation,
+          },
+        });
+        dicomIndex = {
+          studyId: study.id,
+          seriesId: series.id,
+          sopInstanceUid: metadata.sopInstanceUid,
+          ...(metadata.modality ? { modality: metadata.modality } : {}),
+        };
+      }
+      await writeAuditLog({
+        action: 'FILE_UPLOADED',
+        entity: 'referral',
+        entityId: referral.id,
+        details: {
+          fileId,
+          fileType: data.fileType,
+          fileSize: data.fileSize ?? data.buffer.byteLength,
+          storage: 's3',
+          ...(dicomIndex ? { dicomStudyId: dicomIndex.studyId, dicomSeriesId: dicomIndex.seriesId, sopInstanceUid: dicomIndex.sopInstanceUid } : {}),
+        },
+        userId: data.uploadedBy,
+        clinicId: referral.clinicId,
+      }, tx);
+      return { ...file, dicomIndex };
+    });
+  } catch (error: any) {
+    await deleteObject(storageKey).catch((cleanupError) => {
+      console.error('[diagnostics] orphaned S3 object after failed metadata commit', { referralId: referral.id, storageKey, cleanupError: safeErrorKind(cleanupError) });
+    });
+    if (data.dicomMetadata && String(error?.code || '') === 'P2002') {
+      throw Object.assign(
+        new Error('DICOM SOP Instance UID уже загружен. Повторный экземпляр не сохранён.'),
+        { code: 'DICOM_INSTANCE_ALREADY_EXISTS' },
+      );
+    }
+    throw error;
+  }
+}
+
+export async function getReferralFileDownloadUrl(referralId: string, fileId: string, userId: string) {
+  const [referral, file] = await Promise.all([
+    prisma.referral.findUnique({
+      where: { id: referralId },
+      select: { id: true, clinicId: true },
+    }),
+    prisma.referralFile.findFirst({
+      where: { id: fileId, referralId },
+      select: { id: true, fileName: true, fileUrl: true, fileType: true },
+    }),
+  ]);
+  if (!referral || !file) throw Object.assign(new Error('Файл направления не найден.'), { code: 'DIAGNOSTIC_FILE_NOT_FOUND' });
+  if (!isStorageKey(file.fileUrl)) {
+    throw Object.assign(new Error('Файл был загружен до подключения объектного хранилища и недоступен для безопасной выдачи.'), { code: 'DIAGNOSTIC_FILE_LEGACY_UNAVAILABLE' });
+  }
+  if (!storageConfigured()) {
+    throw Object.assign(new Error('Файловое хранилище временно недоступно.'), { code: 'DIAGNOSTIC_STORAGE_UNAVAILABLE' });
+  }
+  const expectedPrefix = `clinics/${referral.clinicId}/diagnostics/${referral.id}/`;
+  const storageKey = keyFromStorageUrl(file.fileUrl);
+  if (!storageKey.startsWith(expectedPrefix)) {
+    throw Object.assign(new Error('Файл не принадлежит этому направлению.'), { code: 'DIAGNOSTIC_FILE_SCOPE_INVALID' });
+  }
+  const expiresInSeconds = 300;
+  const url = await signedDownloadUrl(storageKey, expiresInSeconds);
+  await writeAuditLog({
+    action: 'DIAGNOSTIC_FILE_ACCESS_SIGNED',
+    entity: 'referral-file',
+    entityId: file.id,
+    details: { referralId, fileType: file.fileType, expiresInSeconds },
+    userId,
+    clinicId: referral.clinicId,
+  });
+  return { url, expiresInSeconds, fileName: file.fileName, fileType: file.fileType };
 }
 
 export async function deleteReferralFile(id: string, userId: string) {
-  const file = await prisma.referralFile.findUnique({ where: { id } });
+  const file = await prisma.referralFile.findUnique({
+    where: { id },
+    include: { dicomInstance: { select: { seriesId: true, series: { select: { dicomStudyId: true } } } } },
+  });
   if (!file) throw new Error('File not found');
-  await prisma.referralFile.delete({ where: { id } });
-  await writeAuditLog({ action: 'FILE_DELETED', entity: 'referral', entityId: file.referralId, userId });
+  let storageKey: string | null = null;
+  if (isStorageKey(file.fileUrl)) {
+    if (!storageConfigured()) {
+      throw Object.assign(new Error('Файловое хранилище недоступно. Запись не удалена.'), { code: 'DIAGNOSTIC_STORAGE_UNAVAILABLE' });
+    }
+    const referral = await prisma.referral.findUnique({
+      where: { id: file.referralId },
+      select: { id: true, clinicId: true },
+    });
+    const expectedPrefix = referral?.clinicId
+      ? `clinics/${referral.clinicId}/diagnostics/${file.referralId}/`
+      : '';
+    storageKey = keyFromStorageUrl(file.fileUrl);
+    if (!expectedPrefix || !storageKey.startsWith(expectedPrefix)) {
+      throw new Error('Storage key does not belong to this diagnostic referral');
+    }
+  }
+  // Remove the accessible metadata and audit it first. If object deletion
+  // subsequently fails, the file becomes a private orphan for storage cleanup
+  // rather than leaving a database row pointing at a missing medical record.
+  await prisma.$transaction(async (tx) => {
+    await tx.referralFile.delete({ where: { id } });
+    if (file.dicomInstance) {
+      await tx.diagnosticDicomSeries.deleteMany({
+        where: { id: file.dicomInstance.seriesId, instances: { none: {} } },
+      });
+      await tx.diagnosticDicomStudy.deleteMany({
+        where: { id: file.dicomInstance.series.dicomStudyId, series: { none: {} } },
+      });
+    }
+    await writeAuditLog({
+      action: 'FILE_DELETED',
+      entity: 'referral',
+      entityId: file.referralId,
+      details: { fileId: id, storage: storageKey ? 's3' : 'legacy', objectCleanupScheduled: Boolean(storageKey) },
+      userId,
+    }, tx);
+  });
+  if (storageKey) {
+    try {
+      await deleteObject(storageKey);
+    } catch (error) {
+      console.error('[diagnostics] private orphaned S3 object after metadata deletion', { referralId: file.referralId, fileId: id, storageKey, error: safeErrorKind(error) });
+    }
+  }
 }
 
 // ─── Comments ───
@@ -588,24 +1272,142 @@ export async function saveAndSignResult(data: {
   doctorId: string;
   signerScope?: 'clinic' | 'diagnostic_center' | 'laboratory';
 }) {
-  const referral = await prisma.referral.findUnique({ where: { id: data.referralId }, include: { result: true } });
-  if (!referral) throw new Error('Referral not found');
+  const referralSnapshot = await prisma.referral.findUnique({ where: { id: data.referralId }, include: { result: true } });
+  if (!referralSnapshot) throw new Error('Referral not found');
   if (!data.doctorId) throw new Error('Пользователь обязателен для подписания результата');
+  if (!data.reportText.trim()) throw new Error('Текст заключения обязателен');
+
   const partnerSigner = data.signerScope === 'diagnostic_center' || data.signerScope === 'laboratory';
+  if (data.signerScope === 'diagnostic_center') {
+    if (!referralSnapshot.centerId || !referralSnapshot.radiologistId) {
+      throw new Error('Для подписания результата необходимо назначить рентгенолога на исследование.');
+    }
+    if (referralSnapshot.result?.signedAt) {
+      throw Object.assign(
+        new Error('Заключение уже подписано и защищено от перезаписи. Для исправления используйте процедуру оформления поправки.'),
+        { code: 'DIAGNOSTIC_RESULT_ALREADY_SIGNED' },
+      );
+    }
+    if (referralSnapshot.status !== 'IN_PROGRESS') {
+      throw Object.assign(
+        new Error('Подписать заключение можно только после начала исследования.'),
+        { code: 'DIAGNOSTIC_RESULT_STAGE_INVALID' },
+      );
+    }
+    const organization = await prisma.organization.findFirst({
+      where: { originalType: 'DiagnosticCenter', originalId: referralSnapshot.centerId, archivedAt: null },
+      select: { id: true },
+    });
+    const [assignedRadiologist, hasSignerRole] = await Promise.all([
+      prisma.radiologist.findFirst({
+        where: { id: referralSnapshot.radiologistId, centerId: referralSnapshot.centerId, userId: data.doctorId, active: true },
+        select: { id: true },
+      }),
+      organization
+        ? hasScopedPartnerSignerRole({ id: data.doctorId, organizationId: organization.id }, DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS)
+        : Promise.resolve(false),
+    ]);
+    if (!assignedRadiologist || !hasSignerRole) {
+      throw new Error('Подписать заключение может только назначенный рентгенолог этого центра.');
+    }
+  }
   if (!partnerSigner) {
     await assertClinicDoctorSignoff({
       userId: data.doctorId,
-      clinicId: referral.clinicId,
-      branchId: referral.branchId,
-      assignedDoctorId: referral.doctorId,
+      clinicId: referralSnapshot.clinicId,
+      branchId: referralSnapshot.branchId,
+      assignedDoctorId: referralSnapshot.doctorId,
     });
   }
-  const result = await prisma.diagnosticResult.upsert({
-    where: { referralId: data.referralId },
-    update: { reportText: data.reportText, conclusion: data.conclusion || undefined, signedBy: data.doctorId, signedAt: new Date() },
-    create: { id: uid(), referralId: data.referralId, reportText: data.reportText, conclusion: data.conclusion || undefined, signedBy: data.doctorId, signedAt: new Date() },
+
+  const signedState = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "referrals" WHERE "id" = ${data.referralId} FOR UPDATE`;
+    const lockedReferral = await tx.referral.findUnique({
+      where: { id: data.referralId },
+      include: { result: true },
+    });
+    if (!lockedReferral) throw new Error('Referral not found');
+    if (lockedReferral.result?.signedAt) {
+      throw Object.assign(
+        new Error('Заключение уже подписано и защищено от перезаписи. Для исправления используйте процедуру оформления поправки.'),
+        { code: 'DIAGNOSTIC_RESULT_ALREADY_SIGNED' },
+      );
+    }
+    if (data.signerScope === 'diagnostic_center' && lockedReferral.status !== 'IN_PROGRESS') {
+      throw Object.assign(
+        new Error('Подписать заключение можно только после начала исследования.'),
+        { code: 'DIAGNOSTIC_RESULT_STAGE_INVALID' },
+      );
+    }
+    if (data.signerScope === 'diagnostic_center') {
+      if (lockedReferral.radiologistId !== referralSnapshot.radiologistId) {
+        throw Object.assign(new Error('Назначение рентгенолога изменилось. Обновите направление.'), { code: 'DIAGNOSTIC_SIGNER_CHANGED' });
+      }
+      const [activeAssignment, currentSignerRole] = await Promise.all([
+        tx.radiologist.findFirst({
+          where: { id: lockedReferral.radiologistId!, centerId: lockedReferral.centerId!, userId: data.doctorId, active: true },
+          select: { id: true },
+        }),
+        prisma.organization.findFirst({
+          where: { originalType: 'DiagnosticCenter', originalId: lockedReferral.centerId!, archivedAt: null },
+          select: { id: true },
+        }),
+      ]);
+      const stillAuthorized = currentSignerRole
+        ? await hasScopedPartnerSignerRole({ id: data.doctorId, organizationId: currentSignerRole.id }, DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS)
+        : false;
+      if (!activeAssignment || !stillAuthorized) {
+        throw Object.assign(new Error('Назначение или роль рентгенолога больше не активны. Обновите направление.'), { code: 'DIAGNOSTIC_SIGNER_CHANGED' });
+      }
+    }
+
+    const now = new Date();
+    const result = lockedReferral.result
+      ? await tx.diagnosticResult.update({
+          where: { id: lockedReferral.result.id },
+          data: {
+            reportText: data.reportText,
+            conclusion: data.conclusion || null,
+            signedBy: data.doctorId,
+            signedAt: now,
+          },
+        })
+      : await tx.diagnosticResult.create({
+          data: {
+            id: uid(),
+            referralId: data.referralId,
+            reportText: data.reportText,
+            conclusion: data.conclusion || null,
+            signedBy: data.doctorId,
+            signedAt: now,
+          },
+        });
+    const latestVersion = await tx.diagnosticResultVersion.findFirst({
+      where: { diagnosticResultId: result.id },
+      orderBy: { version: 'desc' },
+      select: { version: true },
+    });
+    const version = (latestVersion?.version || 0) + 1;
+    await tx.diagnosticResultVersion.create({
+      data: {
+        id: uid(),
+        diagnosticResultId: result.id,
+        version,
+        reportText: data.reportText,
+        conclusion: data.conclusion || null,
+        signedBy: data.doctorId,
+        signedAt: now,
+        changeReason: null,
+      },
+    });
+    await tx.referral.update({
+      where: { id: data.referralId },
+      data: { status: 'COMPLETED', completedAt: now },
+    });
+    return { referral: lockedReferral, result, version };
   });
-  await prisma.referral.update({ where: { id: data.referralId }, data: { status: 'COMPLETED', completedAt: new Date() } });
+  const referral = signedState.referral;
+  const result = signedState.result;
   // Only a clinic-side doctor may write a Visit into the clinical chart.
   // Partner results remain diagnostic evidence until the clinic explicitly
   // reviews/acknowledges them; a partner user must never masquerade as a doctor.
@@ -672,8 +1474,10 @@ export async function saveAndSignResult(data: {
     }
   }
   if (notifyUserIds.size > 0) {
-    const title = 'Результат диагностики подтверждён';
-    const message = 'Результат по направлению подтверждён врачом и внесён в карту пациента.';
+    const title = partnerSigner ? 'Подписанное заключение диагностики готово' : 'Результат диагностики подтверждён';
+    const message = partnerSigner
+      ? 'Рентгенолог диагностического центра подписал заключение. Ожидается передача результата клинике.'
+      : 'Результат по направлению подтверждён врачом и внесён в карту пациента.';
     await dispatchNotifications(Array.from(notifyUserIds).map((userId) => ({ userId, clinicId: referral.clinicId || undefined, type: 'workflow' as const, title, message, link: `/diagnostics/referrals/${referral.id}` })));
   }
   await writeAuditLog({
@@ -689,6 +1493,167 @@ export async function saveAndSignResult(data: {
 }
 
 /**
+ * A signed diagnostic-center report is never overwritten through the initial
+ * signing endpoint. Corrections are append-only versions with a mandatory
+ * reason, the assigned radiologist as signer, and a fresh delivery step.
+ */
+export async function amendDiagnosticCenterResult(data: {
+  referralId: string;
+  reportText: string;
+  conclusion?: string;
+  changeReason: string;
+  userId: string;
+}) {
+  const reason = String(data.changeReason || '').trim();
+  const reportText = String(data.reportText || '').trim();
+  const conclusion = String(data.conclusion || '').trim();
+  if (reason.length < 10 || reason.length > 1000) throw new Error('Укажите причину исправления длиной от 10 до 1000 символов.');
+  if (reportText.length < 20 || reportText.length > 20000) throw new Error('Описание исправленного исследования должно содержать от 20 до 20000 символов.');
+  if (conclusion.length < 5 || conclusion.length > 5000) throw new Error('Исправленное заключение должно содержать от 5 до 5000 символов.');
+
+  const initial = await prisma.referral.findUnique({
+    where: { id: data.referralId },
+    include: { result: true },
+  });
+  if (!initial) throw new Error('Referral not found');
+  if (!initial.centerId || !initial.radiologistId || !initial.result?.signedAt) {
+    throw new Error('Для исправления требуется подписанное заключение диагностического центра и назначенный рентгенолог.');
+  }
+  if (!['COMPLETED', 'DELIVERED'].includes(String(initial.status))) {
+    throw Object.assign(new Error('Исправлять можно только подписанное заключение после завершения исследования.'), { code: 'DIAGNOSTIC_AMENDMENT_STAGE_INVALID' });
+  }
+
+  const organization = await prisma.organization.findFirst({
+    where: { originalType: 'DiagnosticCenter', originalId: initial.centerId, archivedAt: null },
+    select: { id: true },
+  });
+  const [assignedRadiologist, hasSignerRole] = await Promise.all([
+    prisma.radiologist.findFirst({
+      where: { id: initial.radiologistId, centerId: initial.centerId, userId: data.userId, active: true },
+      select: { id: true },
+    }),
+    organization
+      ? hasScopedPartnerSignerRole({ id: data.userId, organizationId: organization.id }, DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS)
+      : Promise.resolve(false),
+  ]);
+  if (!assignedRadiologist || !hasSignerRole) {
+    throw Object.assign(new Error('Исправление заключения доступно только назначенному рентгенологу этого центра.'), { code: 'DIAGNOSTIC_AMENDMENT_FORBIDDEN' });
+  }
+
+  const amended = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "referrals" WHERE "id" = ${data.referralId} FOR UPDATE`;
+    const referral = await tx.referral.findUnique({
+      where: { id: data.referralId },
+      include: { result: true },
+    });
+    if (!referral) throw new Error('Referral not found');
+    if (referral.centerId !== initial.centerId || referral.radiologistId !== initial.radiologistId) {
+      throw Object.assign(new Error('Центр или назначенный рентгенолог изменились. Обновите карточку исследования.'), { code: 'DIAGNOSTIC_AMENDMENT_SCOPE_CHANGED' });
+    }
+    if (!['COMPLETED', 'DELIVERED'].includes(String(referral.status)) || !referral.result?.signedAt) {
+      throw Object.assign(new Error('Состояние заключения изменилось. Обновите карточку исследования.'), { code: 'DIAGNOSTIC_AMENDMENT_STAGE_INVALID' });
+    }
+    const [activeAssignment, currentSignerRole] = await Promise.all([
+      tx.radiologist.findFirst({
+        where: { id: referral.radiologistId!, centerId: referral.centerId!, userId: data.userId, active: true },
+        select: { id: true },
+      }),
+      prisma.organization.findFirst({
+        where: { originalType: 'DiagnosticCenter', originalId: referral.centerId!, archivedAt: null },
+        select: { id: true },
+      }),
+    ]);
+    const stillAuthorized = currentSignerRole
+      ? await hasScopedPartnerSignerRole({ id: data.userId, organizationId: currentSignerRole.id }, DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS)
+      : false;
+    if (!activeAssignment || !stillAuthorized) {
+      throw Object.assign(new Error('Назначение или роль рентгенолога больше не активны.'), { code: 'DIAGNOSTIC_AMENDMENT_FORBIDDEN' });
+    }
+
+    const latest = await tx.diagnosticResultVersion.findFirst({
+      where: { diagnosticResultId: referral.result.id },
+      orderBy: { version: 'desc' },
+      select: { version: true },
+    });
+    // Defensive backfill for installations where the additive migration has
+    // not yet populated a legacy signed row, without discarding its contents.
+    if (!latest) {
+      await tx.diagnosticResultVersion.create({
+        data: {
+          id: uid(),
+          diagnosticResultId: referral.result.id,
+          version: 1,
+          reportText: referral.result.reportText,
+          conclusion: referral.result.conclusion,
+          signedBy: referral.result.signedBy,
+          signedAt: referral.result.signedAt,
+          changeReason: null,
+        },
+      });
+    }
+    const version = (latest?.version || 1) + 1;
+    const now = new Date();
+    await tx.diagnosticResultVersion.create({
+      data: {
+        id: uid(),
+        diagnosticResultId: referral.result.id,
+        version,
+        reportText,
+        conclusion,
+        signedBy: data.userId,
+        signedAt: now,
+        changeReason: reason,
+      },
+    });
+    const result = await tx.diagnosticResult.update({
+      where: { id: referral.result.id },
+      data: { reportText, conclusion, signedBy: data.userId, signedAt: now },
+    });
+    await tx.referral.update({
+      where: { id: data.referralId },
+      data: { status: 'COMPLETED', completedAt: now },
+    });
+    await writeAuditLog({
+      action: 'DIAGNOSTIC_RESULT_AMENDED',
+      entity: 'referral',
+      entityId: data.referralId,
+      details: {
+        diagnosticResultId: result.id,
+        version,
+        previousVersion: version - 1,
+        changeReason: reason,
+        signedBy: data.userId,
+        previousDeliveryStatus: referral.status,
+        requiresRedelivery: referral.status === 'DELIVERED',
+      },
+      userId: data.userId,
+      clinicId: referral.clinicId,
+    }, tx);
+    return { result, version, clinicId: referral.clinicId, doctorId: referral.doctorId, previousStatus: referral.status };
+  });
+
+  if (amended.doctorId) {
+    await createNotification({
+      userId: amended.doctorId,
+      type: NOTIFICATION_TYPES.REFERRAL_RESULT,
+      title: 'Заключение диагностики исправлено',
+      message: 'Диагностический центр выпустил новую подписанную версию. Дождитесь повторной передачи заключения.',
+      link: `/diagnostics/referrals/${data.referralId}`,
+    });
+  }
+  publish('diagnostics.result_amended', {
+    referralId: data.referralId,
+    clinicId: amended.clinicId || '',
+    centerId: initial.centerId,
+    doctorId: amended.doctorId || '',
+    userId: data.userId,
+    version: amended.version,
+    requiresRedelivery: amended.previousStatus === 'DELIVERED',
+  });
+  return amended;
+}
+
+/**
  * Confirm an AI-generated diagnostic result without rewriting the report.
  * Confirmation is a clinical acknowledgement: the AI draft remains intact,
  * the confirming user is recorded as signer, the referral is completed, and
@@ -696,51 +1661,76 @@ export async function saveAndSignResult(data: {
  * existing signed-result workflow and is never performed by the AI itself.
  */
 export async function confirmAiResult(referralId: string, userId: string) {
-  const referral = await prisma.referral.findUnique({
+  const referralSnapshot = await prisma.referral.findUnique({
     where: { id: referralId },
     include: { result: true },
   });
-  if (!referral) throw new Error('Referral not found');
-  if (!referral.result) throw new Error('AI result not found');
-  if (!referral.result.aiGenerated) throw new Error('Результат не является AI-результатом');
-  if (referral.result.signedAt) throw new Error('Результат уже подтверждён');
+  if (!referralSnapshot) throw new Error('Referral not found');
+  if (!referralSnapshot.result) throw new Error('AI result not found');
+  if (!referralSnapshot.result.aiGenerated) throw new Error('Результат не является AI-результатом');
+  if (referralSnapshot.result.signedAt) throw new Error('Результат уже подтверждён');
 
   await assertClinicDoctorSignoff({
     userId,
-    clinicId: referral.clinicId,
-    branchId: referral.branchId,
-    assignedDoctorId: referral.doctorId,
+    clinicId: referralSnapshot.clinicId,
+    branchId: referralSnapshot.branchId,
+    assignedDoctorId: referralSnapshot.doctorId,
   });
 
-  const now = new Date();
-  const result = await prisma.diagnosticResult.update({
-    where: { referralId },
-    data: { signedBy: userId, signedAt: now },
-  });
-
-  const updatedReferral = await prisma.referral.update({
-    where: { id: referralId },
-    data: { status: 'COMPLETED', completedAt: now },
-  });
-
-  await writeAuditLog({
-    action: 'AI_RESULT_CONFIRMED',
-    entity: 'referral',
-    entityId: referralId,
-    details: { resultId: result.id, confirmedBy: userId, aiGenerated: true },
-    userId,
-    clinicId: referral.clinicId,
+  const confirmation = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "referrals" WHERE "id" = ${referralId} FOR UPDATE`;
+    const referral = await tx.referral.findUnique({ where: { id: referralId }, include: { result: true } });
+    if (!referral?.result) throw new Error('AI result not found');
+    if (!referral.result.aiGenerated) throw new Error('Результат не является AI-результатом');
+    if (referral.result.signedAt) {
+      throw Object.assign(new Error('Результат уже подтверждён'), { code: 'DIAGNOSTIC_RESULT_ALREADY_SIGNED' });
+    }
+    const now = new Date();
+    const result = await tx.diagnosticResult.update({
+      where: { id: referral.result.id },
+      data: { signedBy: userId, signedAt: now },
+    });
+    const latest = await tx.diagnosticResultVersion.findFirst({
+      where: { diagnosticResultId: result.id },
+      orderBy: { version: 'desc' },
+      select: { version: true },
+    });
+    const version = (latest?.version || 0) + 1;
+    await tx.diagnosticResultVersion.create({
+      data: {
+        id: uid(),
+        diagnosticResultId: result.id,
+        version,
+        reportText: result.reportText,
+        conclusion: result.conclusion,
+        signedBy: userId,
+        signedAt: now,
+        changeReason: null,
+      },
+    });
+    const updatedReferral = await tx.referral.update({
+      where: { id: referralId },
+      data: { status: 'COMPLETED', completedAt: now },
+    });
+    await writeAuditLog({
+      action: 'AI_RESULT_CONFIRMED',
+      entity: 'referral',
+      entityId: referralId,
+      details: { resultId: result.id, confirmedBy: userId, aiGenerated: true, version },
+      userId,
+      clinicId: referral.clinicId,
+    }, tx);
+    return { result, referral: updatedReferral, confirmedBy: userId, version };
   });
 
   publish('diagnostics.result_confirmed', {
     referralId,
-    resultId: result.id,
-    clinicId: referral.clinicId || '',
-    doctorId: referral.doctorId || '',
+    resultId: confirmation.result.id,
+    clinicId: referralSnapshot.clinicId || '',
+    doctorId: referralSnapshot.doctorId || '',
     userId,
   });
-
-  return { result, referral: updatedReferral, confirmedBy: userId };
+  return confirmation;
 }
 
 // ─── Seed test data ───

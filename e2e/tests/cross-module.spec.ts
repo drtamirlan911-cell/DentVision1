@@ -2,6 +2,7 @@ import { test, expect, APIRequestContext, request as apiRequest } from '@playwri
 import { randomUUID } from 'node:crypto';
 import bcrypt from '../../dentvision-backend/node_modules/bcryptjs/index.js';
 import { prisma } from '../helpers/db';
+import { switchToAssignedClinicBranch } from '../helpers/branch-context';
 import { makeIin } from '../helpers/iin';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
@@ -50,6 +51,17 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
       data: { id: randomUUID(), name: 'E2E Cross-Module Center', city: 'Almaty', active: true },
     });
     centerId = center.id;
+    await prisma.diagnosticStudy.create({
+      data: {
+        id: randomUUID(),
+        centerId,
+        name: 'КТ верхней челюсти',
+        category: 'CBCT',
+        price: 25_000,
+        durationMin: 30,
+        active: true,
+      },
+    });
     await prisma.organization.create({
       data: {
         id: centerId,
@@ -80,11 +92,9 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
         userId: centerUserId,
       },
     });
-    const centerRole = await prisma.role.upsert({
-      where: { key: 'org_admin' },
-      update: {},
-      create: { id: randomUUID(), key: 'org_admin', name: 'Organization Admin', isSystem: true },
-    });
+    // Diagnostic workflow authority comes from the canonical center-scoped role,
+    // not the generic organization administrator compatibility role.
+    const centerRole = await prisma.role.findUniqueOrThrow({ where: { key: 'diagnostic_owner' } });
     await prisma.personRole.create({
       data: {
         id: randomUUID(),
@@ -96,8 +106,21 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
     });
     centerToken = await login(api, centerUser.email, E2E_PASSWORD);
 
+    // A doctor may have several active branch memberships after BRANCH-002.
+    // Select one through the shared IAM helper; never guess the first branch.
+    const selectedContext = await switchToAssignedClinicBranch({
+      request: api,
+      baseUrl: BASE_URL,
+      accessToken: doctorToken,
+      userId: doctorId,
+      clinicId,
+    });
+    doctorToken = selectedContext.accessToken;
+
+    // The doctor who performs the referral and lab handoff must own the
+    // patient context used by the downstream branch-scoped workflows.
     const patientRes = await api.post(`${BASE_URL}/api/patients`, {
-      headers: auth(ownerToken),
+      headers: auth(doctorToken),
       data: { iin: makeIin(), firstName: 'CrossModule', lastName: 'Patient', phone: `+7700${Date.now() % 10000000}` },
     });
     expect(patientRes.status()).toBe(201);
@@ -150,13 +173,30 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
     expect(forbidden.status()).toBe(403);
   });
 
-  test('CROSS-003: center completes the performed study, then doctor signs the result → patient record', async () => {
-    const completeRes = await api.post(`${BASE_URL}/api/diagnostics/referrals/${referralId}/status`, {
+  test('CROSS-003: center follows the RIS sequence, then doctor signs the result → patient record', async () => {
+    const acceptRes = await api.post(`${BASE_URL}/api/diagnostics/referrals/${referralId}/status`, {
       headers: auth(centerToken),
-      data: { status: 'COMPLETED' },
+      data: { status: 'ACCEPTED' },
     });
-    expect(completeRes.status()).toBe(200);
-    expect((await completeRes.json()).data.status).toBe('COMPLETED');
+    expect(acceptRes.status(), await acceptRes.text()).toBe(200);
+
+    const scheduleRes = await api.post(`${BASE_URL}/api/diagnostics/referrals/${referralId}/status`, {
+      headers: auth(centerToken),
+      data: { status: 'SCHEDULED', scheduledDate: '2026-11-23', scheduledTime: '10:00' },
+    });
+    expect(scheduleRes.status(), await scheduleRes.text()).toBe(200);
+
+    const arrivalRes = await api.post(`${BASE_URL}/api/diagnostics/referrals/${referralId}/status`, {
+      headers: auth(centerToken),
+      data: { status: 'PATIENT_ARRIVED' },
+    });
+    expect(arrivalRes.status(), await arrivalRes.text()).toBe(200);
+
+    const acquisitionRes = await api.post(`${BASE_URL}/api/diagnostics/referrals/${referralId}/status`, {
+      headers: auth(centerToken),
+      data: { status: 'IN_PROGRESS' },
+    });
+    expect(acquisitionRes.status(), await acquisitionRes.text()).toBe(200);
 
     const signRes = await api.post(`${BASE_URL}/api/diagnostics/referrals/${referralId}/results/sign`, {
       headers: auth(doctorToken),
@@ -184,8 +224,9 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
       headers: auth(doctorToken),
       data: { patientId, patientName: 'CrossModule Patient', labType: 'crown', material: 'zirconia', doctorId },
     });
-    expect(res.status()).toBe(201);
-    const order = (await res.json()).data;
+    const responseText = await res.text();
+    expect(res.status(), responseText).toBe(201);
+    const order = JSON.parse(responseText).data;
     labOrderId = order.id;
     expect(order.status).toBe('pending');
   });

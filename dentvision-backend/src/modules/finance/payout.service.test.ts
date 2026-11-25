@@ -18,12 +18,18 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const { tx, prismaMock } = vi.hoisted(() => {
   const delegate = () => ({
-    wallet: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
+    wallet: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     payout: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
+    payment: { findMany: vi.fn() },
     transaction: { create: vi.fn() },
     lecturer: { findUnique: vi.fn() },
     supplierMember: { findMany: vi.fn() },
+    laboratoryMember: { findMany: vi.fn() },
+    diagnosticCenterMember: { findMany: vi.fn() },
+    organization: { findFirst: vi.fn() },
+    personRole: { findMany: vi.fn() },
     notification: { create: vi.fn() },
+    ledgerEntry: { findMany: vi.fn() },
     $executeRaw: vi.fn(),
   });
   const tx = delegate();
@@ -45,15 +51,28 @@ const {
 } = await import('./payout.service.js');
 
 /** A wallet holding `balance`, with `pending` already claimed against it. */
-function walletHolding(balance: bigint, pending: bigint[] = []) {
+function walletHolding(
+  balance: bigint,
+  pending: bigint[] = [],
+  ownerType: string = 'LECTURER',
+  partnerEconomicsCredits: Array<{ amount: bigint; paymentId?: string | null; vertical?: string; operationId?: string }> = [],
+) {
   tx.wallet.findUnique.mockResolvedValue({
     id: 'w1',
     balance,
     currency: 'KZT',
-    ownerType: 'LECTURER',
-    ownerId: 'lect-1',
+    ownerType,
+    ownerId: ownerType === 'PARTNER' ? 'lab-1' : 'lect-1',
   });
   tx.payout.findMany.mockResolvedValue(pending.map((amount) => ({ amount })));
+  tx.ledgerEntry.findMany.mockResolvedValue(partnerEconomicsCredits.map(({ amount, paymentId, vertical, operationId }) => ({
+    amount,
+    transaction: {
+      meta: paymentId ? { paymentId } : {},
+      refType: vertical,
+      refId: operationId,
+    },
+  })));
 }
 
 beforeEach(() => {
@@ -61,8 +80,15 @@ beforeEach(() => {
   tx.payout.create.mockImplementation(async ({ data }: never) => ({ id: 'p1', ...(data as object) }));
   tx.payout.update.mockImplementation(async ({ data }: never) => ({ id: 'p1', ...(data as object) }));
   tx.wallet.create.mockResolvedValue({ id: 'w1', balance: 0n, currency: 'KZT' });
+  tx.ledgerEntry.findMany.mockResolvedValue([]);
+  tx.laboratoryMember.findMany.mockResolvedValue([]);
+  tx.diagnosticCenterMember.findMany.mockResolvedValue([]);
+  tx.payment.findMany.mockResolvedValue([]);
+  tx.organization.findFirst.mockResolvedValue({ id: 'org-1' });
+  tx.personRole.findMany.mockResolvedValue([]);
   tx.transaction.create.mockResolvedValue({ id: 't1' });
   tx.wallet.update.mockResolvedValue({});
+  tx.wallet.updateMany.mockResolvedValue({ count: 1 });
 });
 
 describe('available balance is the balance minus what is already claimed', () => {
@@ -86,6 +112,60 @@ describe('available balance is the balance minus what is already claimed', () =>
     tx.payout.findMany.mockResolvedValue([]);
     expect(await availableBalanceMinor('missing', tx as never)).toBe(0n);
   });
+
+  it('does not treat diagnostic and medical-lab partner economics mirrors as withdrawable cash', async () => {
+    walletHolding(100_000n, [], 'PARTNER', [{ amount: 100_000n }]);
+    expect(await availableBalanceMinor('w1', tx as never)).toBe(0n);
+    expect(tx.ledgerEntry.findMany).toHaveBeenCalledWith({
+      where: { walletId: 'w1', direction: 'credit', transaction: { type: 'partner_economics' } },
+      select: { amount: true, transaction: { select: { meta: true, refType: true, refId: true } } },
+    });
+  });
+
+  it('subtracts mirrored partner revenue and pending payout holds from a partner wallet', async () => {
+    walletHolding(150_000n, [20_000n], 'PARTNER', [{ amount: 100_000n }, { amount: 50_000n, paymentId: 'platform-payment-1' }]);
+    expect(await availableBalanceMinor('w1', tx as never)).toBe(30_000n);
+  });
+
+  it('keeps proceeds paid through the DentVision gateway available for partner payout', async () => {
+    walletHolding(100_000n, [], 'PARTNER', [{ amount: 100_000n, paymentId: 'platform-payment-1' }]);
+    expect(await availableBalanceMinor('w1', tx as never)).toBe(100_000n);
+  });
+
+  it('keeps legacy medical-lab proceeds withdrawable when a paid platform Payment proves collection', async () => {
+    walletHolding(100_000n, [], 'PARTNER', [{
+      amount: 100_000n,
+      vertical: 'MEDICAL_ANALYSIS',
+      operationId: 'medical-order-legacy',
+    }]);
+    tx.payment.findMany.mockResolvedValue([{ refType: 'medical_lab_order', refId: 'medical-order-legacy' }]);
+
+    expect(await availableBalanceMinor('w1', tx as never)).toBe(100_000n);
+    expect(tx.payment.findMany).toHaveBeenCalledWith({
+      where: {
+        status: 'paid',
+        OR: [{ refType: 'medical_lab_order', refId: 'medical-order-legacy' }],
+      },
+      select: { refType: true, refId: true },
+    });
+  });
+
+  it('keeps legacy direct medical-lab referral collections unavailable without a paid platform Payment', async () => {
+    walletHolding(100_000n, [], 'PARTNER', [{
+      amount: 100_000n,
+      vertical: 'MEDICAL_ANALYSIS',
+      operationId: 'direct-referral-1',
+    }]);
+    tx.payment.findMany.mockResolvedValue([]);
+
+    expect(await availableBalanceMinor('w1', tx as never)).toBe(0n);
+  });
+
+  it('does not apply partner-economics exclusions to lecturer wallets', async () => {
+    walletHolding(100_000n, [], 'LECTURER', [{ amount: 75_000n }]);
+    expect(await availableBalanceMinor('w1', tx as never)).toBe(100_000n);
+    expect(tx.ledgerEntry.findMany).not.toHaveBeenCalled();
+  });
 });
 
 describe('the same money cannot be requested twice', () => {
@@ -93,6 +173,30 @@ describe('the same money cannot be requested twice', () => {
     walletHolding(100_000n);
     await expect(
       requestPayout({ ownerType: 'LECTURER', ownerId: 'lect-1', amountMinor: 100_000n }),
+    ).resolves.toMatchObject({ status: 'requested', amount: 100_000n });
+  });
+
+  it('uses a caller-owned transaction so the caller can commit payout and audit together', async () => {
+    walletHolding(100_000n);
+    await expect(
+      requestPayout({ ownerType: 'LECTURER', ownerId: 'lect-1', amountMinor: 50_000n }, tx as never),
+    ).resolves.toMatchObject({ status: 'requested', amount: 50_000n });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(tx.payout.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects payout requests funded only by partner-collected diagnostic revenue', async () => {
+    walletHolding(100_000n, [], 'PARTNER', [{ amount: 100_000n }]);
+    await expect(
+      requestPayout({ ownerType: 'PARTNER', ownerId: 'lab-1', amountMinor: 1n }),
+    ).rejects.toMatchObject({ code: 'INSUFFICIENT_FUNDS' });
+    expect(tx.payout.create).not.toHaveBeenCalled();
+  });
+
+  it('allows partner payout requests against proceeds confirmed by a platform payment', async () => {
+    walletHolding(100_000n, [], 'PARTNER', [{ amount: 100_000n, paymentId: 'platform-payment-1' }]);
+    await expect(
+      requestPayout({ ownerType: 'PARTNER', ownerId: 'lab-1', amountMinor: 100_000n }),
     ).resolves.toMatchObject({ status: 'requested', amount: 100_000n });
   });
 
@@ -125,12 +229,15 @@ describe('concurrent payout protection', () => {
     walletHolding(100_000n);
     await requestPayout({ ownerType: 'LECTURER', ownerId: 'lect-1', amountMinor: 50_000n });
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(String(tx.$executeRaw.mock.calls[0][1])).toContain('wallet-funds:');
   });
 
   it('locks the payout before reading its current status', async () => {
     payoutAtForConcurrency('approved');
     await transitionPayout('p1', 'paid');
-    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(String(tx.$executeRaw.mock.calls[0][1])).toContain('payout-transition:');
+    expect(String(tx.$executeRaw.mock.calls[1][1])).toContain('wallet-funds:');
   });
 
   function payoutAtForConcurrency(status: string) {
@@ -224,9 +331,10 @@ describe('paying out keeps the ledger balanced', () => {
   it('moves both balances by the same amount, so the net stays zero', async () => {
     await transitionPayout('p1', 'paid');
 
-    const updates = tx.wallet.update.mock.calls.map((c: never[]) => c[0]);
-    const seller = updates.find((u: { where: { id: string } }) => u.where.id === 'w1');
-    const gateway = updates.find((u: { where: { id: string } }) => u.where.id === 'gw');
+    const debits = tx.wallet.updateMany.mock.calls.map((c: never[]) => c[0]);
+    const seller = debits.find((u: { where: { id: string } }) => u.where.id === 'w1');
+    const gateway = tx.wallet.update.mock.calls.map((c: never[]) => c[0]).find((u: { where: { id: string } }) => u.where.id === 'gw');
+    expect(seller.where.balance.gte).toBe(50_000n);
     expect(seller.data.balance.decrement).toBe(50_000n);
     expect(gateway.data.balance.increment).toBe(50_000n);
   });
@@ -248,6 +356,7 @@ describe('paying out keeps the ledger balanced', () => {
       status: 'approved',
       wallet: { id: 'w1', balance: 10_000n, currency: 'KZT' },
     });
+    tx.wallet.updateMany.mockResolvedValueOnce({ count: 0 });
     await expect(transitionPayout('p1', 'paid')).rejects.toMatchObject({
       code: 'INSUFFICIENT_FUNDS',
     });
@@ -265,7 +374,7 @@ describe('paying out keeps the ledger balanced', () => {
 });
 
 describe('notifies the requester on every transition', () => {
-  function payoutAt(status: string, ownerType: 'LECTURER' | 'SUPPLIER', ownerId = 'owner-1', balance = 100_000n) {
+  function payoutAt(status: string, ownerType: 'LECTURER' | 'SUPPLIER' | 'PARTNER', ownerId = 'owner-1', balance = 100_000n) {
     tx.payout.findUnique.mockResolvedValue({
       id: 'p1',
       walletId: 'w1',
@@ -309,6 +418,90 @@ describe('notifies the requester on every transition', () => {
     expect(tx.notification.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ userId: 'u2', title: 'Заявка на выплату отклонена' }),
     });
+  });
+
+  it('notifies laboratory management and finance members for a PARTNER wallet', async () => {
+    payoutAt('requested', 'PARTNER', 'lab-1');
+    tx.laboratoryMember.findMany.mockResolvedValue([{ userId: 'lab-owner' }, { userId: 'lab-finance' }]);
+
+    await transitionPayout('p1', 'approved');
+
+    expect(tx.laboratoryMember.findMany).toHaveBeenCalledWith({
+      where: {
+        labId: 'lab-1',
+        role: { in: ['owner', 'admin', 'manager', 'director', 'lab_manager', 'lab_finance', 'finance', 'accountant'] },
+      },
+      select: { userId: true },
+    });
+    expect(tx.notification.create).toHaveBeenCalledTimes(2);
+    expect(tx.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ userId: 'lab-owner', title: 'Заявка на выплату одобрена' }),
+    });
+    expect(tx.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ userId: 'lab-finance', title: 'Заявка на выплату одобрена' }),
+    });
+  });
+
+  it('notifies canonical medical-lab owner/finance PersonRoles and excludes bench roles', async () => {
+    payoutAt('requested', 'PARTNER', 'lab-1');
+    tx.laboratoryMember.findMany.mockResolvedValue([{ userId: 'legacy-owner' }]);
+    tx.personRole.findMany.mockResolvedValue([
+      { role: { key: 'medical_lab_owner' }, person: { userId: 'iam-owner' } },
+      { role: { key: 'MEDICAL_LAB_FINANCE' }, person: { userId: 'iam-finance' } },
+      { role: { key: 'medical_lab_technician' }, person: { userId: 'bench-user' } },
+      { role: { key: 'medical_lab_quality' }, person: { userId: 'quality-user' } },
+      { role: { key: 'medical_lab_finance' }, person: { userId: 'legacy-owner' } },
+    ]);
+
+    await transitionPayout('p1', 'approved');
+
+    expect(tx.organization.findFirst).toHaveBeenCalledWith({
+      where: { originalType: { in: ['Laboratory', 'DiagnosticCenter'] }, originalId: 'lab-1' },
+      select: { id: true },
+    });
+    expect(tx.personRole.findMany).toHaveBeenCalledWith({
+      where: {
+        scopeType: 'organization',
+        scopeId: 'org-1',
+        person: { organizationId: 'org-1', userId: { not: null } },
+      },
+      select: { role: { select: { key: true } }, person: { select: { userId: true } } },
+    });
+    const notifiedIds = tx.notification.create.mock.calls.map((call: any) => call[0].data.userId);
+    expect(notifiedIds).toEqual(expect.arrayContaining(['legacy-owner', 'iam-owner', 'iam-finance']));
+    expect(new Set(notifiedIds).size).toBe(notifiedIds.length);
+    expect(notifiedIds).not.toContain('bench-user');
+    expect(notifiedIds).not.toContain('quality-user');
+  });
+
+  it('notifies canonical diagnostic-center owner/finance roles and excludes clinical operators', async () => {
+    payoutAt('requested', 'PARTNER', 'center-1');
+    tx.diagnosticCenterMember.findMany.mockResolvedValue([{ userId: 'legacy-center-manager' }]);
+    tx.organization.findFirst.mockResolvedValue({ id: 'center-org-1' });
+    tx.personRole.findMany.mockResolvedValue([
+      { role: { key: 'DIAGNOSTIC_OWNER' }, person: { userId: 'center-owner' } },
+      { role: { key: 'diagnostic_finance' }, person: { userId: 'center-finance' } },
+      { role: { key: 'diagnostic_radiologist' }, person: { userId: 'radiologist' } },
+      { role: { key: 'diagnostic_operator' }, person: { userId: 'operator' } },
+    ]);
+
+    await transitionPayout('p1', 'approved');
+
+    expect(tx.diagnosticCenterMember.findMany).toHaveBeenCalledWith({
+      where: {
+        centerId: 'center-1',
+        role: { in: ['owner', 'admin', 'manager', 'director', 'finance', 'accountant'] },
+      },
+      select: { userId: true },
+    });
+    expect(tx.organization.findFirst).toHaveBeenCalledWith({
+      where: { originalType: { in: ['Laboratory', 'DiagnosticCenter'] }, originalId: 'center-1' },
+      select: { id: true },
+    });
+    const notifiedIds = tx.notification.create.mock.calls.map((call: any) => call[0].data.userId);
+    expect(notifiedIds).toEqual(expect.arrayContaining(['legacy-center-manager', 'center-owner', 'center-finance']));
+    expect(notifiedIds).not.toContain('radiologist');
+    expect(notifiedIds).not.toContain('operator');
   });
 
   it('sends the paid-out message when money actually leaves', async () => {

@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import prisma from '../../lib/prisma.js';
@@ -87,7 +88,7 @@ async function notifyCenterStaff(centerId: string, title: string, message: strin
       })),
     });
   } catch (error) {
-    console.warn('[Diagnostics] center notification failed', error);
+    console.warn('[Diagnostics] center notification failed', safeErrorKind(error));
   }
 }
 
@@ -191,7 +192,7 @@ publicDiagnosticsBookingRouter.post('/diagnostics/order', limiter, async (req, r
       },
     });
   } catch (error) {
-    console.error('[Public] diagnostics order', error);
+    console.error('[Public] diagnostics order', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось создать заявку на исследование' });
   }
 });
@@ -231,7 +232,7 @@ publicDiagnosticsBookingRouter.get('/diagnostics/order/:id', trackingLimiter, as
       },
     });
   } catch (error) {
-    console.error('[Public] diagnostics order status', error);
+    console.error('[Public] diagnostics order status', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось получить статус заявки' });
   }
 });
@@ -277,7 +278,7 @@ publicDiagnosticsBookingRouter.get('/diagnostics/center/:centerId/bookings', aut
 
     return res.json({ ok: true, data: { bookings, counts: Object.fromEntries(counts) } });
   } catch (error) {
-    console.error('[Diagnostics] center booking inbox', error);
+    console.error('[Diagnostics] center booking inbox', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить заявки' });
   }
 });
@@ -334,7 +335,7 @@ publicDiagnosticsBookingRouter.patch('/diagnostics/center/:centerId/bookings/:id
 
     return res.json({ ok: true, data: updated });
   } catch (error) {
-    console.error('[Diagnostics] center booking update', error);
+    console.error('[Diagnostics] center booking update', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось изменить заявку' });
   }
 });

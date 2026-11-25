@@ -9,8 +9,10 @@ import { QueryError } from '@/components/ui/ds/QueryError'
 import { Badge } from '@/components/ui/ds/Badge'
 import { Tabs } from '@/components/ui/ds/Misc'
 import { countAwaitingAction, countByPhase, type PhaseId } from '@/lib/referralStatus'
+import { selectWorkspaceContext } from '@/lib/workspaceContext'
 import { queryKeys } from '@/queries/keys'
 import { useAuth } from '@/store/auth.store'
+import { useIam } from '@/iam'
 import * as api from '@/utils/api'
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext'
 import EcosystemCaseFlow from '@/components/ecosystem/EcosystemCaseFlow'
@@ -22,8 +24,11 @@ import { OnlineBookingsTab } from './OnlineBookingsTab'
 import { ServicesTab } from './ServicesTab'
 import { PaymentsTab } from './PaymentsTab'
 import { CashierTab } from './CashierTab'
-import { FinanceTab } from './FinanceTab'
+import DiagnosticSettlements from '@/pages/diagnostics/DiagnosticSettlements'
+import { PartnerBranchSubscriptionBilling } from '@/components/billing/PartnerBranchSubscriptionBilling'
 import { TeamTab } from './TeamTab'
+import { WorklistTab } from './WorklistTab'
+import { ModalitiesTab } from './ModalitiesTab'
 import { OrganizationOnboarding } from '@/components/OrganizationOnboarding'
 
 /**
@@ -34,13 +39,15 @@ import { OrganizationOnboarding } from '@/components/OrganizationOnboarding'
  * sidebar items still work; only the implementation is shared.
  */
 export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
-  const { user } = useAuth()
+  const { user, activeWorkspace, workspaceContexts } = useAuth()
+  const iam = useIam()
   const ecosystem = useEcosystemUrlContext()
   const isSuperadmin = user?.role === 'superadmin'
+  const activeScopeType = String(activeWorkspace?.scopeType || user?.organizationType || '').toUpperCase()
 
   const claimedKind: OrgKind | undefined =
-    user?.organizationType === 'LABORATORY' ? 'LAB'
-      : user?.organizationType === 'DIAGNOSTIC_CENTER' ? 'CENTER'
+    activeScopeType === 'LABORATORY' ? 'LAB'
+      : activeScopeType === 'DIAGNOSTIC_CENTER' ? 'CENTER'
         : undefined
 
   const [orgId, setOrgId] = useState<string>('')
@@ -55,20 +62,41 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   const { data: contextsData, isLoading: contextsLoading, isError: contextsError } = contextsQuery
 
   const diagnosticContexts = useMemo(
-    () => (contextsData?.contexts || []).filter(
+    () => (contextsData?.contexts || workspaceContexts || []).filter(
       (c: any) => c.scopeType === 'DIAGNOSTIC_CENTER' || c.scopeType === 'LABORATORY',
     ),
-    [contextsData],
+    [contextsData, workspaceContexts],
   )
 
-  const kind: OrgKind =
-    pinnedKind
-    ?? claimedKind
-    ?? (diagnosticContexts[0]?.scopeType === 'LABORATORY' ? 'LAB' : 'CENTER')
+  const selectedDiagnosticContext = useMemo(
+    () => selectWorkspaceContext(diagnosticContexts, {
+      scopeId: activeWorkspace?.scopeId || user?.organizationOriginalId,
+      organizationId: activeWorkspace?.organizationId || user?.organizationId,
+    }),
+    [diagnosticContexts, activeWorkspace, user?.organizationOriginalId, user?.organizationId],
+  )
+  const inferredKind: OrgKind | undefined = selectedDiagnosticContext?.scopeType === 'LABORATORY'
+    ? 'LAB'
+    : selectedDiagnosticContext?.scopeType === 'DIAGNOSTIC_CENTER' ? 'CENTER' : undefined
+  const kind: OrgKind = pinnedKind ?? claimedKind ?? inferredKind ?? 'CENTER'
+  const requiresWorkspaceSelection = !pinnedKind && !claimedKind && !selectedDiagnosticContext
+    && (diagnosticContexts.length > 0 || Boolean(activeWorkspace))
 
   const config = WORKSPACES[kind]
-  const isOwnOrg = user?.organizationType === config.organizationType
-  const ownOrgId = user?.organizationOriginalId || user?.organizationId || ''
+  const canReadOperations = isSuperadmin || iam.hasPermission(kind === 'CENTER' ? 'diagnostics.read' : 'lab.read')
+  const canReadFinance = isSuperadmin || iam.hasPermission('billing.read')
+  const canManageBilling = isSuperadmin || iam.hasPermission('billing.manage')
+  const canReadPartnerBilling = isSuperadmin || canReadFinance || iam.hasPermission('billing.manage') || iam.hasPermission('finance.manage')
+  const canManagePartnerBilling = isSuperadmin || iam.hasPermission('billing.manage') || iam.hasPermission('finance.manage')
+  const canManageCatalog = isSuperadmin || iam.hasPermission(kind === 'CENTER' ? 'diagnostics.manage' : 'lab.manage')
+  const canReadTeam = isSuperadmin || iam.hasPermission('staff.read')
+  const isOwnOrg = activeScopeType === config.organizationType
+  const ownOrgId = activeWorkspace?.scopeType === config.organizationType
+    ? activeWorkspace.scopeId
+    : user?.organizationOriginalId || user?.organizationId || ''
+  const partnerBillingOrganizationId = activeScopeType === config.organizationType
+    ? String(activeWorkspace?.organizationId || user?.organizationId || '')
+    : ''
 
   const myOrgs = useMemo(
     () => diagnosticContexts.filter((c: any) => c.scopeType === config.organizationType),
@@ -89,7 +117,7 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   const contextualOrgId = ecosystem.organizationId
   const contextualOrgAuthorized =
     isSuperadmin
-    || (isOwnOrg && contextualOrgId === ownOrgId)
+    || (isOwnOrg && (contextualOrgId === ownOrgId || contextualOrgId === activeWorkspace?.organizationId))
 
   useEffect(() => {
     if (contextualOrgId) {
@@ -107,14 +135,22 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   // Membership in another organization does not activate that context.
   // Diagnostic API access is available only in the active authorized context;
   // an ecosystem URL organizationId is context, not authorization proof.
-  const hasDiagnosticAccess = isSuperadmin || (isOwnOrg && orgId === ownOrgId)
-  const needsOnboarding = !pinnedKind && !isOwnOrg && !isSuperadmin && !contextsLoading && !contextsError && myOrgs.length === 0
+  const hasDiagnosticAccess = !requiresWorkspaceSelection && (isSuperadmin || (isOwnOrg && orgId === ownOrgId && (canReadOperations || canReadPartnerBilling)))
+  const needsOnboarding = !pinnedKind && !claimedKind && !requiresWorkspaceSelection && !isOwnOrg && !isSuperadmin
+    && !contextsLoading && !contextsError && diagnosticContexts.length === 0
+
+  useEffect(() => {
+    if (kind === 'CENTER' && canReadOperations) setActiveTab('worklist')
+    else if (canReadOperations) setActiveTab('referrals')
+    else if (canReadPartnerBilling) setActiveTab('finance')
+    else setActiveTab('')
+  }, [kind, canReadOperations, canReadPartnerBilling])
 
   const scope = config.referralScope(orgId)
   const { data: referralsData } = useQuery({
     queryKey: queryKeys.diagnostics.referrals({ ...scope, limit: '100' }),
     queryFn: () => api.getDiagnosticReferrals({ ...scope, limit: '100' }),
-    enabled: !!orgId && hasDiagnosticAccess,
+    enabled: !!orgId && hasDiagnosticAccess && canReadOperations,
   })
   const referrals = useMemo(
     () => referralsData?.items || referralsData?.data || referralsData?.referrals || [],
@@ -125,13 +161,31 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   const awaiting = useMemo(() => countAwaitingAction(referrals), [referrals])
 
   const tabs = [
-    ...(kind === 'CENTER' ? [{ id: 'online-bookings', label: 'Онлайн-запись', icon: <CalendarClock size={14} /> }] : []),
-    { id: 'cashier', label: 'Касса', icon: <Wallet size={14} /> },
-    { id: 'referrals', label: config.referralsLabel, icon: <FileText size={14} /> },
-    { id: 'finance', label: 'Финансы', icon: <TrendingUp size={14} /> },
-    { id: 'services', label: config.servicesLabel, icon: <FlaskConical size={14} /> },
-    { id: 'payments', label: 'Оплаты', icon: <DollarSign size={14} /> },
-    { id: 'team', label: 'Сотрудники', icon: <Users size={14} /> },
+    ...(kind === 'CENTER' && canReadOperations ? [
+      { id: 'worklist', label: 'Рабочая очередь', icon: <FileText size={14} /> },
+      { id: 'online-bookings', label: 'Онлайн-запись', icon: <CalendarClock size={14} /> },
+    ] : []),
+    ...(kind === 'CENTER' && canManageCatalog ? [
+      { id: 'modalities', label: 'Оборудование', icon: <FlaskConical size={14} /> },
+    ] : []),
+    ...(canManageBilling ? [
+      { id: 'cashier', label: 'Касса', icon: <Wallet size={14} /> },
+    ] : []),
+    ...(canReadOperations ? [
+      { id: 'referrals', label: config.referralsLabel, icon: <FileText size={14} /> },
+    ] : []),
+    ...(canReadPartnerBilling ? [
+      { id: 'finance', label: 'Финансы', icon: <TrendingUp size={14} /> },
+    ] : []),
+    ...(canReadFinance && canReadOperations ? [
+      { id: 'payments', label: 'Оплаты', icon: <DollarSign size={14} /> },
+    ] : []),
+    ...(canManageCatalog ? [
+      { id: 'services', label: config.servicesLabel, icon: <FlaskConical size={14} /> },
+    ] : []),
+    ...(canReadTeam ? [
+      { id: 'team', label: 'Сотрудники', icon: <Users size={14} /> },
+    ] : []),
   ]
 
   return (
@@ -159,7 +213,18 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
         <OrganizationOnboarding kind={kind} onComplete={() => window.location.reload()} />
       )}
 
-      {!contextsLoading && !contextsError && !hasDiagnosticAccess && (
+      {requiresWorkspaceSelection && (
+        <Card padding="lg">
+          <div className="space-y-2">
+            <h2 className="text-lg font-semibold text-txt-primary">Выберите рабочее пространство</h2>
+            <p className="text-sm text-txt-secondary">
+              В верхнем переключателе выберите нужный диагностический центр или лабораторию. Кабинет не будет открывать первую попавшуюся организацию из списка.
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {!contextsLoading && !contextsError && !hasDiagnosticAccess && !requiresWorkspaceSelection && (
         <Card padding="lg">
           <div className="space-y-2">
             <h2 className="text-lg font-semibold text-txt-primary">Нет доступа к рабочему пространству</h2>
@@ -190,34 +255,41 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
 
       {orgId && hasDiagnosticAccess && (
         <>
-          <Card padding="lg">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <HeroStat
-                value={awaiting}
-                label="Ждут вашего действия"
-                hint={`${counts.inProgress} в работе · ${counts.done} завершено`}
-                icon={<FileText size={26} />}
-                tone={awaiting > 0 ? 'gold' : 'success'}
-              />
-              <Pipeline
-                counts={counts}
-                activePhase={phaseFilter}
-                onSelect={(phase) => { setPhaseFilter(phase); setActiveTab('referrals') }}
-                className="lg:max-w-2xl lg:flex-1"
-              />
-            </div>
-          </Card>
+          {canReadOperations && (
+            <Card padding="lg">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                <HeroStat
+                  value={awaiting}
+                  label="Ждут вашего действия"
+                  hint={`${counts.inProgress} в работе · ${counts.done} завершено`}
+                  icon={<FileText size={26} />}
+                  tone={awaiting > 0 ? 'gold' : 'success'}
+                />
+                <Pipeline
+                  counts={counts}
+                  activePhase={phaseFilter}
+                  onSelect={(phase) => { setPhaseFilter(phase); setActiveTab('referrals') }}
+                  className="lg:max-w-2xl lg:flex-1"
+                />
+              </div>
+            </Card>
+          )}
 
           <div className="-mx-4 px-4 sm:mx-0 sm:px-0">
             <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} wrap />
           </div>
 
+          {activeTab === 'worklist' && kind === 'CENTER' && <WorklistTab config={config} orgId={orgId} />}
+          {activeTab === 'modalities' && kind === 'CENTER' && <ModalitiesTab config={config} orgId={orgId} />}
           {activeTab === 'online-bookings' && kind === 'CENTER' && <OnlineBookingsTab centerId={orgId} />}
           {activeTab === 'cashier' && <CashierTab config={config} orgId={orgId} />}
           {activeTab === 'referrals' && (
             <ReferralsTab config={config} orgId={orgId} phaseFilter={phaseFilter} onClearPhase={() => setPhaseFilter(null)} />
           )}
-          {activeTab === 'finance' && <FinanceTab config={config} orgId={orgId} />}
+          {activeTab === 'finance' && <div className="space-y-4">
+            <DiagnosticSettlements />
+            {partnerBillingOrganizationId && <PartnerBranchSubscriptionBilling organizationId={partnerBillingOrganizationId} canReadBilling={canReadPartnerBilling} canManageBilling={canManagePartnerBilling} />}
+          </div>}
           {activeTab === 'services' && <ServicesTab config={config} orgId={orgId} />}
           {activeTab === 'payments' && <PaymentsTab config={config} orgId={orgId} />}
           {activeTab === 'team' && <TeamTab config={config} orgId={orgId} />}

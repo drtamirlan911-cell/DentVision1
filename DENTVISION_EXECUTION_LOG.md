@@ -2997,6 +2997,69 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - No staging/production DB, PHI, secret/key, payment provider, legal signature, backup/restore or production deployment was accessed or changed.
 
 
+## 2026-11-23 — Academy lecturer course deletion protects learner history (PR #352)
+
+- Confirmed `Course` has cascading relations to `SchoolEnrollment`, `SchoolAssessmentAttempt` and `SchoolCertificate`. The lecturer DELETE handler previously removed the course without checking these records.
+- Added a serializable pre-delete guard for all three history relations. Any existing enrollment, assessment attempt or certificate produces HTTP 409; Prisma serialization conflict `P2034` also fails closed with HTTP 409.
+- Lecturer course list now returns history counts. The UI displays the enrollment count, explains when learning history is protected, disables delete for courses with history and asks for confirmation before deleting a course without history.
+- `ACADEMY-009` E2E was added in commit `3cc9e29f1a6fa493d9095ac856bfa17b896e1cd7` and remains on this branch. The first E2E run was automatically cancelled when the safety implementation was pushed; it did not provide a red/green test result. The current resulting HEAD must pass full CI, Quality Gate and RB-034 before this slice is considered verified.
+- Archive/close/reopen, cohorts, attendance, assignments/grading, learner refunds and complete mobile acceptance remain open. No production/staging data, migration, provider payment, deployment or `main` merge was performed.
+
+
+## 2026-11-23 — Fail-closed workspace selection and stock-safe CRM restocking (PR #352)
+
+- `WorkspaceSwitcher` now uses the tested `selectWorkspaceContext` fallback instead of choosing the first non-clinic or first available membership. A stale identity or ambiguous multi-membership state displays no active workspace and requires explicit user selection.
+- CRM stock replenishment calculates the clinic's requested quantity against both seller catalog stock and the same product's quantity already in the shared cart. The shared cart store accepts a quantity increment in one state update rather than repeated writes in a loop.
+- Partial seller availability is shown to the user; no available stock opens the product card instead of sending an impossible quantity to checkout. Added unit tests for stock caps, existing cart quantity and sold-out products.
+- Checkout remains the server-authoritative stock and price gate because catalog availability may change after the client read. Exact-head CI and visual/mobile acceptance are pending. No production order, payment, wallet movement, deployment or main merge was performed.
+
+
+
+## 2026-11-23 — Academy learner-history protection and course publication lifecycle (PR #352)
+
+- Extended the lecturer-side course deletion protection to the Academy owner routes. Owner updates no longer delete/recreate lesson rows when learner history exists: changed lesson structures are rejected with HTTP 409, while safe metadata/title edits preserve lesson IDs and existing enrollment progress.
+- Academy owner course deletion now uses a serializable transaction and refuses to cascade-delete enrollments, assessment attempts or certificates. Cross-academy course IDs remain out of scope for the active Academy context.
+- Added `Course.publicationStatus` with a backwards-compatible `published` default and idempotent migration `20261123120000_school_course_publication_lifecycle`.
+- Added owner-scoped, audited publish/archive action and lecturer-scoped publish/archive through the existing course update endpoint. Republish requires a verified lecturer level.
+- Public course discovery, Academy hub cards, webinars, office courses and textbooks now include published items only. Archived products reject new enrollment and commerce registration; a learner with an active entitlement retains the existing course detail and lessons.
+- Lecturer workspace exposes a reversible “Убрать в архив” / “Вернуть в каталог” control and marks archived products. Existing delete protection remains in place for courses with student history.
+- Added E2E coverage ACADEMY-010/011 for Academy owner update/delete safety and ACADEMY-012 for archive/discovery/sale/learner-access behavior, alongside ACADEMY-009 for lecturer deletion protection.
+- The code and regression tests are pushed on PR #352. Exact-head CI, Prisma generation/build, Quality Gate and RB-034 are not yet certified; do not close the Academy lifecycle item or merge until those checks pass. Cohorts, attendance, assignments/grading, refunds/payout and full Android acceptance remain separate unfinished workflows.
+- No staging/production database, PHI, payment provider, deployment or main-branch merge was used.
+
+
+### Academy publication-management follow-up — 2026-11-23
+
+- Added `GET /api/school/courses/managed`, protected by `academy.manage` and constrained to the active Academy organization. It includes archived courses and counts for learner history.
+- Connected the management list and archive/republish controls in the School Admin course cabinet. The controls are shown only when an Academy workspace is active; otherwise the page remains on public catalogue data.
+- Added ACADEMY-012 assertions that archived courses disappear from public discovery, remain in the active learner's learning player, are rejected by new-sale registration, and remain visible in the scoped management catalogue for republishing.
+- This is still pending exact-HEAD CI and visual/mobile acceptance. The implementation does not mark the Academy vertical complete.
+
+
+## 2026-11-23 — Partner billing evidence correction and Academy handler diagnostics (PR #352)
+
+- Source review corrected prior wording: partner billing already contains an hourly monthly invoice-issuance job, scoped invoice notifications, platform invoice issuance, partner invoice/Kaspi QR UI, provider-status polling and atomic shared settlement. The job creates invoices and notices only; it does not automatically debit a payment method.
+- Active branch status changes are recorded prospectively and invoice quantity is snapshotted at the period start. Queries before the recorded baseline fail closed; this does not reconstruct historical activation dates or support proration.
+- Remaining billing gates: entitlement enforcement across all partner APIs; dunning/automated recovery; proration/credits; subscription refunds/credit notes; VAT/tax invoices/EDS; accounting export/bank reconciliation; live Kaspi merchant and callback acceptance. Partner verticals remain PARTIAL.
+- ACADEMY-010/011 on HEAD ce6347e4 returned English “Course not found” 404 despite the test-only route middleware headers. The previous marker did not prove async-handler entry. This update adds a handler-entry header and safe E2E-only route/scope-lookup logs, disables redirect following in both mutation tests, and preserves the expected 409 and learner-history integrity checks.
+- Prior-SHA core E2E: 259 passed, 5 skipped, 2 failed (ACADEMY-010/011); Browser UX and Mobile Design passed; Role/Context was in progress when run telemetry stopped refreshing. Fresh exact-head CI is required.
+- No production/staging data, PHI, payment, provider configuration, secret, deployment or main merge was touched.
+
+
+## 2026-11-23 — Academy response-writer trace and PARTNER subscription RBAC
+
+- Prior SHA b580006: E2E core 259 passed / 5 skipped / 2 failed (ACADEMY-010/011). New route, async handler, scoped lookup and mutation outcome headers each matched the intended PUT/DELETE history-protection path, but final HTTP responses were still 404 with English `Course not found`. This is inconsistent with the handler's explicit 409 branch and remains unresolved.
+- The current follow-up wraps `res.status()` and `res.json()` for the two E2E mutation handlers only, adds a safe response-writer header and asserts the final status/body code. It does not log request bodies or patient information.
+- Hardened `GET /api/subscriptions/PARTNER/:ownerId`: caller must be in the exact active organization whose canonical `originalId` matches ownerId, and hold a scoped Billing/Finance permission. New E2E verifies allowed medical-lab Finance and diagnostic-center owner access and denies technician, radiologist, clinic-owner and cross-organization Finance.
+- Prior SHA checks: backend/frontend lint, lint-test, Quality Gate and RB-034 SUCCESS; Browser UX and Mobile Design SUCCESS; Role/Context was still running. All exact-head checks rerun on the new SHA. No merge/deploy/payment/data migration/PHI action occurred.
+
+
+## 2026-11-23 — Backend lint threshold maintained
+
+- SHA `2d7acbf9743d85f809400be19a4af8058dbfb437` backend-lint had 0 errors but 75 `no-console` warnings against the existing max of 73. The three new E2E-only response trace log sites caused the increase; no lint threshold was raised.
+- Converted the `[E2E_ACADEMY_*]` diagnostic entries to allowed `console.warn` calls. Exact-head lint/type-check and all E2E suites must rerun on the follow-up SHA.
+
+
 ## 2026-11-19 — PR #349 merged; RB-035 archived branch candidate
 
 - PR #349 exact head `3dd1d17bc1978a0f7d695adbadc59969950505cf`: CI [44376106619] SUCCESS, Quality Gate [44376106517] SUCCESS and Vercel Preview SUCCESS. Squash merge to main: `da1257fc650f536c76583bdff570906290b92bcd`.
@@ -3012,3 +3075,13 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Updated branch-management E2E to use the real POST /api/branches/:id/members/:userId flow for doctor-a, then verify stale branch token denial, refresh claim removal, owner restoration and preserved staff assignment.
 - Additional regression tests cover route assignment synchronization, clinic branch allow-list, diagnostics dashboard branch aggregates and medical-lab context/branch access.
 - PR #350 remains open; latest exact-head CI/E2E/Quality Gate/RB-034 are pending. No live DB/PHI, schema migration, staging/production write, key/secret/provider/legal change or production deployment was made.
+
+
+## 2026-11-24 — Partner dental-lab clinic acceptance workflow (PR #352 candidate)
+
+- Added clinic-side delivery acceptance scoped to the authenticated clinic and verified branch. Acceptance requires a partner-owned order, delivered order status and the latest shipment's stored HTTPS proof, recipient and delivery timestamp.
+- Acceptance is idempotent per shipment and blocked while a remake decision is pending. A new remake request appends the prior accepted actor/time/shipment/remake reference/feedback to `clinicAcceptanceHistory` and clears only the current acceptance; subsequent cycles do not overwrite earlier acknowledgements.
+- Stored acceptance actor/time, shipment and remake references plus optional feedback; emitted a distinct same-status lifecycle event, audit record, partner notification and ecosystem event. The production state remains `delivered` until an actual remake cycle changes it.
+- CRM gained the explicit clinical acceptance action and expandable prior-cycle history. Partner production roles receive feedback/history; logistics views do not receive feedback notes.
+- Added static contract coverage and extended PARTNER-003 E2E for first acceptance, remake reset, second acceptance, pre-delivery denial and idempotent retries.
+- Exact-head CI/Quality Gate/RB-034 must pass before considering the candidate verified. D10 remains PARTIAL/OPEN: financial settlement gates, CAD/CAM file lifecycle, material/lot traceability, case costs, tax/fiscal documents, warranties, refunds/chargebacks and desktop/mobile/operator acceptance remain open. No production/staging data, real payment provider, payout, migration or deployment was touched.

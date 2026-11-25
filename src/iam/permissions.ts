@@ -19,6 +19,7 @@ export const IAM_PERMISSIONS = {
   INVENTORY_WRITE: 'inventory.write',
   INVENTORY_DELETE: 'inventory.delete',
   ACADEMY_MANAGE: 'academy.manage',
+  ACADEMY_READ: 'academy.read',
   SUPPLIER_MANAGE: 'supplier.manage',
   COMPLIANCE_MANAGE: 'compliance.manage',
   PLATFORM_ANALYTICS: 'platform.analytics',
@@ -29,6 +30,17 @@ export const IAM_PERMISSIONS = {
   BI_NETWORK: 'bi.network',
   BI_PLATFORM: 'bi.platform',
   BI_FINANCE: 'bi.finance',
+  DIAGNOSTICS_READ: 'diagnostics.read',
+  DIAGNOSTICS_WRITE: 'diagnostics.write',
+  DIAGNOSTICS_MANAGE: 'diagnostics.manage',
+  LAB_READ: 'lab.read',
+  LAB_WRITE: 'lab.write',
+  LAB_MANAGE: 'lab.manage',
+  BILLING_READ: 'billing.read',
+  BILLING_MANAGE: 'billing.manage',
+  STAFF_READ: 'staff.read',
+  STAFF_WRITE: 'staff.write',
+  STAFF_MANAGE: 'staff.manage',
 } as const
 
 export type IamPermission = (typeof IAM_PERMISSIONS)[keyof typeof IAM_PERMISSIONS]

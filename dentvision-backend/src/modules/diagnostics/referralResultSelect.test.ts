@@ -23,7 +23,7 @@ import { getReferral } from './diagnostics.service.js';
 
 beforeEach(() => {
   referralFindUnique.mockReset();
-  referralFindUnique.mockResolvedValue({ id: 'r1' });
+  referralFindUnique.mockResolvedValue({ id: 'r1', files: [] });
 });
 
 describe('getReferral result select', () => {

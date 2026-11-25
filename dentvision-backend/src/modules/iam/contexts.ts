@@ -1,5 +1,6 @@
 import { installContentCatalogJsonGuard } from '../../iam/contentCatalogMiddleware.js';
 import type { UserRole } from '@prisma/client';
+import { PARTNER_ROLE_BY_KEY } from '../../lib/roleAccessRegistry.js';
 
 installContentCatalogJsonGuard();
 
@@ -21,6 +22,36 @@ export type ScopeType =
   | 'ACADEMY'
   | 'PARTNER'
   | 'EMPLOYER';
+
+/**
+ * A workspace branch hint is useful only when at least one active partner role
+ * is organization- or branch-scoped. ASSIGNED/OWN roles select individual work
+ * items and must not inherit an arbitrary default branch from the organization.
+ */
+type PartnerBranchHintMode = 'DEFAULT' | 'MEMBERSHIP' | 'NONE';
+
+function partnerBranchHintMode(roleKey: string): PartnerBranchHintMode {
+  const aliases: Record<string, string> = {
+    DIAGNOSTIC_RADIOLOGIST: 'RADIOLOGIST',
+  };
+  const roleKeys = String(roleKey || '').split(',').map((key) => key.trim().toUpperCase()).filter(Boolean);
+  const scopes = roleKeys
+    .map((key) => PARTNER_ROLE_BY_KEY[aliases[key] || key]?.defaultScope)
+    .filter((scope): scope is 'ORGANIZATION' | 'BRANCH' | 'ASSIGNED' | 'OWN' => Boolean(scope));
+  // Existing clinic and non-partner role keys have no entry in the partner
+  // registry; preserve their organization default-branch hint behavior.
+  if (scopes.length === 0 || scopes.includes('ORGANIZATION')) return 'DEFAULT';
+  if (scopes.includes('BRANCH')) return 'MEMBERSHIP';
+  return 'NONE';
+}
+
+export function shouldAttachDefaultPartnerBranchHint(roleKey: string): boolean {
+  return partnerBranchHintMode(roleKey) === 'DEFAULT';
+}
+
+export function shouldAttachMemberPartnerBranchHint(roleKey: string): boolean {
+  return partnerBranchHintMode(roleKey) === 'MEMBERSHIP';
+}
 
 export interface WorkspaceContext {
   id: string;
@@ -76,6 +107,7 @@ const ROLE_LABELS: Record<string, string> = {
   diagnostic_admin: 'Администратор диагностического центра',
   diagnostic_manager: 'Управляющий диагностического центра',
   diagnostic_operator: 'Оператор диагностического центра',
+  diagnostic_radiologist: 'Рентгенолог диагностического центра',
   diagnostic_reception: 'Регистратура диагностического центра',
   diagnostic_finance: 'Финансы диагностического центра',
   diagnostic_quality: 'Контроль качества диагностики',
@@ -122,7 +154,7 @@ const PARTNER_ROLE_TO_USER_ROLE: Record<string, UserRole> = {
   owner: 'OWNER', org_owner: 'OWNER', diagnostic_owner: 'OWNER', medical_lab_owner: 'OWNER', dental_lab_owner: 'OWNER',
   admin: 'ADMIN', org_admin: 'ADMIN', diagnostic_admin: 'ADMIN', medical_lab_admin: 'ADMIN', dental_lab_admin: 'ADMIN',
   manager: 'MANAGER', diagnostic_manager: 'MANAGER', medical_lab_manager: 'MANAGER', dental_lab_manager: 'MANAGER',
-  radiologist: 'DOCTOR', doctor: 'DOCTOR', medical_lab_doctor: 'DOCTOR', validator: 'DOCTOR', medical_lab_validator: 'DOCTOR',
+  radiologist: 'DOCTOR', diagnostic_radiologist: 'DOCTOR', doctor: 'DOCTOR', medical_lab_doctor: 'DOCTOR', validator: 'DOCTOR', medical_lab_validator: 'DOCTOR',
   operator: 'ASSISTANT', diagnostic_operator: 'ASSISTANT', reception: 'ASSISTANT', diagnostic_reception: 'ASSISTANT', medical_lab_reception: 'ASSISTANT', lab_coordinator: 'ASSISTANT',
   technician: 'LAB', dental_technician: 'LAB', dental_lab_technician: 'LAB', medical_lab_technician: 'LAB', cad_designer: 'LAB', ceramist: 'LAB', orthodontic_technician: 'LAB',
   finance: 'ADMIN', diagnostic_finance: 'ADMIN', medical_lab_finance: 'ADMIN', lab_finance: 'ADMIN',
@@ -190,6 +222,10 @@ export interface UnifiedPersonRow {
     scopeType: string;
     scopeId: string | null;
     role: { key: string };
+  }>;
+  branchMemberships?: Array<{
+    branchId: string;
+    branch?: { organizationId?: string | null; active?: boolean };
   }>;
 }
 
@@ -333,11 +369,19 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
       .map((pr) => pr.role.key)
       .join(',') || p.personType.toLowerCase();
 
+    const memberBranchId = shouldAttachMemberPartnerBranchHint(roleKey)
+      ? (p.branchMemberships || []).find((membership) =>
+          membership.branch?.active !== false &&
+          membership.branch?.organizationId === org.id,
+        )?.branchId
+      : undefined;
+
     putCanonical({
       id: `${scopeType}:${entityId}`,
       scopeType,
       scopeId: entityId,
       organizationId: org.id,
+      ...(memberBranchId ? { branchId: memberBranchId } : {}),
       name: org.name,
       roleKey,
       roleLabel: roleLabelFor(roleKey),

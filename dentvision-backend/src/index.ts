@@ -14,6 +14,8 @@ import { startWorkflowRetryInterval } from './jobs/workflowRetry.js';
 import { startRecallAgentInterval } from './jobs/recallAgent.js';
 import { startPartnerEconomicsReconciliationCronInterval } from './jobs/partnerEconomicsReconciliationCron.js';
 import { startPayoutReadinessCronInterval } from './jobs/payoutReadinessCron.js';
+import { startPaymentReconciliationInterval } from './jobs/paymentReconciliation.js';
+import { startPartnerBranchSubscriptionCronInterval } from './jobs/partnerBranchSubscriptionCron.js';
 import { startMessageWorker } from './modules/ai-admin/index.js';
 import { CLINICAL_CASES, LIBRARY_ITEMS } from './modules/school/academyContent.js';
 import { onboardPartner } from './modules/legal/legal.service.js';
@@ -1302,9 +1304,12 @@ async function main() {
       const members = await prisma.supplierMember.findMany({ include: { supplier: true } });
       let onboarded = 0;
       for (const m of members) {
-        const existing = await prisma.legalPartner.findUnique({ where: { userId: m.userId } });
-        if (existing) continue;
         const s = m.supplier;
+        const existing = await prisma.legalPartner.findFirst({
+          where: { userId: m.userId, type: 'SUPPLIER', legalName: s.name },
+          select: { id: true },
+        });
+        if (existing) continue;
         await onboardPartner({
           userId: m.userId,
           type: 'SUPPLIER',
@@ -2271,6 +2276,73 @@ async function main() {
     console.log(`[MARKETPLACE] Materialized ${created} Product rows from curated presets`);
   });
 
+  // Partner branch billing must use the historical active-branch roster at
+  // the invoice period start. Mirror the canonical SQL migration below so
+  // fresh and existing deployments create these raw tables before accepting
+  // branch mutations or invoice requests.
+  // Partner branch billing must use the historical active-branch roster at
+  // the invoice period start. Keep this bootstrap idempotent and run it before
+  // accepting branch mutations or partner invoice requests.
+  await runOnceMigration('branch_status_history', 'Partner branch status history and billing baseline', async (tx) => {
+    await tx.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "branch_status_history_baselines" (
+        "organization_id" TEXT NOT NULL,
+        "initialized_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "branch_status_history_baselines_pkey" PRIMARY KEY ("organization_id"),
+        CONSTRAINT "branch_status_history_baselines_organization_id_fkey"
+          FOREIGN KEY ("organization_id") REFERENCES "organizations"("id")
+          ON DELETE CASCADE ON UPDATE CASCADE
+      )
+    `);
+    await tx.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "branch_status_events" (
+        "id" BIGSERIAL NOT NULL,
+        "branch_id" TEXT NOT NULL,
+        "organization_id" TEXT NOT NULL,
+        "active" BOOLEAN NOT NULL,
+        "effective_at" TIMESTAMP(3) NOT NULL,
+        "source" TEXT NOT NULL,
+        "actor_user_id" TEXT,
+        "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "branch_status_events_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "branch_status_events_branch_id_fkey"
+          FOREIGN KEY ("branch_id") REFERENCES "branches"("id")
+          ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT "branch_status_events_organization_id_fkey"
+          FOREIGN KEY ("organization_id") REFERENCES "organizations"("id")
+          ON DELETE CASCADE ON UPDATE CASCADE
+      )
+    `);
+    await tx.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "branch_status_events_baseline_unique_idx"
+        ON "branch_status_events"("branch_id") WHERE "source" = 'baseline'
+    `);
+    await tx.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "branch_status_events_branch_effective_idx"
+        ON "branch_status_events"("branch_id", "effective_at" DESC, "id" DESC)
+    `);
+    await tx.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "branch_status_events_organization_effective_idx"
+        ON "branch_status_events"("organization_id", "effective_at" DESC)
+    `);
+    await tx.$executeRawUnsafe(`
+      INSERT INTO "branch_status_history_baselines" ("organization_id", "initialized_at")
+      SELECT o."id", CURRENT_TIMESTAMP
+      FROM "organizations" o
+      WHERE o."type" IN ('DIAGNOSTIC_CENTER', 'LABORATORY')
+      ON CONFLICT ("organization_id") DO NOTHING
+    `);
+    await tx.$executeRawUnsafe(`
+      INSERT INTO "branch_status_events"
+        ("branch_id", "organization_id", "active", "effective_at", "source", "actor_user_id")
+      SELECT b."id", b."organization_id", b."active", h."initialized_at", 'baseline', NULL
+      FROM "branches" b
+      JOIN "branch_status_history_baselines" h ON h."organization_id" = b."organization_id"
+      WHERE b."organization_id" IS NOT NULL
+      ON CONFLICT DO NOTHING
+    `);
+  });
+
   // Bind the HTTP listener before optional background infrastructure.
   // Render health checks must see an open port even if an event/AI subsystem
   // is slow to initialize or temporarily unavailable.
@@ -2288,6 +2360,8 @@ async function main() {
       startRecallAgentInterval();
       startPartnerEconomicsReconciliationCronInterval();
       startPayoutReadinessCronInterval();
+      startPaymentReconciliationInterval();
+      startPartnerBranchSubscriptionCronInterval();
     }
     void startMessageWorker().catch((err) => {
       console.warn('[AI_ADMIN] Worker start failed (non-fatal):', err);

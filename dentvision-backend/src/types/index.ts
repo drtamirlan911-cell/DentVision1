@@ -79,4 +79,6 @@ export interface ApiResponse<T = unknown> {
   code?: string;
   requiresDoctorConfirmation?: boolean;
   patientRecordUpdated?: boolean;
+  /** Indicates a successful idempotent replay or reuse of an existing resource. */
+  idempotent?: boolean;
 }

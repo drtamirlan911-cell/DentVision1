@@ -66,6 +66,15 @@ Inactive branches do not create a monthly branch charge after their effective de
 
 A newly created branch becomes billable at the next billing boundary unless an enterprise contract explicitly defines immediate proration. No silent retroactive billing is allowed.
 
+### Monthly invoice and payment lifecycle
+
+- An invoice covers one complete UTC calendar month: `[first day 00:00, first day of next month 00:00)`.
+- The monthly invoice job may issue the current period only after the calendar boundary. The organization must have a verified platform-signature timestamp no later than the period start, and branch history must cover that boundary.
+- A partner activated during a month, or a branch activated during a month, enters billing at the next monthly boundary. The platform must not reconstruct an unknown past roster or charge a period that began before activation.
+- Invoice creation is idempotent per organization and period. The invoice preserves the policy version, branch IDs, billable count, unit price and total amount.
+- The platform creates the invoice and sends an in-app notification. It does not initiate an automatic debit or charge a saved payment method. The partner explicitly opens the invoice and starts the Kaspi QR payment.
+
+
 ## 3. Current canonical branch prices
 
 These values inherit directly from the partner economics policy:

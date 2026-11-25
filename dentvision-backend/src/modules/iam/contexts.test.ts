@@ -1,8 +1,69 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildWorkspaceContexts, roleLabelFor, userRoleForPartnerRole, type ContextSources } from './contexts.js';
+import { buildWorkspaceContexts, roleLabelFor, shouldAttachDefaultPartnerBranchHint, shouldAttachMemberPartnerBranchHint, userRoleForPartnerRole, type ContextSources } from './contexts.js';
 
 const empty: ContextSources = { memberships: [], supplierMemberships: [], lecturer: null, diagnosticCenterMemberships: [], laboratoryMemberships: [], persons: [] };
+
+describe('partner branch hint policy', () => {
+  it('uses the organization default only for organization-level partner roles', () => {
+    expect(shouldAttachDefaultPartnerBranchHint('diagnostic_owner')).toBe(true);
+    expect(shouldAttachDefaultPartnerBranchHint('diagnostic_admin')).toBe(true);
+    expect(shouldAttachDefaultPartnerBranchHint('diagnostic_operator')).toBe(false);
+    expect(shouldAttachDefaultPartnerBranchHint('medical_lab_technician')).toBe(false);
+    expect(shouldAttachDefaultPartnerBranchHint('diagnostic_radiologist')).toBe(false);
+    expect(shouldAttachDefaultPartnerBranchHint('dental_technician')).toBe(false);
+  });
+
+  it('uses a real BranchMember for branch-scoped partner roles only', () => {
+    expect(shouldAttachMemberPartnerBranchHint('diagnostic_operator')).toBe(true);
+    expect(shouldAttachMemberPartnerBranchHint('medical_lab_technician')).toBe(true);
+    expect(shouldAttachMemberPartnerBranchHint('diagnostic_owner')).toBe(false);
+    expect(shouldAttachMemberPartnerBranchHint('diagnostic_radiologist')).toBe(false);
+    expect(shouldAttachMemberPartnerBranchHint('dental_technician')).toBe(false);
+  });
+
+  it('keeps clinic and unregistered legacy roles on the existing default hint path', () => {
+    expect(shouldAttachDefaultPartnerBranchHint('clinic.owner')).toBe(true);
+    expect(shouldAttachMemberPartnerBranchHint('clinic.owner')).toBe(false);
+  });
+});
+
+describe('branch-scoped partner workspace contexts', () => {
+  it('returns only an active branch membership belonging to the same organization', () => {
+    const contexts = buildWorkspaceContexts({
+      ...empty,
+      persons: [{
+        id: 'center-person',
+        personType: 'OPERATOR',
+        organization: { id: 'center-org', name: 'Center', type: 'DIAGNOSTIC_CENTER', originalId: 'center-1' },
+        personRoles: [{ scopeType: 'organization', scopeId: 'center-org', role: { key: 'diagnostic_operator' } }],
+        branchMemberships: [
+          { branchId: 'inactive-branch', branch: { organizationId: 'center-org', active: false } },
+          { branchId: 'foreign-branch', branch: { organizationId: 'other-org', active: true } },
+          { branchId: 'assigned-branch', branch: { organizationId: 'center-org', active: true } },
+        ],
+      }],
+    });
+
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0].branchId).toBe('assigned-branch');
+  });
+
+  it('does not invent a branch for a branch-scoped role without membership', () => {
+    const contexts = buildWorkspaceContexts({
+      ...empty,
+      persons: [{
+        id: 'center-person',
+        personType: 'OPERATOR',
+        organization: { id: 'center-org', name: 'Center', type: 'DIAGNOSTIC_CENTER', originalId: 'center-1' },
+        personRoles: [{ scopeType: 'organization', scopeId: 'center-org', role: { key: 'diagnostic_operator' } }],
+        branchMemberships: [],
+      }],
+    });
+
+    expect(contexts[0].branchId).toBeUndefined();
+  });
+});
 
 describe('workspace contexts', () => {
   it('returns one row for a clinic that exists in both halves', () => {
@@ -197,7 +258,7 @@ describe('workspace contexts', () => {
   it('labels all partner roles without falling back to Участник', () => {
     const roles = [
       'diagnostic_owner', 'diagnostic_admin', 'diagnostic_manager', 'diagnostic_operator',
-      'diagnostic_reception', 'diagnostic_finance', 'diagnostic_quality',
+      'diagnostic_radiologist', 'diagnostic_reception', 'diagnostic_finance', 'diagnostic_quality',
       'medical_lab_owner', 'medical_lab_admin', 'medical_lab_manager', 'medical_lab_reception',
       'medical_lab_technician', 'medical_lab_validator', 'medical_lab_doctor', 'medical_lab_finance',
       'medical_lab_quality', 'dental_lab_owner', 'dental_lab_admin', 'dental_lab_manager',
@@ -245,7 +306,7 @@ describe('userRoleForPartnerRole', () => {
   it('maps every legacy partner role to a valid scoped application role', () => {
     const cases: Array<[string, string]> = [
       ['diagnostic_owner', 'OWNER'], ['diagnostic_admin', 'ADMIN'], ['diagnostic_manager', 'MANAGER'],
-      ['diagnostic_operator', 'ASSISTANT'], ['diagnostic_reception', 'ASSISTANT'], ['diagnostic_finance', 'ADMIN'], ['diagnostic_quality', 'ADMIN'],
+      ['diagnostic_operator', 'ASSISTANT'], ['diagnostic_radiologist', 'DOCTOR'], ['diagnostic_reception', 'ASSISTANT'], ['diagnostic_finance', 'ADMIN'], ['diagnostic_quality', 'ADMIN'],
       ['medical_lab_owner', 'OWNER'], ['medical_lab_admin', 'ADMIN'], ['medical_lab_manager', 'MANAGER'], ['medical_lab_reception', 'ASSISTANT'],
       ['medical_lab_technician', 'LAB'], ['medical_lab_validator', 'DOCTOR'], ['medical_lab_doctor', 'DOCTOR'], ['medical_lab_finance', 'ADMIN'], ['medical_lab_quality', 'ADMIN'],
       ['dental_lab_owner', 'OWNER'], ['dental_lab_admin', 'ADMIN'], ['dental_lab_manager', 'MANAGER'], ['lab_coordinator', 'ASSISTANT'],

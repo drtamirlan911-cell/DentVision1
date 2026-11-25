@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { MoreHorizontal, LogIn, LayoutDashboard, FileText, ClipboardList, Calendar, Building2, FlaskConical, Users, BarChart3, Settings, PenLine, Shield } from 'lucide-react';
+import { MoreHorizontal, LogIn, LayoutDashboard, FileText, ClipboardList, Calendar, Building2, FlaskConical, Users, BarChart3, Settings, PenLine, Shield, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
 import { useIam } from '@/iam';
@@ -16,6 +16,7 @@ const DIAG_SUBNAV = [
   { id: 'referrals', label: 'Направления', path: '/diagnostics/referrals', icon: FileText },
   { id: 'center-dashboard', label: 'Центр', path: '/diagnostics/center-dashboard', icon: Building2, orgType: 'DIAGNOSTIC_CENTER' },
   { id: 'lab-dashboard', label: 'Лаборатория', path: '/diagnostics/lab-dashboard', icon: FlaskConical, orgType: 'LABORATORY' },
+  { id: 'settlements', label: 'Расчёты', path: '/diagnostics/settlements', icon: Wallet, orgType: 'PARTNER_FINANCE' },
   { id: 'centers', label: 'Центры', path: '/diagnostics/centers', icon: Building2 },
   { id: 'laboratories', label: 'Лаборатории', path: '/diagnostics/labs', icon: FlaskConical },
   { id: 'patients', label: 'Пациенты', path: '/diagnostics/patients', icon: Users },
@@ -69,12 +70,14 @@ export default function DiagnosticsLayout() {
   }, [switching]);
 
   const isReceivingOrg = orgType === 'DIAGNOSTIC_CENTER' || orgType === 'LABORATORY';
+  const hasBillingReadPermission = iam.permissions.includes('billing.read');
   const visibleItems = useMemo(() => DIAG_SUBNAV.filter(item => {
     if (item.platformRole) return item.platformRole === platformRole;
+    if (item.orgType === 'PARTNER_FINANCE') return isReceivingOrg && hasBillingReadPermission;
     if (item.orgType) return item.orgType === orgType;
     if (isReceivingOrg && CLINIC_ONLY_ITEMS.has(item.id)) return false;
     return true;
-  }), [platformRole, orgType, isReceivingOrg]);
+  }), [platformRole, orgType, isReceivingOrg, hasBillingReadPermission]);
 
   if (authLoading) {
     return <div className="flex h-full min-h-64 items-center justify-center text-sm text-txt-muted">Загрузка рабочего контекста…</div>;

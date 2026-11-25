@@ -48,6 +48,25 @@ beforeEach(() => {
   vi.clearAllMocks();
   recordSaleTx.mockResolvedValue({ id: 'txn' });
   recordPartnerEconomics.mockResolvedValue({ id: 'economics-txn' });
+  fakeTx.labOrder.findUnique.mockResolvedValue({
+    id: 'lab-order-1',
+    clinicId: 'clinic-1',
+    status: 'delivered',
+    serviceId: 'service-1',
+    servicePriceSnapshot: 15_000,
+    files: { meta: {
+      laboratoryId: 'lab-1',
+      technicianId: 'tech-1',
+      clinicAcceptance: { status: 'accepted', shipmentId: 'shipment-1' },
+    } },
+    dentalLabShipments: [{
+      id: 'shipment-1', laboratoryId: 'lab-1', status: 'delivered',
+      deliveredAt: new Date('2026-11-24T10:00:00.000Z'),
+      proofUrl: 'https://proof.example/receipt', recipientName: 'Clinic Reception',
+    }],
+    dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
+    patient: { branchId: 'branch-1' },
+  });
   activateClinicSubscriptionFromPayment.mockResolvedValue({});
   accrueSaasCashback.mockResolvedValue(undefined);
   markSettlementPaid.mockResolvedValue(true);
@@ -60,6 +79,11 @@ beforeEach(() => {
 // was threaded through, not merely "some object".
 const fakeTx = {
   __marker: 'fake-tx-client',
+  labOrder: {
+    findUnique: vi.fn(),
+    update: vi.fn(async ({ data }: any) => ({ id: 'lab-order-1', ...data })),
+  },
+  dentalLabInvoice: { update: vi.fn(async ({ data }: any) => ({ id: 'invoice-1', ...data })) },
   $queryRawUnsafe: vi.fn(async (sql: string) => {
     if (sql.includes('FROM "medical_lab_orders"')) return [{ clinicId: 'clinic-1', labId: 'lab-1' }];
     if (sql.includes('FROM "medical_lab_order_tests"')) return [{ price: '12000' }, { price: '3000' }];
@@ -204,6 +228,90 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
     expect(winners).toHaveLength(1);
   });
 
+  it('dental lab branch: settles only the delivered service snapshot through partner economics', async () => {
+    await settlePaidPayment(
+      { id: 'pay-dental-1', refType: 'dental_lab_order', refId: 'lab-order-1', domain: 'dental_lab', sellerType: 'LABORATORY', sellerId: 'lab-1', amount: 1_500_000n, meta: { invoiceId: 'invoice-1' } },
+      fakeTx,
+    );
+    expect(recordPartnerEconomics).toHaveBeenCalledWith({
+      vertical: 'DENTAL_LAB',
+      partnerId: 'lab-1',
+      grossMinor: 1_500_000n,
+      operationId: 'lab-order-1',
+      branchId: 'branch-1',
+      paymentId: 'pay-dental-1',
+    }, fakeTx);
+    expect(fakeTx.dentalLabInvoice.update).toHaveBeenCalledWith({ where: { id: 'invoice-1' }, data: { status: 'paid', paymentId: 'pay-dental-1', paidAt: expect.any(Date) } });
+    expect(fakeTx.labOrder.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'lab-order-1' },
+      data: { files: expect.objectContaining({
+        meta: expect.objectContaining({
+          laboratoryId: 'lab-1',
+          payment: expect.objectContaining({ paymentId: 'pay-dental-1', status: 'paid', amountMinor: '1500000' }),
+        }),
+      }) },
+    }));
+  });
+
+  it('dental lab branch: rolls back when the paid amount differs from the immutable service snapshot', async () => {
+    fakeTx.labOrder.findUnique.mockResolvedValueOnce({
+      id: 'lab-order-1', clinicId: 'clinic-1', status: 'delivered', serviceId: 'service-1',
+      servicePriceSnapshot: 15_000,
+      files: { meta: { laboratoryId: 'lab-1', clinicAcceptance: { status: 'accepted', shipmentId: 'shipment-1' } } },
+      dentalLabShipments: [{
+        id: 'shipment-1', laboratoryId: 'lab-1', status: 'delivered',
+        deliveredAt: new Date('2026-11-24T10:00:00.000Z'),
+        proofUrl: 'https://proof.example/receipt', recipientName: 'Clinic Reception',
+      }],
+      patient: { branchId: 'branch-1' },
+      dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
+    });
+    await expect(settlePaidPayment(
+      { id: 'pay-dental-bad', refType: 'dental_lab_order', refId: 'lab-order-1', domain: 'dental_lab', sellerType: null, sellerId: null, amount: 1_499_999n, meta: { invoiceId: 'invoice-1' } },
+      fakeTx,
+    )).rejects.toThrow('Сумма оплаты зуботехнического заказа не совпадает');
+    expect(recordPartnerEconomics).not.toHaveBeenCalled();
+    expect(fakeTx.labOrder.update).not.toHaveBeenCalled();
+  });
+
+  it('dental lab branch: rejects settlement before confirmed delivery', async () => {
+    fakeTx.labOrder.findUnique.mockResolvedValueOnce({
+      id: 'lab-order-1', clinicId: 'clinic-1', status: 'ready', serviceId: 'service-1',
+      servicePriceSnapshot: 15_000, files: { meta: { laboratoryId: 'lab-1' } }, patient: { branchId: 'branch-1' },
+      dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
+    });
+    await expect(settlePaidPayment(
+      { id: 'pay-dental-early', refType: 'dental_lab_order', refId: 'lab-order-1', domain: 'dental_lab', sellerType: null, sellerId: null, amount: 1_500_000n, meta: { invoiceId: 'invoice-1' } },
+      fakeTx,
+    )).rejects.toThrow('должен быть передан клинике');
+    expect(recordPartnerEconomics).not.toHaveBeenCalled();
+  });
+
+  it('dental lab branch: refuses settlement until the clinic accepts the latest delivery', async () => {
+    fakeTx.labOrder.findUnique.mockResolvedValueOnce({
+      id: 'lab-order-1',
+      clinicId: 'clinic-1',
+      status: 'delivered',
+      serviceId: 'service-1',
+      servicePriceSnapshot: 15_000,
+      files: { meta: { laboratoryId: 'lab-1' } },
+      dentalLabShipments: [{
+        id: 'shipment-1', laboratoryId: 'lab-1', status: 'delivered',
+        deliveredAt: new Date('2026-11-24T10:00:00.000Z'),
+        proofUrl: 'https://proof.example/receipt', recipientName: 'Clinic Reception',
+      }],
+      dentalLabInvoice: { id: 'invoice-1', amountMinor: 1_500_000n, status: 'issued', paymentId: null },
+      patient: { branchId: 'branch-1' },
+    });
+    await expect(settlePaidPayment(
+      { id: 'pay-dental-unaccepted', refType: 'dental_lab_order', refId: 'lab-order-1', domain: 'dental_lab', sellerType: null, sellerId: null, amount: 1_500_000n, meta: { invoiceId: 'invoice-1' } },
+      fakeTx,
+    )).rejects.toThrow('клиникой последней поставки');
+    expect(recordPartnerEconomics).not.toHaveBeenCalled();
+    expect(fakeTx.dentalLabInvoice.update).not.toHaveBeenCalled();
+    expect(fakeTx.labOrder.update).not.toHaveBeenCalled();
+  });
+
   it('medical lab branch: derives the order amount and records canonical partner economics', async () => {
     await settlePaidPayment(
       { id: 'pay-med-1', refType: 'medical_lab_order', refId: 'lab-order-1', domain: 'medical', sellerType: null, sellerId: null, amount: 1_500_000n, meta: null },
@@ -214,6 +322,7 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
       partnerId: 'lab-1',
       grossMinor: 1_500_000n,
       operationId: 'lab-order-1',
+      paymentId: 'pay-med-1',
     }, fakeTx);
   });
 
@@ -255,6 +364,7 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
       partnerId: 'lab-1',
       grossMinor: 1_500_000n,
       operationId: 'lab-order-race',
+      paymentId: 'pay-integrated-race',
     }, db);
   });
 

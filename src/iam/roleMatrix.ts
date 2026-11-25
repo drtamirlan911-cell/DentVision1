@@ -45,25 +45,28 @@ export function normalizeBackendRole(role: string | null | undefined): BackendRo
  * read-mostly access).
  */
 const BACKEND_ROLE_PERMISSIONS: Record<string, IamPermission[]> = {
+  // Keep clinic roles aligned with the backend: academy.manage is scoped to
+  // Academy lecturer / platform governance and must never be inferred for a
+  // clinic OWNER, DIRECTOR or ADMIN from this client-side fallback.
   OWNER: [
     'patient.read', 'patient.write', 'patient.delete',
     'appointment.read', 'appointment.write', 'appointment.delete',
     'inventory.read', 'inventory.write', 'inventory.delete',
-    'academy.manage', 'supplier.manage', 'finance.manage', 'workflow.manage',
+    'academy.read', 'supplier.manage', 'finance.manage', 'workflow.manage',
     'bi.clinic', 'bi.finance',
   ],
   DIRECTOR: [
     'patient.read', 'patient.write', 'patient.delete',
     'appointment.read', 'appointment.write', 'appointment.delete',
     'inventory.read', 'inventory.write', 'inventory.delete',
-    'academy.manage', 'supplier.manage', 'finance.manage', 'workflow.manage',
+    'academy.read', 'supplier.manage', 'finance.manage', 'workflow.manage',
     'bi.clinic', 'bi.finance',
   ],
   ADMIN: [
     'patient.read', 'patient.write', 'patient.delete',
     'appointment.read', 'appointment.write', 'appointment.delete',
     'inventory.read', 'inventory.write', 'inventory.delete',
-    'academy.manage', 'supplier.manage', 'finance.manage', 'workflow.manage',
+    'academy.read', 'supplier.manage', 'finance.manage', 'workflow.manage',
     'bi.clinic', 'bi.finance',
   ],
   MANAGER: [

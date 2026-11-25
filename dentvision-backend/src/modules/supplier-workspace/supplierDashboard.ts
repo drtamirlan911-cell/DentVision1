@@ -1,5 +1,6 @@
 import prisma from '../../lib/prisma.js';
 import { getOrCreateWallet } from '../finance/finance.service.js';
+import { availableBalanceMinor } from '../finance/payout.service.js';
 
 export interface SupplierInsight {
   id: string;
@@ -38,6 +39,30 @@ export async function getSupplierOrders(supplierId: string) {
     },
   });
 
+  const shipments = orders.length > 0
+    ? await prisma.supplierShipment.findMany({
+        where: { supplierId, orderId: { in: orders.map((order) => order.id) } },
+        orderBy: { createdAt: 'desc' },
+      })
+    : [];
+  const shipmentByOrder = new Map<string, (typeof shipments)[number]>();
+  for (const shipment of shipments) {
+    if (!shipmentByOrder.has(shipment.orderId)) shipmentByOrder.set(shipment.orderId, shipment);
+  }
+  const shipmentIds = shipments.map((shipment) => shipment.id);
+  const shipmentEvents = shipmentIds.length > 0
+    ? await prisma.supplierShipmentEvent.findMany({
+        where: { supplierId, shipmentId: { in: shipmentIds } },
+        orderBy: { createdAt: 'asc' },
+      })
+    : [];
+  const eventsByShipment = new Map<string, typeof shipmentEvents>();
+  for (const event of shipmentEvents) {
+    const previous = eventsByShipment.get(event.shipmentId) || [];
+    previous.push(event);
+    eventsByShipment.set(event.shipmentId, previous);
+  }
+
   return orders
     .map((order) => {
       const items = parseOrderItems(order.items)
@@ -64,6 +89,11 @@ export async function getSupplierOrders(supplierId: string) {
       return {
         id: order.id,
         status: order.status,
+        supplierShipment: (() => {
+          const shipment = shipmentByOrder.get(order.id);
+          return shipment ? { ...shipment, events: eventsByShipment.get(shipment.id) || [] } : null;
+        })(),
+        supplierFulfillmentStatus: shipmentByOrder.get(order.id)?.status || order.status,
         createdAt: order.createdAt,
         clinicName: order.clinic?.name || 'Клиника',
         clinicCity: order.clinic?.city || null,
@@ -282,7 +312,7 @@ export async function buildSupplierInsights(supplierId: string): Promise<Supplie
 
 export async function buildSupplierDashboard(supplierId: string) {
   const wallet = await getOrCreateWallet('SUPPLIER', supplierId);
-  const [products, creditAgg, insights, orders, disputes] = await Promise.all([
+  const [products, creditAgg, insights, orders, availableBalance, payouts] = await Promise.all([
     prisma.product.findMany({ where: { supplierId }, orderBy: { updatedAt: 'desc' } }),
     prisma.ledgerEntry.aggregate({
       where: { walletId: wallet.id, direction: 'credit' },
@@ -291,18 +321,31 @@ export async function buildSupplierDashboard(supplierId: string) {
     }),
     buildSupplierInsights(supplierId),
     getSupplierOrders(supplierId),
-    prisma.dispute.findMany({
-      where: { status: { in: ['open', 'OPEN', 'pending', 'resolved', 'RESOLVED'] } },
+    availableBalanceMinor(wallet.id),
+    prisma.payout.findMany({
+      where: { walletId: wallet.id },
+      select: { id: true, amount: true, status: true, createdAt: true, updatedAt: true },
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take: 20,
     }),
   ]);
-
-  const productIds = new Set(products.map((p) => p.id));
-  const myOrderIds = new Set((orders as any[]).map((o) => o.id));
-  const returns = disputes.filter(
-    (d) => myOrderIds.has(d.refId) || (d.refType === 'product' && productIds.has(d.refId)),
-  );
+  const returns = await prisma.dispute.findMany({
+    where: { returnItems: { some: { supplierId } } },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+    include: {
+      supplierResponses: {
+        where: { supplierId },
+        select: { id: true, responseType: true, note: true, actorUserId: true, createdAt: true },
+        take: 1,
+      },
+      returnItems: {
+        where: { supplierId },
+        select: { id: true, lineIndex: true, productId: true, productName: true, quantity: true, unitPrice: true, reasonCode: true, note: true },
+        orderBy: { lineIndex: 'asc' },
+      },
+    },
+  });
 
   const rated = products.filter((p) => p.rating != null);
   const avgRating = rated.length
@@ -336,7 +379,10 @@ export async function buildSupplierDashboard(supplierId: string) {
 
   return {
     kpis: {
-      balanceMinor: wallet.balance.toString(),
+      // `balanceMinor` is the genuinely withdrawable amount consumed by the UI.
+      // Preserve the full accounting balance under an explicit separate name.
+      balanceMinor: availableBalance.toString(),
+      accountingBalanceMinor: wallet.balance.toString(),
       earnedMinor: (creditAgg._sum.amount ?? 0n).toString(),
       salesCount: creditAgg._count,
       orders30: sales30.length,
@@ -344,12 +390,19 @@ export async function buildSupplierDashboard(supplierId: string) {
       productCount: products.length,
       lowStockCount: lowStock.length,
       outOfStockCount: outOfStock.length,
-      openReturns: returns.filter((r) => ['open', 'OPEN', 'pending'].includes(r.status)).length,
+      openReturns: returns.filter((r) => ['open', 'OPEN', 'pending', 'review', 'REVIEW'].includes(r.status)).length,
       avgRating: avgRating != null ? Number(avgRating.toFixed(2)) : null,
       currency: wallet.currency,
     },
     insights,
     demandTop,
+    payouts: payouts.map((payout) => ({
+      id: payout.id,
+      amount: payout.amount.toString(),
+      status: payout.status,
+      createdAt: payout.createdAt,
+      updatedAt: payout.updatedAt,
+    })),
     orders: (orders as any[]).slice(0, 40),
     returns: returns.map((r) => ({
       id: r.id,
@@ -358,6 +411,12 @@ export async function buildSupplierDashboard(supplierId: string) {
       refType: r.refType,
       refId: r.refId,
       createdAt: r.createdAt,
+      supplierResponse: r.supplierResponses?.[0] || null,
+      returnItems: r.returnItems || [],
+      canRespond: ['order', 'shop_order'].includes(String(r.refType).toLowerCase())
+        && ['open', 'review', 'pending'].includes(String(r.status).toLowerCase())
+        && Boolean(r.returnItems?.length)
+        && !(r.supplierResponses?.length),
     })),
     stock: {
       low: lowStock.map((p) => ({ id: p.id, name: p.name, stock: p.stock, price: p.price, category: p.category })),

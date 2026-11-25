@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router } from 'express';
 import type { Prisma, WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
@@ -18,6 +19,7 @@ import {
 } from './payout.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { auditFromReq } from '../compliance/audit.service.js';
+import { issuePartnerBranchSubscriptionInvoice, PartnerBranchBillingError } from '../billing/partnerBranchBilling.service.js';
 
 // Finance Core (Phase 4, DENTVISION_V2_INTEGRATION_PLAN.md §6). Wallets, ledger,
 // transactions and commission rules. Amounts are minor units (тиын) and returned
@@ -52,13 +54,14 @@ function walletOwnershipGuard(req: AuthRequest, ownerType: string, ownerId: stri
   // organizationId alone is not sufficient: it must map to the wallet owner type
   // represented by the current context. Never let an organization ID authorize
   // an arbitrary ownerType with the same UUID.
-  if (ownerType === 'PARTNER') return req.user?.organizationId === ownerId;
+  if (ownerType === 'PARTNER') return (req.user?.organizationOriginalId || req.user?.organizationId) === ownerId;
   return false;
 }
 
 // Wallet list for current user context
 financeRouter.get('/wallets', async (req: AuthRequest, res) => {
   try {
+    const partnerOwnerId = req.user?.organizationOriginalId || req.user?.organizationId;
     // Platform finance needs the complete wallet catalogue, but that view is
     // reserved to SUPERADMIN. Every other caller remains limited to their own
     // active clinic/supplier/partner wallets.
@@ -68,7 +71,7 @@ financeRouter.get('/wallets', async (req: AuthRequest, res) => {
           OR: [
             ...(req.user?.clinicId ? [{ ownerType: 'CLINIC' as any, ownerId: req.user.clinicId }] : []),
             ...(req.user?.supplierId ? [{ ownerType: 'SUPPLIER' as any, ownerId: req.user.supplierId }] : []),
-            ...(req.user?.organizationId ? [{ ownerType: 'PARTNER' as any, ownerId: req.user.organizationId }] : []),
+            ...(partnerOwnerId ? [{ ownerType: 'PARTNER' as any, ownerId: partnerOwnerId }] : []),
           ].filter(Boolean),
         };
     const wallets = await prisma.wallet.findMany({ where });
@@ -92,7 +95,7 @@ financeRouter.get('/wallets/:ownerType/:ownerId', async (req: AuthRequest, res) 
     const wallet = await getOrCreateWallet(ownerType as WalletOwnerType, ownerId);
     return res.json({ ok: true, data: serializeBigInt(wallet) } satisfies ApiResponse);
   } catch (error) {
-    console.error('Get wallet error:', error);
+    console.error('Get wallet error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при получении кошелька' } satisfies ApiResponse);
   }
 });
@@ -102,13 +105,14 @@ financeRouter.get('/transactions', requirePermission('finance.manage'), async (r
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
     const isSuper = req.user?.role === 'SUPERADMIN';
+    const partnerOwnerId = req.user?.organizationOriginalId || req.user?.organizationId;
     // Non-superadmins only see transactions tied to their own wallet(s).
     const ownerFilter: any = {};
     if (!isSuper) {
       const ids: string[] = [];
       if (req.user?.clinicId) ids.push(req.user.clinicId);
       if (req.user?.supplierId) ids.push(req.user.supplierId);
-      if (req.user?.organizationId) ids.push(req.user.organizationId);
+      if (partnerOwnerId) ids.push(partnerOwnerId);
       if (ids.length === 0) {
         return res.json({ ok: true, data: [] } satisfies ApiResponse);
       }
@@ -122,7 +126,7 @@ financeRouter.get('/transactions', requirePermission('finance.manage'), async (r
       const walletScopes: Array<{ ownerType: WalletOwnerType; ownerId: string }> = [];
       if (req.user?.clinicId) walletScopes.push({ ownerType: 'CLINIC', ownerId: req.user.clinicId });
       if (req.user?.supplierId) walletScopes.push({ ownerType: 'SUPPLIER', ownerId: req.user.supplierId });
-      if (req.user?.organizationId) walletScopes.push({ ownerType: 'PARTNER', ownerId: req.user.organizationId });
+      if (partnerOwnerId) walletScopes.push({ ownerType: 'PARTNER', ownerId: partnerOwnerId });
       ownerFilter.ledgerEntries = {
         some: {
           wallet: {
@@ -139,7 +143,7 @@ financeRouter.get('/transactions', requirePermission('finance.manage'), async (r
     });
     return res.json({ ok: true, data: serializeBigInt(transactions) } satisfies ApiResponse);
   } catch (error) {
-    console.error('List transactions error:', error);
+    console.error('List transactions error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при получении транзакций' } satisfies ApiResponse);
   }
 });
@@ -183,7 +187,7 @@ financeRouter.get('/partner-economics/reconciliation', requirePermission('financ
     const result = await reconcilePartnerEconomics({ from, to, vertical, partnerId });
     return res.json({ ok: true, data: serializeBigInt(result) } satisfies ApiResponse);
   } catch (error) {
-    console.error('Partner economics reconciliation error:', error);
+    console.error('Partner economics reconciliation error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось выполнить сверку экономики партнёров' } satisfies ApiResponse);
   }
 });
@@ -222,6 +226,125 @@ financeRouter.get('/ledger/health', requirePermission('finance.manage'), async (
   if (!requirePlatformFinance(req, res)) return;
   const net = await ledgerNetBalance();
   return res.json({ ok: true, data: { netBalance: net.toString(), balanced: net === 0n } } satisfies ApiResponse);
+});
+
+
+async function hasPartnerFinanceReadPermission(userId: string, organizationId: string): Promise<boolean> {
+  const memberships = await prisma.personRole.findMany({
+    where: {
+      scopeType: 'organization',
+      scopeId: organizationId,
+      person: { userId, organizationId },
+    },
+    select: {
+      role: {
+        select: {
+          permissions: { select: { permission: { select: { key: true } } } },
+        },
+      },
+    },
+  });
+  const allowed = new Set(['finance.read', 'finance.manage', 'billing.read', 'billing.manage']);
+  return memberships.some((membership) =>
+    membership.role.permissions.some((item) => allowed.has(item.permission.key)),
+  );
+}
+
+/** Partner owners/finance roles can read only invoices for their active organization. */
+financeRouter.get('/partner-branch-billing/invoices', async (req: AuthRequest, res) => {
+  try {
+    const queryOrganizationId = typeof req.query.organizationId === 'string'
+      ? req.query.organizationId.trim()
+      : '';
+    let organizationId = '';
+
+    if (req.user?.role === 'SUPERADMIN') {
+      organizationId = queryOrganizationId;
+    } else {
+      const activeOrganizationId = String(req.user?.organizationId || '');
+      const activeOwnerId = String(req.user?.organizationOriginalId || '');
+      if (!activeOrganizationId || !activeOwnerId) {
+        return res.status(403).json({ ok: false, error: 'Нет активной организации партнёра' } satisfies ApiResponse);
+      }
+      if (queryOrganizationId && queryOrganizationId !== activeOrganizationId) {
+        return res.status(403).json({ ok: false, error: 'Нельзя просматривать счета другой организации' } satisfies ApiResponse);
+      }
+      const organization = await prisma.organization.findFirst({
+        where: { id: activeOrganizationId, originalId: activeOwnerId, archivedAt: null },
+        select: { id: true, type: true, originalType: true },
+      });
+      if (
+        !organization
+        || !(
+          (organization.type === 'DIAGNOSTIC_CENTER' && organization.originalType === 'DiagnosticCenter')
+          || (organization.type === 'LABORATORY' && organization.originalType === 'Laboratory')
+        )
+      ) {
+        return res.status(403).json({ ok: false, error: 'Активный контекст не является тарифицируемой организацией партнёра' } satisfies ApiResponse);
+      }
+      if (!(await hasPartnerFinanceReadPermission(req.user!.id, activeOrganizationId))) {
+        return res.status(403).json({ ok: false, error: 'Недостаточно прав для просмотра финансовых счетов партнёра' } satisfies ApiResponse);
+      }
+      organizationId = activeOrganizationId;
+    }
+
+    const takeRaw = Number(req.query.take ?? 50);
+    const take = Number.isSafeInteger(takeRaw) && takeRaw > 0 ? Math.min(takeRaw, 100) : 50;
+    const invoices = await prisma.partnerBranchSubscriptionInvoice.findMany({
+      where: organizationId ? { organizationId } : {},
+      orderBy: [{ periodStart: 'desc' }, { issuedAt: 'desc' }],
+      take,
+    });
+    return res.json({ ok: true, data: serializeBigInt(invoices) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[partner-branch-billing] invoice list failed:', safeErrorKind(error));
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить счета филиальной подписки' } satisfies ApiResponse);
+  }
+});
+
+/** Invoice issuance is a platform-finance operation; partners cannot set their own periods or prices. */
+financeRouter.post('/partner-branch-billing/invoices', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
+  const organizationId = String(req.body?.organizationId || '').trim();
+  const periodStart = typeof req.body?.periodStart === 'string' ? new Date(req.body.periodStart) : new Date(Number.NaN);
+  const periodEnd = typeof req.body?.periodEnd === 'string' ? new Date(req.body.periodEnd) : new Date(Number.NaN);
+  if (!organizationId || Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime()) || periodEnd <= periodStart) {
+    return res.status(400).json({ ok: false, error: 'organizationId, periodStart и корректный periodEnd обязательны' } satisfies ApiResponse);
+  }
+
+  try {
+    const result = await issuePartnerBranchSubscriptionInvoice({
+      organizationId,
+      periodStart,
+      periodEnd,
+      createdByUserId: req.user?.id ?? null,
+    });
+    await auditFromReq(req, {
+      action: 'partner_branch_subscription_invoice.issued',
+      entity: 'partner_branch_subscription_invoice',
+      entityId: result.invoice.id,
+      details: {
+        organizationId,
+        invoiceNumber: result.invoice.invoiceNumber,
+        vertical: result.invoice.vertical,
+        amountMinor: String(result.invoice.amountMinor),
+        periodStart: result.invoice.periodStart.toISOString(),
+        periodEnd: result.invoice.periodEnd.toISOString(),
+        idempotent: result.idempotent,
+      },
+    });
+    return res.status(result.idempotent ? 200 : 201).json({
+      ok: true,
+      data: serializeBigInt(result.invoice),
+      idempotent: result.idempotent,
+    } satisfies ApiResponse);
+  } catch (error: any) {
+    if (error instanceof PartnerBranchBillingError) {
+      return res.status(error.status).json({ ok: false, error: error.message, code: error.code } satisfies ApiResponse);
+    }
+    console.error('[partner-branch-billing] invoice issuance failed:', safeErrorKind(error));
+    return res.status(500).json({ ok: false, error: 'Не удалось выставить счёт филиальной подписки' } satisfies ApiResponse);
+  }
 });
 
 // Commission rules (platform).
@@ -268,7 +391,7 @@ financeRouter.post('/commission-rules', requirePermission('finance.manage'), asy
     });
     return res.status(201).json({ ok: true, data: rule } satisfies ApiResponse);
   } catch (error) {
-    console.error('Commission rule error:', error);
+    console.error('Commission rule error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при создании правила комиссии' } satisfies ApiResponse);
   }
 });
@@ -313,7 +436,7 @@ financeRouter.post('/sales', requirePermission('finance.manage'), async (req: Au
     });
     return res.status(201).json({ ok: true, data: serializeBigInt(transaction) } satisfies ApiResponse);
   } catch (error) {
-    console.error('Record sale error:', error);
+    console.error('Record sale error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при проведении продажи' } satisfies ApiResponse);
   }
 });
@@ -377,7 +500,7 @@ financeRouter.post('/transactions/manual', requirePermission('finance.manage'), 
     });
     return res.status(201).json({ ok: true, data: serializeBigInt(transaction) } satisfies ApiResponse);
   } catch (error) {
-    console.error('Manual transaction error:', error);
+    console.error('Manual transaction error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при создании ручной транзакции' } satisfies ApiResponse);
   }
 });
@@ -465,7 +588,7 @@ financeRouter.get('/expenses', requirePermission('finance.manage'), async (req: 
     });
     return res.json({ ok: true, data: serializeBigInt(expenses) } satisfies ApiResponse);
   } catch (error) {
-    console.error('List platform expenses error:', error);
+    console.error('List platform expenses error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при получении расходов' } satisfies ApiResponse);
   }
 });
@@ -506,7 +629,7 @@ financeRouter.post('/expenses', requirePermission('finance.manage'), async (req:
     });
     return res.status(201).json({ ok: true, data: serializeBigInt(expense) } satisfies ApiResponse);
   } catch (error) {
-    console.error('Create platform expense error:', error);
+    console.error('Create platform expense error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при создании расхода' } satisfies ApiResponse);
   }
 });
@@ -534,7 +657,7 @@ financeRouter.get('/revenue-by-source', requirePermission('finance.manage'), asy
 
     return res.json({ ok: true, data: report } satisfies ApiResponse);
   } catch (error) {
-    console.error('[finance] revenue-by-source', error);
+    console.error('[finance] revenue-by-source', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось собрать выручку по источникам' } satisfies ApiResponse);
   }
 });

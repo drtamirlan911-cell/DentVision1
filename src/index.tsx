@@ -39,6 +39,7 @@ const SettingsPage = lazyWithRetry(() => import('./pages/Settings'));
 const NotificationPreferences = lazyWithRetry(() => import('./pages/NotificationPreferences'));
 const Profile = lazyWithRetry(() => import('./pages/Profile'));
 const Jobs = lazyWithRetry(() => import('./pages/Jobs'));
+const CareerWorkspace = lazyWithRetry(() => import('./pages/CareerWorkspace'));
 const EmployerWorkspace = lazyWithRetry(() => import('./pages/JobsEmployerWorkspace'));
 const Community = lazyWithRetry(() => import('./pages/Community'));
 const Help = lazyWithRetry(() => import('./pages/Help'));
@@ -63,6 +64,7 @@ const CenterDashboard = lazyWithRetry(() => import('./pages/diagnostics/CenterDa
 const LabDashboard = lazyWithRetry(() => import('./pages/diagnostics/LabDashboard'));
 const WorkspaceEntry = lazyWithRetry(() => import('./pages/diagnostics/WorkspaceEntry'));
 const RegistrationRequests = lazyWithRetry(() => import('./pages/diagnostics/RegistrationRequests'));
+const DiagnosticSettlements = lazyWithRetry(() => import('./pages/diagnostics/DiagnosticSettlements'));
 
 const Schedule = lazyWithRetry(() => import('./pages/crm/Schedule'));
 const Patients = lazyWithRetry(() => import('./pages/crm/Patients'));
@@ -96,8 +98,11 @@ const ShopFavorites = lazyWithRetry(() => import('./pages/shop/ShopFavorites'));
 const ShopSuppliers = lazyWithRetry(() => import('./pages/shop/ShopSuppliers'));
 
 const School = lazyWithRetry(() => import('./pages/school/School'));
+const MyLearning = lazyWithRetry(() => import('./pages/school/MyLearning'));
+const CertificateVerification = lazyWithRetry(() => import('./pages/school/CertificateVerification'));
 const SchoolCourse = lazyWithRetry(() => import('./pages/school/SchoolCourse'));
 const SchoolWorkspace = lazyWithRetry(() => import('./pages/school/SchoolWorkspace'));
+const AcademyOwnerWorkspace = lazyWithRetry(() => import('./pages/school/AcademyOwnerWorkspace'));
 
 const ShopAdmin = lazyWithRetry(() => import('./pages/admin/ShopAdmin'));
 const SchoolAdmin = lazyWithRetry(() => import('./pages/admin/SchoolAdmin'));
@@ -232,14 +237,15 @@ if (container) {
                 <Route path="medical-lab/equipment" element={<Navigate to="/medical-lab" replace />} />
                 <Route path="medical-lab/staff" element={<Navigate to="/settings" replace />} />
                 <Route path="medical-lab/branches" element={<Navigate to="/settings" replace />} />
-                <Route path="medical-lab/finance" element={<Navigate to="/diagnostics/workspace" replace />} />
+                <Route path="medical-lab/finance" element={<Navigate to="/diagnostics/lab?workspace=medical-lab&tab=finance" replace />} />
                 <Route path="medical-lab/analytics" element={<Navigate to="/analytics" replace />} />
                 <Route path="medical-lab/settings" element={<Navigate to="/settings" replace />} />
 
+                <Route path="dental-lab" element={<RequireWorkspaceScope scopeType="LABORATORY"><Suspense fallback={<PageLoader />}><LabDashboard /></Suspense></RequireWorkspaceScope>} />
                 <Route path="dental-lab/today" element={<Navigate to="/dental-lab" replace />} />
                 <Route path="dental-lab/inbox" element={<Navigate to="/dental-lab" replace />} />
-                <Route path="dental-lab/cases" element={<Navigate to="/crm/lab" replace />} />
-                <Route path="dental-lab/cases/:caseId" element={<Navigate to="/crm/lab" replace />} />
+                <Route path="dental-lab/cases" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/cases/:caseId" element={<Navigate to="/dental-lab" replace />} />
                 <Route path="dental-lab/production" element={<Navigate to="/dental-lab" replace />} />
                 <Route path="dental-lab/workstations" element={<Navigate to="/dental-lab" replace />} />
                 <Route path="dental-lab/design" element={<Navigate to="/dental-lab" replace />} />
@@ -250,12 +256,12 @@ if (container) {
                 <Route path="dental-lab/clients" element={<Navigate to="/dental-lab" replace />} />
                 <Route path="dental-lab/catalog" element={<Navigate to="/shop" replace />} />
                 <Route path="dental-lab/materials" element={<Navigate to="/shop" replace />} />
-                <Route path="dental-lab/inventory" element={<Navigate to="/crm/inventory" replace />} />
-                <Route path="dental-lab/invoices" element={<Navigate to="/crm/cashier" replace />} />
-                <Route path="dental-lab/finance" element={<Navigate to="/diagnostics/workspace" replace />} />
-                <Route path="dental-lab/analytics" element={<Navigate to="/analytics" replace />} />
-                <Route path="dental-lab/staff" element={<Navigate to="/settings" replace />} />
-                <Route path="dental-lab/settings" element={<Navigate to="/settings" replace />} />
+                <Route path="dental-lab/inventory" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/invoices" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/finance" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/analytics" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/staff" element={<Navigate to="/dental-lab?tab=team" replace />} />
+                <Route path="dental-lab/settings" element={<Navigate to="/dental-lab" replace />} />
 
                 <Route path="business/today" element={<Navigate to="/supplier" replace />} />
                 <Route path="business/catalog" element={<Navigate to="/shop" replace />} />
@@ -271,25 +277,26 @@ if (container) {
                 <Route path="business/team" element={<Navigate to="/supplier" replace />} />
                 <Route path="business/settings" element={<Navigate to="/settings" replace />} />
 
-                <Route path="academy/workspace" element={<Navigate to="/school/workspace" replace />} />
+                <Route path="academy/workspace" element={<Suspense fallback={<PageLoader />}><AcademyOwnerWorkspace /></Suspense>} />
                 <Route path="academy/courses" element={<Navigate to="/school" replace />} />
                 <Route path="academy/courses/:courseId" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
-                <Route path="academy/students" element={<Navigate to="/school/workspace" replace />} />
-                <Route path="academy/content" element={<Navigate to="/school/workspace" replace />} />
-                <Route path="academy/assessments" element={<Navigate to="/school/workspace" replace />} />
-                <Route path="academy/certificates" element={<Navigate to="/school/workspace" replace />} />
-                <Route path="academy/schedule" element={<Navigate to="/school/workspace" replace />} />
-                <Route path="academy/finance" element={<Navigate to="/school/workspace" replace />} />
-                <Route path="academy/analytics" element={<Navigate to="/school/workspace" replace />} />
-                <Route path="academy/team" element={<Navigate to="/school/workspace" replace />} />
+                <Route path="academy/students" element={<Navigate to="/academy/workspace?tab=students" replace />} />
+                <Route path="academy/content" element={<Navigate to="/academy/workspace?section=content" replace />} />
+                <Route path="academy/assessments" element={<Navigate to="/academy/workspace?section=assessments" replace />} />
+                <Route path="academy/certificates" element={<Navigate to="/academy/workspace?section=certificates" replace />} />
+                <Route path="academy/schedule" element={<Navigate to="/academy/workspace?section=schedule" replace />} />
+                <Route path="academy/finance" element={<Navigate to="/academy/workspace?section=finance" replace />} />
+                <Route path="academy/analytics" element={<Navigate to="/academy/workspace?section=analytics" replace />} />
+                <Route path="academy/team" element={<Navigate to="/academy/workspace?section=team" replace />} />
                 <Route path="academy/settings" element={<Navigate to="/settings" replace />} />
 
                 <Route path="professional/profile" element={<Navigate to="/profile" replace />} />
                 <Route path="professional/credentials" element={<Navigate to="/profile" replace />} />
                 <Route path="professional/portfolio" element={<Navigate to="/profile" replace />} />
                 <Route path="jobs/matches" element={<Navigate to="/jobs" replace />} />
-                <Route path="jobs/applications" element={<Navigate to="/jobs" replace />} />
-                <Route path="jobs/messages" element={<Navigate to="/jobs" replace />} />
+                <Route path="jobs/applications" element={<Navigate to="/career/applications" replace />} />
+                <Route path="jobs/messages" element={<Navigate to="/career" replace />} />
+                <Route path="career/*" element={<Suspense fallback={<PageLoader />}><CareerWorkspace /></Suspense>} />
                 <Route path="employer" element={guarded('employer', <EmployerWorkspace />)} />
                 <Route path="employer/vacancies" element={<Navigate to="/employer" replace />} />
                 <Route path="employer/candidates" element={<Navigate to="/employer" replace />} />
@@ -367,6 +374,7 @@ if (container) {
                   <Route path="calendar" element={guarded('diagnostics-calendar', <DiagnosticCalendar />)} />
                   <Route path="statistics" element={guarded('diagnostics-statistics', <DiagnosticStatistics />)} />
                   <Route path="settings" element={guarded('diagnostics-settings', <DiagnosticSettings />)} />
+                  <Route path="settlements" element={guarded('diagnostics', <DiagnosticSettlements />)} />
                   <Route path="center" element={<RequireWorkspaceScope scopeType="DIAGNOSTIC_CENTER"><Suspense fallback={<PageLoader />}><CenterDashboard /></Suspense></RequireWorkspaceScope>} />
                   <Route path="lab" element={<RequireWorkspaceScope scopeType="LABORATORY"><Suspense fallback={<PageLoader />}><LabDashboard /></Suspense></RequireWorkspaceScope>} />
                   <Route path="workspace" element={<Suspense fallback={<PageLoader />}><WorkspaceEntry /></Suspense>} />
@@ -377,7 +385,10 @@ if (container) {
                 </Route>
                 <Route path="school/courses" element={guarded('school', <Navigate to="/school" replace />)} />
                 <Route path="school" element={guarded('school', <School />)} />
-                <Route path="school/course/:id" element={guarded('school', <SchoolCourse />)} />
+                <Route path="school/my-learning" element={<Suspense fallback={<PageLoader />}><MyLearning /></Suspense>} />
+                <Route path="school/certificates/verify/:verificationCode" element={<Suspense fallback={<PageLoader />}><CertificateVerification /></Suspense>} />
+                <Route path="school/certificates" element={<Navigate to="/school/my-learning#certificates" replace />} />
+                <Route path="school/course/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
                 <Route path="school/workspace" element={guarded('school', <SchoolWorkspace />)} />
                 <Route path="school-workspace" element={<Navigate to="/school/workspace" replace />} />
                 <Route path="admin/shop" element={guarded('admin', <ShopAdmin />)} />

@@ -15,6 +15,55 @@ async function login(api: APIRequestContext, email: string) {
 }
 function auth(token: string) { return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }; }
 
+function dicomUid(): string {
+  return `2.25.${BigInt(`0x${randomUUID().replace(/-/g, '')}`).toString(10)}`;
+}
+function dicomText(value: string, padding: number): Buffer {
+  const raw = Buffer.from(value, 'ascii');
+  return raw.length % 2 ? Buffer.concat([raw, Buffer.from([padding])]) : raw;
+}
+function dicomExplicitElement(group: number, element: number, vr: string, value: Buffer): Buffer {
+  const longVr = ['OB', 'OD', 'OF', 'OL', 'OV', 'OW', 'SQ', 'UC', 'UR', 'UT', 'UN'].includes(vr);
+  const header = Buffer.alloc(longVr ? 12 : 8);
+  header.writeUInt16LE(group, 0);
+  header.writeUInt16LE(element, 2);
+  header.write(vr, 4, 2, 'ascii');
+  if (longVr) header.writeUInt32LE(value.length, 8);
+  else header.writeUInt16LE(value.length, 6);
+  return Buffer.concat([header, value]);
+}
+function buildDicomPart10Fixture(ids: { study: string; series: string; sop: string }) {
+  const sopClass = '1.2.840.10008.5.1.4.1.1.2';
+  const preamble = Buffer.alloc(132);
+  preamble.write('DICM', 128, 4, 'ascii');
+  const metaBody = Buffer.concat([
+    dicomExplicitElement(0x0002, 0x0001, 'OB', Buffer.from([0, 1])),
+    dicomExplicitElement(0x0002, 0x0002, 'UI', dicomText(sopClass, 0)),
+    dicomExplicitElement(0x0002, 0x0003, 'UI', dicomText(ids.sop, 0)),
+    dicomExplicitElement(0x0002, 0x0010, 'UI', dicomText('1.2.840.10008.1.2.1', 0)),
+    dicomExplicitElement(0x0002, 0x0012, 'UI', dicomText('1.2.826.0.1.3680043.10.543', 0)),
+  ]);
+  const groupLength = Buffer.alloc(4);
+  groupLength.writeUInt32LE(metaBody.length, 0);
+  const meta = [
+    dicomExplicitElement(0x0002, 0x0000, 'UL', groupLength),
+    metaBody,
+  ];
+  const dataset = [
+    dicomExplicitElement(0x0008, 0x0016, 'UI', dicomText(sopClass, 0)),
+    dicomExplicitElement(0x0008, 0x0018, 'UI', dicomText(ids.sop, 0)),
+    dicomExplicitElement(0x0008, 0x0020, 'DA', dicomText('20261122', 0x20)),
+    dicomExplicitElement(0x0008, 0x0060, 'CS', dicomText('CT', 0x20)),
+    dicomExplicitElement(0x0020, 0x000d, 'UI', dicomText(ids.study, 0)),
+    dicomExplicitElement(0x0020, 0x000e, 'UI', dicomText(ids.series, 0)),
+    dicomExplicitElement(0x0028, 0x0010, 'US', Buffer.from([0x02, 0x00])),
+    dicomExplicitElement(0x0028, 0x0011, 'US', Buffer.from([0x02, 0x00])),
+    dicomExplicitElement(0x0028, 0x0100, 'US', Buffer.from([0x10, 0x00])),
+    dicomExplicitElement(0x7fe0, 0x0010, 'OW', Buffer.from([1, 2, 3, 4, 5, 6, 7, 8])),
+  ];
+  return { buffer: Buffer.concat([preamble, ...meta, ...dataset]), sopClass };
+}
+
 test.describe('Partner operational lifecycle', () => {
   let api: APIRequestContext;
   let ownerToken = '';
@@ -30,9 +79,23 @@ test.describe('Partner operational lifecycle', () => {
   let centerRadiologistToken = '';
   let centerRadiologistId = '';
   let labOwnerToken = '';
+  let labOwnerId = '';
+  let fixtureLabOrganizationId = '';
+  let medicalLabTechnicianId = '';
+  let medicalLabQualityId = '';
+  let medicalLabValidatorId = '';
+  let medicalLabDoctorId = '';
+  let medicalLabTechnicianToken = '';
+  let medicalLabQualityToken = '';
+  let medicalLabValidatorToken = '';
+  let medicalLabDoctorToken = '';
+  let medicalLabFinanceToken = '';
+  const medicalLabUserIds: string[] = [];
+  const medicalLabOrderIds: string[] = [];
   let dentalLabOwnerToken = '';
   let fixtureDentalLabId = '';
   let fixtureAlternativeDentalLabId = '';
+  let alternativeDentalLabOwnerToken = '';
   let dentalTechnicianId = '';
   let dentalTechnicianToken = '';
   const rb037UserIds: string[] = [];
@@ -109,43 +172,26 @@ test.describe('Partner operational lifecycle', () => {
       role: 'STUDENT' as any,
     });
     centerRadiologistId = radiologist.id;
-    await prisma.diagnosticCenterMember.create({
-      data: { centerId: fixtureCenterId, userId: centerRadiologistId, role: 'radiologist' },
+    const radiologistInvite = await api.post(`${BASE}/api/iam/invitations`, {
+      headers: auth(centerOwnerToken),
+      data: { organizationId: centerOrgId, role: 'radiologist', email: radiologist.email },
     });
-    const radiologistPerson = await prisma.person.create({
-      data: {
-        id: randomUUID(),
-        fullName: 'E2E Radiologist',
-        personType: 'RADIOLOGIST',
-        organizationId: centerOrgId,
-        userId: centerRadiologistId,
-      },
-    });
+    expect(radiologistInvite.status(), await radiologistInvite.text()).toBe(201);
+    const radiologistInviteCode = (await radiologistInvite.json()).data.code;
+    expect(radiologistInviteCode).toMatch(/^[0-9A-F]{8}$/);
 
-    await prisma.branchMember.create({
-      data: {
-        personId: radiologistPerson.id,
-        branchId: centerTokenPayload.branchId!,
-      },
-    });
-    const radiologistRole = await prisma.role.findUnique({ where: { key: 'radiologist' }, select: { id: true } });
-    expect(radiologistRole?.id).toBeTruthy();
-    await prisma.personRole.create({
-      data: {
-        id: randomUUID(),
-        personId: radiologistPerson.id,
-        roleId: radiologistRole!.id,
-        scopeType: 'organization',
-        scopeId: centerOrgId,
-        scopeKey: `organization:${centerOrgId}`,
-      },
-    });
     const radiologistBaseToken = await login(api, radiologist.email);
+    const radiologistJoin = await api.post(`${BASE}/api/iam/join-by-invite`, {
+      headers: auth(radiologistBaseToken),
+      data: { code: radiologistInviteCode },
+    });
+    expect(radiologistJoin.status(), await radiologistJoin.text()).toBe(201);
     const radiologistContextsRes = await api.get(`${BASE}/api/iam/me/contexts`, { headers: auth(radiologistBaseToken) });
     expect(radiologistContextsRes.status()).toBe(200);
     const radiologistContexts = (await radiologistContextsRes.json()).data?.contexts || [];
     const radiologistContext = radiologistContexts.find((item: any) => item.scopeType === 'DIAGNOSTIC_CENTER' && item.organizationId === centerOrgId);
     expect(radiologistContext).toBeTruthy();
+    expect(radiologistContext.roleKey).toBe('radiologist');
     const switchedRadiologist = await api.post(`${BASE}/api/iam/switch-context`, {
       headers: auth(radiologistBaseToken),
       data: { scopeType: radiologistContext.scopeType, scopeId: radiologistContext.scopeId, branchId: radiologistContext.branchId },
@@ -187,7 +233,9 @@ test.describe('Partner operational lifecycle', () => {
     const partnerBranches = (await branchList.json()).data || [];
     expect(partnerBranches.length).toBeGreaterThanOrEqual(1);
 
-    const labOwner = await createTestUser({ email: `medical-lab-owner-${Date.now()}@test.dentvision`, firstName: 'Medical Lab', lastName: 'Owner' });
+    const labOwner = await createTestUser({ email: `medical-lab-owner-${Date.now()}@test.dentvision`, firstName: 'Medical Lab', lastName: 'Owner', role: 'STUDENT' as any });
+    labOwnerId = labOwner.id;
+    medicalLabUserIds.push(labOwner.id);
     labOwnerToken = await login(api, labOwner.email);
     const labOnboard = await api.post(`${BASE}/api/organizations/self-service`, {
       headers: auth(labOwnerToken),
@@ -199,6 +247,95 @@ test.describe('Partner operational lifecycle', () => {
     const labAccessToken = labPayload.data?.accessToken || labPayload.accessToken;
     expect(labAccessToken).toBeTruthy();
     labOwnerToken = labAccessToken;
+    const labOwnerClaims = JSON.parse(Buffer.from(labOwnerToken.split('.')[1], 'base64url').toString('utf8')) as { organizationId?: string; organizationType?: string };
+    fixtureLabOrganizationId = String(labOwnerClaims.organizationId || '');
+    expect(labOwnerClaims.organizationType).toBe('LABORATORY');
+    expect(fixtureLabOrganizationId).toBeTruthy();
+
+    const createMedicalLabRole = async (label: string, roleKey: string) => {
+      const user = await createTestUser({
+        email: 'medical-lab-' + label + '-' + Date.now() + '@test.dentvision',
+        firstName: 'Medical Lab',
+        lastName: label,
+        role: 'STUDENT' as any,
+      });
+      medicalLabUserIds.push(user.id);
+      const person = await prisma.person.upsert({
+        where: { userId_organizationId: { userId: user.id, organizationId: fixtureLabOrganizationId } },
+        update: { fullName: 'Medical Lab ' + label, personType: 'STAFF', email: user.email },
+        create: {
+          id: randomUUID(), fullName: 'Medical Lab ' + label, personType: 'STAFF',
+          organizationId: fixtureLabOrganizationId, userId: user.id, email: user.email,
+        },
+      });
+      const role = await prisma.role.findUnique({ where: { key: roleKey }, select: { id: true } });
+      expect(role?.id, 'canonical partner role ' + roleKey).toBeTruthy();
+      const scopeKey = 'organization:' + fixtureLabOrganizationId;
+      await prisma.personRole.upsert({
+        where: { personId_roleId_scopeKey: { personId: person.id, roleId: role!.id, scopeKey } },
+        update: { scopeType: 'organization', scopeId: fixtureLabOrganizationId },
+        create: {
+          id: randomUUID(), personId: person.id, roleId: role!.id,
+          scopeType: 'organization', scopeId: fixtureLabOrganizationId, scopeKey,
+        },
+      });
+      let assignedBranchId: string | undefined;
+      if (roleKey === 'medical_lab_technician') {
+        // This role is branch-scoped. An organization-level PersonRole is not
+        // enough to enter the workspace; the member must be assigned to a real,
+        // active branch in this exact organization.
+        const defaultBranch = await prisma.branch.findFirst({
+          where: { organizationId: fixtureLabOrganizationId, active: true },
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+          select: { id: true },
+        });
+        expect(defaultBranch?.id, 'active default branch for medical_lab_technician').toBeTruthy();
+        assignedBranchId = defaultBranch!.id;
+        await prisma.branchMember.upsert({
+          where: { personId_branchId: { personId: person.id, branchId: assignedBranchId } },
+          update: { active: true },
+          create: { id: randomUUID(), personId: person.id, branchId: assignedBranchId, active: true },
+        });
+      }
+      await prisma.laboratoryMember.upsert({
+        where: { labId_userId: { labId: fixtureLabId, userId: user.id } },
+        update: { role: 'technician' },
+        create: { id: randomUUID(), labId: fixtureLabId, userId: user.id, role: 'technician' },
+      });
+      const baseToken = await login(api, user.email);
+      const contextsResponse = await api.get(BASE + '/api/iam/me/contexts', { headers: auth(baseToken) });
+      expect(contextsResponse.status()).toBe(200);
+      const contexts = (await contextsResponse.json()).data?.contexts || [];
+      const context = contexts.find((item: any) => item.scopeType === 'LABORATORY' && item.organizationId === fixtureLabOrganizationId);
+      expect(context, 'medical lab context for ' + roleKey).toBeTruthy();
+      const switched = await api.post(BASE + '/api/iam/switch-context', {
+        headers: auth(baseToken),
+        data: { scopeType: 'LABORATORY', scopeId: fixtureLabId },
+      });
+      expect(switched.status(), await switched.text()).toBe(200);
+      const token = (await switched.json()).data.accessToken as string;
+      expect(token).toBeTruthy();
+      if (roleKey === 'medical_lab_technician') {
+        const claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')) as { branchId?: string };
+        expect(claims.branchId).toBe(assignedBranchId);
+      }
+      return { id: user.id, token };
+    };
+
+    const medicalTechnician = await createMedicalLabRole('technician', 'medical_lab_technician');
+    medicalLabTechnicianId = medicalTechnician.id;
+    medicalLabTechnicianToken = medicalTechnician.token;
+    const medicalQuality = await createMedicalLabRole('quality', 'medical_lab_quality');
+    medicalLabQualityId = medicalQuality.id;
+    medicalLabQualityToken = medicalQuality.token;
+    const medicalValidator = await createMedicalLabRole('validator', 'medical_lab_validator');
+    medicalLabValidatorId = medicalValidator.id;
+    medicalLabValidatorToken = medicalValidator.token;
+    const medicalDoctor = await createMedicalLabRole('doctor', 'medical_lab_doctor');
+    medicalLabDoctorId = medicalDoctor.id;
+    medicalLabDoctorToken = medicalDoctor.token;
+    const medicalFinance = await createMedicalLabRole('finance', 'medical_lab_finance');
+    medicalLabFinanceToken = medicalFinance.token;
 
     const dentalLabOwner = await createTestUser({ email: `dental-lab-owner-${Date.now()}@test.dentvision`, firstName: 'Dental Lab', lastName: 'Owner' });
     const dentalLabBaseToken = await login(api, dentalLabOwner.email);
@@ -248,10 +385,10 @@ test.describe('Partner operational lifecycle', () => {
     expect(alternativeDentalOnboard.status()).toBe(201);
     const alternativeDentalPayload = await alternativeDentalOnboard.json();
     fixtureAlternativeDentalLabId = alternativeDentalPayload.data?.entityId;
-    const alternativeDentalToken = alternativeDentalPayload.data?.accessToken || alternativeDentalPayload.accessToken;
+    alternativeDentalLabOwnerToken = alternativeDentalPayload.data?.accessToken || alternativeDentalPayload.accessToken;
     expect(fixtureAlternativeDentalLabId).toBeTruthy();
-    expect(alternativeDentalToken).toBeTruthy();
-    const alternativeDentalClaims = JSON.parse(Buffer.from(alternativeDentalToken.split('.')[1], 'base64url').toString('utf8')) as { organizationId?: string };
+    expect(alternativeDentalLabOwnerToken).toBeTruthy();
+    const alternativeDentalClaims = JSON.parse(Buffer.from(alternativeDentalLabOwnerToken.split('.')[1], 'base64url').toString('utf8')) as { organizationId?: string };
     expect(alternativeDentalClaims.organizationId).toBeTruthy();
     await approveDentalPartner(alternativeDentalClaims.organizationId);
 
@@ -287,33 +424,24 @@ test.describe('Partner operational lifecycle', () => {
     const technicianContexts = (await technicianContextsRes.json()).data?.contexts || [];
     const technicianContext = technicianContexts.find((item: any) => item.scopeType === 'LABORATORY' && item.organizationId === dentalLabClaims.organizationId);
     expect(technicianContext).toBeTruthy();
-    const technicianBranch = technicianContext.branchId || (await prisma.branch.findFirst({
-      where: { organizationId: dentalLabClaims.organizationId!, active: true },
-      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-      select: { id: true },
-    }))?.id;
-    expect(technicianBranch).toBeTruthy();
-    // Context switching validates branch membership independently from the
-    // organization-scoped PersonRole. Grant this technician the actual branch
-    // assignment; the route must continue to reject unrelated branches.
-    await prisma.branchMember.upsert({
-      where: { personId_branchId: { personId: technicianPerson.id, branchId: technicianBranch! } },
-      update: { active: true },
-      create: { id: randomUUID(), personId: technicianPerson.id, branchId: technicianBranch!, active: true },
-    });
+    // Dental production roles are ASSIGNED-scoped: they must not inherit or
+    // select an organization branch. Orders are authorized through the
+    // immutable technicianId assignment on each laboratory work item.
+    expect(technicianContext.branchId).toBeUndefined();
     const switchedTechnician = await api.post(`${BASE}/api/iam/switch-context`, {
       headers: auth(dentalTechnicianBaseToken),
-      data: { scopeType: technicianContext.scopeType, scopeId: technicianContext.scopeId, branchId: technicianBranch },
+      data: { scopeType: technicianContext.scopeType, scopeId: technicianContext.scopeId },
     });
     const switchedTechnicianBody = await switchedTechnician.json();
     expect(switchedTechnician.status(), JSON.stringify(switchedTechnicianBody)).toBe(200);
     dentalTechnicianToken = switchedTechnicianBody.data.accessToken;
-    const dentalTechnicianClaims = JSON.parse(Buffer.from(dentalTechnicianToken.split('.')[1], 'base64url').toString('utf8')) as { role?: string; organizationType?: string; organizationId?: string };
+    const dentalTechnicianClaims = JSON.parse(Buffer.from(dentalTechnicianToken.split('.')[1], 'base64url').toString('utf8')) as { role?: string; organizationType?: string; organizationId?: string; branchId?: string };
     // The canonical PersonRole remains dental_technician; the legacy JWT enum
     // compatibility claim is LAB and must never be used as the partner role key.
     expect(dentalTechnicianClaims.role).toBe('LAB');
     expect(dentalTechnicianClaims.organizationType).toBe('LABORATORY');
     expect(dentalTechnicianClaims.organizationId).toBe(dentalLabClaims.organizationId);
+    expect(dentalTechnicianClaims.branchId).toBeUndefined();
 
     const patient = await api.post(`${BASE}/api/patients`, {
       headers: auth(ownerToken),
@@ -324,6 +452,18 @@ test.describe('Partner operational lifecycle', () => {
   });
 
   test.afterAll(async () => {
+    if (medicalLabOrderIds.length) {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM "medical_lab_orders" WHERE "id" = ANY($1::text[])`,
+        medicalLabOrderIds,
+      ).catch(() => {});
+    }
+    for (const userId of medicalLabUserIds) {
+      await prisma.laboratoryMember.deleteMany({ where: { userId } }).catch(() => {});
+      await prisma.personRole.deleteMany({ where: { person: { userId } } }).catch(() => {});
+      await prisma.person.deleteMany({ where: { userId } }).catch(() => {});
+      await prisma.user.delete({ where: { id: userId } }).catch(() => {});
+    }
     if (rb037VisitIds.length) {
       await prisma.visit.deleteMany({ where: { id: { in: rb037VisitIds } } }).catch(() => {});
     }
@@ -358,6 +498,55 @@ test.describe('Partner operational lifecycle', () => {
     await prisma.$disconnect();
   });
 
+  test('PARTNER-000: partner subscription reads require the active organization and Finance/Billing permissions', async () => {
+    expect(fixtureCenterId).toBeTruthy();
+    expect(fixtureLabId).toBeTruthy();
+
+    const medicalFinance = await api.get(`${BASE}/api/subscriptions/PARTNER/${fixtureLabId}`, {
+      headers: auth(medicalLabFinanceToken),
+    });
+    const medicalFinanceText = await medicalFinance.text();
+    expect(medicalFinance.status(), medicalFinanceText).toBe(200);
+    expect(JSON.parse(medicalFinanceText).data).toMatchObject({
+      ownerType: 'PARTNER',
+      ownerId: fixtureLabId,
+    });
+
+    const medicalTechnician = await api.get(`${BASE}/api/subscriptions/PARTNER/${fixtureLabId}`, {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    const medicalTechnicianText = await medicalTechnician.text();
+    expect(medicalTechnician.status(), medicalTechnicianText).toBe(403);
+
+    const centerOwner = await api.get(`${BASE}/api/subscriptions/PARTNER/${fixtureCenterId}`, {
+      headers: auth(centerOwnerToken),
+    });
+    const centerOwnerText = await centerOwner.text();
+    expect(centerOwner.status(), centerOwnerText).toBe(200);
+    expect(JSON.parse(centerOwnerText).data).toMatchObject({
+      ownerType: 'PARTNER',
+      ownerId: fixtureCenterId,
+    });
+
+    const centerRadiologist = await api.get(`${BASE}/api/subscriptions/PARTNER/${fixtureCenterId}`, {
+      headers: auth(centerRadiologistToken),
+    });
+    const centerRadiologistText = await centerRadiologist.text();
+    expect(centerRadiologist.status(), centerRadiologistText).toBe(403);
+
+    const clinicOwner = await api.get(`${BASE}/api/subscriptions/PARTNER/${fixtureCenterId}`, {
+      headers: auth(ownerToken),
+    });
+    const clinicOwnerText = await clinicOwner.text();
+    expect(clinicOwner.status(), clinicOwnerText).toBe(403);
+
+    const crossOrganizationFinance = await api.get(`${BASE}/api/subscriptions/PARTNER/${fixtureCenterId}`, {
+      headers: auth(medicalLabFinanceToken),
+    });
+    const crossOrganizationFinanceText = await crossOrganizationFinance.text();
+    expect(crossOrganizationFinance.status(), crossOrganizationFinanceText).toBe(403);
+  });
+
   test('PARTNER-001: diagnostic center referral → accept → process → result → clinic visibility', async () => {
     const centerId = fixtureCenterId;
     expect(centerId).toBeTruthy();
@@ -381,20 +570,545 @@ test.describe('Partner operational lifecycle', () => {
         studyType: 'Конусно-лучевая КТ (КЛКТ)',
         centerId,
         complaints: 'E2E diagnostic workflow',
+        preliminaryDx: 'Confidential preliminary diagnosis',
+        allergies: 'E2E allergy: latex',
+        specialNotes: 'Confidential clinical note for radiologist only',
+        pregnancy: true,
       },
     });
     expect(referralRes.status()).toBe(201);
     const referral = (await referralRes.json()).data;
     expect(referral.status).toBe('SENT');
 
-    for (const [status, actor] of [['ACCEPTED', centerOwnerToken], ['IN_PROGRESS', centerOwnerToken], ['COMPLETED', centerOwnerToken]] as const) {
-      const res = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
-        headers: auth(actor),
-        data: { status, cost: 10000 },
+    // Diagnostic-center equipment is owned by the center, assigned only to its
+    // own active equipment, and unavailable to clinics or non-manager staff.
+    const modalityCreate = await api.post(`${BASE}/api/diagnostics/centers/${centerId}/modalities`, {
+      headers: auth(centerOwnerToken),
+      data: {
+        name: 'E2E CBCT room 1',
+        kind: 'CBCT',
+        manufacturer: 'E2E Manufacturer',
+        model: 'CBCT-1',
+        serialNumber: `CBCT-${randomUUID()}`,
+        room: 'Кабинет 1',
+        aeTitle: 'DVE2ECBCT',
+      },
+    });
+    expect(modalityCreate.status(), await modalityCreate.text()).toBe(201);
+    const modality = (await modalityCreate.json()).data;
+    expect(modality.centerId).toBe(centerId);
+    expect(modality.status).toBe('active');
+
+    const worklist = await api.get(`${BASE}/api/diagnostics/centers/${centerId}/worklist`, {
+      headers: auth(centerOwnerToken),
+    });
+    expect(worklist.status()).toBe(200);
+    const worklistItems = (await worklist.json()).data.items;
+    const worklistReferral = worklistItems.find((item: any) => item.id === referral.id);
+    expect(worklistReferral).toBeTruthy();
+    expect(worklistReferral.patientIin).toBeUndefined();
+    expect(worklistReferral.patientPhone).toBeUndefined();
+    expect(worklistReferral.patientEmail).toBeUndefined();
+
+    const assignModality = await api.patch(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}/modality`,
+      { headers: auth(centerOwnerToken), data: { modalityId: modality.id } },
+    );
+    expect(assignModality.status()).toBe(200);
+    expect((await assignModality.json()).data.modalityId).toBe(modality.id);
+
+    const refreshedWorklist = await api.get(`${BASE}/api/diagnostics/centers/${centerId}/worklist`, {
+      headers: auth(centerOwnerToken),
+    });
+    const assignedItem = (await refreshedWorklist.json()).data.items.find((item: any) => item.id === referral.id);
+    expect(assignedItem.modality?.id).toBe(modality.id);
+
+    const workItemDetail = await api.get(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}`,
+      { headers: auth(centerOwnerToken) },
+    );
+    expect(workItemDetail.status()).toBe(200);
+    const detailBody = (await workItemDetail.json()).data;
+    expect(detailBody.referral).toMatchObject({
+      id: referral.id,
+      patientName: 'Partner Lifecycle',
+      status: 'SENT',
+    });
+    expect(Array.isArray(detailBody.events)).toBe(true);
+
+    const invalidAttachment = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/files/upload`, {
+      headers: { Authorization: `Bearer ${centerOwnerToken}` },
+      multipart: {
+        file: {
+          name: 'not-an-image.png',
+          mimeType: 'image/png',
+          buffer: Buffer.from('this is not a PNG file'),
+        },
+      },
+    });
+    expect(invalidAttachment.status()).toBe(400);
+
+    const tinyPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l2sAAAAASUVORK5CYII=',
+      'base64',
+    );
+    const malformedDicom = Buffer.alloc(140);
+    malformedDicom.write('DICM', 128, 4, 'ascii');
+    const malformedDicomUpload = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/files/upload`, {
+      headers: { Authorization: `Bearer ${centerOwnerToken}` },
+      multipart: { file: { name: 'malformed.dcm', mimeType: 'application/dicom', buffer: malformedDicom } },
+    });
+    expect(malformedDicomUpload.status()).toBe(400);
+    expect((await malformedDicomUpload.json()).code).toBe('DICOM_METADATA_INVALID');
+
+    const s3Configured = Boolean(process.env.S3_BUCKET && process.env.S3_ACCESS_KEY && process.env.S3_SECRET_KEY);
+    const attachmentUpload = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/files/upload`, {
+      headers: { Authorization: `Bearer ${centerOwnerToken}` },
+      multipart: {
+        file: { name: 'diagnostic-e2e.png', mimeType: 'image/png', buffer: tinyPng },
+      },
+    });
+    if (!s3Configured) {
+      expect(attachmentUpload.status()).toBe(503);
+      expect((await attachmentUpload.json()).code).toBe('DIAGNOSTIC_STORAGE_UNAVAILABLE');
+      expect(await prisma.referralFile.count({ where: { referralId: referral.id } })).toBe(0);
+    } else {
+      expect(attachmentUpload.status(), await attachmentUpload.text()).toBe(201);
+      const uploadedFile = (await attachmentUpload.json()).data;
+      expect(uploadedFile).toMatchObject({
+        referralId: referral.id,
+        fileName: 'diagnostic-e2e.png',
+        fileType: 'image/png',
       });
-      expect(res.status()).toBe(200);
-      expect((await res.json()).data.status).toBe(status);
+      expect(uploadedFile.fileUrl).toBeUndefined();
+      expect(uploadedFile.downloadAvailable).toBe(true);
+      const referralWithAttachment = await api.get(`${BASE}/api/diagnostics/referrals/${referral.id}`, {
+        headers: auth(centerOwnerToken),
+      });
+      expect(referralWithAttachment.status()).toBe(200);
+      const storedAttachment = (await referralWithAttachment.json()).data.files.find((file: any) => file.id === uploadedFile.id);
+      expect(storedAttachment?.fileUrl).toBeNull();
+      expect(storedAttachment?.downloadAvailable).toBe(true);
+      const attachmentDownload = await api.get(
+        `${BASE}/api/diagnostics/referrals/${referral.id}/files/${uploadedFile.id}/download-url`,
+        { headers: auth(centerOwnerToken) },
+      );
+      expect(attachmentDownload.status(), await attachmentDownload.text()).toBe(200);
+      const attachmentDownloadBody = (await attachmentDownload.json()).data;
+      expect(attachmentDownloadBody.url).toMatch(/^https:\/\//);
+      expect(attachmentDownloadBody.url).not.toContain('s3://');
+      expect(attachmentDownloadBody.expiresInSeconds).toBe(300);
+      const deleteAttachment = await api.delete(`${BASE}/api/diagnostics/referral-files/${uploadedFile.id}`, {
+        headers: auth(centerOwnerToken),
+      });
+      expect(deleteAttachment.status()).toBe(200);
+      expect(await prisma.referralFile.findUnique({ where: { id: uploadedFile.id } })).toBeNull();
     }
+
+    const dicomIds = { study: dicomUid(), series: dicomUid(), sop: dicomUid() };
+    const dicomFixture = buildDicomPart10Fixture(dicomIds);
+    const dicomUpload = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/files/upload`, {
+      headers: { Authorization: `Bearer ${centerOwnerToken}` },
+      multipart: {
+        file: { name: 'diagnostic-e2e.dcm', mimeType: 'application/dicom', buffer: dicomFixture.buffer },
+      },
+    });
+    if (!s3Configured) {
+      expect(dicomUpload.status()).toBe(503);
+      expect((await dicomUpload.json()).code).toBe('DIAGNOSTIC_STORAGE_UNAVAILABLE');
+      expect(await prisma.diagnosticDicomStudy.count({ where: { referralId: referral.id } })).toBe(0);
+    } else {
+      expect(dicomUpload.status(), await dicomUpload.text()).toBe(201);
+      const uploadedDicom = (await dicomUpload.json()).data;
+      expect(uploadedDicom).toMatchObject({
+        fileName: 'diagnostic-e2e.dcm',
+        fileType: 'application/dicom',
+        downloadAvailable: true,
+        dicom: { modality: 'CT', sopInstanceUid: dicomIds.sop },
+      });
+      const indexedStudy = await prisma.diagnosticDicomStudy.findUnique({
+        where: { centerId_studyInstanceUid: { centerId, studyInstanceUid: dicomIds.study } },
+        include: { series: { include: { instances: true } } },
+      });
+      expect(indexedStudy).toMatchObject({
+        referralId: referral.id,
+        centerId,
+        modality: 'CT',
+        studyInstanceUid: dicomIds.study,
+        series: [{
+          seriesInstanceUid: dicomIds.series,
+          instances: [{
+            referralFileId: uploadedDicom.id,
+            sopInstanceUid: dicomIds.sop,
+            sopClassUid: dicomFixture.sopClass,
+            transferSyntaxUid: '1.2.840.10008.1.2.1',
+            rows: 2,
+            columns: 2,
+            bitsAllocated: 16,
+          }],
+        }],
+      });
+      const referralWithDicom = await api.get(`${BASE}/api/diagnostics/referrals/${referral.id}`, {
+        headers: auth(centerOwnerToken),
+      });
+      expect(referralWithDicom.status()).toBe(200);
+      const dicomFile = (await referralWithDicom.json()).data.files.find((file: any) => file.id === uploadedDicom.id);
+      expect(dicomFile.fileUrl).toBeNull();
+      expect(dicomFile.dicom).toMatchObject({
+        sopInstanceUid: dicomIds.sop,
+        series: { seriesInstanceUid: dicomIds.series, modality: 'CT' },
+        study: { studyInstanceUid: dicomIds.study, modality: 'CT' },
+      });
+      const duplicateSopUpload = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/files/upload`, {
+        headers: { Authorization: `Bearer ${centerOwnerToken}` },
+        multipart: { file: { name: 'duplicate-sop.dcm', mimeType: 'application/dicom', buffer: dicomFixture.buffer } },
+      });
+      expect(duplicateSopUpload.status()).toBe(409);
+      expect((await duplicateSopUpload.json()).code).toBe('DICOM_INSTANCE_ALREADY_EXISTS');
+      expect(await prisma.referralFile.count({ where: { referralId: referral.id, fileName: 'diagnostic-e2e.dcm' } })).toBe(1);
+      expect(await prisma.diagnosticDicomInstance.count({ where: { sopInstanceUid: dicomIds.sop } })).toBe(1);
+
+      const otherReferralResponse = await api.post(`${BASE}/api/diagnostics/referrals`, {
+        headers: auth(ownerToken),
+        data: {
+          clinicId,
+          branchId,
+          doctorId,
+          patientName: 'Different DICOM referral',
+          category: 'CBCT',
+          studyType: 'Конусно-лучевая КТ (КЛКТ)',
+          centerId,
+        },
+      });
+      expect(otherReferralResponse.status()).toBe(201);
+      const otherReferral = (await otherReferralResponse.json()).data;
+      const crossReferralDownload = await api.get(
+        `${BASE}/api/diagnostics/referrals/${otherReferral.id}/files/${uploadedDicom.id}/download-url`,
+        { headers: auth(centerOwnerToken) },
+      );
+      expect(crossReferralDownload.status()).toBe(404);
+
+      const crossStudyFixture = buildDicomPart10Fixture({
+        study: dicomIds.study,
+        series: dicomUid(),
+        sop: dicomUid(),
+      });
+      const crossStudyUpload = await api.post(`${BASE}/api/diagnostics/referrals/${otherReferral.id}/files/upload`, {
+        headers: { Authorization: `Bearer ${centerOwnerToken}` },
+        multipart: {
+          file: { name: 'cross-referral-study.dcm', mimeType: 'application/dicom', buffer: crossStudyFixture.buffer },
+        },
+      });
+      expect(crossStudyUpload.status()).toBe(409);
+      expect((await crossStudyUpload.json()).code).toBe('DICOM_STUDY_LINK_CONFLICT');
+      expect(await prisma.referralFile.count({ where: { referralId: otherReferral.id } })).toBe(0);
+      const deleteDicom = await api.delete(`${BASE}/api/diagnostics/referral-files/${uploadedDicom.id}`, {
+        headers: auth(centerOwnerToken),
+      });
+      expect(deleteDicom.status()).toBe(200);
+      expect(await prisma.diagnosticDicomInstance.count({ where: { sopInstanceUid: dicomIds.sop } })).toBe(0);
+      expect(await prisma.diagnosticDicomSeries.count({ where: { seriesInstanceUid: dicomIds.series } })).toBe(0);
+      expect(await prisma.diagnosticDicomStudy.count({ where: { studyInstanceUid: dicomIds.study } })).toBe(0);
+    }
+
+    const centerOrganization = await prisma.organization.findFirst({
+      where: { originalType: 'DiagnosticCenter', originalId: centerId },
+      select: { id: true },
+    });
+    expect(centerOrganization?.id).toBeTruthy();
+    const operatorUser = await createTestUser({
+      email: `diagnostic-operator-${randomUUID()}@test.dentvision`,
+      firstName: 'E2E',
+      lastName: 'Operator',
+      role: 'STUDENT' as any,
+    });
+    const operatorInvite = await api.post(`${BASE}/api/iam/invitations`, {
+      headers: auth(centerOwnerToken),
+      data: { organizationId: centerOrganization!.id, role: 'operator', email: operatorUser.email },
+    });
+    expect(operatorInvite.status(), await operatorInvite.text()).toBe(201);
+    const operatorInviteCode = (await operatorInvite.json()).data.code;
+    expect(operatorInviteCode).toMatch(/^[0-9A-F]{8}$/);
+    const operatorBaseToken = await login(api, operatorUser.email);
+    const operatorJoin = await api.post(`${BASE}/api/iam/join-by-invite`, {
+      headers: auth(operatorBaseToken),
+      data: { code: operatorInviteCode },
+    });
+    expect(operatorJoin.status(), await operatorJoin.text()).toBe(201);
+    const operatorContextsRes = await api.get(`${BASE}/api/iam/me/contexts`, { headers: auth(operatorBaseToken) });
+    expect(operatorContextsRes.status()).toBe(200);
+    const operatorContexts = (await operatorContextsRes.json()).data?.contexts || [];
+    const operatorContext = operatorContexts.find((item: any) => item.scopeType === 'DIAGNOSTIC_CENTER' && item.organizationId === centerOrganization!.id);
+    expect(operatorContext?.roleKey).toBe('diagnostic_operator');
+    expect(operatorContext?.branchId).toBeTruthy();
+    const operatorPerson = await prisma.person.findFirst({
+      where: { userId: operatorUser.id, organizationId: centerOrganization!.id },
+      select: { id: true },
+    });
+    expect(operatorPerson?.id).toBeTruthy();
+    // Accepting a BRANCH-scoped invitation grants only the active default
+    // branch; workspace access must not depend on an out-of-band DB mutation.
+    const defaultBranchMembership = await prisma.branchMember.findUnique({
+      where: { personId_branchId: { personId: operatorPerson!.id, branchId: operatorContext.branchId } },
+      select: { id: true, active: true },
+    });
+    expect(defaultBranchMembership).toMatchObject({ active: true });
+    const switchedOperator = await api.post(`${BASE}/api/iam/switch-context`, {
+      headers: auth(operatorBaseToken),
+      data: { scopeType: operatorContext.scopeType, scopeId: operatorContext.scopeId, branchId: operatorContext.branchId },
+    });
+    expect(switchedOperator.status(), await switchedOperator.text()).toBe(200);
+    const operatorScopedToken = (await switchedOperator.json()).data.accessToken;
+    expect(operatorScopedToken).toBeTruthy();
+    const operatorTokenClaims = JSON.parse(Buffer.from(operatorScopedToken.split('.')[1], 'base64url').toString('utf8')) as { role?: string; organizationType?: string };
+    expect(operatorTokenClaims.role).toBe('ASSISTANT');
+    expect(operatorTokenClaims.organizationType).toBe('DIAGNOSTIC_CENTER');
+
+    const staffList = await api.get(`${BASE}/api/diagnostics/centers/${centerId}/worklist/staff`, {
+      headers: auth(centerOwnerToken),
+    });
+    expect(staffList.status()).toBe(200);
+    const staffRows = (await staffList.json()).data;
+    expect(staffRows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ userId: operatorUser.id, role: 'operator' }),
+      expect.objectContaining({ userId: centerRadiologistId, role: 'radiologist' }),
+    ]));
+
+    const radiologistCannotReadFullStaffList = await api.get(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/staff`,
+      { headers: auth(centerRadiologistToken) },
+    );
+    expect(radiologistCannotReadFullStaffList.status()).toBe(403);
+
+    const radiologistCannotAssignStaff = await api.patch(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}/assignees`,
+      { headers: auth(centerRadiologistToken), data: { operatorUserId: operatorUser.id } },
+    );
+    expect(radiologistCannotAssignStaff.status()).toBe(403);
+
+    const assignees = await api.patch(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}/assignees`,
+      {
+        headers: auth(centerOwnerToken),
+        data: { operatorUserId: operatorUser.id, radiologistUserId: centerRadiologistId },
+      },
+    );
+    expect(assignees.status(), await assignees.text()).toBe(200);
+    expect((await assignees.json()).data).toMatchObject({
+      operatorId: expect.any(String),
+      radiologistId: expect.any(String),
+    });
+
+    const refreshedAssignedDetail = await api.get(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}`,
+      { headers: auth(centerOwnerToken) },
+    );
+    expect(refreshedAssignedDetail.status()).toBe(200);
+    expect((await refreshedAssignedDetail.json()).data.referral).toMatchObject({
+      operator: { user: { id: operatorUser.id } },
+      radiologist: { user: { id: centerRadiologistId } },
+    });
+
+    const operatorOperationalDetail = await api.get(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}`,
+      { headers: auth(operatorScopedToken) },
+    );
+    expect(operatorOperationalDetail.status(), await operatorOperationalDetail.text()).toBe(200);
+    const operatorDetailBody = await operatorOperationalDetail.json();
+    const operatorReferral = operatorDetailBody.data.referral;
+    expect(operatorReferral.patientName).toBe('Partner Lifecycle');
+    expect(operatorReferral.allergies).toBeUndefined();
+    expect(operatorReferral.specialNotes).toBeUndefined();
+    expect(operatorReferral.pregnancy).toBeUndefined();
+    expect(operatorReferral.preliminaryDx).toBeUndefined();
+    expect(operatorReferral.result).toBeUndefined();
+    expect(operatorDetailBody.data.capabilities).toMatchObject({
+      canReadClinical: false,
+      canReadFiles: true,
+    });
+
+    const radiologistClinicalDetail = await api.get(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}`,
+      { headers: auth(centerRadiologistToken) },
+    );
+    expect(radiologistClinicalDetail.status()).toBe(200);
+    expect((await radiologistClinicalDetail.json()).data.capabilities).toMatchObject({
+      canReadClinical: true,
+      canReadFiles: true,
+    });
+
+    const operatorCanReadFileScope = await api.get(
+      `${BASE}/api/diagnostics/referrals/${referral.id}/files/${randomUUID()}/download-url`,
+      { headers: auth(operatorScopedToken) },
+    );
+    // Authorization succeeds through the scoped files.read role; only then
+    // does the API report that this particular test file ID does not exist.
+    expect(operatorCanReadFileScope.status()).toBe(404);
+
+    const radiologistCanReadFileScope = await api.get(
+      `${BASE}/api/diagnostics/referrals/${referral.id}/files/${randomUUID()}/download-url`,
+      { headers: auth(centerRadiologistToken) },
+    );
+    expect(radiologistCanReadFileScope.status()).toBe(404);
+
+    const foreignClinicCannotRequestDiagnosticFile = await api.get(
+      `${BASE}/api/diagnostics/referrals/${referral.id}/files/${randomUUID()}/download-url`,
+      { headers: auth(crossClinicDoctorToken) },
+    );
+    expect(foreignClinicCannotRequestDiagnosticFile.status()).toBe(403);
+
+    const unassignedRadiologist = await createTestUser({
+      email: `diagnostic-unassigned-radiologist-${randomUUID()}@test.dentvision`,
+      firstName: 'E2E',
+      lastName: 'Unassigned Radiologist',
+      role: 'STUDENT' as any,
+    });
+    const unassignedRadiologistInvite = await api.post(`${BASE}/api/iam/invitations`, {
+      headers: auth(centerOwnerToken),
+      data: { organizationId: centerOrganization!.id, role: 'radiologist', email: unassignedRadiologist.email },
+    });
+    expect(unassignedRadiologistInvite.status(), await unassignedRadiologistInvite.text()).toBe(201);
+    const unassignedRadiologistCode = (await unassignedRadiologistInvite.json()).data.code;
+    const unassignedBaseToken = await login(api, unassignedRadiologist.email);
+    const unassignedJoin = await api.post(`${BASE}/api/iam/join-by-invite`, {
+      headers: auth(unassignedBaseToken), data: { code: unassignedRadiologistCode },
+    });
+    expect(unassignedJoin.status(), await unassignedJoin.text()).toBe(201);
+    const unassignedContextsRes = await api.get(`${BASE}/api/iam/me/contexts`, { headers: auth(unassignedBaseToken) });
+    expect(unassignedContextsRes.status()).toBe(200);
+    const unassignedContexts = (await unassignedContextsRes.json()).data?.contexts || [];
+    const unassignedContext = unassignedContexts.find((item: any) => item.scopeType === 'DIAGNOSTIC_CENTER' && item.organizationId === centerOrganization!.id);
+    expect(unassignedContext?.roleKey).toBe('radiologist');
+    const unassignedSwitch = await api.post(`${BASE}/api/iam/switch-context`, {
+      headers: auth(unassignedBaseToken),
+      data: { scopeType: unassignedContext.scopeType, scopeId: unassignedContext.scopeId, branchId: unassignedContext.branchId },
+    });
+    expect(unassignedSwitch.status(), await unassignedSwitch.text()).toBe(200);
+    const unassignedRadiologistToken = (await unassignedSwitch.json()).data.accessToken;
+
+    const foreignAssignee = await api.patch(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}/assignees`,
+      { headers: auth(centerOwnerToken), data: { operatorUserId: doctorId } },
+    );
+    expect(foreignAssignee.status()).toBe(400);
+
+    const clinicCannotReadCenterDetail = await api.get(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}`,
+      { headers: auth(ownerToken) },
+    );
+    expect(clinicCannotReadCenterDetail.status()).toBe(403);
+
+    const clinicCannotReadEquipment = await api.get(
+      `${BASE}/api/diagnostics/centers/${centerId}/modalities`,
+      { headers: auth(ownerToken) },
+    );
+    expect(clinicCannotReadEquipment.status()).toBe(403);
+    const clinicCannotCreateEquipment = await api.post(
+      `${BASE}/api/diagnostics/centers/${centerId}/modalities`,
+      { headers: auth(ownerToken), data: { name: 'Foreign device', kind: 'CBCT' } },
+    );
+    expect(clinicCannotCreateEquipment.status()).toBe(403);
+    const radiologistCannotAssignEquipment = await api.patch(
+      `${BASE}/api/diagnostics/centers/${centerId}/worklist/${referral.id}/modality`,
+      { headers: auth(centerRadiologistToken), data: { modalityId: null } },
+    );
+    expect(radiologistCannotAssignEquipment.status()).toBe(403);
+
+    await prisma.diagnosticStudy.create({
+      data: {
+        id: randomUUID(),
+        centerId,
+        name: 'Конусно-лучевая КТ (КЛКТ)',
+        category: 'CBCT',
+        price: 10000,
+        durationMin: 30,
+      },
+    });
+
+    const assignedRadiologistCannotSignBeforeAcquisition = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/sign`, {
+      headers: auth(centerRadiologistToken),
+      data: { reportText: 'Signing before acquisition must be blocked', conclusion: 'Invalid stage' },
+    });
+    expect(assignedRadiologistCannotSignBeforeAcquisition.status()).toBe(409);
+    expect((await assignedRadiologistCannotSignBeforeAcquisition.json()).code).toBe('DIAGNOSTIC_RESULT_STAGE_INVALID');
+
+    const clinicCannotControlCenterWorkflow = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(ownerToken),
+      data: { status: 'ACCEPTED' },
+    });
+    expect(clinicCannotControlCenterWorkflow.status()).toBe(409);
+    expect((await clinicCannotControlCenterWorkflow.json()).code).toBe('DIAGNOSTIC_CENTER_OWNS_WORKFLOW');
+
+    const radiologistCannotAccept = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerRadiologistToken),
+      data: { status: 'ACCEPTED', cost: 10000 },
+    });
+    expect(radiologistCannotAccept.status()).toBe(403);
+    expect((await radiologistCannotAccept.json()).code).toBe('DIAGNOSTIC_ACCEPT_FORBIDDEN');
+
+    const centerCannotSkipToAcquisition = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'IN_PROGRESS' },
+    });
+    expect(centerCannotSkipToAcquisition.status()).toBe(409);
+    expect((await centerCannotSkipToAcquisition.json()).code).toBe('DIAGNOSTIC_STATUS_TRANSITION_INVALID');
+
+    const accepted = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'ACCEPTED', cost: 1 },
+    });
+    expect(accepted.status()).toBe(200);
+    // Client-submitted cost is ignored for a center acceptance; the canonical
+    // center catalogue remains the only source of the accepted price snapshot.
+    expect((await accepted.json()).data).toMatchObject({ status: 'ACCEPTED', cost: '10000' });
+
+    const missingSchedule = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'SCHEDULED' },
+    });
+    expect(missingSchedule.status()).toBe(400);
+    expect((await missingSchedule.json()).code).toBe('DIAGNOSTIC_SCHEDULE_REQUIRED');
+
+    const scheduledDate = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const scheduled = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'SCHEDULED', scheduledDate, scheduledTime: '10:30' },
+    });
+    expect(scheduled.status()).toBe(200);
+    expect((await scheduled.json()).data).toMatchObject({ status: 'SCHEDULED', scheduledTime: '10:30' });
+
+    const arrived = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'PATIENT_ARRIVED' },
+    });
+    expect(arrived.status()).toBe(200);
+    expect((await arrived.json()).data.status).toBe('PATIENT_ARRIVED');
+
+    const acquisition = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'IN_PROGRESS' },
+    });
+    expect(acquisition.status()).toBe(200);
+    expect((await acquisition.json()).data.status).toBe('IN_PROGRESS');
+
+    const operatorCannotSign = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/sign`, {
+      headers: auth(operatorScopedToken),
+      data: { reportText: 'Operator must not sign this report', conclusion: 'Unauthorized' },
+    });
+    expect(operatorCannotSign.status()).toBe(403);
+
+    const unassignedRadiologistCannotSign = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/sign`, {
+      headers: auth(unassignedRadiologistToken),
+      data: { reportText: 'Unassigned radiologist must not sign', conclusion: 'Unauthorized' },
+    });
+    expect(unassignedRadiologistCannotSign.status()).toBe(403);
+
+    const unsignedCompletion = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'COMPLETED' },
+    });
+    expect(unsignedCompletion.status()).toBe(409);
+    expect((await unsignedCompletion.json()).code).toBe('DIAGNOSTIC_RESULT_SIGN_REQUIRED');
 
     const visitCountBefore = await prisma.visit.count({ where: { patientId } });
     const result = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/sign`, {
@@ -407,6 +1121,63 @@ test.describe('Partner operational lifecycle', () => {
     expect(signed.patientRecordUpdated).toBe(false);
     expect(await prisma.visit.count({ where: { patientId } })).toBe(visitCountBefore);
 
+    const repeatedInitialSign = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/sign`, {
+      headers: auth(centerRadiologistToken),
+      data: { reportText: 'This must not overwrite a signed version', conclusion: 'Overwrite attempt' },
+    });
+    expect(repeatedInitialSign.status()).toBe(409);
+    expect((await repeatedInitialSign.json()).code).toBe('DIAGNOSTIC_RESULT_ALREADY_SIGNED');
+
+    const delivered = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'DELIVERED' },
+    });
+    expect(delivered.status()).toBe(200);
+    expect((await delivered.json()).data.status).toBe('DELIVERED');
+
+    const unassignedRadiologistCannotAmend = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/amend`, {
+      headers: auth(unassignedRadiologistToken),
+      data: {
+        reportText: 'Unauthorized user attempts to amend the diagnostic report.',
+        conclusion: 'Unauthorized correction attempt',
+        changeReason: 'This user is not the assigned radiologist.',
+      },
+    });
+    expect(unassignedRadiologistCannotAmend.status()).toBe(403);
+
+    const amendedResult = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/amend`, {
+      headers: auth(centerRadiologistToken),
+      data: {
+        reportText: 'E2E amended diagnostic report with the clarified anatomical finding.',
+        conclusion: 'No acute findings; anatomical clarification appended.',
+        changeReason: 'The initial report required clarification of the anatomical region and side after image re-review.',
+      },
+    });
+    expect(amendedResult.status(), await amendedResult.text()).toBe(200);
+    expect((await amendedResult.json()).data).toMatchObject({
+      version: 2,
+      requiresRedelivery: true,
+      referralStatus: 'COMPLETED',
+    });
+    const versionRows = await prisma.diagnosticResultVersion.findMany({
+      where: { diagnosticResultId: signed.result.id },
+      orderBy: { version: 'asc' },
+    });
+    expect(versionRows).toHaveLength(2);
+    expect(versionRows[0]).toMatchObject({ version: 1, reportText: 'E2E diagnostic report' });
+    expect(versionRows[1]).toMatchObject({
+      version: 2,
+      reportText: 'E2E amended diagnostic report with the clarified anatomical finding.',
+      changeReason: 'The initial report required clarification of the anatomical region and side after image re-review.',
+    });
+
+    const redelivered = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
+      headers: auth(centerOwnerToken),
+      data: { status: 'DELIVERED' },
+    });
+    expect(redelivered.status()).toBe(200);
+    expect((await redelivered.json()).data.status).toBe('DELIVERED');
+
     const clinicRead = await api.get(`${BASE}/api/diagnostics/referrals/${referral.id}`, {
       headers: auth(ownerToken),
     });
@@ -414,6 +1185,15 @@ test.describe('Partner operational lifecycle', () => {
     const clinicReferral = (await clinicRead.json()).data;
     expect(clinicReferral.id).toBe(referral.id);
     expect(clinicReferral.result || clinicReferral.results || clinicReferral.reportText).toBeTruthy();
+    expect(clinicReferral.result.reportText).toBe('E2E amended diagnostic report with the clarified anatomical finding.');
+    expect(clinicReferral.result.versions).toHaveLength(2);
+    expect(clinicReferral.result.versions.map((version: any) => version.version)).toEqual([1, 2]);
+    expect(clinicReferral.result.versions[0].signer).toMatchObject({
+      id: centerRadiologistId,
+      firstName: 'E2E',
+      lastName: 'Radiologist',
+    });
+    expect(clinicReferral.result.versions[1].signer.id).toBe(centerRadiologistId);
   });
 
   test('RB-037: clinic diagnostic confirmation and signing are doctor-only', async () => {
@@ -428,6 +1208,7 @@ test.describe('Partner operational lifecycle', () => {
       { role: 'ADMIN', roleKey: 'admin' },
       { role: 'MANAGER', roleKey: 'manager' },
       { role: 'ASSISTANT', roleKey: 'assistant' },
+      { role: 'CASHIER', roleKey: 'cashier' },
     ] as const;
     const operationalTokens: string[] = [];
     const organization = await prisma.organization.findFirst({
@@ -493,6 +1274,17 @@ test.describe('Partner operational lifecycle', () => {
     await prisma.diagnosticResult.create({
       data: { referralId: aiReferral.id, reportText: 'RB037 AI draft', aiGenerated: true },
     });
+    const cashierToken = operationalTokens[operationalRoles.findIndex((entry) => entry.role === 'CASHIER')];
+    expect(cashierToken).toBeTruthy();
+    const cashierCannotReadReferral = await api.get(`${BASE}/api/diagnostics/referrals/${aiReferral.id}`, {
+      headers: auth(cashierToken),
+    });
+    expect(cashierCannotReadReferral.status()).toBe(403);
+    const cashierCannotRequestAttachment = await api.get(
+      `${BASE}/api/diagnostics/referrals/${aiReferral.id}/files/${randomUUID()}/download-url`,
+      { headers: auth(cashierToken) },
+    );
+    expect(cashierCannotRequestAttachment.status()).toBe(403);
     for (const token of [ownerToken, ...operationalTokens, superadminToken, crossClinicDoctorToken]) {
       const denied = await api.post(`${BASE}/api/diagnostics/referrals/${aiReferral.id}/confirm-ai-result`, {
         headers: auth(token),
@@ -629,35 +1421,304 @@ test.describe('Partner operational lifecycle', () => {
     if (ownerDoctorVisit?.id) rb037VisitIds.push(ownerDoctorVisit.id);
   });
 
-  test('PARTNER-002: medical laboratory order → full lifecycle → result → delivered', async () => {
-    const lab = { id: fixtureLabId };
-    expect(lab.id).toBeTruthy();
+  test('PARTNER-002: medical laboratory chain → results → independent QC → rework → validator release → doctor interpretation', async () => {
+    expect(fixtureLabId).toBeTruthy();
+    expect(labOwnerToken).toBeTruthy();
+    expect(medicalLabTechnicianToken).toBeTruthy();
+    expect(medicalLabQualityToken).toBeTruthy();
+    expect(medicalLabValidatorToken).toBeTruthy();
+    expect(medicalLabDoctorToken).toBeTruthy();
 
     const clinic = await prisma.clinic.findFirst({ where: { name: 'E2E Clinic A' }, select: { id: true } });
     const clinicId = clinic?.id;
+    expect(clinicId).toBeTruthy();
 
-    const orderRes = await api.post(`${BASE}/api/lab-orders/medical-laboratory/orders`, {
-      headers: auth(ownerToken),
-      data: { clinicId, patientId, labId: lab.id, priority: 'routine', specimenType: 'blood' },
+    const clinicPatient = await prisma.patient.findFirst({
+      where: { id: patientId, clinicId: clinicId! },
+      select: { id: true },
     });
-    expect(orderRes.status()).toBe(201);
-    const order = (await orderRes.json()).data;
+    expect(clinicPatient?.id, 'the test patient must belong to E2E Clinic A').toBe(patientId);
+    const activeMedicalLab = await prisma.laboratory.findUnique({
+      where: { id: fixtureLabId },
+      select: { id: true, active: true },
+    });
+    expect(activeMedicalLab, 'self-service onboarding must return the canonical laboratory entity ID').toMatchObject({
+      id: fixtureLabId,
+      active: true,
+    });
+
+    const orderResponse = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders', {
+      headers: auth(ownerToken),
+      data: {
+        clinicId,
+        patientId,
+        labId: fixtureLabId,
+        priority: 'routine',
+        specimenType: 'blood',
+        tests: [{ name: 'Глюкоза' }],
+      },
+    });
+    const orderPayload = await orderResponse.json();
+    expect(orderResponse.status(), JSON.stringify(orderPayload)).toBe(201);
+    const order = orderPayload.data;
+    const orderId = order.id as string;
+    medicalLabOrderIds.push(orderId);
     expect(order.status).toBe('ordered');
 
-    const cycle = ['sample_collected', 'received', 'processing', 'result_ready', 'verified'];
-    for (const status of cycle) {
-      const res = await api.post(`${BASE}/api/lab-orders/medical-laboratory/orders/${order.id}/status`, {
-        headers: auth(labOwnerToken),
-        data: { status },
-      });
-      expect(res.status()).toBe(200);
-      expect((await res.json()).data.status).toBe(status);
-    }
+    expect(order.accessionRequired).toBe(true);
+    const moveTo = async (token: string, status: string) => api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/status', {
+      headers: auth(token),
+      data: { status },
+    });
 
-    const read = await api.get(`${BASE}/api/lab-orders/medical-laboratory/orders/${order.id}`, { headers: auth(ownerToken) });
-    expect(read.status()).toBe(200);
-    expect((await read.json()).data.order.status).toBe('verified');
+    const clinicCannotAccession = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens', {
+      headers: auth(ownerToken),
+      data: { specimenType: 'blood' },
+    });
+    expect(clinicCannotAccession.status()).toBe(403);
+    const statusOnlyCollection = await moveTo(labOwnerToken, 'sample_collected');
+    expect(statusOnlyCollection.status()).toBe(409);
+
+    const accession = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { specimenType: 'blood', containerType: 'EDTA tube', volume: 5, volumeUnit: 'mL', location: 'Accession desk' },
+    });
+    const accessionBody = await accession.json();
+    expect(accession.status(), JSON.stringify(accessionBody)).toBe(201);
+    const specimen = accessionBody.data;
+    expect(specimen.accessionNumber).toMatch(/^DVL-[A-Z0-9]{12,16}$/);
+    expect(specimen.status).toBe('collected');
+
+    const statusOnlyReceipt = await moveTo(labOwnerToken, 'received');
+    expect(statusOnlyReceipt.status()).toBe(409);
+    const unknownBarcode = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/scan', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { barcode: 'DVL-UNKNOWN0000', action: 'received' },
+    });
+    expect(unknownBarcode.status()).toBe(404);
+
+    const scannedReceipt = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/scan', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { barcode: specimen.accessionNumber, action: 'received', location: 'Intake rack A' },
+    });
+    const scannedBody = await scannedReceipt.json();
+    expect(scannedReceipt.status(), JSON.stringify(scannedBody)).toBe(200);
+    expect(scannedBody.data.orderAdvanced).toBe(true);
+    expect(scannedBody.data.order.status).toBe('received');
+
+    const duplicateScan = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/scan', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { barcode: specimen.accessionNumber, action: 'received' },
+    });
+    expect(duplicateScan.status()).toBe(409);
+
+    const oversizedAliquot = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/' + specimen.id + '/aliquots', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { volume: 6, volumeUnit: 'mL', containerType: 'Aliquot tube' },
+    });
+    expect(oversizedAliquot.status()).toBe(400);
+
+    const aliquotResponse = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/specimens/' + specimen.id + '/aliquots', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { volume: 1, volumeUnit: 'mL', containerType: 'Aliquot tube' },
+    });
+    const aliquotBody = await aliquotResponse.json();
+    expect(aliquotResponse.status(), JSON.stringify(aliquotBody)).toBe(201);
+    expect(aliquotBody.data.parentSpecimenId).toBe(specimen.id);
+    expect(aliquotBody.data.accessionNumber).not.toBe(specimen.accessionNumber);
+
+    const custodyDetail = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    const custodyPayload = (await custodyDetail.json()).data;
+    expect(custodyPayload.specimens).toHaveLength(2);
+    expect(custodyPayload.specimenEvents.map((event: any) => event.eventType)).toEqual(expect.arrayContaining(['COLLECTED', 'RECEIVED', 'ALIQUOT_CREATED']));
+
+    const processing = await moveTo(labOwnerToken, 'processing');
+    expect(processing.status()).toBe(200);
+    expect((await processing.json()).data.status).toBe('processing');
+    const processingDetail = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    const processingPayload = (await processingDetail.json()).data;
+    expect(processingPayload.specimens.every((item: any) => item.status === 'processing')).toBe(true);
+    expect(processingPayload.specimenEvents.map((event: any) => event.eventType)).toContain('PROCESSING_STARTED');
+
+    const technicianDetail = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    expect(technicianDetail.status()).toBe(200);
+    const testId = (await technicianDetail.json()).data.tests[0]?.id as string;
+    expect(testId).toBeTruthy();
+
+    const ownerCannotEnterResults = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/results', {
+      headers: auth(labOwnerToken),
+      data: { results: [{ id: testId, result: '6.3' }] },
+    });
+    expect(ownerCannotEnterResults.status()).toBe(403);
+
+    const missingResults = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/results', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { results: [] },
+    });
+    expect(missingResults.status()).toBe(400);
+
+    const firstResults = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/results', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { results: [{ id: testId, result: '6.3', unit: 'mmol/L', referenceRange: '3.9–6.1', flag: 'high' }] },
+    });
+    expect(firstResults.status()).toBe(200);
+    expect((await firstResults.json()).data.status).toBe('result_ready');
+
+    const genericReady = await moveTo(labOwnerToken, 'result_ready');
+    expect(genericReady.status()).toBe(409);
+    const genericVerify = await moveTo(labOwnerToken, 'verified');
+    expect(genericVerify.status()).toBe(409);
+
+    const prematureVerify = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/verify', {
+      headers: auth(medicalLabValidatorToken),
+    });
+    expect(prematureVerify.status()).toBe(409);
+
+    const missingQcReason = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/quality-control', {
+      headers: auth(medicalLabQualityToken),
+      data: { decision: 'failed' },
+    });
+    expect(missingQcReason.status()).toBe(400);
+
+    const failedQc = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/quality-control', {
+      headers: auth(medicalLabQualityToken),
+      data: { decision: 'failed', note: 'Контрольный диапазон требует повторной проверки.' },
+    });
+    expect(failedQc.status()).toBe(200);
+    expect((await failedQc.json()).data.metadata.qualityControl.decision).toBe('failed');
+
+    const duplicateQc = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/quality-control', {
+      headers: auth(medicalLabQualityToken),
+      data: { decision: 'passed', note: 'Attempted override without re-analysis.' },
+    });
+    expect(duplicateQc.status()).toBe(409);
+
+    const rework = await moveTo(labOwnerToken, 'processing');
+    expect(rework.status()).toBe(200);
+    const reworkedDetail = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    expect(reworkedDetail.status()).toBe(200);
+    const reworkedTest = (await reworkedDetail.json()).data.tests[0];
+    expect(reworkedTest.result).toBeNull();
+    expect(reworkedTest.metadata.resultHistory).toHaveLength(1);
+    expect(reworkedTest.metadata.resultHistory[0]).toMatchObject({
+      result: '6.3',
+      recordedByUserId: medicalLabTechnicianId,
+      archivedByUserId: expect.any(String),
+    });
+
+    const secondResults = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/results', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { results: [{ id: testId, result: '5.4', unit: 'mmol/L', referenceRange: '3.9–6.1', flag: 'normal' }] },
+    });
+    expect(secondResults.status()).toBe(200);
+
+    const passedQc = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/quality-control', {
+      headers: auth(medicalLabQualityToken),
+      data: { decision: 'passed', note: 'Повторный результат соответствует QC.' },
+    });
+    expect(passedQc.status()).toBe(200);
+
+    const qualityCannotRelease = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/verify', {
+      headers: auth(medicalLabQualityToken),
+    });
+    expect(qualityCannotRelease.status()).toBe(403);
+    const technicianCannotRelease = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/verify', {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    expect(technicianCannotRelease.status()).toBe(403);
+
+    const verified = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/verify', {
+      headers: auth(medicalLabValidatorToken),
+    });
+    expect(verified.status()).toBe(200);
+    expect((await verified.json()).data.status).toBe('verified');
+
+    const interpretation = await api.post(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId + '/interpretation', {
+      headers: auth(medicalLabDoctorToken),
+      data: { interpretation: 'Результат после повторного анализа находится в референсном диапазоне.' },
+    });
+    expect(interpretation.status()).toBe(200);
+
+    const clinicRead = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
+      headers: auth(ownerToken),
+    });
+    expect(clinicRead.status()).toBe(200);
+    expect((await clinicRead.json()).data.order).toMatchObject({
+      id: orderId,
+      status: 'verified',
+      interpretation: 'Результат после повторного анализа находится в референсном диапазоне.',
+    });
+
+    const otherPartnerRead = await api.get(BASE + '/api/lab-orders/medical-laboratory/orders/' + orderId, {
+      headers: auth(dentalLabOwnerToken),
+    });
+    expect(otherPartnerRead.status()).toBe(403);
   });
+  test('PARTNER-002-FINANCE: medical-lab owner and finance role can view finances; bench roles cannot', async () => {
+    expect(labOwnerToken).toBeTruthy();
+    expect(medicalLabFinanceToken).toBeTruthy();
+    expect(medicalLabTechnicianToken).toBeTruthy();
+    expect(medicalLabQualityToken).toBeTruthy();
+
+    const ownerCapabilities = await api.get(BASE + '/api/lab-orders/medical-laboratory/capabilities', {
+      headers: auth(labOwnerToken),
+    });
+    expect(ownerCapabilities.status()).toBe(200);
+    expect((await ownerCapabilities.json()).data.capabilities).toEqual(expect.arrayContaining(['finance.read', 'finance.manage']));
+
+    const financeRead = await api.get(BASE + '/api/lab-orders/medical-laboratory/finance', {
+      headers: auth(medicalLabFinanceToken),
+    });
+    expect(financeRead.status(), await financeRead.text()).toBe(200);
+    const financeData = (await financeRead.json()).data;
+    expect(financeData.availableBalanceMinor).toBe('0');
+    expect(financeData.economics.totals.grossMinor).toBe('0');
+    expect(financeData.canRequestPayout).toBe(true);
+
+    const managerRead = await api.get(BASE + '/api/lab-orders/medical-laboratory/finance', {
+      headers: auth(labOwnerToken),
+    });
+    expect(managerRead.status()).toBe(200);
+
+    const technicianCapabilities = await api.get(BASE + '/api/lab-orders/medical-laboratory/capabilities', {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    expect(technicianCapabilities.status()).toBe(200);
+    expect((await technicianCapabilities.json()).data.capabilities).not.toContain('finance.read');
+
+    const technicianFinance = await api.get(BASE + '/api/lab-orders/medical-laboratory/finance', {
+      headers: auth(medicalLabTechnicianToken),
+    });
+    expect(technicianFinance.status()).toBe(403);
+
+    const qualityFinance = await api.get(BASE + '/api/lab-orders/medical-laboratory/finance', {
+      headers: auth(medicalLabQualityToken),
+    });
+    expect(qualityFinance.status()).toBe(403);
+
+    const technicianPayout = await api.post(BASE + '/api/lab-orders/medical-laboratory/payouts', {
+      headers: auth(medicalLabTechnicianToken),
+      data: { amount: '1.00' },
+    });
+    expect(technicianPayout.status()).toBe(403);
+
+    const financePayout = await api.post(BASE + '/api/lab-orders/medical-laboratory/payouts', {
+      headers: auth(medicalLabFinanceToken),
+      data: { amount: '1.00' },
+    });
+    // The finance role passes authorization, but the empty E2E wallet cannot fund a request.
+    expect(financePayout.status()).toBe(409);
+    expect((await financePayout.json()).code).toBe('INSUFFICIENT_FUNDS');
+  });
+
   test('PARTNER-003: dental lab owner → clinic assignment → technician → production → delivery → tenant isolation', async () => {
     expect(fixtureDentalLabId).toBeTruthy();
     expect(dentalLabOwnerToken).toBeTruthy();
@@ -686,18 +1747,44 @@ test.describe('Partner operational lifecycle', () => {
     expect(availablePartnerIds).toContain(fixtureAlternativeDentalLabId);
     expect(availablePartnerIds).not.toContain(fixtureLabId);
 
+    const createService = await api.post(`${BASE}/api/lab-orders/platform/services`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { code: 'CROWN-ZR', name: 'Коронка из диоксида циркония', category: 'crown', material: 'zirconia', description: 'Полноанатомическая циркониевая коронка', defaultPrice: 52000, turnaroundDays: 7 },
+    });
+    const createdServiceBody = await createService.json();
+    expect(createService.status(), JSON.stringify(createdServiceBody)).toBe(201);
+    const dentalService = createdServiceBody.data;
+    const partnerServiceList = await api.get(`${BASE}/api/lab-orders/platform/services`, { headers: auth(dentalLabOwnerToken) });
+    expect(partnerServiceList.status()).toBe(200);
+    expect((await partnerServiceList.json()).data.some((item: any) => item.id === dentalService.id)).toBe(true);
+    const buyerServiceList = await api.get(`${BASE}/api/lab-orders/platform/available-laboratories/${fixtureDentalLabId}/services`, { headers: auth(ownerToken) });
+    expect(buyerServiceList.status()).toBe(200);
+    expect((await buyerServiceList.json()).data).toEqual(expect.arrayContaining([expect.objectContaining({ id: dentalService.id, defaultPrice: 52000 })]));
+    const clinicCannotReadPrivatePartnerCatalog = await api.get(`${BASE}/api/lab-orders/platform/services`, { headers: auth(ownerToken) });
+    expect(clinicCannotReadPrivatePartnerCatalog.status()).toBe(403);
+    const clinicCannotCreatePartnerService = await api.post(`${BASE}/api/lab-orders/platform/services`, {
+      headers: auth(ownerToken), data: { code: 'FOREIGN', name: 'Foreign service', category: 'crown', defaultPrice: 1 },
+    });
+    expect(clinicCannotCreatePartnerService.status()).toBe(403);
+
     const assignment = await api.post(`${BASE}/api/lab-orders/platform/assign`, {
       headers: auth(ownerToken),
-      data: { orderId: order.id, laboratoryId: fixtureDentalLabId },
+      data: { orderId: order.id, laboratoryId: fixtureDentalLabId, serviceId: dentalService.id },
     });
     expect(assignment.status()).toBe(200);
 
     const assignedLifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/lifecycle`, { headers: auth(dentalLabOwnerToken) });
     expect(assignedLifecycle.status()).toBe(200);
+    const assignedOrder = (await assignedLifecycle.json()).data.order;
+    expect(assignedOrder).toMatchObject({ serviceId: dentalService.id, serviceName: 'Коронка из диоксида циркония', servicePriceSnapshot: 52000, price: 52000 });
     const initialEventCount = (await assignedLifecycle.json()).data.events.length;
+    const priceChange = await api.patch(`${BASE}/api/lab-orders/platform/services/${dentalService.id}`, { headers: auth(dentalLabOwnerToken), data: { defaultPrice: 61000 } });
+    expect(priceChange.status()).toBe(200);
+    const immutableSnapshot = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/lifecycle`, { headers: auth(dentalLabOwnerToken) });
+    expect((await immutableSnapshot.json()).data.order).toMatchObject({ servicePriceSnapshot: 52000, price: 52000 });
     const repeatedAssignment = await api.post(`${BASE}/api/lab-orders/platform/assign`, {
       headers: auth(ownerToken),
-      data: { orderId: order.id, laboratoryId: fixtureDentalLabId },
+      data: { orderId: order.id, laboratoryId: fixtureDentalLabId, serviceId: dentalService.id },
     });
     expect(repeatedAssignment.status()).toBe(200);
     expect((await repeatedAssignment.json()).data.assignmentIdempotent).toBe(true);
@@ -780,10 +1867,91 @@ test.describe('Partner operational lifecycle', () => {
     const technicianCannotReadOtherLifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/lifecycle`, { headers: auth(dentalTechnicianToken) });
     expect(technicianCannotReadOtherLifecycle.status()).toBe(404);
 
+    // PARTNER-003M: laboratory stock is tenant-owned and lot/case ledgers are
+    // independent of clinic InventoryItem. Only a manager can create materials
+    // and receive lots; production staff can consume only on assigned cases.
+    const materialCode = `P003-ZIR-${Date.now()}`;
+    const materialCreate = await api.post(`${BASE}/api/lab-orders/platform/materials`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { code: materialCode, name: 'Zirconia production blank', category: 'zirconia', unit: 'g', minimumStock: '2.000' },
+    });
+    const materialCreateBody = await materialCreate.json();
+    expect(materialCreate.status(), JSON.stringify(materialCreateBody)).toBe(201);
+    const material = materialCreateBody.data;
+
+    const technicianCannotCreateMaterial = await api.post(`${BASE}/api/lab-orders/platform/materials`, {
+      headers: auth(dentalTechnicianToken),
+      data: { code: `${materialCode}-TECH`, name: 'Technician-owned material', category: 'zirconia', unit: 'g' },
+    });
+    expect(technicianCannotCreateMaterial.status()).toBe(403);
+    const technicianCannotReceiveLot = await api.post(`${BASE}/api/lab-orders/platform/materials/${material.id}/lots`, {
+      headers: auth(dentalTechnicianToken),
+      data: { lotNumber: 'TECH-LOT-001', quantity: '1.000', unitCost: '1.00' },
+    });
+    expect(technicianCannotReceiveLot.status()).toBe(403);
+    const clinicCannotReadLabMaterials = await api.get(`${BASE}/api/lab-orders/platform/materials`, { headers: auth(ownerToken) });
+    expect(clinicCannotReadLabMaterials.status()).toBe(403);
+    const otherLabCannotReceiveForeignMaterial = await api.post(`${BASE}/api/lab-orders/platform/materials/${material.id}/lots`, {
+      headers: auth(alternativeDentalLabOwnerToken),
+      data: { lotNumber: 'FOREIGN-LOT-001', quantity: '1.000', unitCost: '1.00' },
+    });
+    expect(otherLabCannotReceiveForeignMaterial.status()).toBe(404);
+
+    const receipt = await api.post(`${BASE}/api/lab-orders/platform/materials/${material.id}/lots`, {
+      headers: auth(dentalLabOwnerToken),
+      data: {
+        lotNumber: 'P003-LOT-001',
+        quantity: '10.000',
+        unitCost: '2500.00',
+        supplierName: 'DentVision Materials Supplier',
+        supplierLotNumber: 'SUP-ZR-2026-001',
+        expiresAt: '2027-12-31',
+        note: 'Supplier delivery note P003-001',
+      },
+    });
+    const receiptBody = await receipt.json();
+    expect(receipt.status(), JSON.stringify(receiptBody)).toBe(201);
+    const lot = receiptBody.data;
+    const duplicateReceipt = await api.post(`${BASE}/api/lab-orders/platform/materials/${material.id}/lots`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { lotNumber: 'P003-LOT-001', quantity: '10.000', unitCost: '2500.00' },
+    });
+    expect(duplicateReceipt.status()).toBe(409);
+
+    const expiredReceipt = await api.post(`${BASE}/api/lab-orders/platform/materials/${material.id}/lots`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { lotNumber: 'P003-LOT-EXPIRED', quantity: '1.000', unitCost: '100.00', expiresAt: '2027-12-30' },
+    });
+    expect(expiredReceipt.status()).toBe(201);
+    const expiredLot = (await expiredReceipt.json()).data;
+    await prisma.dentalLabMaterialLot.update({
+      where: { id: expiredLot.id },
+      data: { expiresAt: new Date('2026-01-01T00:00:00.000Z') },
+    });
+
+    const managerMaterialList = await api.get(`${BASE}/api/lab-orders/platform/materials`, { headers: auth(dentalLabOwnerToken) });
+    expect(managerMaterialList.status()).toBe(200);
+    const managerMaterial = (await managerMaterialList.json()).data.find((item: any) => item.id === material.id);
+    expect(managerMaterial.availableStockMilli).toBe('10000');
+    expect(managerMaterial.lots.find((item: any) => item.id === lot.id).unitCostMinor).toBe('250000');
+    expect(managerMaterial.lots.find((item: any) => item.id === expiredLot.id).expired).toBe(true);
+    const technicianMaterialList = await api.get(`${BASE}/api/lab-orders/platform/materials`, { headers: auth(dentalTechnicianToken) });
+    expect(technicianMaterialList.status()).toBe(200);
+    const technicianMaterial = (await technicianMaterialList.json()).data.find((item: any) => item.id === material.id);
+    expect(technicianMaterial.lots.find((item: any) => item.id === lot.id).unitCostMinor).toBeUndefined();
+
+    const pendingConsumption = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, {
+      headers: auth(dentalTechnicianToken),
+      data: { materialId: material.id, lotId: lot.id, quantity: '0.250', idempotencyKey: `p003-pending-${Date.now()}` },
+    });
+    expect(pendingConsumption.status()).toBe(409);
+    expect((await pendingConsumption.json()).code).toBe('LAB_MATERIAL_ORDER_NOT_IN_PRODUCTION');
+
     const sent = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
       headers: auth(dentalLabOwnerToken), data: { status: 'sent', note: 'PARTNER-003 accepted by manager' },
     });
     expect(sent.status()).toBe(200);
+    let firstMaterialConsumption: any = null;
     for (const status of ['in_progress', 'try_in', 'adjustment', 'qc']) {
       const res = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
         headers: auth(dentalTechnicianToken),
@@ -791,6 +1959,76 @@ test.describe('Partner operational lifecycle', () => {
       });
       expect(res.status()).toBe(200);
       expect((await res.json()).data.status).toBe(status);
+      if (status === 'in_progress') {
+        const idempotencyKey = `p003-material-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const consumptionPayload = { materialId: material.id, lotId: lot.id, quantity: '0.250', idempotencyKey };
+        const consumption = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, {
+          headers: auth(dentalTechnicianToken), data: consumptionPayload,
+        });
+        const consumptionBody = await consumption.json();
+        expect(consumption.status(), JSON.stringify(consumptionBody)).toBe(201);
+        firstMaterialConsumption = consumptionBody.data;
+        expect(firstMaterialConsumption).toMatchObject({ labOrderId: order.id, materialId: material.id, lotId: lot.id, quantityMilli: '250', totalCostMinorSnapshot: '62500' });
+
+        const idempotentRetry = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, {
+          headers: auth(dentalTechnicianToken), data: consumptionPayload,
+        });
+        expect(idempotentRetry.status()).toBe(200);
+        expect((await idempotentRetry.json()).idempotent).toBe(true);
+
+        const conflictingRetry = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, {
+          headers: auth(dentalTechnicianToken), data: { ...consumptionPayload, quantity: '0.251' },
+        });
+        expect(conflictingRetry.status()).toBe(409);
+        expect((await conflictingRetry.json()).code).toBe('LAB_MATERIAL_IDEMPOTENCY_CONFLICT');
+
+        const expiredConsumption = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, {
+          headers: auth(dentalTechnicianToken),
+          data: { materialId: material.id, lotId: expiredLot.id, quantity: '0.001', idempotencyKey: `p003-expired-${Date.now()}` },
+        });
+        expect(expiredConsumption.status()).toBe(409);
+        expect((await expiredConsumption.json()).code).toBe('LAB_MATERIAL_LOT_EXPIRED');
+
+        const insufficientConsumption = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, {
+          headers: auth(dentalTechnicianToken),
+          data: { materialId: material.id, lotId: lot.id, quantity: '20.000', idempotencyKey: `p003-stock-${Date.now()}` },
+        });
+        expect(insufficientConsumption.status()).toBe(409);
+        expect((await insufficientConsumption.json()).code).toBe('LAB_MATERIAL_INSUFFICIENT_STOCK');
+
+        const technicianCannotReverse = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions/${firstMaterialConsumption.id}/reversal`, {
+          headers: auth(dentalTechnicianToken), data: { reason: 'Technician must not reverse manager accounting' },
+        });
+        expect(technicianCannotReverse.status()).toBe(403);
+
+        const ownerHistory = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, { headers: auth(dentalLabOwnerToken) });
+        expect(ownerHistory.status()).toBe(200);
+        expect((await ownerHistory.json()).data[0]).toMatchObject({ id: firstMaterialConsumption.id, totalCostMinorSnapshot: '62500' });
+        const technicianHistory = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, { headers: auth(dentalTechnicianToken) });
+        expect(technicianHistory.status()).toBe(200);
+        expect((await technicianHistory.json()).data[0].totalCostMinorSnapshot).toBeUndefined();
+
+        const managerReversal = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions/${firstMaterialConsumption.id}/reversal`, {
+          headers: auth(dentalLabOwnerToken), data: { reason: 'Corrected material allocation on this case.' },
+        });
+        expect(managerReversal.status()).toBe(200);
+        expect((await managerReversal.json()).data.reversalReason).toBe('Corrected material allocation on this case.');
+        const repeatedReversal = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions/${firstMaterialConsumption.id}/reversal`, {
+          headers: auth(dentalLabOwnerToken), data: { reason: 'Corrected material allocation on this case.' },
+        });
+        expect(repeatedReversal.status()).toBe(200);
+        expect((await repeatedReversal.json()).idempotent).toBe(true);
+
+        const activeConsumption = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, {
+          headers: auth(dentalTechnicianToken),
+          data: { materialId: material.id, lotId: lot.id, quantity: '0.500', idempotencyKey: `p003-material-second-${Date.now()}` },
+        });
+        expect(activeConsumption.status()).toBe(201);
+        expect((await activeConsumption.json()).data.totalCostMinorSnapshot).toBe('125000');
+
+        const finalMaterialList = await api.get(`${BASE}/api/lab-orders/platform/materials`, { headers: auth(dentalLabOwnerToken) });
+        expect((await finalMaterialList.json()).data.find((item: any) => item.id === material.id).availableStockMilli).toBe('9500');
+      }
     }
     const technicianCannotDeliver = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
       headers: auth(dentalTechnicianToken), data: { status: 'delivered' },
@@ -828,12 +2066,152 @@ test.describe('Partner operational lifecycle', () => {
       { timeout: 10_000, interval: 250 },
     ).toBeGreaterThan(0);
 
-    const delivered = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
+    const deliveryBypass = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
       headers: auth(dentalLabOwnerToken),
-      data: { status: 'delivered', note: 'PARTNER-003 delivered after QC' },
+      data: { status: 'delivered', note: 'PARTNER-003 must not bypass shipment' },
+    });
+    expect(deliveryBypass.status()).toBe(409);
+    expect((await deliveryBypass.json()).code).toBe('LAB_SHIPMENT_REQUIRED');
+
+    const acceptanceBeforeDelivery = await api.post(`${BASE}/api/lab-orders/${order.id}/acceptance`, {
+      headers: auth(ownerToken),
+      data: { note: 'The clinic cannot accept a case before proof of delivery.' },
+    });
+    expect(acceptanceBeforeDelivery.status()).toBe(409);
+    expect((await acceptanceBeforeDelivery.json()).code).toBe('LAB_DELIVERY_CONFIRMATION_REQUIRED');
+
+    const invalidShipment = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { method: 'COURIER', carrier: 'Test Carrier', trackingNumber: 'TRACK-003', trackingUrl: 'http://tracking.example/003' },
+    });
+    expect(invalidShipment.status()).toBe(400);
+
+    const clinicCannotDispatch = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment`, {
+      headers: auth(ownerToken),
+      data: { method: 'PICKUP' },
+    });
+    expect(clinicCannotDispatch.status()).toBe(403);
+
+    const crossTenantDispatch = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment`, {
+      headers: auth(labOwnerToken),
+      data: { method: 'PICKUP' },
+    });
+    expect(crossTenantDispatch.status()).toBe(404);
+
+    const shipment = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment`, {
+      headers: auth(dentalLabOwnerToken),
+      data: {
+        method: 'COURIER',
+        carrier: 'E2E Courier',
+        trackingNumber: 'DV-PARTNER-003',
+        trackingUrl: 'https://tracking.example/dv-partner-003',
+        note: 'PARTNER-003 handed to courier',
+      },
+    });
+    expect(shipment.status()).toBe(201);
+    const shipmentBody = (await shipment.json()).data;
+    expect(shipmentBody.shipment).toMatchObject({
+      method: 'COURIER',
+      carrier: 'E2E Courier',
+      trackingNumber: 'DV-PARTNER-003',
+      status: 'dispatched',
+    });
+    expect(shipmentBody.order.status).toBe('ready');
+
+    const repeatedShipment = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment`, {
+      headers: auth(dentalLabOwnerToken),
+      data: {
+        method: 'COURIER',
+        carrier: 'E2E Courier',
+        trackingNumber: 'DV-PARTNER-003',
+        trackingUrl: 'https://tracking.example/dv-partner-003',
+        note: 'PARTNER-003 handed to courier',
+      },
+    });
+    expect(repeatedShipment.status()).toBe(200);
+    expect((await repeatedShipment.json()).data.idempotent).toBe(true);
+
+    const invalidProof = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment/delivery-confirmation`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { proofUrl: 'http://proof.example/receipt', recipientName: 'Clinic Reception' },
+    });
+    expect(invalidProof.status()).toBe(400);
+
+    const delivered = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment/delivery-confirmation`, {
+      headers: auth(dentalLabOwnerToken),
+      data: {
+        proofUrl: 'https://proof.example/receipts/partner-003',
+        recipientName: 'Clinic Reception',
+        note: 'PARTNER-003 delivery accepted by clinic',
+      },
     });
     expect(delivered.status()).toBe(200);
-    expect((await delivered.json()).data.status).toBe('delivered');
+    const deliveryBody = (await delivered.json()).data;
+    expect(deliveryBody.order.status).toBe('delivered');
+    expect(deliveryBody.shipment).toMatchObject({
+      status: 'delivered',
+      recipientName: 'Clinic Reception',
+      proofUrl: 'https://proof.example/receipts/partner-003',
+    });
+
+    const repeatedDelivery = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/shipment/delivery-confirmation`, {
+      headers: auth(dentalLabOwnerToken),
+      data: {
+        proofUrl: 'https://proof.example/receipts/partner-003',
+        recipientName: 'Clinic Reception',
+        note: 'PARTNER-003 delivery accepted by clinic',
+      },
+    });
+    expect(repeatedDelivery.status()).toBe(200);
+    expect((await repeatedDelivery.json()).data.idempotent).toBe(true);
+
+    const invoiceBeforeAcceptance = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/invoice`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { notes: 'Must wait for clinic sign-off.' },
+    });
+    expect(invoiceBeforeAcceptance.status()).toBe(409);
+    expect((await invoiceBeforeAcceptance.json()).code).toBe('LAB_CLINIC_ACCEPTANCE_REQUIRED');
+
+    const paymentBeforeAcceptance = await api.post(`${BASE}/api/payments`, {
+      headers: { ...auth(ownerToken), 'Idempotency-Key': `partner-003-unaccepted-${order.id}` },
+      data: {
+        amountMinor: '5200000',
+        invoiceId: 'not-issued-before-acceptance',
+        domain: 'dental_lab',
+        refType: 'dental_lab_order',
+        refId: order.id,
+        meta: { title: 'Коронка из диоксида циркония' },
+      },
+    });
+    expect(paymentBeforeAcceptance.status()).toBe(409);
+    expect((await paymentBeforeAcceptance.json()).code).toBe('DENTAL_LAB_CLINIC_ACCEPTANCE_REQUIRED');
+
+    const clinicAcceptance = await api.post(`${BASE}/api/lab-orders/${order.id}/acceptance`, {
+      headers: auth(ownerToken),
+      data: { note: 'Fit, margins, shade and occlusion accepted by the clinic.' },
+    });
+    expect(clinicAcceptance.status()).toBe(200);
+    expect((await clinicAcceptance.json()).data.clinicAcceptance).toMatchObject({
+      status: 'accepted',
+      shipmentId: deliveryBody.shipment.id,
+      note: 'Fit, margins, shade and occlusion accepted by the clinic.',
+    });
+
+    const issuedInvoice = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/invoice`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { notes: 'Issued after clinic acceptance.' },
+    });
+    expect(issuedInvoice.status()).toBe(201);
+    const issuedInvoiceData = (await issuedInvoice.json()).data;
+    expect(issuedInvoiceData).toMatchObject({ status: 'issued', labOrderId: order.id, amountMinor: '5200000' });
+
+    const issuedInvoiceRetry = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/invoice`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { notes: 'Idempotent retry.' },
+    });
+    expect(issuedInvoiceRetry.status()).toBe(200);
+    expect((await issuedInvoiceRetry.json()).data.id).toBe(issuedInvoiceData.id);
+    expect((await issuedInvoiceRetry.json()).idempotent).toBe(true);
 
     // Delivery confirms operational completion, not a commercial settlement.
     // Allow the in-process event queue to drain, then assert there is no partner
@@ -845,6 +2223,73 @@ test.describe('Partner operational lifecycle', () => {
     });
     expect(deliveryEconomics, 'delivered dental-lab orders must not create economics before settlement').toHaveLength(0);
 
+    const labFinance = await api.get(`${BASE}/api/lab-orders/platform/finance`, { headers: auth(dentalLabOwnerToken) });
+    expect(labFinance.status()).toBe(200);
+    const labFinanceData = (await labFinance.json()).data;
+    expect(labFinanceData.wallet).toMatchObject({ ownerType: 'PARTNER', ownerId: fixtureDentalLabId, balance: '0' });
+    expect(labFinanceData.availableBalanceMinor).toBe('0');
+    expect(labFinanceData.economics.totals.operations).toBe(0);
+
+    const technicianCannotReadLabFinance = await api.get(`${BASE}/api/lab-orders/platform/finance`, { headers: auth(dentalTechnicianToken) });
+    expect(technicianCannotReadLabFinance.status()).toBe(403);
+    const clinicCannotReadLabFinance = await api.get(`${BASE}/api/lab-orders/platform/finance`, { headers: auth(ownerToken) });
+    expect(clinicCannotReadLabFinance.status()).toBe(403);
+
+    const insufficientPartnerPayout = await api.post(`${BASE}/api/lab-orders/platform/payouts`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { amount: '1.00' },
+    });
+    expect(insufficientPartnerPayout.status()).toBe(409);
+    expect((await insufficientPartnerPayout.json()).code).toBe('INSUFFICIENT_FUNDS');
+
+    const paymentCreated = await api.post(`${BASE}/api/payments`, {
+      headers: { ...auth(ownerToken), 'Idempotency-Key': `partner-003-accepted-invoice-${issuedInvoiceData.id}` },
+      data: {
+        amountMinor: issuedInvoiceData.amountMinor,
+        invoiceId: issuedInvoiceData.id,
+        domain: 'dental_lab',
+        refType: 'dental_lab_order',
+        refId: order.id,
+        meta: { title: 'Коронка из диоксида циркония' },
+      },
+    });
+    const paymentCreatedBody = await paymentCreated.json();
+    expect(paymentCreated.status(), JSON.stringify(paymentCreatedBody)).toBe(201);
+    expect(paymentCreatedBody.data.status).toBe('pending');
+
+    const paymentConfirmation = await api.post(`${BASE}/api/payments/${paymentCreatedBody.data.id}/confirm`, {
+      headers: auth(ownerToken),
+    });
+    const paymentConfirmationBody = await paymentConfirmation.json();
+    expect(paymentConfirmation.status(), JSON.stringify(paymentConfirmationBody)).toBe(200);
+    expect(paymentConfirmationBody.data.status).toBe('paid');
+
+    const paidInvoice = await prisma.dentalLabInvoice.findUnique({ where: { id: issuedInvoiceData.id } });
+    expect(paidInvoice).toMatchObject({ status: 'paid', paymentId: paymentCreatedBody.data.id });
+
+    await expect.poll(
+      () => prisma.transaction.count({ where: { type: 'partner_economics', refType: 'DENTAL_LAB', refId: order.id } }),
+      { timeout: 10_000, interval: 250 },
+    ).toBe(1);
+    const settledEconomics = await prisma.transaction.findFirst({
+      where: { type: 'partner_economics', refType: 'DENTAL_LAB', refId: order.id },
+    });
+    expect(settledEconomics?.amount).toBe(5_200_000n);
+    const economicsMeta = (settledEconomics?.meta || {}) as Record<string, unknown>;
+    const commissionMinor = BigInt(String(economicsMeta.commissionMinor || '0'));
+    const partnerRevenueMinor = BigInt(String(economicsMeta.partnerRevenueMinor || '0'));
+    expect(commissionMinor).toBeGreaterThan(0n);
+    expect(commissionMinor + partnerRevenueMinor).toBe(5_200_000n);
+
+    // Delivery and acceptance alone never create partner economics. The only
+    // operation above is the confirmed payment settlement.
+    const settledEconomicsRows = await prisma.transaction.findMany({
+      where: { type: 'partner_economics', refType: 'DENTAL_LAB', refId: order.id },
+      include: { ledgerEntries: true },
+    });
+    expect(settledEconomicsRows).toHaveLength(1);
+    expect(settledEconomicsRows[0].ledgerEntries.reduce((sum: bigint, entry: any) => sum + entry.amount, 0n)).toBe(10_400_000n);
+
     const lifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/lifecycle`, {
       headers: auth(dentalLabOwnerToken),
     });
@@ -853,6 +2298,9 @@ test.describe('Partner operational lifecycle', () => {
     expect(lifecycleData.events.length).toBeGreaterThanOrEqual(8);
     expect(lifecycleData.events[0].fromStatus).toBeNull();
     expect(lifecycleData.events[0].note).toContain('Передан в лабораторию');
+    expect(lifecycleData.order.shipment).toMatchObject({ status: 'delivered', method: 'COURIER' });
+    expect(lifecycleData.shipmentEvents).toHaveLength(2);
+    expect(lifecycleData.shipmentEvents.map((event: any) => event.eventType)).toEqual(['DISPATCHED', 'DELIVERED']);
 
     const clinicRead = await api.get(`${BASE}/api/lab-orders`, { headers: auth(ownerToken) });
     expect(clinicRead.status()).toBe(200);
@@ -865,6 +2313,156 @@ test.describe('Partner operational lifecycle', () => {
       headers: auth(labOwnerToken),
     });
     expect(otherLabRead.status()).toBe(404);
+
+    for (const status of ['sent', 'in_progress', 'qc']) {
+      const step = await api.patch(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/status`, {
+        headers: auth(dentalLabOwnerToken),
+        data: { status, note: `PARTNER-003 pickup preparation ${status}` },
+      });
+      expect(step.status()).toBe(200);
+    }
+    const pickupQc = await api.patch(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/qc`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { checks: { fit: true, margins: true, shade: true, occlusion: true, surface: true, documentation: true }, note: 'PARTNER-003 pickup QC approved' },
+    });
+    expect(pickupQc.status()).toBe(200);
+
+    const pickup = await api.post(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/shipment`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { method: 'PICKUP', note: 'PARTNER-003 ready for clinic pickup' },
+    });
+    expect(pickup.status()).toBe(201);
+    expect((await pickup.json()).data.shipment).toMatchObject({ method: 'PICKUP', status: 'ready_for_pickup', carrier: null, trackingNumber: null });
+
+    const pickupDelivery = await api.post(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/shipment/delivery-confirmation`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { proofUrl: 'https://proof.example/receipts/partner-003-pickup', recipientName: 'Clinic Courier', note: 'PARTNER-003 pickup handed to clinic courier' },
+    });
+    expect(pickupDelivery.status()).toBe(200);
+    const pickupDeliveryBody = (await pickupDelivery.json()).data;
+    expect(pickupDeliveryBody.order.status).toBe('delivered');
+
+    const firstClinicAcceptance = await api.post(`${BASE}/api/lab-orders/${unrelatedOrder.id}/acceptance`, {
+      headers: auth(ownerToken),
+      data: { note: 'Первичная примерка подтверждена; требуется уточнить оттенок.' },
+    });
+    expect(firstClinicAcceptance.status()).toBe(200);
+    const firstAcceptanceBody = (await firstClinicAcceptance.json()).data;
+    expect(firstAcceptanceBody.clinicAcceptance).toMatchObject({
+      status: 'accepted',
+      shipmentId: pickupDeliveryBody.shipment.id,
+      note: 'Первичная примерка подтверждена; требуется уточнить оттенок.',
+    });
+    const firstClinicAcceptanceRetry = await api.post(`${BASE}/api/lab-orders/${unrelatedOrder.id}/acceptance`, {
+      headers: auth(ownerToken),
+      data: { note: 'Повторная отправка запроса не должна создать второе событие.' },
+    });
+    expect(firstClinicAcceptanceRetry.status()).toBe(200);
+    expect((await firstClinicAcceptanceRetry.json()).data.idempotent).toBe(true);
+
+    const pickupLifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/lifecycle`, { headers: auth(dentalLabOwnerToken) });
+    expect(pickupLifecycle.status()).toBe(200);
+    expect((await pickupLifecycle.json()).data.order.clinicAcceptance).toMatchObject({
+      status: 'accepted',
+      shipmentId: pickupDeliveryBody.shipment.id,
+      note: 'Первичная примерка подтверждена; требуется уточнить оттенок.',
+    });
+    expect(pickupLifecycle.status()).toBe(200);
+    expect((await pickupLifecycle.json()).data.shipmentEvents.map((event: any) => event.eventType)).toEqual(['READY_FOR_PICKUP', 'DELIVERED']);
+
+    const remakeRequest = await api.post(`${BASE}/api/lab-orders/${unrelatedOrder.id}/remake-request`, {
+      headers: auth(ownerToken),
+      data: { reason: 'Clinic requested correction after fitting review.' },
+    });
+    expect(remakeRequest.status()).toBe(201);
+    const remakeRequestBody = (await remakeRequest.json()).data;
+    expect(remakeRequestBody.remakeRequest.status).toBe('requested');
+    expect(remakeRequestBody.clinicAcceptance).toBeNull();
+    expect(remakeRequestBody.clinicAcceptanceHistory).toHaveLength(1);
+    expect(remakeRequestBody.clinicAcceptanceHistory[0]).toMatchObject({
+      shipmentId: pickupDeliveryBody.shipment.id,
+      note: 'Первичная примерка подтверждена; требуется уточнить оттенок.',
+    });
+
+    const acceptedRemake = await api.patch(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/remake-request`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { decision: 'accept', note: 'Remake accepted under laboratory quality review.' },
+    });
+    expect(acceptedRemake.status()).toBe(200);
+    expect((await acceptedRemake.json()).data.status).toBe('remake');
+
+    const remakeStarted = await api.patch(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/status`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { status: 'in_progress', note: 'Remake production started.' },
+    });
+    expect(remakeStarted.status()).toBe(200);
+    const remakeAtQc = await api.patch(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/status`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { status: 'qc', note: 'Remake completed and submitted to QC.' },
+    });
+    expect(remakeAtQc.status()).toBe(200);
+    const remakeQc = await api.patch(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/qc`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { checks: { fit: true, margins: true, shade: true, occlusion: true, surface: true, documentation: true }, note: 'Remake passed final QC.' },
+    });
+    expect(remakeQc.status()).toBe(200);
+    expect((await remakeQc.json()).data.status).toBe('ready');
+
+    const remakePickup = await api.post(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/shipment`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { method: 'PICKUP', note: 'Corrected case is ready for the second pickup.' },
+    });
+    expect(remakePickup.status()).toBe(201);
+    expect((await remakePickup.json()).data.shipment.status).toBe('ready_for_pickup');
+
+    const remakeDelivery = await api.post(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/shipment/delivery-confirmation`, {
+      headers: auth(dentalLabOwnerToken),
+      data: {
+        proofUrl: 'https://proof.example/receipts/partner-003-remake',
+        recipientName: 'Clinic Reception',
+        note: 'Corrected case received by clinic.',
+      },
+    });
+    expect(remakeDelivery.status()).toBe(200);
+    const remakeDeliveryBody = (await remakeDelivery.json()).data;
+    expect(remakeDeliveryBody.order.status).toBe('delivered');
+
+    const finalClinicAcceptance = await api.post(`${BASE}/api/lab-orders/${unrelatedOrder.id}/acceptance`, {
+      headers: auth(ownerToken),
+      data: { note: 'После переделки посадка, окклюзия и оттенок приняты врачом.' },
+    });
+    expect(finalClinicAcceptance.status()).toBe(200);
+    const finalAcceptanceBody = (await finalClinicAcceptance.json()).data;
+    expect(finalAcceptanceBody.clinicAcceptance).toMatchObject({
+      status: 'accepted',
+      shipmentId: remakeDeliveryBody.shipment.id,
+      note: 'После переделки посадка, окклюзия и оттенок приняты врачом.',
+    });
+    const finalAcceptanceRetry = await api.post(`${BASE}/api/lab-orders/${unrelatedOrder.id}/acceptance`, {
+      headers: auth(ownerToken),
+      data: { note: 'Idempotent retry after final remake acceptance.' },
+    });
+    expect(finalAcceptanceRetry.status()).toBe(200);
+    expect((await finalAcceptanceRetry.json()).data.idempotent).toBe(true);
+
+    const remakeLifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/lifecycle`, { headers: auth(dentalLabOwnerToken) });
+    expect(remakeLifecycle.status()).toBe(200);
+    const remakeHistory = (await remakeLifecycle.json()).data;
+    expect(remakeHistory.order.clinicAcceptance).toMatchObject({
+      status: 'accepted',
+      shipmentId: remakeDeliveryBody.shipment.id,
+      note: 'После переделки посадка, окклюзия и оттенок приняты врачом.',
+    });
+    expect(remakeHistory.order.clinicAcceptanceHistory).toHaveLength(1);
+    expect(remakeHistory.order.clinicAcceptanceHistory[0]).toMatchObject({
+      shipmentId: pickupDeliveryBody.shipment.id,
+      note: 'Первичная примерка подтверждена; требуется уточнить оттенок.',
+    });
+    expect(remakeHistory.events.some((event: any) => event.note === 'Клиника подтвердила приём доставленной работы.')).toBe(true);
+    expect(remakeHistory.shipments).toHaveLength(2);
+    expect(remakeHistory.shipmentEvents.map((event: any) => event.eventType)).toEqual([
+      'READY_FOR_PICKUP', 'DELIVERED', 'READY_FOR_PICKUP', 'DELIVERED',
+    ]);
   });
 
 });

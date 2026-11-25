@@ -39,7 +39,11 @@ describe('referralVertical', () => {
 describe('calculateReferralCommissionMinor', () => {
   it('uses the canonical 7% diagnostic rule with its minimum', () => {
     expect(calculateReferralCommissionMinor(PARTNER_VERTICALS.DIAGNOSTIC_3D, 1_000_000n, diagnosticsRule)).toBe(70_000n);
-    expect(calculateReferralCommissionMinor(PARTNER_VERTICALS.DIAGNOSTIC_3D, 1_000n, diagnosticsRule)).toBe(50_000n);
+    expect(calculateReferralCommissionMinor(PARTNER_VERTICALS.DIAGNOSTIC_3D, 100_000n, diagnosticsRule)).toBe(50_000n);
+  });
+
+  it('caps a configured minimum at the actual gross for a tiny referral', () => {
+    expect(calculateReferralCommissionMinor(PARTNER_VERTICALS.DIAGNOSTIC_3D, 1_000n, diagnosticsRule)).toBe(1_000n);
   });
 
   it('uses the canonical 6% medical-analysis rule with its cap', () => {

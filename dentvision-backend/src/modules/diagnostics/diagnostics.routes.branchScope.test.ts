@@ -54,7 +54,8 @@ describe('diagnostics dashboard branch scope', () => {
     expect(dashboard).toContain('const requestedScope = { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }');
     expect(dashboard).toContain('authorizeReferralListScope(req.user, requestedScope)');
     expect(dashboard).toContain('referralListBranchIds(req.user, requestedScope.clinicId)');
-    expect(dashboard).toContain('branchIds.length === 0');
-    expect(dashboard).toContain('svc.getDashboardStats({ ...requestedScope, branchIds })');
+    expect(dashboard).toContain('branchIds !== undefined && branchIds.length === 0');
+    expect(dashboard).toContain('svc.getDashboardStats({');
+    expect(dashboard).toContain('...(branchIds !== undefined ? { branchIds } : {})');
   });
 });

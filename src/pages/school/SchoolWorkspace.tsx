@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GraduationCap, BookOpen, Wallet, BarChart3, Plus, Trash2, Users, Award, Building2, Camera, ImageIcon, Radio, BookMarked } from 'lucide-react';
 import * as api from '@/utils/api';
+import { useAuth } from '@/store/auth.store';
+import { beginWorkspaceRequest, isWorkspaceRequestCurrent, selectWorkspaceContext } from '@/lib/workspaceContext';
 import { useToast } from '@/components/ui/ds/Toast';
 import { Button } from '@/components/ui/ds/Button';
 import { Input, Select } from '@/components/ui/ds/Input';
@@ -15,7 +17,7 @@ import { PageHeader } from '@/components/ui/ds/StatCard';
 import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload';
 import { LECTURER_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits';
 
-interface LecturerCtx { scopeId: string; level?: string; academy?: { id: string; name: string } | null }
+interface LecturerCtx { scopeId: string; organizationId?: string; name?: string; roleLabel?: string; level?: string; academy?: { id: string; name: string } | null }
 
 type OfferFormat = 'course' | 'webinar' | 'textbook' | 'office'
 
@@ -62,9 +64,11 @@ function fmtMoney(minor: string | number | undefined): string {
 export default function SchoolWorkspace() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { activeWorkspace } = useAuth();
   const [loading, setLoading] = useState(true);
   const [contexts, setContexts] = useState<LecturerCtx[]>([]);
   const [token, setToken] = useState<string | null>(null);
+  const [contextSwitching, setContextSwitching] = useState(false);
   const [tab, setTab] = useState<'courses' | 'analytics' | 'profile'>('courses');
 
   const [me, setMe] = useState<any>(null);
@@ -72,6 +76,9 @@ export default function SchoolWorkspace() {
   const [analytics, setAnalytics] = useState<any>(null);
 
   const [addOpen, setAddOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [publicationUpdatingId, setPublicationUpdatingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [listFilter, setListFilter] = useState<'all' | OfferFormat>('all');
   const [saving, setSaving] = useState(false);
@@ -79,13 +86,32 @@ export default function SchoolWorkspace() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [bio, setBio] = useState('');
   const [registering, setRegistering] = useState(false);
+  const requestGenerationRef = useRef(0);
 
-  const loadAll = useCallback(async (t: string) => {
+  const clearWorkspaceData = useCallback(() => {
+    setToken(null);
+    setMe(null);
+    setBio('');
+    setCourses([]);
+    setAnalytics(null);
+    setAddOpen(false);
+    setDeleteTarget(null);
+    setDeleting(false);
+    setPublicationUpdatingId(null);
+    setForm({ ...EMPTY_FORM });
+    setListFilter('all');
+    setTab('courses');
+    setSaving(false);
+    setPhotoUploading(false);
+  }, []);
+
+  const loadAll = useCallback(async (t: string, generation: number) => {
     const [meRes, cRes, aRes] = await Promise.all([
       api.lecturerWs.me(t).catch(() => null),
       api.lecturerWs.courses(t).catch(() => []),
       api.lecturerWs.analytics(t).catch(() => null),
     ]);
+    if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
     setMe(meRes);
     setBio(meRes?.bio || '');
     setCourses(Array.isArray(cRes) ? cRes : []);
@@ -93,28 +119,71 @@ export default function SchoolWorkspace() {
   }, []);
 
   const enter = useCallback(async (scopeId: string) => {
+    const generation = beginWorkspaceRequest(requestGenerationRef);
+    setLoading(true);
+    setContextSwitching(true);
+    clearWorkspaceData();
     try {
       const res = await api.switchContext('LECTURER', scopeId);
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
       setToken(res.accessToken);
-      await loadAll(res.accessToken);
+      await loadAll(res.accessToken, generation);
     } catch {
-      toast.error('Не удалось войти в кабинет лектора');
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        setToken(null);
+        toast.error('Не удалось войти в выбранную организацию лектора');
+      }
+    } finally {
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        setContextSwitching(false);
+        setLoading(false);
+      }
     }
-  }, [loadAll, toast]);
+  }, [clearWorkspaceData, loadAll, toast]);
 
   useEffect(() => {
+    const generation = beginWorkspaceRequest(requestGenerationRef);
     (async () => {
       try {
         const res = await api.getMyContexts();
-        const lec = (res.contexts || []).filter((c: any) => c.scopeType === 'LECTURER');
+        if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
+        const lec = (res.contexts || []).filter((c: any) => c.scopeType === 'LECTURER') as LecturerCtx[];
         setContexts(lec);
-        if (lec.length > 0) await enter(lec[0].scopeId);
+        const preferred = selectWorkspaceContext(lec, {
+          scopeId: activeWorkspace?.scopeType === 'LECTURER' ? activeWorkspace.scopeId : null,
+          organizationId: activeWorkspace?.scopeType === 'LECTURER' ? activeWorkspace.organizationId : null,
+        });
+        if (preferred) {
+          void enter(preferred.scopeId);
+          return;
+        }
       } catch { /* ignore */ } finally {
-        setLoading(false);
+        if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) setLoading(false);
       }
     })();
+    return () => {
+      beginWorkspaceRequest(requestGenerationRef);
+    };
     // mount-only — enter() is scoped to the initial contexts; re-calling on deps change is not desired
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const handleWorkspaceSwitch = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string; scopeId?: string; scopeType?: string }>).detail;
+      if (detail?.scopeType !== 'LECTURER') {
+        beginWorkspaceRequest(requestGenerationRef);
+        clearWorkspaceData();
+        setContextSwitching(false);
+        setLoading(false);
+        return;
+      }
+      const prefix = 'LECTURER:';
+      const scopeId = detail.scopeId || (String(detail.id || '').startsWith(prefix) ? String(detail.id).slice(prefix.length) : '');
+      if (scopeId) void enter(scopeId);
+    };
+    window.addEventListener('dentvision:workspace-switched', handleWorkspaceSwitch);
+    return () => window.removeEventListener('dentvision:workspace-switched', handleWorkspaceSwitch);
+  }, [clearWorkspaceData, enter]);
 
   const becomeLecturer = async () => {
     setRegistering(true);
@@ -133,15 +202,19 @@ export default function SchoolWorkspace() {
   };
 
   const handlePhotoFile = async (file: File | null) => {
+    const generation = requestGenerationRef.current;
     try {
       setPhotoUploading(true);
       const dataUrl = await readImageAsDataUrl(file);
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
       setForm((f) => ({ ...f, imageUrl: dataUrl }));
       toast.success('Фото загружено');
     } catch (e: any) {
-      toast.error(e?.message || 'Не удалось загрузить фото');
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        toast.error(e?.message || 'Не удалось загрузить фото');
+      }
     } finally {
-      setPhotoUploading(false);
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) setPhotoUploading(false);
     }
   };
 
@@ -156,9 +229,11 @@ export default function SchoolWorkspace() {
       toast.error('Укажите ссылку на файл учебника');
       return;
     }
+    const generation = requestGenerationRef.current;
+    const actionToken = token;
     setSaving(true);
     try {
-      await api.lecturerWs.createCourse(token, {
+      await api.lecturerWs.createCourse(actionToken, {
         format: form.format,
         title: form.title.trim(),
         price: form.price ? Number(form.price) : undefined,
@@ -172,54 +247,125 @@ export default function SchoolWorkspace() {
         pages: form.pages ? Number(form.pages) : undefined,
         venue: form.venue || undefined,
       });
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
       toast.success(`${FORMAT_LABEL[form.format] || 'Продукт'} создан`);
       setAddOpen(false);
       setForm({ ...EMPTY_FORM });
-      await loadAll(token);
+      await loadAll(actionToken, generation);
     } catch (e: any) {
-      toast.error(e?.message || 'Ошибка при создании');
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        toast.error(e?.message || 'Ошибка при создании');
+      }
     } finally {
-      setSaving(false);
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) setSaving(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!token) return;
+  const handleDelete = async () => {
+    if (!token || !deleteTarget || deleting) return;
+    const generation = requestGenerationRef.current;
+    const actionToken = token;
+    setDeleting(true);
     try {
-      await api.lecturerWs.deleteCourse(token, id);
-      toast.success('Удалено');
-      await loadAll(token);
+      await api.lecturerWs.deleteCourse(actionToken, deleteTarget.id);
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
+      toast.success('Продукт Academy OS удалён');
+      setDeleteTarget(null);
+      await loadAll(actionToken, generation);
     } catch (e: any) {
-      toast.error(e?.message || 'Ошибка при удалении');
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        toast.error(e?.message || 'Не удалось удалить продукт');
+      }
+    } finally {
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) setDeleting(false);
+    }
+  };
+
+  const togglePublication = async (course: any) => {
+    if (!token || publicationUpdatingId) return;
+    const publicationStatus = course.publicationStatus === 'archived' ? 'published' : 'archived';
+    const generation = requestGenerationRef.current;
+    const actionToken = token;
+    setPublicationUpdatingId(course.id);
+    try {
+      await api.lecturerWs.updateCourse(actionToken, course.id, { publicationStatus });
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
+      toast.success(publicationStatus === 'archived' ? 'Продукт убран из публичного каталога. Доступ учащихся сохранён.' : 'Продукт снова опубликован в каталоге.');
+      await loadAll(actionToken, generation);
+    } catch (e: any) {
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        toast.error(e?.message || 'Не удалось изменить публикацию продукта');
+      }
+    } finally {
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) setPublicationUpdatingId(null);
     }
   };
 
   const saveBio = async () => {
     if (!token) return;
+    const generation = requestGenerationRef.current;
+    const actionToken = token;
     try {
-      await api.lecturerWs.updateMe(token, { bio });
+      await api.lecturerWs.updateMe(actionToken, { bio });
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
       toast.success('Профиль сохранён');
-      await loadAll(token);
+      await loadAll(actionToken, generation);
     } catch (e: any) {
-      toast.error(e?.message || 'Ошибка при сохранении');
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        toast.error(e?.message || 'Ошибка при сохранении');
+      }
     }
   };
 
   const handlePayout = async () => {
     if (!token) return;
+    const generation = requestGenerationRef.current;
+    const actionToken = token;
     const balance = Number(analytics?.balanceMinor || 0);
     if (balance <= 0) { toast.error('Нет средств для вывода'); return; }
     try {
-      await api.lecturerWs.requestPayout(token, { amountMinor: String(balance) });
+      await api.lecturerWs.requestPayout(actionToken, { amountMinor: String(balance) });
+      if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
       toast.success('Заявка на выплату создана');
-      await loadAll(token);
+      await loadAll(actionToken, generation);
     } catch (e: any) {
-      toast.error(e?.message || 'Ошибка при запросе выплаты');
+      if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
+        toast.error(e?.message || 'Ошибка при запросе выплаты');
+      }
     }
   };
 
   if (loading) {
     return <ListSkeleton count={6} />;
+  }
+
+  if (contexts.length > 0 && !token) {
+    return (
+      <div className="mx-auto max-w-[900px] space-y-4 overflow-x-hidden p-4 sm:p-6">
+        <PageHeader
+          title="Выберите академию или профиль лектора"
+          subtitle="У вас несколько доступных рабочих пространств. Выберите, от имени какой организации продолжить."
+          icon={<GraduationCap size={22} />}
+        />
+        <div className="grid gap-3">
+          {contexts.map((context) => (
+            <Card key={context.scopeId}>
+              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-txt-primary">
+                    {context.name || context.academy?.name || 'Профиль лектора'}
+                  </p>
+                  <p className="mt-1 text-xs text-txt-muted">{context.roleLabel || context.level || 'Лектор'}</p>
+                </div>
+                <Button className="min-h-11" disabled={contextSwitching} onClick={() => void enter(context.scopeId)}>
+                  {contextSwitching ? 'Открываем…' : 'Открыть кабинет'}
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (contexts.length === 0) {
@@ -328,6 +474,11 @@ export default function SchoolWorkspace() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {filteredProducts.map((c, i) => {
                 const fmt = String(c.format || 'course');
+                const isArchived = c.publicationStatus === 'archived';
+                const hasLearningHistory =
+                  Number(c._count?.enrollments || 0)
+                  + Number(c._count?.assessmentAttempts || 0)
+                  + Number(c._count?.certificates || 0) > 0;
                 return (
                   <motion.div key={c.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
                     <Card>
@@ -348,20 +499,45 @@ export default function SchoolWorkspace() {
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <Badge variant="gold" size="xs">{FORMAT_LABEL[fmt] || fmt}</Badge>
+                                {isArchived && <Badge variant="default" size="xs">В архиве</Badge>}
                                 {c.category && <span className="text-[10px] text-txt-muted">{c.category}</span>}
                               </div>
                               <p className="text-sm font-bold text-txt-primary truncate mt-1">{c.title}</p>
                               <p className="text-xs text-txt-muted mt-0.5">
-                                {c._count?.enrollments ?? 0} покупок
+                                {c._count?.enrollments ?? 0} зачислений
                                 {fmt === 'course' ? ` · ${c._count?.lessons ?? 0} уроков` : ''}
                                 {c.startsAt ? ` · ${String(c.startsAt).slice(0, 16).replace('T', ' ')}` : ''}
                               </p>
                               <p className="text-sm text-dv-gold font-semibold mt-1.5">{c.price ? Number(c.price).toLocaleString('ru-RU') + ' ₸' : 'Бесплатно'}</p>
+                              {hasLearningHistory && (
+                                <p className="text-xs text-txt-muted mt-2">
+                                  Учебная история сохранена — удаление заблокировано
+                                </p>
+                              )}
                             </div>
                           </div>
-                          <button onClick={() => handleDelete(c.id)} className="p-1.5 rounded-lg text-error hover:bg-error/10 transition-colors shrink-0 min-h-11 min-w-11 inline-flex items-center justify-center" aria-label="Удалить">
+                          <button
+                            type="button"
+                            disabled={hasLearningHistory}
+                            onClick={() => setDeleteTarget({ id: c.id, title: c.title })}
+                            className="p-1.5 rounded-lg text-error hover:bg-error/10 transition-colors shrink-0 min-h-11 min-w-11 inline-flex items-center justify-center disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
+                            aria-label={hasLearningHistory ? 'Удаление заблокировано: есть учебная история' : 'Удалить продукт'}
+                            title={hasLearningHistory ? 'Есть история обучения' : 'Удалить продукт'}
+                          >
                             <Trash2 size={15} />
                           </button>
+                        </div>
+                        <div className="mt-3 flex justify-end">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="min-h-11"
+                            disabled={publicationUpdatingId === c.id}
+                            loading={publicationUpdatingId === c.id}
+                            onClick={() => togglePublication(c)}
+                          >
+                            {isArchived ? 'Вернуть в каталог' : 'Убрать в архив'}
+                          </Button>
                         </div>
                       </CardContent>
                     </Card>
@@ -506,6 +682,27 @@ export default function SchoolWorkspace() {
             <Button variant="ghost" className="min-h-11" onClick={() => setAddOpen(false)}>Отмена</Button>
             <Button variant="primary" className="min-h-11" loading={saving} onClick={handleAdd} icon={<Plus size={15} />}>
               Создать {FORMAT_LABEL[form.format]?.toLowerCase() || 'продукт'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(deleteTarget)}
+        onClose={() => { if (!deleting) setDeleteTarget(null); }}
+        title="Подтвердите удаление"
+        className="w-full max-w-full sm:max-w-md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-txt-primary">
+            Удалить «{deleteTarget?.title || 'продукт'}»? Будут удалены сам продукт и его материалы. Продолжить можно только если у продукта нет зачислений, результатов оценивания и сертификатов.
+          </p>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">
+            <Button variant="ghost" className="min-h-11" disabled={deleting} onClick={() => setDeleteTarget(null)}>
+              Отмена
+            </Button>
+            <Button variant="primary" className="min-h-11" loading={deleting} onClick={handleDelete}>
+              Удалить продукт
             </Button>
           </div>
         </div>

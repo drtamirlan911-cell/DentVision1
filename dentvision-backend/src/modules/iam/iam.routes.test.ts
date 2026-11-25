@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const { userFindUnique, organizationFindFirst, personFindFirst, clinicMemberFindUnique, diagnosticCenterMemberFindFirst, laboratoryMemberFindFirst, clinicSubscriptionAccess } = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
@@ -188,5 +190,31 @@ describe('organization role scope policy', () => {
       { id: 'org-archived', type: 'CLINIC', originalId: 'clinic-archived', archivedAt: new Date('2026-10-01T00:00:00.000Z') },
     );
     expect(result).toBe(false);
+  });
+});
+
+
+describe('IAM partner context archive and legacy branch protection', () => {
+  const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/iam/iam.routes.ts'), 'utf8');
+
+  it('accepts canonical and legacy clinic branch mappings without allowing archived branches', () => {
+    expect(source).toContain('branchMatchesOrganization(');
+    expect(source).toContain('clinic_id: string | null');
+    expect(source).toContain("code: 'BRANCH_ARCHIVED'");
+    expect(source).toContain('if (!rows[0].active)');
+  });
+
+  it('validates an active canonical BranchMember or an exact legacy ClinicMember assignment', () => {
+    expect(source).toContain('branch: { is: { active: true } }');
+    expect(source).toContain('await prisma.clinicMember.findFirst({');
+    expect(source).toContain('clinicId: org.originalId, branchId');
+    expect(source).toContain('if (!orgManager && !assigned && !legacyAssigned)');
+  });
+
+  it('keeps partner role branch selection rules instead of granting every organization role a default branch', () => {
+    expect(source).toContain('hasAssignedPartnerRole');
+    expect(source).toContain('hasBranchPartnerRole');
+    expect(source).toContain('BRANCH_ASSIGNMENT_REQUIRED');
+    expect(source).toContain('BRANCH_SELECTION_REQUIRED');
   });
 });

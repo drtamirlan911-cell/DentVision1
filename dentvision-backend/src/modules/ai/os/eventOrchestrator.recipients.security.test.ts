@@ -134,6 +134,28 @@ describe('clinical AI notification recipient authorization', () => {
     expect(personFindMany).not.toHaveBeenCalled();
   });
 
+  it('never includes an assistant in the clinical doctor recipient set', async () => {
+    patientAssignmentFindMany.mockResolvedValue([{ userId: 'assistant-a' }]);
+    personFindMany.mockResolvedValue([]);
+    await expect(resolveRecipients(event(), result())).resolves.toEqual([]);
+    expect(personFindMany).toHaveBeenCalledWith({
+      where: {
+        organizationId: 'organization-a',
+        userId: { in: ['assistant-a'] },
+        personRoles: {
+          some: {
+            scopeType: 'organization',
+            scopeId: 'organization-a',
+            scopeKey: 'organization:organization-a',
+            role: { key: 'doctor' },
+          },
+        },
+      },
+      select: { userId: true },
+      take: 50,
+    });
+  });
+
   it('denies a doctor whose active branch does not contain the patient', async () => {
     resolvePatientBranchContext.mockResolvedValue({
       scope: { branchIds: ['branch-other'] },

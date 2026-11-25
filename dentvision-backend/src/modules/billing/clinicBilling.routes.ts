@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
@@ -41,7 +42,7 @@ clinicBillingRouter.post('/cron', async (req, res) => {
     const data = await runSubscriptionCron();
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (error) {
-    console.error('[clinic-billing/cron]', error);
+    console.error('[clinic-billing/cron]', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка cron' } satisfies ApiResponse);
   }
 });
@@ -62,7 +63,7 @@ clinicBillingRouter.get('/me', async (req: AuthRequest, res) => {
     try {
       snap = await getClinicBillingSnapshot(clinicId);
     } catch (e: any) {
-      console.warn('[clinic-billing/me] snapshot failed (table may be missing):', e?.message);
+      console.warn('[clinic-billing/me] snapshot failed (table may be missing):', safeErrorKind(e));
     }
     if (!snap) {
       // Return a safe default if billing tables are unavailable
@@ -71,7 +72,7 @@ clinicBillingRouter.get('/me', async (req: AuthRequest, res) => {
     return res.json({ ok: true, data: snap } satisfies ApiResponse);
   } catch (error: any) {
     const status = Number(error?.status) >= 400 && Number(error?.status) < 500 ? Number(error.status) : 500;
-    if (status === 500) console.error('[clinic-billing/me]', error);
+    if (status === 500) console.error('[clinic-billing/me]', safeErrorKind(error));
     return res.status(status).json({ ok: false, error: status < 500 && error instanceof Error ? error.message : 'Внутренняя ошибка сервера' } satisfies ApiResponse);
   }
 });
@@ -163,7 +164,7 @@ clinicBillingRouter.post('/checkout', async (req: AuthRequest, res) => {
     } satisfies ApiResponse);
   } catch (error: any) {
     const status = Number(error?.status) >= 400 && Number(error?.status) < 500 ? Number(error.status) : 500;
-    console.error('[clinic-billing/checkout]', error);
+    console.error('[clinic-billing/checkout]', safeErrorKind(error));
     return res.status(status).json({ ok: false, error: status < 500 && error instanceof Error ? error.message : 'Внутренняя ошибка сервера' } satisfies ApiResponse);
   }
 });
@@ -232,7 +233,7 @@ clinicBillingRouter.post('/confirm', async (req: AuthRequest, res) => {
     } satisfies ApiResponse);
   } catch (error: any) {
     const status = Number(error?.status) >= 400 && Number(error?.status) < 500 ? Number(error.status) : 500;
-    console.error('[clinic-billing/confirm]', error);
+    console.error('[clinic-billing/confirm]', safeErrorKind(error));
     return res.status(status).json({ ok: false, error: status < 500 && error instanceof Error ? error.message : 'Внутренняя ошибка сервера' } satisfies ApiResponse);
   }
 });
@@ -261,7 +262,7 @@ clinicBillingRouter.get('/payments/:id', async (req: AuthRequest, res) => {
     } satisfies ApiResponse);
   } catch (error: any) {
     const status = Number(error?.status) >= 400 && Number(error?.status) < 500 ? Number(error.status) : 500;
-    if (status === 500) console.error('[clinic-billing/payments]', error);
+    if (status === 500) console.error('[clinic-billing/payments]', safeErrorKind(error));
     return res.status(status).json({ ok: false, error: status < 500 && error instanceof Error ? error.message : 'Внутренняя ошибка сервера' } satisfies ApiResponse);
   }
 });

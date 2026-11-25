@@ -1,19 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { centerFindFirst, labFindFirst, invitationFindUnique, invitationUpdateMany, grantDiagnosticsAccess } =
-  vi.hoisted(() => ({
-    centerFindFirst: vi.fn(),
-    labFindFirst: vi.fn(),
-    invitationFindUnique: vi.fn(),
-    invitationUpdateMany: vi.fn(),
-    grantDiagnosticsAccess: vi.fn(),
-  }));
+const {
+  centerFindFirst, labFindFirst, invitationFindUnique, invitationUpdateMany,
+  organizationFindUnique, invitationCreate, grantDiagnosticsAccess,
+} = vi.hoisted(() => ({
+  centerFindFirst: vi.fn(),
+  labFindFirst: vi.fn(),
+  invitationFindUnique: vi.fn(),
+  invitationUpdateMany: vi.fn(),
+  organizationFindUnique: vi.fn(),
+  invitationCreate: vi.fn(),
+  grantDiagnosticsAccess: vi.fn(),
+}));
 
 vi.mock('../../lib/prisma.js', () => ({
   default: {
     diagnosticCenterMember: { findFirst: centerFindFirst },
     laboratoryMember: { findFirst: labFindFirst },
-    organizationInvitation: { findUnique: invitationFindUnique, updateMany: invitationUpdateMany },
+    organization: { findUnique: organizationFindUnique },
+    organizationInvitation: { findUnique: invitationFindUnique, updateMany: invitationUpdateMany, create: invitationCreate },
   },
 }));
 vi.mock('../diagnostics/diagnostics.service.js', () => ({ grantDiagnosticsAccess }));
@@ -24,6 +29,9 @@ import {
   generateInviteCode,
   normalizeDiagnosticInviteRole,
   normalizeEmployerInviteRole,
+  normalizeLaboratoryInviteRole,
+  laboratoryTypeFromSettings,
+  createInvitation,
   rejectInvitation,
 } from './invitations.service.js';
 
@@ -35,6 +43,8 @@ beforeEach(() => {
   labFindFirst.mockReset();
   invitationFindUnique.mockReset();
   invitationUpdateMany.mockReset();
+  organizationFindUnique.mockReset();
+  invitationCreate.mockReset();
   grantDiagnosticsAccess.mockReset();
   grantDiagnosticsAccess.mockResolvedValue(true);
   invitationUpdateMany.mockResolvedValue({ count: 1 });
@@ -114,6 +124,70 @@ describe('normalizeDiagnosticInviteRole', () => {
   });
 });
 
+describe('laboratory invite role families', () => {
+  it('reads the medical or dental vertical only from organization settings', () => {
+    expect(laboratoryTypeFromSettings({ laboratoryType: 'DENTAL_LAB' })).toBe('DENTAL_LAB');
+    expect(laboratoryTypeFromSettings({ laboratoryType: 'MEDICAL_LAB' })).toBe('MEDICAL_LAB');
+    expect(laboratoryTypeFromSettings({})).toBe('MEDICAL_LAB');
+    expect(laboratoryTypeFromSettings(null)).toBe('MEDICAL_LAB');
+  });
+
+  it('allows only medical laboratory roles and never owner or platform roles', () => {
+    for (const role of ['medical_lab_admin', 'medical_lab_manager', 'medical_lab_reception', 'medical_lab_technician', 'medical_lab_validator', 'medical_lab_doctor', 'medical_lab_finance', 'medical_lab_quality']) {
+      expect(normalizeLaboratoryInviteRole(role, 'MEDICAL_LAB')).toBe(role);
+    }
+    expect(normalizeLaboratoryInviteRole('medical_lab_owner', 'MEDICAL_LAB')).toBe('medical_lab_technician');
+    expect(normalizeLaboratoryInviteRole('SUPERADMIN', 'MEDICAL_LAB')).toBe('medical_lab_technician');
+    expect(normalizeLaboratoryInviteRole('lab_finance', 'MEDICAL_LAB')).toBe('medical_lab_technician');
+  });
+
+  it('allows only dental laboratory roles and never medical roles, owner or platform roles', () => {
+    for (const role of ['dental_lab_admin', 'dental_lab_manager', 'lab_coordinator', 'dental_technician', 'cad_designer', 'ceramist', 'orthodontic_technician', 'qc_specialist', 'lab_finance']) {
+      expect(normalizeLaboratoryInviteRole(role, 'DENTAL_LAB')).toBe(role);
+    }
+    expect(normalizeLaboratoryInviteRole('dental_lab_owner', 'DENTAL_LAB')).toBe('dental_technician');
+    expect(normalizeLaboratoryInviteRole('medical_lab_finance', 'DENTAL_LAB')).toBe('dental_technician');
+    expect(normalizeLaboratoryInviteRole('SUPERADMIN', 'DENTAL_LAB')).toBe('dental_technician');
+  });
+});
+
+describe('createInvitation — laboratory role family', () => {
+  it('normalizes a dental-lab invitation against the persisted dental vertical', async () => {
+    organizationFindUnique.mockResolvedValue({
+      id: 'org-dental', type: 'LABORATORY', archivedAt: null,
+      settings: { laboratoryType: 'DENTAL_LAB' },
+    });
+    invitationCreate.mockImplementation(async ({ data }: any) => data);
+
+    const result = await createInvitation({
+      organizationId: 'org-dental',
+      role: 'medical_lab_finance',
+      createdBy: 'owner-1',
+    });
+
+    expect(result.role).toBe('dental_technician');
+    expect(invitationCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ organizationId: 'org-dental', role: 'dental_technician' }),
+    }));
+  });
+
+  it('preserves a valid medical finance invitation for a medical laboratory', async () => {
+    organizationFindUnique.mockResolvedValue({
+      id: 'org-medical', type: 'LABORATORY', archivedAt: null,
+      settings: { laboratoryType: 'MEDICAL_LAB' },
+    });
+    invitationCreate.mockImplementation(async ({ data }: any) => data);
+
+    const result = await createInvitation({
+      organizationId: 'org-medical',
+      role: 'medical_lab_finance',
+      createdBy: 'owner-1',
+    });
+
+    expect(result.role).toBe('medical_lab_finance');
+  });
+});
+
 describe('normalizeEmployerInviteRole', () => {
   it('allows only recruiter and read-only employer roles', () => {
     expect(normalizeEmployerInviteRole('employer_recruiter')).toBe('employer_recruiter');
@@ -143,9 +217,8 @@ describe('canManageMembers', () => {
   });
 
   it('refuses an operator', async () => {
-    // Read from the legacy member row on purpose: `grantDiagnosticsAccess`
-    // leaves operators without a PersonRole, so the unified graph cannot tell
-    // an operator from an owner.
+    // Manager authority remains anchored to the legacy center-member role;
+    // having a canonical operational PersonRole must not grant invite powers.
     centerFindFirst.mockResolvedValue({ role: 'operator' });
     expect(await canManageMembers('u1', CENTER_ORG)).toBe(false);
   });
@@ -198,6 +271,55 @@ describe('acceptInvitation', () => {
       expect.objectContaining({ where: expect.objectContaining({ code: 'ABCD1234' }), data: expect.objectContaining({ usedBy: 'u1' }) }),
     );
     expect(result).toMatchObject({ entityId: 'center-1', organizationType: 'DIAGNOSTIC_CENTER', role: 'radiologist' });
+  });
+
+  it('grants a dental technician with the dental canonical role and dental legacy membership', async () => {
+    arrangeInvite({
+      role: 'dental_technician',
+      organization: {
+        id: 'org-dental', type: 'LABORATORY', originalId: 'dental-lab-1', name: 'Dental Lab',
+        settings: { laboratoryType: 'DENTAL_LAB' },
+      },
+    });
+    labFindFirst.mockResolvedValue(null);
+
+    const result = await acceptInvitation('ABCD1234', { id: 'dental-tech-1', email: 'tech@example.test' });
+
+    expect(grantDiagnosticsAccess).toHaveBeenCalledWith('Laboratory', 'dental-lab-1', 'dental-tech-1', 'dental_technician');
+    expect(result).toMatchObject({ organizationType: 'LABORATORY', entityId: 'dental-lab-1', role: 'dental_technician' });
+    expect(invitationUpdateMany).toHaveBeenCalledOnce();
+  });
+
+  it('refuses a role from the wrong laboratory vertical without granting or consuming the invitation', async () => {
+    arrangeInvite({
+      role: 'medical_lab_finance',
+      organization: {
+        id: 'org-dental', type: 'LABORATORY', originalId: 'dental-lab-1', name: 'Dental Lab',
+        settings: { laboratoryType: 'DENTAL_LAB' },
+      },
+    });
+    labFindFirst.mockResolvedValue(null);
+
+    await expect(acceptInvitation('ABCD1234', { id: 'dental-tech-2' }))
+      .rejects.toMatchObject({ status: 400 });
+    expect(grantDiagnosticsAccess).not.toHaveBeenCalled();
+    expect(invitationUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('grants the medical finance role only to a medical laboratory', async () => {
+    arrangeInvite({
+      role: 'medical_lab_finance',
+      organization: {
+        id: 'org-medical', type: 'LABORATORY', originalId: 'medical-lab-1', name: 'Medical Lab',
+        settings: { laboratoryType: 'MEDICAL_LAB' },
+      },
+    });
+    labFindFirst.mockResolvedValue(null);
+
+    const result = await acceptInvitation('ABCD1234', { id: 'medical-finance-1' });
+
+    expect(grantDiagnosticsAccess).toHaveBeenCalledWith('Laboratory', 'medical-lab-1', 'medical-finance-1', 'medical_lab_finance');
+    expect(result).toMatchObject({ organizationType: 'LABORATORY', entityId: 'medical-lab-1', role: 'medical_lab_finance' });
   });
 
   it('does not spend the code when the grant fails', async () => {

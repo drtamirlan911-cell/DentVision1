@@ -227,6 +227,9 @@ export default function JobsPage() {
         icon={<Briefcase size={20} />}
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button className="min-h-11" size="sm" variant="secondary" onClick={() => navigate('/career')}>
+              Мой карьерный кабинет
+            </Button>
             <Button className="min-h-11" size="sm" variant="secondary" onClick={() => navigate('/', { state: { aiQuery: 'Найди вакансии ортодонта' } })}>
               Спросить AI
             </Button>

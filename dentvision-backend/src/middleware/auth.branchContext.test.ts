@@ -72,7 +72,11 @@ describe('organization-wide active branch context', () => {
     expect(source).toContain('organizationWideBranchIds');
     expect(source).toContain('WHERE "organization_id" = ${effectiveOrgId} AND "active" = true');
     expect(source).toContain('WHERE "clinic_id" = ${effectiveClinicId} AND "active" = true');
-    expect(source).toContain('mergeBranchIds(mergeBranchIds(unifiedBranchIds, legacyBranchIds), organizationWideBranchIds)');
+    expect(source).toContain('const clinicAssignedBranchIds = mergeBranchIds(unifiedBranchIds, legacyBranchIds)');
+    expect(source).toContain('const branchIds = mergeBranchIds(clinicAssignedBranchIds, organizationWideBranchIds)');
+    expect(source).toContain('const assignedBranchId = effectiveBranchId');
+    expect(source).toContain('(clinicAssignedBranchIds.length === 1 ? clinicAssignedBranchIds[0] : undefined)');
+    expect(source).not.toContain('const assignedBranchId = unifiedBranchIds[0] || legacyAssignedBranchId');
   });
 });
 

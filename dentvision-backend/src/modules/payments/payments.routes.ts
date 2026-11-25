@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 import { Router } from 'express';
 import type { Prisma, WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
@@ -27,15 +28,18 @@ import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { assertClinicBillingAccess, getClinicSubscriptionAmountMinor, isSaasPlanId } from '../billing/clinicSubscription.service.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
+import { resolveClinicBranchAccess } from '../../lib/clinicBranchAccess.js';
+import { hasAcceptedLatestDentalLabDelivery } from '../lab/dentalLabAcceptance.js';
 import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
-import { canAccessClinicPaymentBranch } from '../../lib/clinicPaymentBranchPolicy.js';
+import { hasPartnerBranchBillingPermission, releasePartnerBranchSubscriptionInvoicePayment, settlePartnerBranchSubscriptionInvoicePayment, PartnerBranchBillingError } from '../billing/partnerBranchBilling.service.js';
 
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
 export const paymentsRouter = Router();
 
 const SERVER_OWNED_PAYMENT_META_KEYS = new Set([
-  'userid', 'clinicid', 'merchantscope', 'clinicpaymode', 'branchid', 'qr',
+  'userid', 'clinicid', 'merchantscope', 'clinicpaymode', 'qr', 'laboratoryid', 'laborderid', 'branchid',
+  'partnerbranchsubscriptioninvoiceid', 'organizationid', 'organizationoriginalid', 'ownerid', 'vertical', 'policyversion',
 ]);
 
 function clientSafePaymentMeta(value: unknown): Record<string, unknown> {
@@ -54,17 +58,16 @@ type MedicalLabOrderContext = {
   branchId: string | null;
 };
 
-/**
- * Load only the minimum order ownership/context fields needed for authorization.
- * Do not read test prices or payment amounts until the caller is authorized for
- * the order's active clinic/branch.
- */
 async function medicalLabOrderContext(
   orderId: string,
   db: Prisma.TransactionClient | typeof prisma = prisma,
 ): Promise<MedicalLabOrderContext | null> {
   const orders = await db.$queryRawUnsafe<Array<{ clinicId: string; labId: string | null; branchId: string | null }>>(
-    `SELECT "clinicId", "labId", (SELECT "branchId" FROM "patients" p WHERE p."id"=o."patientId" AND p."clinicId"=o."clinicId" AND p."deletedAt" IS NULL) AS "branchId" FROM "medical_lab_orders" o WHERE o."id"=$1 LIMIT 1`,
+    `SELECT "clinicId", "labId", (
+       SELECT p."branchId" FROM "patients" p
+       WHERE p."id"=o."patientId" AND p."clinicId"=o."clinicId" AND p."deletedAt" IS NULL
+     ) AS "branchId"
+     FROM "medical_lab_orders" o WHERE o."id"=$1 LIMIT 1`,
     orderId,
   );
   const order = orders[0];
@@ -88,6 +91,186 @@ async function medicalLabOrderAmountMinor(
   return { ...order, amountMinor };
 }
 
+class DentalLabPaymentStateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DentalLabPaymentStateError';
+    this.code = 'DENTAL_LAB_PAYMENT_STATE_CHANGED';
+  }
+  code: string;
+}
+
+async function dentalLabOrderPaymentDetails(
+  orderId: string,
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<{
+  id: string;
+  clinicId: string;
+  status: string;
+  laboratoryId: string;
+  serviceId: string;
+  servicePriceSnapshot: number;
+  branchId: string | null;
+  files: unknown;
+  clinicAcceptance: unknown;
+  latestShipment: unknown;
+  invoice: { id: string; amountMinor: bigint; status: string; paymentId: string | null } | null;
+} | null> {
+  const order = await db.labOrder.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true, clinicId: true, status: true, serviceId: true,
+      servicePriceSnapshot: true, files: true,
+      patient: { select: { branchId: true } },
+      dentalLabShipments: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: { id: true, laboratoryId: true, status: true, deliveredAt: true, proofUrl: true, recipientName: true },
+      },
+      dentalLabInvoice: { select: { id: true, amountMinor: true, status: true, paymentId: true } },
+    },
+  });
+  if (!order?.clinicId || !order.serviceId || !Number.isSafeInteger(order.servicePriceSnapshot) || Number(order.servicePriceSnapshot) <= 0) return null;
+  const files = order.files && typeof order.files === 'object' && !Array.isArray(order.files)
+    ? order.files as Record<string, unknown>
+    : {};
+  const meta = files.meta && typeof files.meta === 'object' && !Array.isArray(files.meta)
+    ? files.meta as Record<string, unknown>
+    : {};
+  const laboratoryId = String(meta.laboratoryId || '').trim();
+  if (!laboratoryId) return null;
+  return {
+    id: order.id,
+    clinicId: order.clinicId,
+    status: order.status,
+    laboratoryId,
+    serviceId: order.serviceId,
+    servicePriceSnapshot: Number(order.servicePriceSnapshot),
+    branchId: order.patient?.branchId ?? null,
+    files: order.files,
+    clinicAcceptance: meta.clinicAcceptance ?? null,
+    latestShipment: order.dentalLabShipments?.[0] ?? null,
+    invoice: order.dentalLabInvoice ?? null,
+  };
+}
+
+async function canAccessClinicBranch(
+  user: AuthRequest['user'],
+  clinicId: string,
+  branchId: string | null,
+): Promise<boolean> {
+  if (String(user?.role || '').toUpperCase() === 'SUPERADMIN') return true;
+  if (!user?.id || user.clinicId !== clinicId) return false;
+
+  const access = await resolveClinicBranchAccess({
+    userId: user.id,
+    clinicId,
+    organizationId: user.organizationId,
+    role: String(user.role || ''),
+    requestedBranchId: user.branchId,
+  });
+  if (!access) return false;
+
+  // Organization-scoped clinic staff may also work with legacy clinical records
+  // that predate branch assignment. A selected branch still denies branchless
+  // records, and a branch-scoped member remains restricted to that exact branch.
+  if (branchId === null) {
+    return access.branchId === null && access.roleScope === 'ORGANIZATION';
+  }
+
+  // An unselected organization workspace may see any verified active branch.
+  // Once a branch is selected, the payment is limited to that exact branch.
+  return access.branchId === null && access.roleScope === 'ORGANIZATION'
+    ? access.allowedBranchIds.includes(branchId)
+    : access.branchId === branchId;
+}
+
+async function settleDentalLabOrderPayment(
+  payment: { id: string; refId: string | null; amount: bigint; meta: unknown },
+  db: Prisma.TransactionClient,
+): Promise<boolean> {
+  if (!payment.refId) return false;
+  // Serialize per-case settlement against remake requests and competing payment confirmations.
+  await db.$queryRawUnsafe<Array<{ id: string }>>(
+    'SELECT "id" FROM "lab_orders" WHERE "id" = $1 FOR UPDATE',
+    payment.refId,
+  );
+  const order = await dentalLabOrderPaymentDetails(payment.refId, db);
+  if (!order || order.status !== 'delivered') {
+    throw new Error('Зуботехнический заказ должен быть передан клинике и иметь утверждённую цену услуги');
+  }
+  const paymentMeta = payment.meta && typeof payment.meta === 'object' && !Array.isArray(payment.meta)
+    ? payment.meta as Record<string, unknown>
+    : {};
+  const invoiceId = String(paymentMeta.invoiceId || '').trim();
+  if (!invoiceId || !order.invoice || order.invoice.id !== invoiceId) {
+    throw new DentalLabPaymentStateError('Платёж не связан с действующим счётом зуботехнической лаборатории');
+  }
+  if (order.invoice.status === 'paid' && order.invoice.paymentId === payment.id) return true;
+  if (!hasAcceptedLatestDentalLabDelivery(order.clinicAcceptance, order.latestShipment, order.laboratoryId)) {
+    throw new DentalLabPaymentStateError('Оплата возможна только после подтверждения клиникой последней поставки.');
+  }
+  if (order.invoice.status !== 'issued' || order.invoice.paymentId) {
+    throw new DentalLabPaymentStateError('Счёт уже оплачен, отменён или недоступен для оплаты');
+  }
+  const expectedAmountMinor = tengeToMinor(order.servicePriceSnapshot);
+  if (order.invoice.amountMinor !== expectedAmountMinor || payment.amount !== expectedAmountMinor) {
+    throw new Error(`Сумма оплаты зуботехнического заказа не совпадает: ожидалось ${expectedAmountMinor}, получено ${payment.amount}`);
+  }
+  const files = order.files && typeof order.files === 'object' && !Array.isArray(order.files)
+    ? order.files as Record<string, unknown>
+    : {};
+  const meta = files.meta && typeof files.meta === 'object' && !Array.isArray(files.meta)
+    ? files.meta as Record<string, unknown>
+    : {};
+  const previousPayment = meta.payment && typeof meta.payment === 'object'
+    ? meta.payment as Record<string, unknown>
+    : null;
+  const remakeRequest = meta.remakeRequest && typeof meta.remakeRequest === 'object'
+    ? meta.remakeRequest as Record<string, unknown>
+    : null;
+  if (remakeRequest?.status === 'requested') {
+    throw new DentalLabPaymentStateError('Нельзя подтверждать оплату, пока по заказу ожидает решения запрос переделки');
+  }
+  if (previousPayment?.paymentId && previousPayment.paymentId !== payment.id) {
+    throw new Error('Зуботехнический заказ уже оплачен другим платежом');
+  }
+
+  const { recordPartnerEconomics } = await import('../finance/partner-economics.service.js');
+  await recordPartnerEconomics({
+    vertical: 'DENTAL_LAB',
+    partnerId: order.laboratoryId,
+    grossMinor: expectedAmountMinor,
+    operationId: order.id,
+    branchId: order.branchId,
+    paymentId: payment.id,
+  }, db);
+
+  await db.dentalLabInvoice.update({
+    where: { id: invoiceId },
+    data: { status: 'paid', paymentId: payment.id, paidAt: new Date() },
+  });
+
+  await db.labOrder.update({
+    where: { id: order.id },
+    data: {
+      files: {
+        ...files,
+        meta: {
+          ...meta,
+          payment: {
+            paymentId: payment.id,
+            status: 'paid',
+            amountMinor: expectedAmountMinor.toString(),
+            paidAt: new Date().toISOString(),
+          },
+        },
+      },
+    },
+  });
+  return true;
+}
+
 async function settleMedicalLabOrderPayment(
   payment: { id: string; refId: string | null; amount: bigint },
   db: Prisma.TransactionClient,
@@ -105,6 +288,7 @@ async function settleMedicalLabOrderPayment(
     grossMinor: order.amountMinor,
     operationId: payment.refId,
     branchId: order.branchId,
+    paymentId: payment.id,
   }, db);
   return true;
 }
@@ -200,6 +384,7 @@ async function settleEnrollmentPayment(
     id: string;
     refId: string | null;
     amount: bigint;
+    currency?: string;
     sellerType: string | null;
     sellerId: string | null;
     meta: unknown;
@@ -224,10 +409,23 @@ async function settleEnrollmentPayment(
   let enrollment = await db.schoolEnrollment.findUnique({
     where: { userId_courseId: { userId, courseId } },
   });
+  const entitlementSnapshot = {
+    acquisitionType: 'purchase',
+    accessStatus: 'active',
+    paidAmountMinor: payment.amount,
+    currency: payment.currency || 'KZT',
+    paymentId: payment.id,
+    purchaseConfirmedAt: new Date(),
+  };
   const createdNow = !enrollment;
   if (!enrollment) {
     enrollment = await db.schoolEnrollment.create({
-      data: { id: uid(), userId, courseId },
+      data: { id: uid(), userId, courseId, ...entitlementSnapshot },
+    });
+  } else if (enrollment.paymentId !== payment.id) {
+    enrollment = await db.schoolEnrollment.update({
+      where: { id: enrollment.id },
+      data: entitlementSnapshot,
     });
   }
 
@@ -259,7 +457,7 @@ async function settleEnrollmentPayment(
       amountMinor: payment.amount,
       lecturerId: course.lecturerId,
       academyId: course.academyId,
-    }).catch((err) => console.error('[dentcash academy]', err));
+    }).catch((err) => console.error('[dentcash academy]', safeErrorKind(err)));
   }
 
   return true;
@@ -270,6 +468,7 @@ async function settleAcademyEventPayment(
     id: string;
     refId: string | null;
     amount: bigint;
+    currency?: string;
     sellerType?: string | null;
     sellerId?: string | null;
     meta: unknown;
@@ -298,8 +497,17 @@ async function settleAcademyEventPayment(
   if (meta.courseId) {
     await db.schoolEnrollment.upsert({
       where: { userId_courseId: { userId: meta.userId, courseId: meta.courseId } },
-      create: { id: uid(), userId: meta.userId, courseId: meta.courseId },
-      update: {},
+      create: {
+        id: uid(), userId: meta.userId, courseId: meta.courseId,
+        acquisitionType: 'purchase', accessStatus: 'active',
+        paidAmountMinor: payment.amount, currency: payment.currency || 'KZT',
+        paymentId: payment.id, purchaseConfirmedAt: new Date(),
+      },
+      update: {
+        acquisitionType: 'purchase', accessStatus: 'active',
+        paidAmountMinor: payment.amount, currency: payment.currency || 'KZT',
+        paymentId: payment.id, purchaseConfirmedAt: new Date(),
+      },
     });
   }
 
@@ -352,6 +560,7 @@ async function settlePaidPayment(
     sellerType: string | null;
     sellerId: string | null;
     amount: bigint;
+    currency?: string;
     meta: unknown;
   },
   db: Prisma.TransactionClient | typeof prisma = prisma,
@@ -403,14 +612,22 @@ async function settlePaidPayment(
           paymentId: payment.id,
           amountMinor: payment.amount,
           clinicId: payment.refId,
-        }).catch((err) => console.error('[dentcash saas]', err));
+        }).catch((err) => console.error('[dentcash saas]', safeErrorKind(err)));
       }
       settled = true;
     }
   }
 
+  if (payment.refType === 'partner_branch_subscription_invoice') {
+    settled = (await settlePartnerBranchSubscriptionInvoicePayment(payment, db)) || settled;
+  }
+
   if (payment.refType === 'medical_lab_order') {
     settled = (await settleMedicalLabOrderPayment(payment, db)) || settled;
+  }
+
+  if (payment.refType === 'dental_lab_order') {
+    settled = (await settleDentalLabOrderPayment(payment, db)) || settled;
   }
 
   if (payment.refType === 'order' || payment.refType === 'shop_order') {
@@ -460,7 +677,8 @@ function clinicPaymentScope(payment: { provider: string; meta: unknown; refType:
   const clinicScoped = payment.provider === 'clinic_kaspi'
     || meta.merchantScope === 'clinic'
     || payment.refType === 'appointment'
-    || payment.refType === 'crm_invoice';
+    || payment.refType === 'crm_invoice'
+    || payment.refType === 'dental_lab_order';
   return clinicScoped ? String(meta.clinicId) : null;
 }
 
@@ -484,7 +702,7 @@ async function requireClinicPaymentWritable(req: AuthRequest, res: any, clinicId
     }
     return true;
   } catch (error) {
-    console.error('[payments] clinic subscription write guard', error);
+    console.error('[payments] clinic subscription write guard', safeErrorKind(error));
     res.status(503).json({
       ok: false,
       error: 'Не удалось проверить подписку клиники',
@@ -521,37 +739,24 @@ async function assertClinicPaymentBranchAccess(
   payment: { meta: unknown; refType: string | null; refId: string | null },
   clinicId: string,
 ): Promise<boolean> {
-  const role = req.user?.role;
-  if (role === 'SUPERADMIN') return true;
-  const activeBranchIds = req.user?.branchIds ?? [];
-  const meta = (payment.meta || {}) as { branchId?: string };
+  if (req.user?.role === 'SUPERADMIN') return true;
   try {
     if (payment.refType === 'appointment' && payment.refId) {
       const appointment = await prisma.appointment.findFirst({
-        where: { id: payment.refId, clinicId, branchId: { in: activeBranchIds } },
+        where: { id: payment.refId, clinicId },
         select: { branchId: true },
       });
-      // An unresolved or archived canonical reference must not fall back to
-      // stale metadata from when the payment was first created.
-      return canAccessClinicPaymentBranch({ role, activeBranchIds, referenceBranchId: appointment?.branchId ?? null });
+      return canAccessClinicBranch(req.user, clinicId, appointment?.branchId ?? null);
     }
     if (payment.refType === 'crm_invoice' && payment.refId) {
       const invoice = await prisma.invoice.findFirst({
-        where: {
-          id: payment.refId,
-          clinicId,
-          deletedAt: null,
-          patient: { branchId: { in: activeBranchIds } },
-        },
+        where: { id: payment.refId, clinicId, deletedAt: null },
         select: { patient: { select: { branchId: true } } },
       });
-      return canAccessClinicPaymentBranch({ role, activeBranchIds, referenceBranchId: invoice?.patient?.branchId ?? null });
+      return canAccessClinicBranch(req.user, clinicId, invoice?.patient?.branchId ?? null);
     }
-    return canAccessClinicPaymentBranch({
-      role,
-      activeBranchIds,
-      persistedBranchId: meta.branchId ?? null,
-    });
+    const meta = (payment.meta || {}) as { branchId?: string | null };
+    return canAccessClinicBranch(req.user, clinicId, meta.branchId ?? null);
   } catch {
     return false;
   }
@@ -569,35 +774,68 @@ async function assertPaymentOwner(
   const clinicScopedPayment = payment.provider === 'clinic_kaspi'
     || meta.merchantScope === 'clinic'
     || payment.refType === 'appointment'
-    || payment.refType === 'crm_invoice';
+    || payment.refType === 'crm_invoice'
+    || payment.refType === 'dental_lab_order';
   if (clinicScopedPayment) {
     const clinicId = clinicPaymentScope(payment);
     if (!clinicId) return false;
+    if (payment.refType === 'dental_lab_order') {
+      if (!payment.refId) return false;
+      try {
+        const order = await dentalLabOrderPaymentDetails(payment.refId);
+        return Boolean(
+          order
+          && order.clinicId === clinicId
+          && await canManageClinicBillingMutation(req.user!, clinicId)
+          && await canAccessClinicBranch(req.user, order.clinicId, order.branchId),
+        );
+      } catch {
+        return false;
+      }
+    }
     if (!(await canManageClinicBillingMutation(req.user!, clinicId))) return false;
     return assertClinicPaymentBranchAccess(req, payment, clinicId);
   }
 
-  // Orders are canonical ownership records. Historical payment metadata was
-  // client-writable before the metadata hardening, so it must never override an
-  // order's actual owner when reading, confirming, refunding, or replaying a
-  // payment. Fail closed if the referenced order is missing or DB lookup fails.
+  if (payment.refType === 'partner_branch_subscription_invoice') {
+    if (!payment.refId || !req.user) return false;
+    if (req.user.role === 'SUPERADMIN') return true;
+    const organizationId = String(req.user.organizationId || '');
+    const ownerId = String(req.user.organizationOriginalId || '');
+    if (!organizationId || !ownerId) return false;
+    const invoice = await prisma.partnerBranchSubscriptionInvoice.findUnique({
+      where: { id: payment.refId },
+      select: { organizationId: true, ownerId: true },
+    });
+    if (!invoice || invoice.organizationId !== organizationId || invoice.ownerId !== ownerId) return false;
+    return hasPartnerBranchBillingPermission({
+      userId: req.user.id,
+      organizationId,
+      ownerId,
+      permissions: ['billing.manage', 'finance.manage'],
+    });
+  }
+
   if (payment.refType === 'medical_lab_order') {
-    if (!payment.refId) return false;
-    if (req.user?.role === 'SUPERADMIN') return true;
-    if (!meta.userId || meta.userId !== req.user!.id) return false;
+    if (!payment.refId || !req.user) return false;
+    if (req.user.role === 'SUPERADMIN') return true;
+    if (!meta.userId || meta.userId !== req.user.id) return false;
     try {
       const order = await medicalLabOrderContext(payment.refId);
       return Boolean(
-        order &&
-        order.clinicId === req.user?.clinicId &&
-        order.branchId &&
-        (req.user?.branchIds ?? []).includes(order.branchId),
+        order
+        && order.clinicId === req.user.clinicId
+        && await canAccessClinicBranch(req.user, order.clinicId, order.branchId),
       );
     } catch {
       return false;
     }
   }
 
+  // Orders are canonical ownership records. Historical payment metadata was
+  // client-writable before the metadata hardening, so it must never override an
+  // order's actual owner when reading, confirming, refunding, or replaying a
+  // payment. Fail closed if the referenced order is missing or DB lookup fails.
   if (payment.refType === 'order' || payment.refType === 'shop_order') {
     if (!payment.refId) return false;
     try {
@@ -753,6 +991,15 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
     }
 
+    const metaObj = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {};
+    let trustedMeta: Record<string, unknown> = clientSafePaymentMeta(metaObj);
+    let trustedSellerType: string | null | undefined = sellerType;
+    let trustedSellerId: string | null | undefined = sellerId;
+    let trustedDomain: string | null | undefined = domain;
+    let dentalLabInvoiceId: string | null = null;
+    let partnerBranchInvoiceId: string | null = null;
+    let dentalLabExpectedAmountMinor: bigint | null = null;
+
     // P1-1 fix: never trust the client-submitted amount. For order/shop refTypes
     // we recompute the expected total server-side and reconcile with what the
     // caller sent; a mismatch means tampering and is rejected as 409. CRM-cashier
@@ -791,29 +1038,127 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       }
     }
 
+    if (refType === 'dental_lab_order') {
+      if (!refId) return res.status(400).json({ ok: false, error: 'labOrderId обязателен для оплаты зуботехнического заказа' } satisfies ApiResponse);
+      const labOrder = await dentalLabOrderPaymentDetails(String(refId));
+      if (!labOrder) return res.status(404).json({ ok: false, error: 'Не найден оплачиваемый заказ партнёрской зуботехнической лаборатории с утверждённой услугой и ценой' } satisfies ApiResponse);
+      if (labOrder.status !== 'delivered') return res.status(409).json({ ok: false, error: 'Оплатить можно только доставленный зуботехнический заказ', code: 'DENTAL_LAB_ORDER_NOT_DELIVERED' } satisfies ApiResponse);
+      if (!(await canManageClinicBillingMutation(req.user!, labOrder.clinicId))) {
+        return res.status(403).json({ ok: false, error: 'Нет полномочий на оплату заказа от имени этой клиники' } satisfies ApiResponse);
+      }
+      if (!(await canAccessClinicBranch(req.user, labOrder.clinicId, labOrder.branchId))) {
+        return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу, которому принадлежит зуботехнический заказ' } satisfies ApiResponse);
+      }
+      if (!hasAcceptedLatestDentalLabDelivery(labOrder.clinicAcceptance, labOrder.latestShipment, labOrder.laboratoryId)) {
+        return res.status(409).json({
+          ok: false,
+          error: 'Сначала подтвердите клиническую приёмку последней поставки от лаборатории.',
+          code: 'DENTAL_LAB_CLINIC_ACCEPTANCE_REQUIRED',
+        } satisfies ApiResponse);
+      }
+      dentalLabInvoiceId = String(req.body?.invoiceId || '').trim();
+      if (!dentalLabInvoiceId || !labOrder.invoice || labOrder.invoice.id !== dentalLabInvoiceId) {
+        return res.status(409).json({ ok: false, error: 'Сначала запросите официальный счёт зуботехнической лаборатории', code: 'DENTAL_LAB_INVOICE_REQUIRED' } satisfies ApiResponse);
+      }
+      if (labOrder.invoice.status !== 'issued' || labOrder.invoice.paymentId) {
+        return res.status(409).json({ ok: false, error: 'Счёт уже оплачен или недоступен для оплаты', code: 'DENTAL_LAB_INVOICE_NOT_PAYABLE' } satisfies ApiResponse);
+      }
+      dentalLabExpectedAmountMinor = tengeToMinor(labOrder.servicePriceSnapshot);
+      if (labOrder.invoice.amountMinor !== dentalLabExpectedAmountMinor || minor !== dentalLabExpectedAmountMinor) {
+        return res.status(409).json({ ok: false, error: 'Сумма не совпадает с зафиксированным счётом зуботехнической услуги' } satisfies ApiResponse);
+      }
+      idempotencyKey = `dental-lab-invoice:${dentalLabInvoiceId}`;
+      trustedMeta = {
+        ...trustedMeta,
+        clinicId: labOrder.clinicId,
+        laboratoryId: labOrder.laboratoryId,
+        labOrderId: labOrder.id,
+        invoiceId: dentalLabInvoiceId,
+        branchId: labOrder.branchId,
+        userId: req.user!.id,
+      };
+      trustedSellerType = 'LABORATORY';
+      trustedSellerId = labOrder.laboratoryId;
+      trustedDomain = 'dental_lab';
+    }
+
     if (refType === 'medical_lab_order' && refId) {
       const medicalOrderContext = await medicalLabOrderContext(refId);
       if (!medicalOrderContext) return res.status(404).json({ ok: false, error: 'Медицинский лабораторный заказ не найден или не назначен лаборатории' } satisfies ApiResponse);
       if (!(await assertClinicOrgAccess(req.user!, medicalOrderContext.clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к этому медицинскому заказу' } satisfies ApiResponse);
-      if (req.user?.role !== 'SUPERADMIN' && (
-        req.user?.clinicId !== medicalOrderContext.clinicId ||
-        !medicalOrderContext.branchId ||
-        !(req.user?.branchIds ?? []).includes(medicalOrderContext.branchId)
-      )) {
+      if (!(await canAccessClinicBranch(req.user, medicalOrderContext.clinicId, medicalOrderContext.branchId))) {
         return res.status(403).json({ ok: false, error: 'Нет доступа к активному филиалу медицинского заказа' } satisfies ApiResponse);
       }
-      // Price rows are read only after the active clinic/branch boundary passes.
+      // Load immutable test pricing only after the clinic and active branch checks pass.
       const medicalOrder = await medicalLabOrderAmountMinor(refId, prisma, medicalOrderContext);
       if (!medicalOrder) return res.status(404).json({ ok: false, error: 'Медицинский лабораторный заказ не найден или не назначен лаборатории' } satisfies ApiResponse);
       if (medicalOrder.amountMinor <= 0n) return res.status(400).json({ ok: false, error: 'В медицинском заказе отсутствуют оплачиваемые анализы' } satisfies ApiResponse);
       if (medicalOrder.amountMinor !== minor) return res.status(409).json({ ok: false, error: `Сумма не совпадает с медицинским заказом: ожидалось ${medicalOrder.amountMinor}, получено ${minor}` } satisfies ApiResponse);
     }
 
-    const metaObj = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {};
-    let trustedMeta: Record<string, unknown> = clientSafePaymentMeta(metaObj);
-    let trustedSellerType: string | null | undefined = sellerType;
-    let trustedSellerId: string | null | undefined = sellerId;
-    let trustedDomain: string | null | undefined = domain;
+
+    if (refType === 'partner_branch_subscription_invoice') {
+      if (!refId) return res.status(400).json({ ok: false, error: 'invoiceId обязателен для филиальной подписки' } satisfies ApiResponse);
+      const organizationId = String(req.user?.organizationId || '');
+      const ownerId = String(req.user?.organizationOriginalId || '');
+      if (!organizationId || !ownerId) {
+        return res.status(403).json({ ok: false, error: 'Платёж доступен только из активного кабинета партнёра' } satisfies ApiResponse);
+      }
+      const invoice = await prisma.partnerBranchSubscriptionInvoice.findFirst({
+        where: { id: String(refId), organizationId, ownerId },
+        select: {
+          id: true, organizationId: true, ownerId: true, vertical: true,
+          policyVersion: true, amountMinor: true, currency: true,
+          status: true, paymentId: true, periodStart: true, periodEnd: true,
+        },
+      });
+      if (!invoice) {
+        return res.status(404).json({ ok: false, error: 'Счёт не найден в активной организации партнёра' } satisfies ApiResponse);
+      }
+      const canManageBilling = await hasPartnerBranchBillingPermission({
+        userId: req.user!.id,
+        organizationId,
+        ownerId,
+        permissions: ['billing.manage', 'finance.manage'],
+      });
+      if (!canManageBilling) {
+        return res.status(403).json({ ok: false, error: 'Недостаточно прав для оплаты филиальной подписки' } satisfies ApiResponse);
+      }
+      if (invoice.status === 'payment_pending' && invoice.paymentId) {
+        const existingPayment = await prisma.payment.findUnique({ where: { id: invoice.paymentId } });
+        if (existingPayment && await assertPaymentOwner(req, existingPayment)) {
+          return res.status(200).json({
+            ok: true,
+            data: withPaymentQr(serializeBigInt(existingPayment) as Record<string, unknown>),
+          } satisfies ApiResponse);
+        }
+        return res.status(409).json({ ok: false, error: 'Платёж по этому счёту уже создаётся или требует сверки' } satisfies ApiResponse);
+      }
+      if (invoice.status !== 'issued' || invoice.paymentId) {
+        return res.status(409).json({ ok: false, error: 'Счёт уже оплачен или недоступен для оплаты' } satisfies ApiResponse);
+      }
+      if (invoice.currency !== 'KZT' || minor !== invoice.amountMinor) {
+        return res.status(409).json({ ok: false, error: 'Сумма или валюта не совпадает с неизменяемым снимком филиального счёта' } satisfies ApiResponse);
+      }
+
+      // One invoice has one idempotency key regardless of client retry headers.
+      idempotencyKey = `partner-branch-invoice:${invoice.id}`;
+      partnerBranchInvoiceId = invoice.id;
+      trustedMeta = {
+        ...trustedMeta,
+        partnerBranchSubscriptionInvoiceId: invoice.id,
+        organizationId: invoice.organizationId,
+        organizationOriginalId: invoice.ownerId,
+        vertical: invoice.vertical,
+        policyVersion: invoice.policyVersion,
+        periodStart: invoice.periodStart.toISOString(),
+        periodEnd: invoice.periodEnd.toISOString(),
+        userId: req.user!.id,
+      };
+      trustedSellerType = null;
+      trustedSellerId = null;
+      trustedDomain = 'partner_branch_subscription';
+    }
 
     // Payment amount, entitlement and seller details for billable platform
     // references are derived from canonical DB/config data before creating a QR.
@@ -879,86 +1224,86 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       }
     }
 
-    const requestedClinicId = String(metaObj.clinicId || req.body?.clinicId || '');
-    // Clinic cashier branchIds come from the authenticated active clinic
-    // context. Do not let client metadata switch the clinic while retaining a
-    // different clinic's branch allow-list.
-    const clinicId = req.user?.role === 'SUPERADMIN'
-      ? requestedClinicId
-      : String(req.user?.clinicId || '');
+    const requestedClinicIds = [metaObj.clinicId, req.body?.clinicId]
+      .filter((value) => value !== undefined && value !== null && String(value).trim() !== '')
+      .map((value) => String(value).trim());
     // Platform-owned references always use the platform merchant. A client
     // cannot reroute SaaS, Academy, Shop or medical-lab payments by setting
     // domain=crm, clinicId or merchantScope in the request.
     const platformRefTypes = new Set([
       'subscription', 'enrollment', 'academy_event', 'order', 'shop_order',
-      'medical_lab_order',
+      'medical_lab_order', 'dental_lab_order', 'partner_branch_subscription_invoice',
     ]);
     const isClinicCashier = !platformRefTypes.has(String(refType || '')) &&
       (domain === 'crm' || refType === 'appointment' || refType === 'crm_invoice');
 
-    let trustedClinicBranchId: string | null = null;
-
     // CRM cashier → clinic's own Kaspi/bank (never platform merchant).
     if (isClinicCashier) {
-      if (req.user?.role !== 'SUPERADMIN' && requestedClinicId && requestedClinicId !== clinicId) {
-        return res.status(403).json({ ok: false, error: 'Кассовая операция не соответствует активной клинике' } satisfies ApiResponse);
+      // The clinic tenant must come from the authenticated active workspace.
+      // Client metadata/body values are assertions only and may never select it.
+      const clinicId = String(req.user?.clinicId || '').trim();
+      const organizationType = String(req.user?.organizationType || '').trim().toUpperCase();
+      if (!clinicId || (organizationType && organizationType !== 'CLINIC')) {
+        return res.status(403).json({ ok: false, error: 'Откройте активный кабинет клиники для приёма оплаты' } satisfies ApiResponse);
       }
-      if (!clinicId) {
-        return res.status(400).json({
-          ok: false,
-          error: 'clinicId обязателен для оплаты на кассе клиники',
-        } satisfies ApiResponse);
+      if (requestedClinicIds.some((requestedId) => requestedId !== clinicId)) {
+        return res.status(403).json({ ok: false, error: 'Нельзя создать платёж для другой клиники' } satisfies ApiResponse);
+      }
+      if (!(await assertClinicOrgAccess(req.user!, clinicId))) {
+        return res.status(403).json({ ok: false, error: 'Нет доступа к активной клинике' } satisfies ApiResponse);
       }
       if (!(await assertClinicPaymentStaffAccess(req.user!.id, clinicId))) {
         return res.status(403).json({ ok: false, error: 'Нет доступа к кассе этой клиники' } satisfies ApiResponse);
       }
-      // Renewal checkout is platform-owned and handled below; clinic cashier
-      // payment creation is a clinic mutation and must obey the read-only gate.
+      const branchAccess = await resolveClinicBranchAccess({
+        userId: req.user!.id,
+        clinicId,
+        organizationId: req.user?.organizationId,
+        role: String(req.user?.role || ''),
+        requestedBranchId: req.user?.branchId,
+      });
+      if (!branchAccess) {
+        return res.status(403).json({ ok: false, error: 'Нет доступа к активному филиалу клиники' } satisfies ApiResponse);
+      }
+      let paymentBranchId: string | null = branchAccess.branchId;
+
+      // Clinic cash mutations obey the same 30-day write boundary as CRM modules.
       if (!(await requireClinicPaymentWritable(req, res, clinicId))) return;
 
-      // A referenced clinical object must belong to this exact clinic. A valid
-      // cashier role alone must not allow cross-clinic payment via a substituted refId.
-      const activeBranchIds = req.user?.branchIds ?? [];
-      if (req.user?.role !== 'SUPERADMIN' && activeBranchIds.length === 0) {
-        return res.status(403).json({ ok: false, error: 'Нет активных филиалов для кассовой операции' } satisfies ApiResponse);
-      }
-      const selectedBranchId = [req.user?.branchId, req.user?.assignedBranchId]
-        .find((id): id is string => Boolean(id && activeBranchIds.includes(id)));
-      trustedClinicBranchId = selectedBranchId ?? (activeBranchIds.length === 1 ? activeBranchIds[0] : null);
-
-      // A referenced clinical object must belong to this exact clinic and an
-      // active branch visible to the caller.
+      // A referenced clinical object must belong to this exact clinic and the
+      // authenticated branch scope. Branch attribution comes from that object,
+      // never from browser metadata or a stale client-selected identifier.
       if (refType === 'appointment' && refId) {
         const appointment = await prisma.appointment.findFirst({
-          where: {
-            id: String(refId),
-            clinicId,
-            ...(req.user?.role === 'SUPERADMIN' ? {} : { branchId: { in: activeBranchIds } }),
-          },
+          where: { id: String(refId), clinicId },
           select: { id: true, clinicId: true, branchId: true },
         });
         if (!appointment) {
-          return res.status(404).json({ ok: false, error: 'Приём не найден в выбранном активном филиале' } satisfies ApiResponse);
+          return res.status(404).json({ ok: false, error: 'Приём не найден в выбранной клинике' } satisfies ApiResponse);
         }
-        trustedClinicBranchId = appointment.branchId;
+        paymentBranchId = appointment.branchId ?? null;
+        if (!(await canAccessClinicBranch(req.user, clinicId, paymentBranchId))) {
+          return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу этого приёма' } satisfies ApiResponse);
+        }
       }
 
       // Invoice balances are stored in whole KZT, payments in minor units.
       // Permit partial payments, but never collect above the canonical balance.
       if ((refType === 'crm_invoice' || (!refType && domain === 'crm')) && refId) {
         const invoice = await prisma.invoice.findFirst({
-          where: {
-            id: String(refId),
-            clinicId,
-            deletedAt: null,
-            ...(req.user?.role === 'SUPERADMIN' ? {} : { patient: { branchId: { in: activeBranchIds } } }),
+          where: { id: String(refId), clinicId, deletedAt: null },
+          select: {
+            id: true, clinicId: true, amount: true, paidAmount: true, status: true,
+            patient: { select: { branchId: true } },
           },
-          select: { id: true, clinicId: true, amount: true, paidAmount: true, status: true, patient: { select: { branchId: true } } },
         });
         if (!invoice) {
           return res.status(404).json({ ok: false, error: 'Счёт не найден в выбранной клинике' } satisfies ApiResponse);
         }
-        trustedClinicBranchId = invoice.patient?.branchId ?? null;
+        paymentBranchId = invoice.patient?.branchId ?? null;
+        if (!(await canAccessClinicBranch(req.user, clinicId, paymentBranchId))) {
+          return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу пациента по этому счёту' } satisfies ApiResponse);
+        }
         const outstandingTenge = Math.max(0, Number(invoice.amount) - Number(invoice.paidAmount || 0));
         const outstandingMinor = tengeToMinor(outstandingTenge);
         if (invoice.status === 'paid' || outstandingMinor <= 0n) {
@@ -971,11 +1316,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
           return res.status(409).json({ ok: false, error: 'Сумма превышает остаток по счёту' } satisfies ApiResponse);
         }
       }
-
-      if (req.user?.role !== 'SUPERADMIN' &&
-        (!trustedClinicBranchId || !activeBranchIds.includes(trustedClinicBranchId))) {
-        return res.status(403).json({ ok: false, error: 'Выберите активный филиал кассы' } satisfies ApiResponse);
-      }
+      trustedMeta = { ...trustedMeta, clinicId, branchId: paymentBranchId };
 
       if (!(await reserveForPayment())) return;
 
@@ -1005,7 +1346,6 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
             clinicId,
             merchantScope: 'clinic',
             clinicPayMode: created.mode,
-            branchId: trustedClinicBranchId,
           },
         },
       });
@@ -1035,26 +1375,117 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     if (!(await reserveForPayment())) return;
 
     const created = await gateway.createPayment({ amountMinor: minor, refId });
-    const payment = await prisma.payment.create({
-      data: {
-        provider,
-        externalId: created.externalId,
-        amount: minor,
-        status: 'pending',
-        refType: refType || null,
-        refId: refId || null,
-        domain: trustedDomain || null,
-        sellerType: trustedSellerType || null,
-        sellerId: trustedSellerId || null,
-        meta: {
-          ...trustedMeta,
-          // Client metadata cannot override the authenticated payer or scope.
-          qr: created.qr,
-          userId: req.user!.id,
-          merchantScope: 'platform',
-        },
+    const paymentData = {
+      provider,
+      externalId: created.externalId,
+      amount: minor,
+      status: 'pending' as const,
+      refType: refType || null,
+      refId: refId || null,
+      domain: trustedDomain || null,
+      sellerType: trustedSellerType || null,
+      sellerId: trustedSellerId || null,
+      meta: {
+        ...trustedMeta,
+        // Client metadata cannot override the authenticated payer or scope.
+        qr: created.qr,
+        userId: req.user!.id,
+        merchantScope: 'platform',
       },
-    });
+    };
+    const payment = refType === 'dental_lab_order' && refId
+      ? await prisma.$transaction(async (tx) => {
+          // The same row lock is used by the clinic remake-request flow. Only
+          // one of these workflows may win: a pending QR must not race a new
+          // remake dispute, and a dispute must not race a newly-created QR.
+          await tx.$queryRawUnsafe<Array<{ id: string }>>(
+            'SELECT "id" FROM "lab_orders" WHERE "id" = $1 FOR UPDATE',
+            String(refId),
+          );
+          const currentOrder = await dentalLabOrderPaymentDetails(String(refId), tx);
+          if (!currentOrder || currentOrder.status !== 'delivered') {
+            throw new DentalLabPaymentStateError('Заказ изменился: оплата доступна только после подтверждённой доставки');
+          }
+          // Revalidate under the same row lock used by remake requests. The
+          // preflight check above is for fast feedback; this is the authoritative
+          // race-safe gate immediately before the pending QR is persisted.
+          if (!hasAcceptedLatestDentalLabDelivery(
+            currentOrder.clinicAcceptance,
+            currentOrder.latestShipment,
+            currentOrder.laboratoryId,
+          )) {
+            throw new DentalLabPaymentStateError('Клиническая приёмка последней поставки изменилась до создания оплаты.');
+          }
+          const currentFiles = currentOrder.files && typeof currentOrder.files === 'object' && !Array.isArray(currentOrder.files)
+            ? currentOrder.files as Record<string, unknown>
+            : {};
+          const currentMeta = currentFiles.meta && typeof currentFiles.meta === 'object' && !Array.isArray(currentFiles.meta)
+            ? currentFiles.meta as Record<string, unknown>
+            : {};
+          const remakeRequest = currentMeta.remakeRequest && typeof currentMeta.remakeRequest === 'object'
+            ? currentMeta.remakeRequest as Record<string, unknown>
+            : null;
+          if (remakeRequest?.status === 'requested') {
+            throw new DentalLabPaymentStateError('Нельзя создать оплату, пока по заказу ожидает решения запрос переделки');
+          }
+          if (!dentalLabInvoiceId || dentalLabExpectedAmountMinor === null || !currentOrder.invoice || currentOrder.invoice.id !== dentalLabInvoiceId || currentOrder.invoice.status !== 'issued' || currentOrder.invoice.paymentId) {
+            throw new DentalLabPaymentStateError('Счёт изменился или больше не доступен для оплаты');
+          }
+          if (currentOrder.invoice.amountMinor !== dentalLabExpectedAmountMinor) {
+            throw new DentalLabPaymentStateError('Сумма счёта изменилась: требуется повторная проверка');
+          }
+          const existingPayment = await tx.payment.findFirst({
+            where: { refType: 'dental_lab_order', refId: String(refId), status: { in: ['pending', 'paid'] } },
+            select: { id: true },
+          });
+          if (existingPayment) {
+            throw new DentalLabPaymentStateError('Для этого заказа уже существует платёж; повторное выставление QR запрещено');
+          }
+          return tx.payment.create({ data: paymentData });
+        })
+      : refType === 'partner_branch_subscription_invoice' && partnerBranchInvoiceId
+        ? await prisma.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT "id" FROM "partner_branch_subscription_invoices" WHERE "id" = ${partnerBranchInvoiceId} FOR UPDATE`;
+            const currentInvoice = await tx.partnerBranchSubscriptionInvoice.findUnique({
+              where: { id: partnerBranchInvoiceId },
+            });
+            if (!currentInvoice || currentInvoice.status !== 'issued' || currentInvoice.paymentId) {
+              throw new PartnerBranchBillingError(
+                'BILLING_PERIOD_OVERLAP',
+                'Счёт уже изменился или по нему создан платёж',
+                409,
+              );
+            }
+            if (currentInvoice.amountMinor !== minor || currentInvoice.currency !== 'KZT') {
+              throw new PartnerBranchBillingError(
+                'INVALID_PERIOD',
+                'Сумма счёта изменилась до создания платежа',
+                409,
+              );
+            }
+            const existingPayment = await tx.payment.findFirst({
+              where: {
+                refType: 'partner_branch_subscription_invoice',
+                refId: partnerBranchInvoiceId,
+                status: { in: ['pending', 'paid'] },
+              },
+              select: { id: true },
+            });
+            if (existingPayment) {
+              throw new PartnerBranchBillingError(
+                'BILLING_PERIOD_OVERLAP',
+                'Для этого счёта уже существует платёж. Повторите запрос с исходным ключом идемпотентности.',
+                409,
+              );
+            }
+            const createdPayment = await tx.payment.create({ data: paymentData });
+            await tx.partnerBranchSubscriptionInvoice.update({
+              where: { id: currentInvoice.id },
+              data: { status: 'payment_pending', paymentId: createdPayment.id },
+            });
+            return createdPayment;
+          })
+        : await prisma.payment.create({ data: paymentData });
 
     await completeIdempotencyKey(idempotencyKey, payment.id);
     keyCompleted = true;
@@ -1076,13 +1507,19 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     if (idempotencyKey && keyReserved && !keyCompleted) {
       await deleteIdempotencyKey(idempotencyKey);
     }
+    if (error instanceof DentalLabPaymentStateError) {
+      return res.status(409).json({ ok: false, error: error.message, code: error.code } satisfies ApiResponse);
+    }
+    if (error instanceof PartnerBranchBillingError) {
+      return res.status(error.status).json({ ok: false, error: error.message, code: error.code } satisfies ApiResponse);
+    }
     if (error instanceof ClinicPaymentsError) {
       return res.status(error.status).json({
         ok: false,
         error: error.message,
       } satisfies ApiResponse);
     }
-    console.error('Create payment error:', error);
+    console.error('Create payment error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка при создании платежа' } satisfies ApiResponse);
   }
 });
@@ -1094,6 +1531,13 @@ paymentsRouter.post('/:id/refund', authenticate, async (req: AuthRequest, res) =
 
     if (!(await assertPaymentOwner(req, payment))) {
       return res.status(403).json({ ok: false, error: 'Нет доступа к платежу' } satisfies ApiResponse);
+    }
+    if (payment.refType === 'partner_branch_subscription_invoice') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Возврат филиальной подписки ещё не подключён к процедуре кредит-ноты и перерасчёта периода',
+        code: 'PARTNER_BRANCH_REFUND_NOT_IMPLEMENTED',
+      } satisfies ApiResponse);
     }
     const clinicId = clinicPaymentScope(payment);
     if (clinicId && !(await requireClinicPaymentWritable(req, res, clinicId))) return;
@@ -1146,7 +1590,7 @@ paymentsRouter.post('/:id/refund', authenticate, async (req: AuthRequest, res) =
         error.code === 'INVALID_AMOUNT' || error.code === 'IDEMPOTENCY_REQUIRED' ? 400 : 409;
       return res.status(status).json({ ok: false, error: error.message } satisfies ApiResponse);
     }
-    console.error('Refund payment error:', error);
+    console.error('Refund payment error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка возврата платежа' } satisfies ApiResponse);
   }
 });
@@ -1161,17 +1605,6 @@ paymentsRouter.get('/:id', authenticate, async (req: AuthRequest, res) => {
     return res.status(403).json({ ok: false, error: 'Нет доступа к платежу' } satisfies ApiResponse);
   }
 
-  // Lazy-expire stale pending payments (> 24h old)
-  if (payment.status === 'pending') {
-    const age = Date.now() - payment.createdAt.getTime();
-    if (age > 86_400_000) {
-      payment = await prisma.payment.update({
-        where: { id: payment.id },
-        data: { status: 'expired' },
-      });
-    }
-  }
-
   const meta = (payment.meta || {}) as { qr?: string; clinicId?: string; merchantScope?: string };
   let providerStatus: string | null = null;
   if (payment.externalId) {
@@ -1183,6 +1616,38 @@ paymentsRouter.get('/:id', authenticate, async (req: AuthRequest, res) => {
     } else if (payment.provider !== 'clinic_kaspi') {
       const gateway = providers[payment.provider] || providers.kaspi_qr;
       providerStatus = await gateway.getPaymentStatus(payment.externalId);
+    }
+  }
+
+  // Lazy-expire stale pending payments (> 24h old). Partner invoice holds are
+  // released only after Kaspi has conclusively reported failed/expired. A late
+  // callback or provider-paid payment must never lose its invoice reservation
+  // merely because a user opened the payment screen after 24 hours.
+  if (payment.status === 'pending' && Date.now() - payment.createdAt.getTime() > 86_400_000) {
+    if (payment.refType === 'partner_branch_subscription_invoice' && payment.refId) {
+      if (providerStatus === 'failed' || providerStatus === 'expired') {
+        payment = await prisma.$transaction(async (tx) => {
+          const terminal = await tx.payment.updateMany({
+            where: { id: payment!.id, status: 'pending' },
+            data: { status: providerStatus! },
+          });
+          if (terminal.count === 1) {
+            const released = await releasePartnerBranchSubscriptionInvoicePayment({
+              invoiceId: payment!.refId!,
+              paymentId: payment!.id,
+            }, tx);
+            if (!released) throw new Error('PARTNER_INVOICE_HOLD_NOT_RELEASED');
+          }
+          return tx.payment.findUniqueOrThrow({ where: { id: payment!.id } });
+        });
+      }
+      // Provider-pending, provider-paid and unknown payments keep their hold.
+      // Provider-paid remains confirmable through the existing atomic /confirm route.
+    } else {
+      payment = await prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: 'expired' },
+      });
     }
   }
   return res.json({
@@ -1251,6 +1716,52 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
         const gateway = providers[payment.provider] || providers.kaspi_qr;
         providerStatus = await gateway.getPaymentStatus(payment.externalId);
       }
+    }
+
+    // A user who checks a terminal partner payment should be able to retry
+    // immediately. Release the invoice reservation atomically with the payment
+    // status, but only after the provider has returned a conclusive failure.
+    if (
+      payment.refType === 'partner_branch_subscription_invoice'
+      && payment.refId
+      && (providerStatus === 'failed' || providerStatus === 'expired')
+    ) {
+      const terminalPayment = await prisma.$transaction(async (tx) => {
+        const changed = await tx.payment.updateMany({
+          where: { id: payment.id, status: 'pending' },
+          data: { status: providerStatus },
+        });
+        if (changed.count === 1) {
+          const released = await releasePartnerBranchSubscriptionInvoicePayment({
+            invoiceId: payment.refId!,
+            paymentId: payment.id,
+          }, tx);
+          if (!released) throw new Error('PARTNER_INVOICE_HOLD_NOT_RELEASED');
+        }
+        return tx.payment.findUniqueOrThrow({ where: { id: payment.id } });
+      });
+
+      if (terminalPayment.status === 'paid') {
+        return res.json({
+          ok: true,
+          data: { ...serializeBigInt(terminalPayment), settled: true, alreadyPaid: true },
+        } satisfies ApiResponse);
+      }
+      if (payment.externalId && terminalPayment.status === providerStatus) {
+        markMockPaymentStatus(payment.externalId, providerStatus);
+      }
+      return res.status(402).json({
+        ok: false,
+        error: providerStatus === 'expired'
+          ? 'Срок оплаты истёк. Счёт снова доступен для оплаты.'
+          : 'Провайдер отклонил платёж. Счёт снова доступен для оплаты.',
+        code: providerStatus === 'expired' ? 'PAYMENT_EXPIRED' : 'PAYMENT_FAILED',
+        data: {
+          paymentStatus: terminalPayment.status,
+          providerStatus,
+          invoiceCanRetry: terminalPayment.status === 'failed' || terminalPayment.status === 'expired',
+        },
+      } satisfies ApiResponse);
     }
 
     const isProduction = env.NODE_ENV === 'production';
@@ -1326,7 +1837,7 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       },
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('Confirm payment error:', error);
+    console.error('Confirm payment error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка подтверждения оплаты' } satisfies ApiResponse);
   }
 });
@@ -1382,7 +1893,7 @@ paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
       return res.json({ ok: true, data: { id: payment.id, status: payment.status, settled: false } } satisfies ApiResponse);
     }
 
-    const newStatus = status === 'paid' ? 'paid' : status === 'failed' ? 'failed' : 'pending';
+    const newStatus = status === 'paid' ? 'paid' : status === 'failed' ? 'failed' : status === 'expired' ? 'expired' : 'pending';
     let settled = false;
     if (newStatus === 'paid') {
       // Same atomic guard as /confirm: only the caller that actually flips
@@ -1395,12 +1906,33 @@ paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
       });
       settled = result.settled;
     } else {
-      // Non-paid callbacks may only transition a still-pending payment. A stale
-      // failed/pending callback must never overwrite a paid or terminal state.
-      await prisma.payment.updateMany({
-        where: { id: payment.id, status: 'pending' },
-        data: { status: newStatus },
-      });
+      // Preserve the existing payment path for all other products. Only partner
+      // branch invoices need the coupled invoice-hold release in this transaction.
+      if (
+        (newStatus === 'failed' || newStatus === 'expired')
+        && payment.refType === 'partner_branch_subscription_invoice'
+        && payment.refId
+      ) {
+        await prisma.$transaction(async (tx) => {
+          const changed = await tx.payment.updateMany({
+            where: { id: payment.id, status: 'pending' },
+            data: { status: newStatus },
+          });
+          if (changed.count === 1) {
+            await releasePartnerBranchSubscriptionInvoicePayment({
+              invoiceId: payment.refId!,
+              paymentId: payment.id,
+            }, tx);
+          }
+        });
+      } else {
+        // Non-paid callbacks for ordinary payments retain the original guarded
+        // updateMany path: a stale failure cannot overwrite a settled payment.
+        await prisma.payment.updateMany({
+          where: { id: payment.id, status: 'pending' },
+          data: { status: newStatus },
+        });
+      }
     }
 
     const latestPayment = await prisma.payment.findUnique({ where: { id: payment.id } });
@@ -1418,7 +1950,7 @@ paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
 
     return res.json({ ok: true, data: { id: payment.id, status: effectiveStatus, settled } } satisfies ApiResponse);
   } catch (error) {
-    console.error('Kaspi callback error:', error);
+    console.error('Kaspi callback error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка обработки callback' } satisfies ApiResponse);
   }
 });
@@ -1535,7 +2067,7 @@ paymentsRouter.post('/callbacks/kaspi/clinic/:clinicId', async (req, res) => {
     if (error instanceof ClinicPaymentsError) {
       return res.status(error.status).json({ ok: false, error: error.message } satisfies ApiResponse);
     }
-    console.error('Clinic Kaspi callback error:', error);
+    console.error('Clinic Kaspi callback error:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Ошибка обработки callback клиники' } satisfies ApiResponse);
   }
 });

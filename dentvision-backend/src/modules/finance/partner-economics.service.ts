@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
+import { calculatePartnerBranchSubscriptionQuote, PARTNER_ECONOMICS_POLICY_VERSION } from '../billing/partnerEconomics.js';
 
 export const PARTNER_VERTICALS = {
   DIAGNOSTIC_3D: 'DIAGNOSTIC_3D',
@@ -11,6 +12,16 @@ export const PARTNER_VERTICALS = {
 export type PartnerVertical = (typeof PARTNER_VERTICALS)[keyof typeof PARTNER_VERTICALS];
 type VolumeTier = { upToMinor: bigint | null; percentBps: number };
 
+function branchSubscriptionUnitMinor(vertical: PartnerVertical): bigint {
+  const quote = calculatePartnerBranchSubscriptionQuote({
+    vertical,
+    organizationActivated: true,
+    activeBillableBranchCount: 1,
+  });
+  // Finance persistence uses tiyn; the canonical policy quote uses whole KZT.
+  return BigInt(quote.unitPriceKzt) * 100n;
+}
+
 export interface PartnerEconomicsRule {
   vertical: PartnerVertical; version: number; effectiveFrom: string; percentBps: number;
   minFeeMinor: bigint; maxFeeMinor: bigint | null; subscriptionMinor: bigint; volumeTiers?: VolumeTier[];
@@ -19,6 +30,7 @@ export interface PartnerEconomicsInput {
   vertical: PartnerVertical; partnerId: string; grossMinor: bigint; monthlyGmvMinor?: bigint;
   paymentCostMinor?: bigint; aiCostMinor?: bigint; storageCostMinor?: bigint;
   supportCostMinor?: bigint; refundReserveMinor?: bigint; taxMinor?: bigint; branchId?: string | null;
+  paymentId?: string | null;
 }
 export type EconomicsStatus = 'HEALTHY' | 'LOSS' | 'LOW_MARGIN';
 export interface PartnerEconomicsBreakdown {
@@ -29,11 +41,11 @@ export interface PartnerEconomicsBreakdown {
 }
 
 const CANONICAL_RULES: Record<PartnerVertical, PartnerEconomicsRule> = {
-  DIAGNOSTIC_3D: { vertical: 'DIAGNOSTIC_3D', version: 1, effectiveFrom: '2026-09-11T00:00:00.000Z', percentBps: 700, minFeeMinor: 50_000n, maxFeeMinor: 300_000n, subscriptionMinor: 4_990_000n },
-  MEDICAL_ANALYSIS: { vertical: 'MEDICAL_ANALYSIS', version: 1, effectiveFrom: '2026-09-11T00:00:00.000Z', percentBps: 600, minFeeMinor: 15_000n, maxFeeMinor: 250_000n, subscriptionMinor: 1_990_000n },
+  DIAGNOSTIC_3D: { vertical: 'DIAGNOSTIC_3D', version: 1, effectiveFrom: '2026-09-11T00:00:00.000Z', percentBps: 700, minFeeMinor: 50_000n, maxFeeMinor: 300_000n, subscriptionMinor: branchSubscriptionUnitMinor('DIAGNOSTIC_3D') },
+  MEDICAL_ANALYSIS: { vertical: 'MEDICAL_ANALYSIS', version: 1, effectiveFrom: '2026-09-11T00:00:00.000Z', percentBps: 600, minFeeMinor: 15_000n, maxFeeMinor: 250_000n, subscriptionMinor: branchSubscriptionUnitMinor('MEDICAL_ANALYSIS') },
   DENTAL_LAB: {
     vertical: 'DENTAL_LAB', version: 1, effectiveFrom: '2026-09-11T00:00:00.000Z', percentBps: 800,
-    minFeeMinor: 50_000n, maxFeeMinor: 1_500_000n, subscriptionMinor: 2_990_000n,
+    minFeeMinor: 50_000n, maxFeeMinor: 1_500_000n, subscriptionMinor: branchSubscriptionUnitMinor('DENTAL_LAB'),
     volumeTiers: [
       { upToMinor: 100_000_000n, percentBps: 1000 }, { upToMinor: 500_000_000n, percentBps: 800 },
       { upToMinor: 1_500_000_000n, percentBps: 700 }, { upToMinor: 3_000_000_000n, percentBps: 600 },
@@ -90,7 +102,10 @@ export function calculatePartnerEconomics(input: PartnerEconomicsInput, rule: Pa
   const monthlyGmvMinor = input.monthlyGmvMinor ?? input.grossMinor;
   const bps = selectBps(rule, monthlyGmvMinor);
   const percentageFee = (input.grossMinor * BigInt(bps)) / 10_000n;
-  const commissionMinor = rule.maxFeeMinor == null ? (percentageFee < rule.minFeeMinor ? rule.minFeeMinor : percentageFee) : percentageFee < rule.minFeeMinor ? rule.minFeeMinor : percentageFee > rule.maxFeeMinor ? rule.maxFeeMinor : percentageFee;
+  const calculatedCommissionMinor = rule.maxFeeMinor == null ? (percentageFee < rule.minFeeMinor ? rule.minFeeMinor : percentageFee) : percentageFee < rule.minFeeMinor ? rule.minFeeMinor : percentageFee > rule.maxFeeMinor ? rule.maxFeeMinor : percentageFee;
+  // A minimum is a floor, not a surcharge: it must never exceed the settled
+  // gross amount or create a negative partner net / fee on a zero-value case.
+  const commissionMinor = calculatedCommissionMinor > input.grossMinor ? input.grossMinor : calculatedCommissionMinor;
   const partnerRevenueMinor = input.grossMinor - commissionMinor;
   const paymentCostMinor = input.paymentCostMinor ?? 0n, aiCostMinor = input.aiCostMinor ?? 0n, storageCostMinor = input.storageCostMinor ?? 0n;
   const supportCostMinor = input.supportCostMinor ?? 0n, refundReserveMinor = input.refundReserveMinor ?? 0n, taxMinor = input.taxMinor ?? 0n;
@@ -103,17 +118,21 @@ export function calculatePartnerEconomics(input: PartnerEconomicsInput, rule: Pa
 export async function recordPartnerEconomics(input: PartnerEconomicsInput & { operationId: string }, db: Prisma.TransactionClient | typeof prisma = prisma) {
   const existing = await db.transaction.findFirst({ where: { type: 'partner_economics', refType: input.vertical, refId: input.operationId } });
   if (existing) return existing;
-  const monthlyGmvMinor = input.monthlyGmvMinor ?? await monthlyPartnerGmv(input.vertical, input.partnerId, new Date(), db);
+  // The current settled case contributes to the month in which its rate is resolved.
+  // Resolve the tier from prior settlements plus this case, not the prior total alone.
+  const monthlyGmvMinor = input.monthlyGmvMinor ?? (await monthlyPartnerGmv(input.vertical, input.partnerId, new Date(), db)) + input.grossMinor;
   const rule = await getPartnerEconomicsRule(input.vertical, db);
   const breakdown = calculatePartnerEconomics({ ...input, monthlyGmvMinor }, rule);
   const id = createHash('sha256').update(`partner-economics:${input.vertical}:${input.operationId}`).digest('hex').slice(0, 32);
   const meta = {
     kind: 'partner_economics', operationId: input.operationId, vertical: input.vertical, partnerId: input.partnerId,
     economicsVersion: breakdown.rule.version,
+    policyVersion: PARTNER_ECONOMICS_POLICY_VERSION,
     rule: { percentBps: breakdown.rule.percentBps, minFeeMinor: breakdown.rule.minFeeMinor.toString(), maxFeeMinor: breakdown.rule.maxFeeMinor?.toString() ?? null, subscriptionMinor: breakdown.rule.subscriptionMinor.toString(), effectiveFrom: breakdown.rule.effectiveFrom },
     commissionMinor: breakdown.commissionMinor.toString(), partnerRevenueMinor: breakdown.partnerRevenueMinor.toString(), contributionMarginMinor: breakdown.contributionMarginMinor.toString(), contributionMarginBps: breakdown.contributionMarginBps, status: breakdown.status,
     costs: { payment: breakdown.paymentCostMinor.toString(), ai: breakdown.aiCostMinor.toString(), storage: breakdown.storageCostMinor.toString(), support: breakdown.supportCostMinor.toString(), refundReserve: breakdown.refundReserveMinor.toString(), tax: breakdown.taxMinor.toString() },
     branchId: input.branchId ?? null,
+    paymentId: input.paymentId ?? null,
   } satisfies Prisma.InputJsonValue;
   try {
     // Serialize wallet initialization/update for each owner. The wallet unique

@@ -3,17 +3,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Building2, Check, ChevronDown, FlaskConical, GraduationCap, Loader2, Plus, Store, GitBranch } from 'lucide-react'
+import { BriefcaseBusiness, Building2, Check, ChevronDown, FlaskConical, GraduationCap, Loader2, Plus, Store, GitBranch } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { getRoleDisplayLabel, useAuth, useAuthStore } from '@/store/auth.store'
 import { useToast } from '@/components/ui/ds/Toast'
 import { queryKeys } from '@/queries/keys'
 import { useWorkspaceStore } from '@/store/workspace.store'
-import { workspaceContextFrom } from '@/lib/workspaceContext'
+import { resolveGlobalRoleLabel, selectWorkspaceContext, workspaceContextFrom } from '@/lib/workspaceContext'
 import * as api from '@/utils/api'
 
-type ScopeType = 'CLINIC' | 'DIAGNOSTIC_CENTER' | 'LABORATORY' | 'SUPPLIER' | 'LECTURER' | 'ACADEMY' | 'PARTNER'
+type ScopeType = 'CLINIC' | 'DIAGNOSTIC_CENTER' | 'LABORATORY' | 'SUPPLIER' | 'LECTURER' | 'ACADEMY' | 'PARTNER' | 'EMPLOYER'
 
 interface WorkspaceContext {
   id: string
@@ -39,14 +39,17 @@ const TYPE_ICON: Record<ScopeType, typeof Building2> = {
   LECTURER: GraduationCap,
   ACADEMY: GraduationCap,
   PARTNER: Building2,
+  EMPLOYER: BriefcaseBusiness,
 }
 
 const GROUPS: Array<{ label: string; types: ScopeType[] }> = [
   { label: 'Клиники', types: ['CLINIC'] },
-  { label: 'Диагностика', types: ['DIAGNOSTIC_CENTER', 'LABORATORY'] },
+  { label: 'Диагностические центры', types: ['DIAGNOSTIC_CENTER'] },
+  { label: 'Лаборатории', types: ['LABORATORY'] },
   { label: 'Поставщики', types: ['SUPPLIER'] },
   { label: 'Академия', types: ['LECTURER', 'ACADEMY'] },
   { label: 'Партнёры', types: ['PARTNER'] },
+  { label: 'Работодатели', types: ['EMPLOYER'] },
 ]
 
 export function WorkspaceSwitcher({ className }: { className?: string }) {
@@ -129,20 +132,31 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     () => {
       const exact = workspaces.find(isActive)
       if (exact) return exact
-      if (activeOrgId) {
-        const sameOrganization = workspaces.find((w) => w.organizationId === activeOrgId || w.scopeId === activeOrgId)
-        if (sameOrganization) return sameOrganization
-      }
-      if (activeOrgType && activeOrgType !== 'CLINIC') {
-        return workspaces.find((w) => w.scopeType !== 'CLINIC') || workspaces[0]
-      }
-      return workspaces.find((w) => w.scopeType === 'CLINIC') || workspaces[0]
+      // Reuse the canonical fail-closed selector. A stale identity or an
+      // ambiguous multi-membership state must never borrow the first workspace.
+      return selectWorkspaceContext(workspaces, {
+        scopeId: activeLecturerId || activeSupplierId || activeClinicId || activeOrgId,
+        organizationId: activeOrgId,
+      })
     },
-    [workspaces, isActive, activeOrgId, activeOrgType],
+    [workspaces, isActive, activeOrgId, activeClinicId, activeSupplierId, activeLecturerId],
   )
   const isGenericRoleLabel = (label?: string | null) =>
     !label?.trim() || /^(?:участник(?: экосистемы)?|member|participant|user|пользователь)$/i.test(label.trim())
   const activeRoleLabel = useMemo(() => {
+    if (!current) {
+      // Global participants (student, patient, superadmin, support) may have no
+      // organization workspace. Keep their authenticated role visible without
+      // manufacturing or selecting an organization context.
+      if (workspaces.length === 0) {
+        return resolveGlobalRoleLabel(
+          [effectiveRole, (user as any)?.role, (user as any)?.platformRole],
+          getRoleDisplayLabel,
+          roleInfo?.label,
+        )
+      }
+      return t('platform.workspace_choose', { defaultValue: 'Контекст не выбран' })
+    }
     // Prefer the application's canonical role vocabulary over stale labels saved
     // in older workspace rows (for example, "Руководитель" vs "Владелец").
     const canonicalCandidates = [current?.roleKey, effectiveRole, (user as any)?.role, (user as any)?.platformRole, current?.role]
@@ -153,7 +167,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     }
     if (!isGenericRoleLabel(current?.roleLabel)) return current?.roleLabel || roleInfo?.label || 'Участник экосистемы'
     return roleInfo?.label || 'Участник экосистемы'
-  }, [current, effectiveRole, user, roleInfo?.label])
+  }, [current, workspaces.length, effectiveRole, user, roleInfo?.label, t])
 
   interface BranchOption { id: string; name: string; code?: string | null; active?: boolean }
   const { data: branches = [], isFetching: branchesLoading } = useQuery<BranchOption[]>({
@@ -212,7 +226,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const Icon = TYPE_ICON[current?.scopeType || 'CLINIC'] || Building2
 
   const pick = async (ws: WorkspaceContext) => {
-    if (busyId || isActive(ws)) {
+    if (busyId || current?.id === ws.id) {
       setOpen(false)
       return
     }
@@ -233,7 +247,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       api.setWorkspaceContext(contract)
       setActiveWorkspace({ id: ws.id, scopeType: ws.scopeType, organizationId: ws.organizationId, branchId: ws.branchId, name: ws.name, roleKey: ws.roleKey, roleLabel: ws.roleLabel, permissions: ws.permissions, participant: ws.personType, dataScope: contract.dataScope }, contract)
       setContextFocus('workspace', ws.id, { organizationId: ws.organizationId || null, branchId: ws.branchId || null, roleKey: ws.roleKey || ws.role || null, scopeType: ws.scopeType })
-      window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: ws.id, scopeType: ws.scopeType, organizationId: ws.organizationId, branchId: ws.branchId || null, name: ws.name, roleLabel: ws.roleLabel, roleKey: ws.roleKey || null } }))
+      window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: ws.id, scopeId: ws.scopeId, scopeType: ws.scopeType, organizationId: ws.organizationId, branchId: ws.branchId || null, name: ws.name, roleLabel: ws.roleLabel, roleKey: ws.roleKey || null } }))
 
       toast.success(t('platform.clinic_active', { name: ws.name }))
       setOpen(false)
@@ -249,9 +263,10 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         case 'DIAGNOSTIC_CENTER': navigate('/diagnostics/center-dashboard'); break
         case 'LABORATORY': navigate('/diagnostics/lab-dashboard'); break
         case 'SUPPLIER': navigate('/supplier'); break
-        case 'LECTURER':
-        case 'ACADEMY': navigate('/school'); break
+        case 'LECTURER': navigate('/school/workspace'); break
+        case 'ACADEMY': navigate('/academy/workspace'); break
         case 'PARTNER': navigate('/shop'); break
+        case 'EMPLOYER': navigate('/employer'); break
       }
     } catch (e) {
       toast.error((e as Error)?.message || t('platform.clinic_switch_error'))
@@ -287,7 +302,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         ),
       )
       setContextFocus('workspace', selected.id, { organizationId: selected.organizationId || null, branchId: branch.id, roleKey: selected.roleKey || selected.role || null, scopeType: selected.scopeType })
-      window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: selected.id, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: branch.id, name: selected.name, roleLabel: selected.roleLabel, roleKey: selected.roleKey || null } }))
+      window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: selected.id, scopeId: selected.scopeId, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: branch.id, name: selected.name, roleLabel: selected.roleLabel, roleKey: selected.roleKey || null } }))
       toast.success(`Филиал: ${branch.name}`)
       setOpen(false)
       void queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
@@ -322,7 +337,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
             <div className="space-y-0.5">
               {group.items.map((ws) => {
                 const WsIcon = TYPE_ICON[ws.scopeType] || Building2
-                const active = isActive(ws)
+                const active = current?.id === ws.id
                 const loading = busyId === ws.id
                 return (
                   <button
@@ -381,7 +396,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         onMouseDown={(event) => event.stopPropagation()}
         onClick={() => { if (!open) updateMenuPosition(); setOpen((v) => !v) }}
         className={cn('group flex items-center gap-2 max-w-[8.5rem] xs:max-w-[10rem] sm:max-w-[16rem] min-h-11 px-2.5 py-1.5 rounded-xl', 'bg-surface-raised border border-bdr-strong text-txt-primary shadow-elev-1 hover:bg-surface-raised-hover hover:border-dv-gold/60 hover:shadow-elev-2 transition-[background-color,border-color,box-shadow] duration-150', open && 'border-dv-gold/70 shadow-elev-2')}
-        aria-label={activeRoleLabel ? `${t('platform.clinic_switch')}: ${current?.name || t('platform.clinic_fallback')} — ${activeRoleLabel}` : t('platform.clinic_switch')}
+        aria-label={activeRoleLabel ? `${t('platform.clinic_switch')}: ${current?.name || t('platform.workspace_choose', { defaultValue: 'Выберите рабочее пространство' })} — ${activeRoleLabel}` : t('platform.clinic_switch')}
         aria-expanded={open}
         aria-haspopup="menu"
       >

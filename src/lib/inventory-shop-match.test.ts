@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildClinicRestockSuggestions,
   findShopMatches,
+  getClinicRestockQuantities,
   isClinicLowStock,
 } from './inventory-shop-match'
 
@@ -26,6 +27,20 @@ describe('inventory-shop-match', () => {
     expect(matches.some((m) => m.id === 'c')).toBe(false)
   })
 
+  it('caps restock at seller stock and subtracts quantities already in cart', () => {
+    const item = { quantity: 2, minQuantity: 10 }
+    const product = { id: 'p1', stock: 5 }
+    expect(getClinicRestockQuantities(item, product)).toEqual({ requested: 8, available: 5, addable: 5 })
+    expect(getClinicRestockQuantities(item, product, 3)).toEqual({ requested: 8, available: 2, addable: 2 })
+    expect(getClinicRestockQuantities(item, product, 5).addable).toBe(0)
+  })
+
+  it('does not add a restock quantity when seller stock is zero', () => {
+    expect(getClinicRestockQuantities(
+      { quantity: 0, minQuantity: 6 },
+      { id: 'p1', stock: 0 },
+    )).toEqual({ requested: 6, available: 0, addable: 0 })
+  })
   it('builds restock suggestions only with marketplace hits when asked', () => {
     const inventory = [
       { id: '1', name: 'Композит Filtek', quantity: 1, minQuantity: 4 },

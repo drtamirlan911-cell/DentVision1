@@ -2,7 +2,6 @@ import { useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Upload, X, Loader2, Image as ImageIcon, FileText, Bone, Box, Paperclip } from 'lucide-react';
 import { useToast } from '@/components/ui/ds/Toast';
-import { fileToDataUrl } from '@/lib/image-upload';
 
 interface UploadingFile {
   id: string;
@@ -15,14 +14,14 @@ interface UploadingFile {
 
 interface Props {
   referralId?: string;
-  onUpload: (file: File, dataUrl: string) => Promise<void>;
+  onUpload: (file: File) => Promise<void>;
   files?: { id: string; fileName: string; fileType: string; fileUrl?: string }[];
   onDelete?: (id: string) => void;
   disabled?: boolean;
 }
 
-const ALLOWED = '.jpg,.jpeg,.png,.gif,.webp,.pdf,.dcm,.dicom,.stl,.obj,.zip';
-const MAX_SIZE = 10 * 1024 * 1024;
+const ALLOWED = '.jpg,.jpeg,.png,.gif,.webp,.pdf,.dcm,.dicom,.stl,.obj';
+const MAX_SIZE = 60 * 1024 * 1024;
 
 export default function FileUploader({ referralId, onUpload, files, onDelete, disabled }: Props) {
   const { t } = useTranslation()
@@ -38,8 +37,7 @@ export default function FileUploader({ referralId, onUpload, files, onDelete, di
       const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
       setUploading(prev => [...prev, { id, name: file.name, type: file.type, size: file.size, preview, progress: true }]);
       try {
-        const dataUrl = await fileToDataUrl(file);
-        await onUpload(file, dataUrl);
+        await onUpload(file);
         setUploading(prev => prev.filter(f => f.id !== id));
       } catch (e: any) {
         toast.error(e.message || t('diagnostics.upload_error'));

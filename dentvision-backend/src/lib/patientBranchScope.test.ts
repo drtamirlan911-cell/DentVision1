@@ -74,6 +74,22 @@ describe('patient branch scope', () => {
     expect(canAccessPatientBranch(actor, 'branch-archived')).toBe(false);
   });
 
+  it('does not guess a branch when a narrow role has multiple active assignments', async () => {
+    queryRaw.mockResolvedValueOnce([{ branch_id: 'branch-a', branch_active: true }]);
+    const actor = await resolvePatientBranchContext('doctor-a', 'clinic-a', 'DOCTOR', ['branch-a', 'branch-b'], null);
+    expect(actor.scope).toEqual({ kind: 'assigned', branchIds: ['branch-a', 'branch-b'] });
+    expect(actor.branchId).toBeNull();
+    expect(canAccessPatientBranch(actor, 'branch-a')).toBe(true);
+    expect(canAccessPatientBranch(actor, 'branch-b')).toBe(true);
+  });
+
+  it('honors the explicitly selected branch instead of the first membership', async () => {
+    queryRaw.mockResolvedValueOnce([{ branch_id: 'branch-a', branch_active: true }]);
+    const actor = await resolvePatientBranchContext('doctor-a', 'clinic-a', 'DOCTOR', ['branch-a', 'branch-b'], 'branch-b');
+    expect(actor.branchId).toBe('branch-b');
+    expect(canAccessPatientBranch(actor, 'branch-b')).toBe(true);
+  });
+
   it('fails closed for legacy patients without a branch', () => {
     const actor = context('assigned', ['branch-a']);
     expect(canAccessPatientBranch(actor, null)).toBe(false);

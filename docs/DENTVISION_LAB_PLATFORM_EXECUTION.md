@@ -214,3 +214,61 @@ A read-only comparison of `main` at `4bbd61a339d5f3c4d40d1d5990f633a7b9a87864` c
 7. Full desktop/mobile acceptance and exact-head CI/E2E evidence for the final integrated workflow.
 
 No production/staging database, migration, payment provider, secret or live partner data was accessed or changed during this reconciliation. D10 remains OPEN/PARTIAL until all remaining lifecycle and release gates pass.
+
+## 2026-11-21 continuation checkpoint — dispatch evidence, repeat remakes and production command surface (candidate PR #352)
+
+The following source-level capabilities are now present on the candidate branch:
+
+- Courier dispatch requires carrier and tracking number; clinic pickup uses a separate ready_for_pickup state.
+- The generic status endpoint cannot mark a partner-owned case delivered. Delivery requires a validated HTTPS proof reference and recipient name; the transaction records shipment and order events, actor/time audit, durable clinic notification and an ecosystem event.
+- Shipment records are one-to-many per canonical LabOrder. A completed shipment does not block a later remake cycle from creating a new dispatch. Earlier shipment evidence is retained; the lifecycle response returns all attempts and their individual event streams.
+- Logistics users can process only ready/delivered handoffs. Their order projection removes patient, doctor, technical, clinical-note, QC, payment and price fields; lifecycle/technical detail remains reserved for managers and assigned production roles.
+- Owners/managers can assign a technician from the production board. Assignment is validated against membership in that exact lab and written to the durable order event history.
+- The work-item detail view loads the canonical lifecycle and presents the clinic technical brief, production events and shipment history. The event lists are merged chronologically; courier/logistics users cannot open this view.
+- Partner Lifecycle E2E coverage includes courier and pickup, HTTPS validation, tenant/role denial, idempotent retry, clinic remake request, laboratory acceptance, repeated production/QC, a second pickup shipment and retained first/second shipment history.
+
+**Release evidence limitation:** the most recent available Quality Gate run for the earlier candidate SHA b85101d8f7306a6f70c46b5e9feea888b475f9cd failed TypeScript at the stale Badge variant danger in DentalLabPlatform.tsx; the candidate code was changed to the supported error variant. That run predates the latest production-timeline changes and is not exact-head evidence. Vercel Preview is currently blocked by a build-rate-limit response. No exact-head TypeScript, lint, Release Gate or full Partner Lifecycle E2E success is claimed.
+
+**Remaining D10 / dental-lab work:** CAD/CAM and workstation dispatch, governed STL/PLY/OBJ file/version management, materials and lot traceability, per-case labour/material costs, formal invoice/tax document lifecycle, branch subscription enforcement, remake warranty/cost responsibility, acceptance-based payment settlement, refund/chargeback reconciliation and durable notification delivery proof and full desktop/mobile/operator acceptance. Dental Laboratory remains **PARTIAL / D10 OPEN**. No production migration, payment-provider or bank payout integration, or live partner operation has been performed.
+
+## 2026-11-22 continuation checkpoint — partner workspace authorization and catalog parity (candidate PR #352)
+
+The candidate now tightens the shared diagnostic-center / laboratory workspace around the Master Spec's first-class organization and active-context rules:
+
+- Referral-list authorization is selected by partner family: diagnostic centers require `diagnostics.read`; medical and dental laboratories require `lab.read`. These permissions are resolved from the active organization-scoped partner roles rather than the legacy global role.
+- A partner can open its own private service catalogue when it is an active member of that organization. External discovery remains governed by `ecosystemVisible`; diagnostic-center catalogue reads still require an active center subscription. The same member-vs-public rule is applied to diagnostic studies and laboratory tests.
+- The exact `/centers/:id/worklist/staff` endpoint is registered before the dynamic `/worklist/:referralId` endpoint, preventing the literal `staff` segment from being interpreted as a referral identifier.
+- Workspace tabs and catalogue operations follow active IAM permissions. Finance, operational queue, catalogue management, team and cashier access are separated instead of being inferred from a generic partner role.
+- Referral list/detail projections now separate clinical fields (`medical.read`), financial fields (`billing.read`) and attachments (`files.read`). Operational roles retain the minimal patient/work-item identity and workflow fields; finance-only dashboard projections do not receive the recent patient-referral list.
+- Frontend IAM now recognizes the canonical `lab.read`, `lab.write` and `lab.manage` permissions alongside diagnostic, billing and staff permissions.
+
+**Verification status:** this is candidate source work on PR #352, not a release certification. The latest recorded code/test head before this document update is `c3a3fd45bb4dd8cb3d73a4729168cef128d46342`; exact-head CI, Quality Gate and RB-034 were queued/in progress at the time of this checkpoint. Earlier CI on the pre-correction head exposed an IAM test type error, one frontend ESLint warning over the configured threshold, partner lab referral 403 responses and diagnostic-center catalogue/staff-route 404 responses. The fixes above are intended to address those findings; no passing result is claimed until a fresh final-head run completes.
+
+**Classification remains PARTIAL:** this closes several workspace authorization, navigation and data-projection defects, not the complete RIS/PACS/LIS or dental-laboratory operating lifecycle. DICOM networking and a production viewer, analyzer integrations, full accession/chain-of-custody, QC/calibration evidence, remake feedback, shipping proof, financial reconciliation, mobile/operator acceptance and approved staging/production evidence remain separate requirements. No production/staging data, payment provider, secret, migration or deployment was accessed or changed in this checkpoint.
+
+
+## 2026-11-24 continuation checkpoint — clinic acceptance after delivery and remake (candidate PR #352)
+
+- Added clinic-side `POST /api/lab-orders/:id/acceptance`. It requires the authenticated active clinic, `lab.write`, the verified clinic branch scope, a partner-owned order in `delivered` state and the latest shipment's persisted delivery proof, recipient and delivered timestamp.
+- Acceptance is idempotent per shipment. A pending remake decision blocks acceptance; opening a new remake request archives the previous accepted actor/time/shipment/feedback in `clinicAcceptanceHistory` and clears only the current-cycle acceptance. Shipment and lifecycle-event history is retained.
+- The acceptance record stores the clinic actor, timestamp, shipment ID, related remake-request ID and optional feedback. It adds a durable lifecycle event with the production status unchanged, an audit record, clinic-to-lab notification and an ecosystem event.
+- The clinic CRM now presents a separate acceptance action and displays current and prior-cycle acknowledgement/feedback; the partner projection exposes history to production roles and withholds feedback text from logistics. The dental-lab production projection exposes feedback to operational roles; the logistics projection does not expose the feedback note.
+- Candidate E2E extends the partner lifecycle through first delivery → clinic acceptance → remake request/reset → repeated production/QC → second delivery → second clinic acceptance, including pre-delivery denial and idempotent retries. Exact-head CI is required before this flow is considered verified.
+- **Classification remains PARTIAL / D10 OPEN.** CAD/CAM and governed file/version control, materials/lot traceability, per-case costs, tax/fiscal documents, acceptance-based financial settlement, warranty/cost responsibility, refund/chargeback reconciliation, notification delivery proof and full desktop/mobile/operator acceptance remain outstanding. No production/staging migration, real payment-provider transaction, payout, deployment or live partner workflow was performed.
+
+## 2026-11-24 follow-up — acceptance-gated dental-lab invoice and settlement
+
+- The laboratory cannot issue a new invoice until the clinic has accepted the latest persisted shipment with delivery timestamp, HTTPS proof and named recipient. Acceptance from an earlier shipment does not unlock the current case.
+- Payment creation and the Finance Core settlement callback independently re-check the same acceptance evidence. A stale UI, legacy invoice or direct API call cannot settle an unaccepted delivery.
+- The partner workspace and clinic CRM expose invoice/payment actions only after current-cycle acceptance. The commercial fee remains recorded only through the successful settlement event; delivery and acceptance alone create no partner-economics transaction.
+- Unit tests cover missing/stale acceptance and incomplete proof. The partner lifecycle E2E asserts invoice denial before acceptance, invoice issuance after acceptance and idempotent invoice retry.
+- **D10 remains PARTIAL / OPEN.** Warranty/cost responsibility for remakes, CAD/CAM file/version governance, materials/lot traceability, per-case costs, tax documents, refunds/chargebacks, settlement/payout reconciliation and desktop/mobile/operator acceptance remain separate gates.
+
+
+## 2026-11-25 continuation — dental-lab material lots and per-case consumption (candidate PR #352)
+
+- Added a laboratory-owned material catalogue, lot receipts, expiry dates, remaining quantities and immutable purchase-cost snapshots. This is separate from clinic `InventoryItem`, which remains clinic-scoped.
+- Added per-`LabOrder` material-consumption records with an idempotency key, quantity in thousandths of the declared base unit, unit-cost snapshot, total cost snapshot and actor/time.
+- Stock decrement is transaction-locked and rejects foreign-lab lots, expired lots, insufficient stock, inactive materials and duplicate idempotency keys with conflicting payloads.
+- Manager-authorized reversals retain the original consumption row and record actor/time/reason while returning the quantity to the same lot. Material costs remain operational cost evidence and do not alter service price, partner commission or wallet balance.
+- Exact-head Prisma generation, migration, unit tests, role/tenant E2E and mobile/operator acceptance remain required. This slice does not close CAD/CAM file versioning, formal tax/fiscal documents, warranty/cost allocation, refunds/chargebacks or complete D10.
