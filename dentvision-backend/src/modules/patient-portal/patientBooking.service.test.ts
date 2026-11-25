@@ -367,16 +367,45 @@ describe('requestAppointment', () => {
     }));
   });
 
-  it('allows an owner-only provider with the same role used during slot discovery', async () => {
+  it('allows a canonical owner with active membership in the patient branch', async () => {
     patientFindUnique.mockResolvedValueOnce(PATIENT);
     clinicFindUnique.mockResolvedValueOnce(OPEN_CLINIC);
-    clinicMemberFindMany.mockResolvedValueOnce([{ userId: 'owner-1', role: 'OWNER' }]);
+    // The branch helper and provider lookup each resolve the same active
+    // canonical clinic organization. The provider must have both an owner
+    // PersonRole and an active BranchMember for this exact branch.
+    organizationFindFirst
+      .mockResolvedValueOnce({ id: 'org-1', archivedAt: null })
+      .mockResolvedValueOnce({ id: 'org-1', archivedAt: null });
+    branchFindFirst.mockResolvedValueOnce({ id: 'branch-1' });
+    personFindMany.mockResolvedValueOnce([{
+      userId: 'owner-1',
+      personRoles: [{ role: { key: 'owner' } }],
+    }]);
+    resolveClinicBranchAccess.mockResolvedValueOnce({
+      roleScope: 'ASSIGNED',
+      branchId: 'branch-1',
+      allowedBranchIds: ['branch-1'],
+    });
     appointmentFindFirst.mockResolvedValueOnce(null);
     bookingFindFirst.mockResolvedValueOnce(null);
     bookingCreate.mockResolvedValueOnce({ id: 'b-owner', time: '09:30', status: 'pending' });
 
     await requestAppointment({ ...baseInput, doctorId: 'owner-1' });
 
+    expect(personFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        organizationId: 'org-1',
+        userId: { not: null },
+        branchMemberships: { some: { branchId: 'branch-1', active: true } },
+        personRoles: expect.objectContaining({
+          some: expect.objectContaining({
+            scopeType: 'organization',
+            scopeId: 'org-1',
+            role: { key: { in: ['doctor', 'owner', 'org_owner', 'director'] } },
+          }),
+        }),
+      }),
+    }));
     expect(resolveClinicBranchAccess).toHaveBeenCalledWith({
       userId: 'owner-1',
       clinicId: 'clinic-1',
