@@ -59,8 +59,7 @@ export function labMemberOrderReadScope(input: { role: unknown; userId: string; 
     return {
       AND: [
         { files: labOrder },
-        // LabOrder.branchId is authoritative for patientless and linked orders alike.
-        { branchId: { in: [...branchIds] } },
+        { patient: { branchId: { in: [...branchIds] } } },
       ],
     };
   }
