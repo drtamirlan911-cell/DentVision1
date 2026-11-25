@@ -329,7 +329,8 @@ export default function DentalLabPlatform() {
   const canManageQc = ['owner', 'admin', 'manager', 'director', 'lab_manager'].includes(memberRole);
   const canManageShipping = canManageQc || ['courier', 'logistics', 'delivery_operator', 'dispatcher'].includes(memberRole);
   const canManageFinance = canManageQc || ['lab_finance', 'finance', 'accountant'].includes(memberRole);
-  const canReadProduction = canManageQc || ['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician'].includes(memberRole);
+  const canReadProduction = canManageQc || ['lab_coordinator', 'qc_specialist', 'technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician'].includes(memberRole);
+  const canConsumeMaterials = canManageQc || ['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician'].includes(memberRole);
   const canReadOrders = canReadProduction || ['courier', 'logistics', 'delivery_operator', 'dispatcher'].includes(memberRole);
   const effectiveTab = !canReadProduction && tab === 'board' && canManageFinance ? 'finance'
     : !canReadProduction && tab === 'board' && canManageShipping ? 'shipping'
@@ -443,7 +444,7 @@ export default function DentalLabPlatform() {
         {!(orders.data || []).some((order) => order.status === 'ready' || order.status === 'delivered') && <Card padding="lg"><p className="text-sm text-txt-muted">Нет заказов, ожидающих отправки, самовывоза или подтверждения вручения.</p></Card>}
       </div>}
       {effectiveTab === 'services' && <DentalLabServicesTab canManage={canManageQc} cacheScope={workspaceCacheScope} />}
-      {effectiveTab === 'materials' && <DentalLabMaterialsTab canManage={canManageQc} canConsume={canReadProduction} cacheScope={workspaceCacheScope} />}
+      {effectiveTab === 'materials' && <DentalLabMaterialsTab canManage={canManageQc} canConsume={canConsumeMaterials} cacheScope={workspaceCacheScope} />}
       {effectiveTab === 'team' && <Card padding="md"><div className="divide-y divide-bdr-subtle">{(team.data || []).map((member) => <div key={member.id} className="flex items-center justify-between py-3"><div><p className="text-sm font-medium">{member.firstName} {member.lastName}</p><p className="text-xs text-txt-muted">{member.email}</p></div><Badge variant="outline">{member.role || 'Сотрудник'}</Badge></div>)}{!team.data?.length && <p className="py-6 text-center text-sm text-txt-muted">Команда пока не загружена.</p>}</div></Card>}
       {effectiveTab === 'finance' && (!canManageFinance
         ? <Card padding="lg"><p className="text-sm text-txt-muted">Финансовый раздел доступен владельцу, менеджеру или назначенному сотруднику финслужбы.</p></Card>
