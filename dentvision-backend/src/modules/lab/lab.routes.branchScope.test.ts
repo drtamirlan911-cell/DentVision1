@@ -14,7 +14,7 @@ describe('dental lab branch isolation contract', () => {
     expect(source).toContain('const branchIds = access.branchId ? [access.branchId] : access.allowedBranchIds');
     expect(source).toContain('branchIds: organizationWide ? null : branchIds');
     expect(source).toContain('branchId: { in: branchIds }');
-    expect(source).toContain('selectedBranchId: access.branchId');
+    expect(source).toContain('const selectedBranchId = access.branchId');
     expect(source).toContain('branchId: order.branchId ?? null');
     expect(source).toContain('prepareLabOrderWrite(clinicId, writeBody, {}, branchIds, branchScope.selectedBranchId)');
     expect(source).toContain('prepareLabOrderWrite(clinicId, writeBody, {}, branchIds)');
