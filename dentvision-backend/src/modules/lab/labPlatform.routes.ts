@@ -986,20 +986,11 @@ labPlatformRouter.patch('/orders/:id/status', async (req: AuthRequest, res) => {
     const membership = await resolveLab(req);
     if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
     const next = String(req.body?.status || '');
-    const readScope = labMemberOrderReadScope({
-      role: membership.role,
-      userId: req.user!.id,
-      labId: membership.labId,
-      branchIds: req.user?.branchIds || [],
-    });
-    if (!readScope) {
-      return res.status(403).json({ ok: false, error: 'Нет доступа к заказам назначенного филиала' } satisfies ApiResponse);
-    }
     await ensureDentalLabOrderEventsTable();
     const outcome = await prisma.$transaction(async (tx) => {
       const orderId = String(req.params.id);
       await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} FOR UPDATE`;
-      const existing = await tx.labOrder.findFirst({ where: { id: orderId, ...readScope } });
+      const existing = await tx.labOrder.findFirst({ where: { id: orderId, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } } });
       if (!existing) return { kind: 'not_found' as const };
       const existingMeta = metaOf(existing.files);
       // Authorization is evaluated before workflow prerequisites: technicians
@@ -1507,3 +1498,41 @@ labPlatformRouter.post('/assign', requirePermission('appointment.write'), async 
       const meta = metaOf(existing.files);
       if (meta.laboratoryId === lab.id) return { kind: 'idempotent' as const, order: existing };
       if (meta.laboratoryId) return { kind: 'already_assigned' as const };
+      if (existing.status !== 'pending') return { kind: 'invalid_status' as const };
+
+      const selectedService = serviceId
+        ? await tx.dentalLabService.findFirst({ where: { id: serviceId, labId: lab.id, active: true } })
+        : null;
+      if (serviceId && !selectedService) return { kind: 'invalid_service' as const };
+      const currentFiles = existing.files && typeof existing.files === 'object' && !Array.isArray(existing.files)
+        ? existing.files as Record<string, unknown>
+        : {};
+      const order = await tx.labOrder.update({
+        where: { id: existing.id },
+        data: {
+          labName: lab.name,
+          ...(selectedService ? {
+            serviceId: selectedService.id,
+            serviceNameSnapshot: selectedService.name,
+            servicePriceSnapshot: selectedService.defaultPrice,
+            price: selectedService.defaultPrice,
+          } : {}),
+          files: { ...currentFiles, meta: { ...meta, laboratoryId: lab.id } },
+        },
+      });
+      await appendEventInTransaction(tx, order, null, order.status, req.user!.id, `Передан в лабораторию: ${lab.name}`);
+      return { kind: 'assigned' as const, order };
+    });
+
+    if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден в вашей клинике' } satisfies ApiResponse);
+    if (outcome.kind === 'already_assigned') return res.status(409).json({ ok: false, error: 'Заказ уже передан другой лаборатории. Переназначение без закрытия текущего цикла запрещено.', code: 'LAB_ORDER_ALREADY_ASSIGNED' } satisfies ApiResponse);
+    if (outcome.kind === 'invalid_status') return res.status(409).json({ ok: false, error: 'Передать можно только новый заказ со статусом «Ожидает».', code: 'LAB_ORDER_NOT_ASSIGNABLE' } satisfies ApiResponse);
+    if (outcome.kind === 'invalid_service') return res.status(400).json({ ok: false, error: 'Выбранная услуга отсутствует, отключена или принадлежит другой лаборатории.', code: 'LAB_SERVICE_NOT_AVAILABLE' } satisfies ApiResponse);
+
+    const order = outcome.order;
+    if (outcome.kind === 'assigned') {
+      publish('labOrder.assigned', { clinicId, labOrderId: order.id, laboratoryId: lab.id, laboratoryName: lab.name, patientId: order.patientId || undefined, doctorId: order.doctorId || undefined, treatmentCaseId: await caseIdOf(order.id) || undefined, userId: req.user?.id });
+    }
+    return res.json({ ok: true, data: { ...serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) }), assignmentIdempotent: outcome.kind === 'idempotent' } } satisfies ApiResponse);
+  } catch (error) { console.error('[LabPlatform] assign error:', safeErrorKind(error)); return res.status(500).json({ ok: false, error: 'Не удалось передать заказ лаборатории' } satisfies ApiResponse); }
+});
