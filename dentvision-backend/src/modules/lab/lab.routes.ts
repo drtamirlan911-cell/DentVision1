@@ -70,34 +70,50 @@ export function isDentalLabTransitionAllowed(from: string, to: string): boolean 
 interface VerifiedLabBranchScope {
   where: Record<string, unknown>;
   branchIds: string[] | null;
+  /** False when the actor has no verified active branch or organization scope. */
+  configured: boolean;
 }
 
 async function branchScopedLabOrder(req: AuthRequest, clinicId: string): Promise<VerifiedLabBranchScope> {
-  if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN') return { where: {}, branchIds: null };
+  if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN') {
+    return { where: {}, branchIds: null, configured: true };
+  }
   if (!req.user?.id || req.user.clinicId !== clinicId) {
-    return { where: { patient: { branchId: '__NO_BRANCH_ACCESS__' } }, branchIds: [] };
+    return {
+      where: { patient: { branchId: '__NO_BRANCH_ACCESS__' } },
+      branchIds: [],
+      configured: false,
+    };
   }
   const access = await resolveClinicBranchAccess({
-    userId: req.user.id,
+    userId: req.user?.id || '',
     clinicId,
-    organizationId: req.user.organizationId,
-    role: String(req.user.role || ''),
-    requestedBranchId: req.user.branchId,
+    organizationId: req.user?.organizationId,
+    role: String(req.user?.role || ''),
+    requestedBranchId: req.user?.branchId,
   });
-  if (!access) return { where: { patient: { branchId: '__NO_BRANCH_ACCESS__' } }, branchIds: [] };
+  if (!access) {
+    return {
+      where: { patient: { branchId: '__NO_BRANCH_ACCESS__' } },
+      branchIds: [],
+      configured: false,
+    };
+  }
 
   const organizationWide = access.roleScope === 'ORGANIZATION' && access.branchId === null;
-  const scopedBranchIds = access.branchId ? [access.branchId] : access.allowedBranchIds;
+  const branchIds = access.branchId ? [access.branchId] : access.allowedBranchIds;
   // Organization-wide users have no branch restriction. Do not pass their
   // branch inventory as a write allow-list: legacy patients may have branchId=null.
-  const branchIds = organizationWide ? null : scopedBranchIds;
   return {
     where: organizationWide
       ? {}
-      : scopedBranchIds.length
-        ? { patient: { branchId: { in: scopedBranchIds } } }
+      : branchIds.length
+        ? { patient: { branchId: { in: branchIds } } }
         : { patient: { branchId: '__NO_BRANCH_ACCESS__' } },
-    branchIds,
+    // An unfiltered organization role may write to legacy patient records with
+    // branchId=null. Narrow roles receive only their verified active branches.
+    branchIds: organizationWide ? null : branchIds,
+    configured: organizationWide || branchIds.length > 0,
   };
 }
 
@@ -223,6 +239,9 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
     }
 
     const branchScope = await branchScopedLabOrder(req, clinicId);
+    if (!branchScope.configured) {
+      return res.status(403).json({ ok: false, error: 'Доступ к филиалу не настроен или недействителен' } satisfies ApiResponse);
+    }
     const branchIds = branchScope.branchIds;
     const writeBody = { ...body, status: id ? body.status : 'pending', laboratoryId: undefined, technicianId: undefined };
     let order: any;
@@ -278,6 +297,9 @@ labRouter.patch('/:id/status', requirePermission('lab.write'), async (req: AuthR
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const branchScope = await branchScopedLabOrder(req, clinicId);
+    if (!branchScope.configured) {
+      return res.status(403).json({ ok: false, error: 'Доступ к филиалу не настроен или недействителен' } satisfies ApiResponse);
+    }
     const { status } = req.body as { status?: string };
     if (!status || !VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) return res.status(400).json({ ok: false, error: `Недопустимый статус. Допустимые: ${VALID_STATUSES.join(', ')}` } satisfies ApiResponse);
     await ensureDentalLabOrderEventsTable();
@@ -314,6 +336,9 @@ labRouter.post('/:id/remake-request', requirePermission('lab.write'), async (req
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const branchScope = await branchScopedLabOrder(req, clinicId);
+    if (!branchScope.configured) {
+      return res.status(403).json({ ok: false, error: 'Доступ к филиалу не настроен или недействителен' } satisfies ApiResponse);
+    }
     const reason = validateLabRemakeRequestReason(req.body?.reason);
     if (!reason) return res.status(400).json({ ok: false, error: 'Укажите причину переделки (от 5 до 2000 символов)' } satisfies ApiResponse);
     const orderId = String(req.params.id);
@@ -402,6 +427,9 @@ labRouter.post('/:id/acceptance', requirePermission('lab.write'), async (req: Au
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const branchScope = await branchScopedLabOrder(req, clinicId);
+    if (!branchScope.configured) {
+      return res.status(403).json({ ok: false, error: 'Доступ к филиалу не настроен или недействителен' } satisfies ApiResponse);
+    }
     if (req.body?.note !== undefined && typeof req.body.note !== 'string') {
       return res.status(400).json({ ok: false, error: 'Комментарий должен быть текстом' } satisfies ApiResponse);
     }
@@ -522,6 +550,9 @@ labRouter.delete('/:id', requirePermission('appointment.write'), async (req: Aut
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const branchScope = await branchScopedLabOrder(req, clinicId);
+    if (!branchScope.configured) {
+      return res.status(403).json({ ok: false, error: 'Доступ к филиалу не настроен или недействителен' } satisfies ApiResponse);
+    }
     const orderId = String(req.params.id);
     const outcome = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} AND "clinicId"=${clinicId} FOR UPDATE`;
