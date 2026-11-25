@@ -78,7 +78,7 @@ interface VerifiedLabBranchScope {
   configured: boolean;
 }
 
-async function branchScopedLabOrder(req: AuthRequest, clinicId: string): Promise<VerifiedLabBranchScope> {
+async function branchScopedLabOrder(req: AuthRequest, clinicId: string, needsWriteBranch = false): Promise<VerifiedLabBranchScope> {
   if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN') {
     return { where: {}, branchIds: null, selectedBranchId: null, defaultWriteBranchId: null, configured: true };
   }
@@ -112,7 +112,7 @@ async function branchScopedLabOrder(req: AuthRequest, clinicId: string): Promise
   const selectedBranchId = access.branchId;
   const branchIds = selectedBranchId ? [selectedBranchId] : access.allowedBranchIds;
   const defaultWriteBranchId = selectedBranchId
-    || (organizationWide ? await resolveUnambiguousWriteBranch(access.allowedBranchIds) : null);
+    || (organizationWide && needsWriteBranch ? await resolveUnambiguousWriteBranch(access.allowedBranchIds) : null);
   // Organization-wide users have no branch restriction. Do not pass their
   // branch inventory as a write allow-list: legacy patients may have branchId=null.
   return {
@@ -274,7 +274,7 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
       return res.status(409).json({ ok: false, error: 'Новый заказ должен начинаться со статуса «Ожидает». Используйте endpoint перехода статуса для дальнейшего workflow.', code: 'LAB_STATUS_ENDPOINT_REQUIRED' } satisfies ApiResponse);
     }
 
-    const branchScope = await branchScopedLabOrder(req, clinicId);
+    const branchScope = await branchScopedLabOrder(req, clinicId, !id);
     if (!branchScope.configured) {
       return res.status(403).json({ ok: false, error: 'Доступ к филиалу не настроен или недействителен' } satisfies ApiResponse);
     }
