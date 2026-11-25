@@ -19,7 +19,10 @@ describe('dental lab branch isolation contract', () => {
     expect(source).toContain('defaultWriteBranchId');
     expect(source).toContain('branchId: order.branchId ?? null');
     expect(source).toContain('branchScope.selectedBranchId ?? branchScope.defaultWriteBranchId');
-    expect(source).toContain('prepareLabOrderWrite(clinicId, writeBody, {}, branchIds, branchScope.selectedBranchId)');
+    expect((source.match(/prepareLabOrderWrite\(/g) || [])).toHaveLength(2);
+    expect(source).toContain('branchScope.selectedBranchId,');
+    expect(source).toContain('branchScope.selectedBranchId ?? branchScope.defaultWriteBranchId,');
+    expect(source).toContain('{ patientId: existing.patientId, branchId: existing.branchId },');
     expect(source).toContain('__NO_BRANCH_ACCESS__');
     expect(source).toContain("if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN')");
     expect(source).toContain('configured: true');
