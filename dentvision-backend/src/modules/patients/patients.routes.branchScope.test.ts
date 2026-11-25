@@ -18,10 +18,10 @@ describe('patients route branch scope contract', () => {
     expect(source).not.toContain('req.user!.branchIds');
   });
 
-  it('does not silently choose the first branch for organization-wide patient creation', () => {
+  it('uses only an unambiguous active/default branch for organization-wide patient creation', () => {
     expect(source).toContain('targetBranchId = context.branchId && context.scope.branchIds.includes(context.branchId)');
-    expect(source).toContain(': null;');
-    expect(source).not.toContain('context.scope.branchIds[0] ?? null');
+    expect(source).toContain('await resolveUnambiguousWriteBranch(context.scope.branchIds)');
+    expect(source).not.toContain('context.scope.branchIds[0]');
   });
 
   it('filters patient lists by branch at query construction time', () => {
