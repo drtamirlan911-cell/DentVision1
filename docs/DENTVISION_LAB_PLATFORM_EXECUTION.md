@@ -263,3 +263,12 @@ The candidate now tightens the shared diagnostic-center / laboratory workspace a
 - The partner workspace and clinic CRM expose invoice/payment actions only after current-cycle acceptance. The commercial fee remains recorded only through the successful settlement event; delivery and acceptance alone create no partner-economics transaction.
 - Unit tests cover missing/stale acceptance and incomplete proof. The partner lifecycle E2E asserts invoice denial before acceptance, invoice issuance after acceptance and idempotent invoice retry.
 - **D10 remains PARTIAL / OPEN.** Warranty/cost responsibility for remakes, CAD/CAM file/version governance, materials/lot traceability, per-case costs, tax documents, refunds/chargebacks, settlement/payout reconciliation and desktop/mobile/operator acceptance remain separate gates.
+
+
+## 2026-11-25 continuation — dental-lab material lots and per-case consumption (candidate PR #352)
+
+- Added a laboratory-owned material catalogue, lot receipts, expiry dates, remaining quantities and immutable purchase-cost snapshots. This is separate from clinic `InventoryItem`, which remains clinic-scoped.
+- Added per-`LabOrder` material-consumption records with an idempotency key, quantity in thousandths of the declared base unit, unit-cost snapshot, total cost snapshot and actor/time.
+- Stock decrement is transaction-locked and rejects foreign-lab lots, expired lots, insufficient stock, inactive materials and duplicate idempotency keys with conflicting payloads.
+- Manager-authorized reversals retain the original consumption row and record actor/time/reason while returning the quantity to the same lot. Material costs remain operational cost evidence and do not alter service price, partner commission or wallet balance.
+- Exact-head Prisma generation, migration, unit tests, role/tenant E2E and mobile/operator acceptance remain required. This slice does not close CAD/CAM file versioning, formal tax/fiscal documents, warranty/cost allocation, refunds/chargebacks or complete D10.
