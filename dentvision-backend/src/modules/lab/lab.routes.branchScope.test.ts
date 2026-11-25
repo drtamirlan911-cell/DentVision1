@@ -11,7 +11,7 @@ describe('dental lab branch isolation contract', () => {
     expect(source).toContain('organizationId: req.user?.organizationId');
     expect(source).toContain('requestedBranchId: req.user?.branchId');
     expect(source).toContain('const organizationWide = access.roleScope === \'ORGANIZATION\' && access.branchId === null');
-    expect(source).toContain('const branchIds = access.branchId ? [access.branchId] : access.allowedBranchIds');
+    expect(source).toContain('const branchIds = selectedBranchId ? [selectedBranchId] : access.allowedBranchIds');
     expect(source).toContain('branchIds: organizationWide ? null : branchIds');
     expect(source).toContain('branchId: { in: branchIds }');
     expect(source).toContain('const selectedBranchId = access.branchId');
@@ -65,7 +65,7 @@ describe('dental lab branch access must fail closed', () => {
     expect(source).toContain('organizationId: req.user?.organizationId');
     expect(source).toContain('requestedBranchId: req.user?.branchId');
     expect(source).not.toContain('req.user?.branchIds ?? []');
-    expect(source).toContain('const branchIds = access.branchId ? [access.branchId] : access.allowedBranchIds');
+    expect(source).toContain('const branchIds = selectedBranchId ? [selectedBranchId] : access.allowedBranchIds');
     expect(source).toContain('configured: organizationWide || branchIds.length > 0');
   });
 
