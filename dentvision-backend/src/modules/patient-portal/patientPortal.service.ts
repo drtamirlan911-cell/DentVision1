@@ -118,7 +118,7 @@ export async function getAvailableSlots(
 
   // Legacy unassigned rows may belong to a doctor working across branches.
   // They must block the same slot in every branch until their branch is resolved.
-  const branchFilter = branchId ? { OR: [{ branchId }, { branchId: null }] } : {};
+  const branchFilter = branchId && !doctorId ? { OR: [{ branchId }, { branchId: null }] } : {};
   const dayStart = new Date(`${date}T00:00:00.000Z`);
   const dayEnd = new Date(`${date}T23:59:59.999Z`);
 
@@ -213,11 +213,17 @@ export async function requestAppointment(input: RequestAppointmentInput) {
 
   const dayStart = new Date(`${input.date}T00:00:00.000Z`);
   const dayEnd = new Date(`${input.date}T23:59:59.999Z`);
+  // With an explicit doctor, check that doctor's appointments across the clinic,
+  // not only within this branch. Without a doctor, only this branch + unresolved
+  // legacy rows should consume branch slot capacity.
+  const conflictBranchFilter = input.doctorId
+    ? {}
+    : { OR: [{ branchId: patientBranchId }, { branchId: null }] };
   const [conflictAppt, conflictBooking] = await Promise.all([
     (prisma as any).appointment.findFirst({
       where: {
         clinicId: input.clinicId,
-        OR: [{ branchId: patientBranchId }, { branchId: null }],
+        ...conflictBranchFilter,
         date: { gte: dayStart, lte: dayEnd },
         time: input.time,
         status: { notIn: ['cancelled', 'no_show'] },
@@ -227,7 +233,7 @@ export async function requestAppointment(input: RequestAppointmentInput) {
     (prisma as any).booking.findFirst({
       where: {
         clinicId: input.clinicId,
-        OR: [{ branchId: patientBranchId }, { branchId: null }],
+        ...conflictBranchFilter,
         date: dayStart,
         time: input.time,
         status: { in: ['pending', 'confirmed'] },

@@ -436,7 +436,8 @@ export const TOOLS: Record<string, ToolSpec> = {
       const candidates = await prisma.appointment.findMany({
         where: {
           clinicId,
-          ...appointmentBranchWhere(ctx),
+          // Read the clinic-wide appointment set only for an internal conflict check.
+          // A doctor who works across branches cannot be booked simultaneously elsewhere.
           date: { gte: dayStart, lte: dayEnd },
           status: { notIn: ['cancelled', 'no_show'] },
         },
@@ -642,7 +643,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const candidates = await prisma.appointment.findMany({
         where: {
           clinicId,
-          ...appointmentBranchWhere(ctx),
+          // Keep the assignee's schedule conflict check clinic-wide across branches.
           date: { gte: dayStart, lte: dayEnd },
           status: { notIn: ['cancelled', 'no_show'] },
           id: { not: existing.id },

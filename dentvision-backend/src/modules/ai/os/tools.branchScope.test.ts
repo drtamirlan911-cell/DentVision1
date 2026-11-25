@@ -49,16 +49,18 @@ describe('AI clinic tools — branch filtering allow-list', () => {
   });
 
 
-  it('filters createAppointment conflict candidates to the caller branch', () => {
+  it('checks createAppointment doctor conflicts across every active clinic branch', () => {
     const block = toolBlock('createAppointment');
     const candidateLookup = block.slice(block.indexOf('const candidates = await prisma.appointment.findMany'));
-    expect(candidateLookup).toContain('...appointmentBranchWhere(ctx)');
+    expect(candidateLookup).toContain('clinicId,');
+    expect(candidateLookup).not.toContain('appointmentBranchWhere(ctx)');
   });
 
-  it('filters rescheduleAppointment conflict candidates to the caller branch', () => {
+  it('checks rescheduled doctor conflicts across every active clinic branch', () => {
     const block = toolBlock('rescheduleAppointment');
     const candidateLookup = block.slice(block.indexOf('const candidates = await prisma.appointment.findMany'));
-    expect(candidateLookup).toContain('...appointmentBranchWhere(ctx)');
+    expect(candidateLookup).toContain('clinicId,');
+    expect(candidateLookup).not.toContain('appointmentBranchWhere(ctx)');
   });
 
   it('validates both creation and rescheduling doctors against the resolved appointment branch', () => {
