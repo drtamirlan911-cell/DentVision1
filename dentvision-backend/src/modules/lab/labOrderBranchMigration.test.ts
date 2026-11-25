@@ -19,7 +19,7 @@ describe('lab order branch ownership migration', () => {
     expect(migration).toContain('lo."patientId" = p.id');
     expect(migration).toContain('lo."clinicId" = p."clinicId"');
     expect(migration).toContain('p.branch_id IS NOT NULL');
-    expect(migration).not.toMatch(/UPDATE\\s+"lab_orders"[^;]*WHERE[^;]*patientId"\\s+IS\\s+NULL/is);
+    expect(migration).not.toContain('WHERE lo."patientId" IS NULL');
   });
 
   it('enforces patient and active clinic branch consistency at the database boundary', () => {
