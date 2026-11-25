@@ -420,21 +420,33 @@ labPlatformRouter.get('/materials', async (req: AuthRequest, res) => {
       return res.status(403).json({ ok: false, error: 'Материалы доступны производственным и управляющим ролям лаборатории' } satisfies ApiResponse);
     }
     const manager = isLabManagerRole(membership.role);
-    const materials = await prisma.dentalLabMaterial.findMany({
-      where: { labId: membership.labId, ...(manager ? {} : { active: true }) },
-      include: {
-        lots: {
-          where: { remainingQuantityMilli: { gt: 0n } },
-          orderBy: [{ expiresAt: 'asc' }, { receivedAt: 'asc' }],
-          take: 200,
+    const now = new Date();
+    const [materials, stockRows] = await Promise.all([
+      prisma.dentalLabMaterial.findMany({
+        where: { labId: membership.labId, ...(manager ? {} : { active: true }) },
+        include: {
+          lots: {
+            where: { remainingQuantityMilli: { gt: 0n } },
+            orderBy: [{ expiresAt: 'asc' }, { receivedAt: 'asc' }],
+            take: 200,
+          },
         },
-      },
-      orderBy: [{ active: 'desc' }, { name: 'asc' }],
-    });
-    const now = Date.now();
+        orderBy: [{ active: 'desc' }, { name: 'asc' }],
+      }),
+      prisma.dentalLabMaterialLot.groupBy({
+        by: ['materialId'],
+        where: {
+          labId: membership.labId,
+          remainingQuantityMilli: { gt: 0n },
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+        _sum: { remainingQuantityMilli: true },
+      }),
+    ]);
+    const stockByMaterial = new Map(stockRows.map((row) => [row.materialId, row._sum.remainingQuantityMilli || 0n]));
+    const nowMillis = now.getTime();
     const data = materials.map((material) => {
-      const availableLots = material.lots.filter((lot) => !lot.expiresAt || lot.expiresAt.getTime() > now);
-      const availableStockMilli = availableLots.reduce((total, lot) => total + lot.remainingQuantityMilli, 0n);
+      const availableStockMilli = stockByMaterial.get(material.id) || 0n;
       return {
         id: material.id,
         code: material.code,
@@ -454,7 +466,7 @@ labPlatformRouter.get('/materials', async (req: AuthRequest, res) => {
           ...(manager ? { unitCostMinor: lot.unitCostMinor.toString(), currency: lot.currency } : {}),
           receivedAt: lot.receivedAt,
           expiresAt: lot.expiresAt,
-          expired: Boolean(lot.expiresAt && lot.expiresAt.getTime() <= now),
+          expired: Boolean(lot.expiresAt && lot.expiresAt.getTime() <= nowMillis),
         })),
         createdAt: material.createdAt,
         updatedAt: material.updatedAt,
@@ -475,15 +487,18 @@ labPlatformRouter.post('/materials', async (req: AuthRequest, res) => {
     }
     const draft = parseDentalLabMaterialDraft(req.body);
     if (!draft) return res.status(400).json({ ok: false, error: 'Проверьте код, название, категорию, единицу и минимальный остаток материала' } satisfies ApiResponse);
-    const material = await prisma.dentalLabMaterial.create({
-      data: { id: uid(), labId: membership.labId, ...draft },
-    });
-    await writeAuditLog({
-      action: 'DENTAL_LAB_MATERIAL_CREATED',
-      entity: 'dental_lab_material',
-      entityId: material.id,
-      details: { laboratoryId: membership.labId, code: material.code, unit: material.unit },
-      userId: req.user!.id,
+    const material = await prisma.$transaction(async (tx) => {
+      const created = await tx.dentalLabMaterial.create({
+        data: { id: uid(), labId: membership.labId, ...draft },
+      });
+      await writeAuditLog({
+        action: 'DENTAL_LAB_MATERIAL_CREATED',
+        entity: 'dental_lab_material',
+        entityId: created.id,
+        details: { laboratoryId: membership.labId, code: created.code, unit: created.unit },
+        userId: req.user!.id,
+      }, tx);
+      return created;
     });
     return res.status(201).json({ ok: true, data: serializeBigInt(material) } satisfies ApiResponse);
   } catch (error: any) {
@@ -507,6 +522,9 @@ labPlatformRouter.post('/materials/:id/lots', async (req: AuthRequest, res) => {
     const supplierLotNumber = typeof req.body?.supplierLotNumber === 'string' ? req.body.supplierLotNumber.trim() : '';
     const note = validMaterialNote(req.body?.note);
     let unitCostMinor: bigint;
+    if (typeof rawUnitCost !== 'string') {
+      return res.status(400).json({ ok: false, error: 'Закупочную цену нужно передавать точной десятичной строкой' } satisfies ApiResponse);
+    }
     try {
       unitCostMinor = parseTengeToMinor(rawUnitCost);
     } catch {
@@ -536,7 +554,7 @@ labPlatformRouter.post('/materials/:id/lots', async (req: AuthRequest, res) => {
         select: { id: true },
       });
       if (!material) return null;
-      return tx.dentalLabMaterialLot.create({
+      const lot = await tx.dentalLabMaterialLot.create({
         data: {
           id: uid(),
           labId: membership.labId,
@@ -554,15 +572,16 @@ labPlatformRouter.post('/materials/:id/lots', async (req: AuthRequest, res) => {
           note,
         },
       });
+      await writeAuditLog({
+        action: 'DENTAL_LAB_MATERIAL_LOT_RECEIVED',
+        entity: 'dental_lab_material_lot',
+        entityId: lot.id,
+        details: { laboratoryId: membership.labId, materialId, lotNumber, receivedQuantityMilli: receivedQuantityMilli.toString() },
+        userId: req.user!.id,
+      }, tx);
+      return lot;
     });
     if (!created) return res.status(404).json({ ok: false, error: 'Активный материал не найден в этой лаборатории' } satisfies ApiResponse);
-    await writeAuditLog({
-      action: 'DENTAL_LAB_MATERIAL_LOT_RECEIVED',
-      entity: 'dental_lab_material_lot',
-      entityId: created.id,
-      details: { laboratoryId: membership.labId, materialId, lotNumber, receivedQuantityMilli: receivedQuantityMilli.toString() },
-      userId: req.user!.id,
-    });
     return res.status(201).json({ ok: true, data: serializeBigInt(created) } satisfies ApiResponse);
   } catch (error: any) {
     if (String(error?.code || '') === 'P2002') return res.status(409).json({ ok: false, error: 'Такая партия уже зарегистрирована для этого материала' } satisfies ApiResponse);
