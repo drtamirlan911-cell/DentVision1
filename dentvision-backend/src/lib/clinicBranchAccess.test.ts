@@ -23,7 +23,11 @@ vi.mock('./prisma.js', () => ({
   },
 }));
 
-import { canonicalRoleMatchesEffectiveRole, resolveClinicBranchAccess } from './clinicBranchAccess.js';
+import {
+  canonicalRoleMatchesEffectiveRole,
+  resolveClinicBranchAccess,
+  resolveUnambiguousWriteBranch,
+} from './clinicBranchAccess.js';
 
 const accessInput = (overrides: Record<string, unknown> = {}) => ({
   userId: 'user-1',
@@ -195,5 +199,37 @@ describe('resolveClinicBranchAccess — legacy ClinicMember compatibility', () =
     await expect(resolveClinicBranchAccess(accessInput({
       organizationId: 'clinic-1', role: 'ADMIN',
     }))).resolves.toBeNull();
+  });
+});
+
+
+describe('resolveUnambiguousWriteBranch', () => {
+  it('uses the only active branch already present in the verified allow-list', async () => {
+    await expect(resolveUnambiguousWriteBranch(['branch-only'])).resolves.toBe('branch-only');
+    expect(branchFindMany).not.toHaveBeenCalled();
+  });
+
+  it('uses an explicitly configured default when several authorized branches exist', async () => {
+    branchFindMany.mockResolvedValueOnce([{ id: 'branch-main' }]);
+
+    await expect(resolveUnambiguousWriteBranch(['branch-secondary', 'branch-main']))
+      .resolves.toBe('branch-main');
+    expect(branchFindMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ['branch-secondary', 'branch-main'] },
+        active: true,
+        isDefault: true,
+      },
+      select: { id: true },
+    });
+  });
+
+  it('fails closed when multiple authorized branches have zero or multiple defaults', async () => {
+    branchFindMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'branch-a' }, { id: 'branch-b' }]);
+
+    await expect(resolveUnambiguousWriteBranch(['branch-a', 'branch-b'])).resolves.toBeNull();
+    await expect(resolveUnambiguousWriteBranch(['branch-a', 'branch-b'])).resolves.toBeNull();
   });
 });
