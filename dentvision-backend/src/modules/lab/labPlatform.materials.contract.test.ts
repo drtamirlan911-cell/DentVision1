@@ -61,7 +61,7 @@ describe('dental laboratory material authorization', () => {
     expect(route).toContain('meta.technicianId !== req.user!.id');
     expect(route).toContain('labOrderId: orderId');
     expect(authorization).toContain('files: { path: [\'meta\', \'technicianId\'], equals: input.userId }');
-    expect(materialUi).toContain('canConsume={canConsumeMaterials}');
+    expect(frontend).toContain('canConsume={canConsumeMaterials}');
     expect(frontend).toContain("['lab_coordinator', 'qc_specialist', 'technician'");
   });
 
