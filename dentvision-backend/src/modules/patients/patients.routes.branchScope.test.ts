@@ -145,10 +145,7 @@ describe('patient route tenant and staffing authorization', () => {
     expect(route).toContain('IDEMPOTENCY_KEY_SCOPE_CONFLICT');
     expect(route).toContain("if(!prior)return res.status(409)");
     expect(route).not.toContain('findUnique({where:{id:r.resultId}');
-    const replayStart = route.indexOf("if(r.status==='exists')");
-    const replayEnd = route.indexOf('const existing=body.id', replayStart);
-    const replay = route.slice(replayStart, replayEnd);
-    expect(replay).not.toContain('deleteIdempotencyKey(idempotencyKey)');
+    expect(route).not.toContain('deleteIdempotencyKey(idempotencyKey)');
   });
 
   it('requires staff.write rather than patient.write to add or revoke patient assignments', () => {
