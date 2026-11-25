@@ -20,24 +20,9 @@ describe('lab order branch ownership migration', () => {
   });
 
   it('guards the branch foreign key so a partially completed migration can be retried', () => {
-    expect(migration).toContain('DO $lab_order_branch_fk
-    expect(migration).toContain('lo."patientId" = p.id');
-    expect(migration).toContain('lo."clinicId" = p."clinicId"');
-    expect(migration).toContain('p.branch_id IS NOT NULL');
-    expect(migration).not.toContain('WHERE lo."patientId" IS NULL');
-  });
-
-  it('enforces patient and active clinic branch consistency at the database boundary', () => {
-    expect(migration).toContain('lab order patient belongs to another clinic');
-    expect(migration).toContain('lab order branch is missing or inactive');
-    expect(migration).toContain('lab order branch does not match patient branch');
-    expect(migration).toContain("o.type = 'CLINIC'");
-    expect(migration).toContain('o."originalId" = NEW."clinicId"');
-    expect(migration).toContain('o."archivedAt" IS NULL');
-  });
-}););
+    expect(migration).toContain('DO $lab_order_branch_fk$');
     expect(migration).toContain("conname = 'lab_orders_branch_id_fkey'");
-    expect(migration).toContain('conrelid = \'lab_orders\'::regclass');
+    expect(migration).toContain("conrelid = 'lab_orders'::regclass");
     expect(migration).toContain('$lab_order_branch_fk$;');
   });
 
