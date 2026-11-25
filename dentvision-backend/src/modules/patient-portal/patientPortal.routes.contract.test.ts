@@ -44,7 +44,7 @@ describe('patient portal online booking branch contract', () => {
 describe('patient portal canonical branch ownership', () => {
   it('validates active branches through the canonical organization when clinicId is null', () => {
     expect(serviceSource).toContain("where: { originalType: 'Clinic', originalId: clinicId }");
-    expect(serviceSource).toContain('OR: [{ clinicId }, { clinicId: null, organizationId: organization.id }]');
+    expect(serviceSource).toContain('OR: [{ organizationId: organization.id }, { organizationId: null, clinicId }]');
     expect(serviceSource).toContain('if (organization?.archivedAt) return false');
   });
 

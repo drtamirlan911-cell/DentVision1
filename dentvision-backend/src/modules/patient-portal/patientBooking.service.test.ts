@@ -77,7 +77,13 @@ const baseInput = {
 };
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  // Reset one-shot IAM mocks between tests; a rejected provider from an earlier
+  // test must not leak into a later, otherwise-valid booking request.
+  vi.resetAllMocks();
+  appointmentFindMany.mockResolvedValue([]);
+  appointmentFindFirst.mockResolvedValue(null);
+  bookingFindMany.mockResolvedValue([]);
+  bookingFindFirst.mockResolvedValue(null);
   branchFindFirst.mockResolvedValue({ id: 'branch-1' });
   organizationFindFirst.mockResolvedValue(null);
   clinicMemberFindMany.mockResolvedValue([{ userId: 'doctor-1', role: 'DOCTOR' }]);
