@@ -18,6 +18,8 @@ import { createNotificationForClinic } from '../../services/notification.service
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { safeErrorKind } from '../../lib/safeError.js';
 import { canLabManageFinance, canLabManageShipment, canLabMemberChangeStatus, canLabMemberReadOrders, isLabLogisticsRole, isLabManagerRole, isLabQualityRole, labMemberOrderReadScope, validateLabQualityControl, validateLabRemakeDecision } from './labPlatform.authorization.js';
+import { isLabCoordinatorRole, isLabTechnicianRole } from './labPlatform.authorization.js';
+import { calculateMaterialCostMinor, materialConsumptionFingerprint, parseDentalLabMaterialDraft, parseMaterialQuantityMilli } from './dentalLabMaterials.js';
 
 export const labPlatformRouter = Router();
 labPlatformRouter.use(authenticate);
@@ -393,6 +395,438 @@ labPlatformRouter.patch('/services/:id', async (req: AuthRequest, res) => {
   } catch (error: any) {
     if (String(error?.code || '') === 'P2002') return res.status(409).json({ ok: false, error: 'Код услуги уже используется в этой лаборатории' } satisfies ApiResponse);
     return res.status(400).json({ ok: false, error: 'Не удалось изменить услугу' } satisfies ApiResponse);
+  }
+});
+
+const MATERIAL_LOT_NUMBER = /^[A-Za-z0-9][A-Za-z0-9._/-]{1,79}$/;
+
+function canReadDentalLabMaterials(role: unknown): boolean {
+  return isLabManagerRole(role)
+    || isLabTechnicianRole(role)
+    || isLabCoordinatorRole(role)
+    || isLabQualityRole(role);
+}
+
+function validMaterialNote(value: unknown): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string' || value.trim().length > 500) return null;
+  return value.trim() || null;
+}
+
+labPlatformRouter.get('/materials', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership || !canReadDentalLabMaterials(membership.role) || isLabLogisticsRole(membership.role)) {
+      return res.status(403).json({ ok: false, error: 'Материалы доступны производственным и управляющим ролям лаборатории' } satisfies ApiResponse);
+    }
+    const manager = isLabManagerRole(membership.role);
+    const materials = await prisma.dentalLabMaterial.findMany({
+      where: { labId: membership.labId, ...(manager ? {} : { active: true }) },
+      include: {
+        lots: {
+          where: { remainingQuantityMilli: { gt: 0n } },
+          orderBy: [{ expiresAt: 'asc' }, { receivedAt: 'asc' }],
+          take: 200,
+        },
+      },
+      orderBy: [{ active: 'desc' }, { name: 'asc' }],
+    });
+    const now = Date.now();
+    const data = materials.map((material) => {
+      const availableLots = material.lots.filter((lot) => !lot.expiresAt || lot.expiresAt.getTime() > now);
+      const availableStockMilli = availableLots.reduce((total, lot) => total + lot.remainingQuantityMilli, 0n);
+      return {
+        id: material.id,
+        code: material.code,
+        name: material.name,
+        category: material.category,
+        unit: material.unit,
+        minimumStockMilli: material.minimumStockMilli.toString(),
+        availableStockMilli: availableStockMilli.toString(),
+        active: material.active,
+        lots: material.lots.map((lot) => ({
+          id: lot.id,
+          lotNumber: lot.lotNumber,
+          supplierName: lot.supplierName,
+          supplierLotNumber: lot.supplierLotNumber,
+          remainingQuantityMilli: lot.remainingQuantityMilli.toString(),
+          receivedQuantityMilli: lot.receivedQuantityMilli.toString(),
+          ...(manager ? { unitCostMinor: lot.unitCostMinor.toString(), currency: lot.currency } : {}),
+          receivedAt: lot.receivedAt,
+          expiresAt: lot.expiresAt,
+          expired: Boolean(lot.expiresAt && lot.expiresAt.getTime() <= now),
+        })),
+        createdAt: material.createdAt,
+        updatedAt: material.updatedAt,
+      };
+    });
+    return res.json({ ok: true, data } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[LabPlatform] material catalogue read error:', safeErrorKind(error));
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить материалы лаборатории' } satisfies ApiResponse);
+  }
+});
+
+labPlatformRouter.post('/materials', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership || !isLabManagerRole(membership.role)) {
+      return res.status(403).json({ ok: false, error: 'Каталог материалов управляется владельцем или менеджером лаборатории' } satisfies ApiResponse);
+    }
+    const draft = parseDentalLabMaterialDraft(req.body);
+    if (!draft) return res.status(400).json({ ok: false, error: 'Проверьте код, название, категорию, единицу и минимальный остаток материала' } satisfies ApiResponse);
+    const material = await prisma.dentalLabMaterial.create({
+      data: { id: uid(), labId: membership.labId, ...draft },
+    });
+    await writeAuditLog({
+      action: 'DENTAL_LAB_MATERIAL_CREATED',
+      entity: 'dental_lab_material',
+      entityId: material.id,
+      details: { laboratoryId: membership.labId, code: material.code, unit: material.unit },
+      userId: req.user!.id,
+    });
+    return res.status(201).json({ ok: true, data: serializeBigInt(material) } satisfies ApiResponse);
+  } catch (error: any) {
+    if (String(error?.code || '') === 'P2002') return res.status(409).json({ ok: false, error: 'Код материала уже используется в этой лаборатории' } satisfies ApiResponse);
+    console.error('[LabPlatform] material create error:', safeErrorKind(error));
+    return res.status(400).json({ ok: false, error: 'Не удалось создать материал' } satisfies ApiResponse);
+  }
+});
+
+labPlatformRouter.post('/materials/:id/lots', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership || !isLabManagerRole(membership.role)) {
+      return res.status(403).json({ ok: false, error: 'Приход материалов доступен владельцу или менеджеру лаборатории' } satisfies ApiResponse);
+    }
+    const materialId = String(req.params.id || '');
+    const lotNumber = String(req.body?.lotNumber || '').trim();
+    const receivedQuantityMilli = parseMaterialQuantityMilli(req.body?.quantity);
+    const rawUnitCost = req.body?.unitCost;
+    const supplierName = typeof req.body?.supplierName === 'string' ? req.body.supplierName.trim() : '';
+    const supplierLotNumber = typeof req.body?.supplierLotNumber === 'string' ? req.body.supplierLotNumber.trim() : '';
+    const note = validMaterialNote(req.body?.note);
+    let unitCostMinor: bigint;
+    try {
+      unitCostMinor = parseTengeToMinor(rawUnitCost);
+    } catch {
+      return res.status(400).json({ ok: false, error: 'Укажите закупочную стоимость за базовую единицу в тенге' } satisfies ApiResponse);
+    }
+    if (!MATERIAL_LOT_NUMBER.test(lotNumber)
+      || receivedQuantityMilli === null
+      || unitCostMinor < 0n
+      || (req.body?.supplierName !== undefined && supplierName.length > 120)
+      || (req.body?.supplierLotNumber !== undefined && supplierLotNumber.length > 120)
+      || (req.body?.note !== undefined && req.body?.note !== null && note === null)) {
+      return res.status(400).json({ ok: false, error: 'Проверьте номер партии, количество, закупочную цену и данные поставщика' } satisfies ApiResponse);
+    }
+    let expiresAt: Date | null = null;
+    if (req.body?.expiresAt !== undefined && req.body?.expiresAt !== null && req.body?.expiresAt !== '') {
+      expiresAt = new Date(String(req.body.expiresAt));
+      if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+        return res.status(400).json({ ok: false, error: 'Срок годности партии должен быть корректной будущей датой' } satisfies ApiResponse);
+      }
+    }
+
+    const created = await prisma.$transaction(async (tx) => {
+      const material = await tx.dentalLabMaterial.findFirst({
+        where: { id: materialId, labId: membership.labId, active: true },
+        select: { id: true },
+      });
+      if (!material) return null;
+      return tx.dentalLabMaterialLot.create({
+        data: {
+          id: uid(),
+          labId: membership.labId,
+          materialId: material.id,
+          lotNumber,
+          supplierName: supplierName || null,
+          supplierLotNumber: supplierLotNumber || null,
+          receivedQuantityMilli,
+          remainingQuantityMilli: receivedQuantityMilli,
+          unitCostMinor,
+          currency: 'KZT',
+          receivedAt: new Date(),
+          expiresAt,
+          receivedByUserId: req.user!.id,
+          note,
+        },
+      });
+    });
+    if (!created) return res.status(404).json({ ok: false, error: 'Активный материал не найден в этой лаборатории' } satisfies ApiResponse);
+    await writeAuditLog({
+      action: 'DENTAL_LAB_MATERIAL_LOT_RECEIVED',
+      entity: 'dental_lab_material_lot',
+      entityId: created.id,
+      details: { laboratoryId: membership.labId, materialId, lotNumber, receivedQuantityMilli: receivedQuantityMilli.toString() },
+      userId: req.user!.id,
+    });
+    return res.status(201).json({ ok: true, data: serializeBigInt(created) } satisfies ApiResponse);
+  } catch (error: any) {
+    if (String(error?.code || '') === 'P2002') return res.status(409).json({ ok: false, error: 'Такая партия уже зарегистрирована для этого материала' } satisfies ApiResponse);
+    console.error('[LabPlatform] material lot receipt error:', safeErrorKind(error));
+    return res.status(400).json({ ok: false, error: 'Не удалось зарегистрировать приход партии' } satisfies ApiResponse);
+  }
+});
+
+labPlatformRouter.get('/orders/:id/material-consumptions', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership || !canReadDentalLabMaterials(membership.role) || isLabLogisticsRole(membership.role)) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к учёту материалов заказа' } satisfies ApiResponse);
+    }
+    const readScope = labMemberOrderReadScope({
+      role: membership.role,
+      userId: req.user!.id,
+      labId: membership.labId,
+      branchIds: req.user?.branchIds || [],
+    });
+    if (!readScope) return res.status(403).json({ ok: false, error: 'Нет доступа к этому заказу' } satisfies ApiResponse);
+    const order = await prisma.labOrder.findFirst({
+      where: { id: String(req.params.id), ...readScope },
+      select: { id: true, files: true },
+    });
+    if (!order || metaOf(order.files).laboratoryId !== membership.labId) {
+      return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
+    }
+    const rows = await prisma.dentalLabCaseMaterial.findMany({
+      where: { labId: membership.labId, labOrderId: order.id },
+      include: {
+        material: { select: { code: true, name: true, unit: true } },
+        lot: { select: { lotNumber: true, supplierName: true, expiresAt: true } },
+      },
+      orderBy: { consumedAt: 'asc' },
+    });
+    const manager = isLabManagerRole(membership.role);
+    const data = rows.map((row) => ({
+      id: row.id,
+      material: row.material,
+      lot: row.lot,
+      quantityMilli: row.quantityMilli.toString(),
+      ...(manager ? {
+        unitCostMinorSnapshot: row.unitCostMinorSnapshot.toString(),
+        totalCostMinorSnapshot: row.totalCostMinorSnapshot.toString(),
+      } : {}),
+      consumedByUserId: row.consumedByUserId,
+      consumedAt: row.consumedAt,
+      note: row.note,
+      reversedAt: row.reversedAt,
+      reversedByUserId: row.reversedByUserId,
+      reversalReason: row.reversalReason,
+    }));
+    return res.json({ ok: true, data } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[LabPlatform] material consumption history error:', safeErrorKind(error));
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить историю материалов заказа' } satisfies ApiResponse);
+  }
+});
+
+labPlatformRouter.post('/orders/:id/material-consumptions', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership || (!isLabManagerRole(membership.role) && !isLabTechnicianRole(membership.role))) {
+      return res.status(403).json({ ok: false, error: 'Списание материалов доступно менеджеру или производственному технику лаборатории' } satisfies ApiResponse);
+    }
+    const orderId = String(req.params.id || '');
+    const materialId = String(req.body?.materialId || '');
+    const lotId = String(req.body?.lotId || '');
+    const idempotencyKey = String(req.body?.idempotencyKey || '').trim();
+    const quantityMilli = parseMaterialQuantityMilli(req.body?.quantity);
+    const note = validMaterialNote(req.body?.note);
+    if (!orderId || !materialId || !lotId || idempotencyKey.length < 8 || idempotencyKey.length > 120
+      || quantityMilli === null
+      || (req.body?.note !== undefined && req.body?.note !== null && note === null)) {
+      return res.status(400).json({ ok: false, error: 'Укажите заказ, материал, партию, положительное количество и ключ операции' } satisfies ApiResponse);
+    }
+    const readScope = labMemberOrderReadScope({
+      role: membership.role,
+      userId: req.user!.id,
+      labId: membership.labId,
+      branchIds: req.user?.branchIds || [],
+    });
+    if (!readScope) return res.status(403).json({ ok: false, error: 'Нет доступа к этому заказу' } satisfies ApiResponse);
+    const fingerprint = materialConsumptionFingerprint({ labOrderId: orderId, materialId, lotId, quantityMilli, note });
+    const outcome = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} FOR UPDATE`;
+      const order = await tx.labOrder.findFirst({
+        where: { id: orderId, ...readScope },
+        select: { id: true, clinicId: true, status: true, files: true },
+      });
+      if (!order || metaOf(order.files).laboratoryId !== membership.labId) return { kind: 'not_found' as const };
+      if (!['in_progress', 'try_in', 'adjustment', 'remake'].includes(order.status)) return { kind: 'invalid_status' as const };
+      const meta = metaOf(order.files);
+      if (isLabTechnicianRole(membership.role) && meta.technicianId !== req.user!.id) return { kind: 'not_found' as const };
+
+      const prior = await tx.dentalLabCaseMaterial.findUnique({
+        where: { labId_idempotencyKey: { labId: membership.labId, idempotencyKey } },
+      });
+      if (prior) {
+        return prior.payloadFingerprint === fingerprint
+          ? { kind: 'idempotent' as const, consumption: prior }
+          : { kind: 'idempotency_conflict' as const };
+      }
+
+      const lots = await tx.$queryRaw<Array<{
+        id: string;
+        materialId: string;
+        remainingQuantityMilli: bigint;
+        unitCostMinor: bigint;
+        expiresAt: Date | null;
+      }>>`SELECT "id", "materialId", "remainingQuantityMilli", "unitCostMinor", "expiresAt"
+        FROM "dental_lab_material_lots"
+        WHERE "id"=${lotId} AND "labId"=${membership.labId} AND "materialId"=${materialId}
+        FOR UPDATE`;
+      const lot = lots[0];
+      if (!lot) return { kind: 'lot_not_found' as const };
+      if (lot.expiresAt && lot.expiresAt.getTime() <= Date.now()) return { kind: 'lot_expired' as const };
+      if (lot.remainingQuantityMilli < quantityMilli) return { kind: 'insufficient_stock' as const };
+      const material = await tx.dentalLabMaterial.findFirst({
+        where: { id: materialId, labId: membership.labId, active: true },
+        select: { id: true, name: true, unit: true },
+      });
+      if (!material) return { kind: 'material_not_found' as const };
+
+      const decremented = await tx.dentalLabMaterialLot.updateMany({
+        where: {
+          id: lot.id,
+          labId: membership.labId,
+          materialId,
+          remainingQuantityMilli: { gte: quantityMilli },
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+        data: { remainingQuantityMilli: { decrement: quantityMilli } },
+      });
+      if (decremented.count !== 1) return { kind: 'insufficient_stock' as const };
+
+      const totalCostMinorSnapshot = calculateMaterialCostMinor(quantityMilli, lot.unitCostMinor);
+      const consumption = await tx.dentalLabCaseMaterial.create({
+        data: {
+          id: uid(),
+          labId: membership.labId,
+          labOrderId: order.id,
+          materialId,
+          lotId,
+          quantityMilli,
+          unitCostMinorSnapshot: lot.unitCostMinor,
+          totalCostMinorSnapshot,
+          idempotencyKey,
+          payloadFingerprint: fingerprint,
+          consumedByUserId: req.user!.id,
+          note,
+        },
+        include: { material: { select: { name: true, unit: true } }, lot: { select: { lotNumber: true } } },
+      });
+      await appendEventInTransaction(tx, order, order.status, order.status, req.user!.id, `Материал ${material.name}: ${quantityMilli.toString()} milliunit списано из партии ${lotId.slice(0, 8)}`);
+      await writeAuditLog({
+        action: 'DENTAL_LAB_MATERIAL_CONSUMED',
+        entity: 'dental_lab_case_material',
+        entityId: consumption.id,
+        details: { laboratoryId: membership.labId, labOrderId: order.id, materialId, lotId, quantityMilli: quantityMilli.toString(), totalCostMinorSnapshot: totalCostMinorSnapshot.toString() },
+        userId: req.user!.id,
+        clinicId: order.clinicId,
+      }, tx);
+      return { kind: 'created' as const, consumption };
+    }, { isolationLevel: 'Serializable' });
+
+    if (outcome.kind === 'not_found' || outcome.kind === 'lot_not_found' || outcome.kind === 'material_not_found') {
+      return res.status(404).json({ ok: false, error: 'Материал, партия или заказ не найдены в этой лаборатории' } satisfies ApiResponse);
+    }
+    if (outcome.kind === 'invalid_status') return res.status(409).json({ ok: false, error: 'Списание возможно только во время производства или переделки', code: 'LAB_MATERIAL_ORDER_NOT_IN_PRODUCTION' } satisfies ApiResponse);
+    if (outcome.kind === 'lot_expired') return res.status(409).json({ ok: false, error: 'Срок годности партии истёк', code: 'LAB_MATERIAL_LOT_EXPIRED' } satisfies ApiResponse);
+    if (outcome.kind === 'insufficient_stock') return res.status(409).json({ ok: false, error: 'Недостаточно остатка в выбранной партии', code: 'LAB_MATERIAL_INSUFFICIENT_STOCK' } satisfies ApiResponse);
+    if (outcome.kind === 'idempotency_conflict') return res.status(409).json({ ok: false, error: 'Ключ операции уже использован для другого списания', code: 'LAB_MATERIAL_IDEMPOTENCY_CONFLICT' } satisfies ApiResponse);
+    if (outcome.kind === 'idempotent') return res.json({ ok: true, data: serializeBigInt(outcome.consumption), idempotent: true } satisfies ApiResponse);
+    return res.status(201).json({ ok: true, data: serializeBigInt(outcome.consumption) } satisfies ApiResponse);
+  } catch (error: any) {
+    if (String(error?.code || '') === 'P2002') {
+      const membership = await resolveLab(req);
+      const key = String(req.body?.idempotencyKey || '').trim();
+      if (membership && key) {
+        const existing = await prisma.dentalLabCaseMaterial.findUnique({
+          where: { labId_idempotencyKey: { labId: membership.labId, idempotencyKey: key } },
+        }).catch(() => null);
+        const quantityMilli = parseMaterialQuantityMilli(req.body?.quantity);
+        const fingerprint = quantityMilli === null ? '' : materialConsumptionFingerprint({
+          labOrderId: String(req.params.id || ''),
+          materialId: String(req.body?.materialId || ''),
+          lotId: String(req.body?.lotId || ''),
+          quantityMilli,
+          note: validMaterialNote(req.body?.note),
+        });
+        if (existing && existing.payloadFingerprint === fingerprint) {
+          return res.json({ ok: true, data: serializeBigInt(existing), idempotent: true } satisfies ApiResponse);
+        }
+        if (existing) return res.status(409).json({ ok: false, error: 'Ключ операции уже использован для другого списания', code: 'LAB_MATERIAL_IDEMPOTENCY_CONFLICT' } satisfies ApiResponse);
+      }
+    }
+    console.error('[LabPlatform] material consumption error:', safeErrorKind(error));
+    return res.status(500).json({ ok: false, error: 'Не удалось списать материал на заказ' } satisfies ApiResponse);
+  }
+});
+
+labPlatformRouter.post('/orders/:id/material-consumptions/:consumptionId/reversal', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership || !isLabManagerRole(membership.role)) {
+      return res.status(403).json({ ok: false, error: 'Возврат списанного материала доступен владельцу или менеджеру лаборатории' } satisfies ApiResponse);
+    }
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+    if (reason.length < 10 || reason.length > 2000) {
+      return res.status(400).json({ ok: false, error: 'Причина возврата материала должна содержать от 10 до 2000 символов' } satisfies ApiResponse);
+    }
+    const outcome = await prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{
+        id: string;
+        labOrderId: string;
+        lotId: string;
+        quantityMilli: bigint;
+        reversedAt: Date | null;
+        reversalReason: string | null;
+      }>>`SELECT "id", "labOrderId", "lotId", "quantityMilli", "reversedAt", "reversalReason"
+        FROM "dental_lab_case_materials"
+        WHERE "id"=${String(req.params.consumptionId)} AND "labId"=${membership.labId}
+        FOR UPDATE`;
+      const row = rows[0];
+      if (!row || row.labOrderId !== String(req.params.id)) return { kind: 'not_found' as const };
+      if (row.reversedAt) return { kind: row.reversalReason === reason ? 'idempotent' as const : 'already_reversed' as const };
+      const lotRows = await tx.$queryRaw<Array<{ id: string; remainingQuantityMilli: bigint; receivedQuantityMilli: bigint }>>`SELECT "id", "remainingQuantityMilli", "receivedQuantityMilli"
+        FROM "dental_lab_material_lots"
+        WHERE "id"=${row.lotId} AND "labId"=${membership.labId}
+        FOR UPDATE`;
+      const lot = lotRows[0];
+      if (!lot) return { kind: 'lot_not_found' as const };
+      if (lot.remainingQuantityMilli + row.quantityMilli > lot.receivedQuantityMilli) {
+        return { kind: 'stock_integrity_error' as const };
+      }
+      await tx.dentalLabMaterialLot.update({
+        where: { id: lot.id },
+        data: { remainingQuantityMilli: { increment: row.quantityMilli } },
+      });
+      const updated = await tx.dentalLabCaseMaterial.update({
+        where: { id: row.id },
+        data: { reversedAt: new Date(), reversedByUserId: req.user!.id, reversalReason: reason },
+      });
+      const order = await tx.labOrder.findUnique({ where: { id: row.labOrderId }, select: { id: true, clinicId: true, status: true } });
+      if (order) {
+        await appendEventInTransaction(tx, order, order.status, order.status, req.user!.id, 'Менеджер отменил списание материала: возврат в исходную партию');
+        await writeAuditLog({
+          action: 'DENTAL_LAB_MATERIAL_CONSUMPTION_REVERSED',
+          entity: 'dental_lab_case_material',
+          entityId: updated.id,
+          details: { laboratoryId: membership.labId, labOrderId: order.id, lotId: lot.id, quantityMilli: row.quantityMilli.toString(), reason },
+          userId: req.user!.id,
+          clinicId: order.clinicId,
+        }, tx);
+      }
+      return { kind: 'reversed' as const, record: updated };
+    });
+    if (outcome.kind === 'not_found' || outcome.kind === 'lot_not_found') return res.status(404).json({ ok: false, error: 'Списание или партия не найдены в этой лаборатории' } satisfies ApiResponse);
+    if (outcome.kind === 'stock_integrity_error') return res.status(409).json({ ok: false, error: 'Возврат превысит исходное количество партии', code: 'LAB_MATERIAL_STOCK_INTEGRITY' } satisfies ApiResponse);
+    if (outcome.kind === 'already_reversed') return res.status(409).json({ ok: false, error: 'Списание уже отменено с другой причиной', code: 'LAB_MATERIAL_ALREADY_REVERSED' } satisfies ApiResponse);
+    return res.json({ ok: true, data: outcome.kind === 'reversed' ? serializeBigInt(outcome.record) : null, idempotent: outcome.kind === 'idempotent' } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[LabPlatform] material consumption reversal error:', safeErrorKind(error));
+    return res.status(500).json({ ok: false, error: 'Не удалось вернуть материал в партию' } satisfies ApiResponse);
   }
 });
 
