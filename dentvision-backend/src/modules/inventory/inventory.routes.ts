@@ -56,7 +56,7 @@ async function resolveCreateBranch(req: AuthRequest, clinicId: string) {
   // A selected organization role is no longer organization-wide for writes:
   // the request cannot silently move/create stock in a different branch.
   if (!context.organizationWide && context.branchId !== branchId) return null;
-  if (!(await assertInventoryBranch(branchId, clinicId))) return null;
+  if (!(await assertInventoryBranch(branchId, clinicId, req.user?.organizationId))) return null;
   return { context, branchId };
 }
 
@@ -156,7 +156,7 @@ inventoryRouter.patch('/:id', requirePermission('inventory.write'), async (req: 
     const { name, category, quantity, minimum, price, unit, supplier, sku, productId, autoRestock, expiryDate, branchId } = req.body;
     const existing = await prisma.inventoryItem.findFirst({ where: { id, ...scopedWhere(context) }, select: { id: true, quantity: true, branchId: true } });
     if (!existing) { res.status(404).json({ ok: false, error: 'Позиция склада не найдена' }); return; }
-    if (branchId !== undefined && (!context.organizationWide || !(await assertInventoryBranch(branchId, clinicId)))) { res.status(403).json({ ok: false, error: 'Недопустимый филиал' }); return; }
+    if (branchId !== undefined && (!context.organizationWide || !(await assertInventoryBranch(branchId, clinicId, req.user?.organizationId)))) { res.status(403).json({ ok: false, error: 'Недопустимый филиал' }); return; }
     if (branchId !== undefined && !context.branchIds.includes(branchId)) { res.status(403).json({ ok: false, error: 'Недопустимый филиал' }); return; }
     const qty = nonNegativeNumber(quantity), min = nonNegativeNumber(minimum), prc = nonNegativeNumber(price);
     if (Number.isNaN(qty) || Number.isNaN(min) || Number.isNaN(prc)) { res.status(400).json({ ok: false, error: 'quantity, minimum и price должны быть числом ≥ 0' }); return; }
