@@ -8,7 +8,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import { isClinicMember, resolveClinicAccess } from '../../lib/orgContext.js';
-import { resolveClinicBranchAccess } from '../../lib/clinicBranchAccess.js';
+import { resolveClinicBranchAccess, resolveUnambiguousWriteBranch } from '../../lib/clinicBranchAccess.js';
 import { publish } from '../../lib/events.js';
 import { labPlatformRouter } from './labPlatform.routes.js';
 import { medicalLabLifecycleRouter } from './medicalLab.routes.js';
@@ -72,19 +72,22 @@ interface VerifiedLabBranchScope {
   branchIds: string[] | null;
   /** Explicitly selected branch; null is an organization-wide context. */
   selectedBranchId: string | null;
+  /** Safe default for creating a branch-owned order when no branch is selected. */
+  defaultWriteBranchId: string | null;
   /** False when the actor has no verified active branch or organization scope. */
   configured: boolean;
 }
 
 async function branchScopedLabOrder(req: AuthRequest, clinicId: string): Promise<VerifiedLabBranchScope> {
   if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN') {
-    return { where: {}, branchIds: null, selectedBranchId: null, configured: true };
+    return { where: {}, branchIds: null, selectedBranchId: null, defaultWriteBranchId: null, configured: true };
   }
   if (!req.user?.id || req.user.clinicId !== clinicId) {
     return {
       where: { branchId: '__NO_BRANCH_ACCESS__' },
       branchIds: [],
       selectedBranchId: null,
+      defaultWriteBranchId: null,
       configured: false,
     };
   }
@@ -107,6 +110,8 @@ async function branchScopedLabOrder(req: AuthRequest, clinicId: string): Promise
   const organizationWide = access.roleScope === 'ORGANIZATION' && access.branchId === null;
   const selectedBranchId = access.branchId;
   const branchIds = selectedBranchId ? [selectedBranchId] : access.allowedBranchIds;
+  const defaultWriteBranchId = selectedBranchId
+    || (organizationWide ? await resolveUnambiguousWriteBranch(access.allowedBranchIds) : null);
   // Organization-wide users have no branch restriction. Do not pass their
   // branch inventory as a write allow-list: legacy patients may have branchId=null.
   return {
@@ -122,6 +127,7 @@ async function branchScopedLabOrder(req: AuthRequest, clinicId: string): Promise
     // branchId=null. Narrow roles receive only their verified active branches.
     branchIds: organizationWide ? null : branchIds,
     selectedBranchId,
+    defaultWriteBranchId,
     configured: organizationWide || branchIds.length > 0,
   };
 }
@@ -272,6 +278,13 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
       return res.status(403).json({ ok: false, error: 'Доступ к филиалу не настроен или недействителен' } satisfies ApiResponse);
     }
     const branchIds = branchScope.branchIds;
+    if (!id && !body.patientId && !branchScope.selectedBranchId && !branchScope.defaultWriteBranchId) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Для заказа без пациента выберите филиал. У клиники несколько филиалов и нет единственного филиала по умолчанию.',
+        code: 'LAB_ORDER_BRANCH_REQUIRED',
+      } satisfies ApiResponse);
+    }
     const writeBody = { ...body, status: id ? body.status : 'pending', laboratoryId: undefined, technicianId: undefined };
     let order: any;
 
@@ -310,7 +323,13 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
       order = outcome.order;
       await writeAuditLog({ action: 'LAB_ORDER_UPDATED', entity: 'lab_order', entityId: order.id, details: { fields: Object.keys(body).filter((field) => field !== 'status') }, userId: req.user!.id, clinicId });
     } else {
-      const prepared = await prepareLabOrderWrite(clinicId, writeBody, {}, branchIds, branchScope.selectedBranchId);
+      const prepared = await prepareLabOrderWrite(
+        clinicId,
+        writeBody,
+        {},
+        branchIds,
+        branchScope.selectedBranchId ?? branchScope.defaultWriteBranchId,
+      );
       if (prepared.error) return res.status(400).json({ ok: false, error: prepared.error } satisfies ApiResponse);
       const data = prepared.data as any;
       data.status = 'pending';
