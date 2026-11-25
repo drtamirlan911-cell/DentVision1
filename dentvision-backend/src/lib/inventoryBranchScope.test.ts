@@ -93,6 +93,18 @@ describe('inventory branch resource guards', () => {
     expect(queryRaw).not.toHaveBeenCalled();
   });
 
+  it('accepts active branches linked through the canonical clinic organization', async () => {
+    queryRaw.mockResolvedValue([{ id: 'branch-canonical' }]);
+
+    await expect(assertInventoryBranch('branch-canonical', 'clinic-a', 'org-a')).resolves.toBe(true);
+
+    const [sql, ...values] = queryRaw.mock.calls[0];
+    expect(sql.join('?')).toContain('organizations');
+    expect(sql.join('?')).toContain('organization_id');
+    expect(values).toContain('org-a');
+    expect(values).toContain('clinic-a');
+  });
+
   it('returns no inventory identifiers for an empty branch set', async () => {
     await expect(getInventoryIdsForBranches('clinic-a', [])).resolves.toEqual([]);
     expect(queryRaw).not.toHaveBeenCalled();
