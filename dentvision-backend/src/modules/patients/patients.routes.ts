@@ -111,12 +111,17 @@ function requirePatientMutationPermission(req: AuthRequest, res: Response, next:
 }
 
 async function branchContext(req: AuthRequest, clinicId: string) {
+  // Resolve the active tenant, role and selected branch again through canonical
+  // IAM. A hydrated token allow-list is useful for display, not a replacement
+  // for the domain authorization resolver at each patient-data boundary.
   return resolvePatientBranchContext(
     req.user!.id,
     clinicId,
     String(req.user!.role),
-    req.user!.branchIds ?? [],
-    req.user!.branchId ?? req.user!.assignedBranchId ?? null,
+    {
+      organizationId: req.user?.organizationId,
+      requestedBranchId: req.user?.branchId ?? req.user?.assignedBranchId ?? null,
+    },
   );
 }
 
@@ -164,9 +169,11 @@ patientsRouter.post('/', requirePatientMutationPermission, guardPatientCreate, a
         if(!canManagePatientBranch(context,requestedBranchId)||!(await assertPatientBranchBelongsToClinic(requestedBranchId,clinicId,req.user!.organizationId || '')))return res.status(400).json({ok:false,error:'Недействующий филиал'} satisfies ApiResponse);
         targetBranchId=requestedBranchId;
       }else{
-        targetBranchId=context.branchId && context.scope.branchIds.includes(context.branchId)
+        // Organization-wide visibility does not imply a default write branch.
+        // Require an explicit selection when the active context has no branch.
+        targetBranchId = context.branchId && context.scope.branchIds.includes(context.branchId)
           ? context.branchId
-          : context.scope.branchIds[0] ?? null;
+          : null;
       }
     }else if(!targetBranchId)return res.status(403).json({ok:false,error:'Сотруднику не назначен филиал'} satisfies ApiResponse);
     if(!targetBranchId)return res.status(403).json({ok:false,error:'Нет активного филиала для создания пациента'} satisfies ApiResponse);
