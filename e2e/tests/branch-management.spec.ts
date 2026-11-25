@@ -7,6 +7,13 @@ const PASSWORD = ['Test', '1234!'].join('');
 const prisma = new PrismaClient();
 let ownerClinicId = '';
 let ownerOrganizationId = '';
+let doctorBranchAssignmentCleanup: {
+  userId: string;
+  personId: string;
+  branchId: string;
+  originalClinicBranchId: string | null;
+  originalActiveBranchIds: string[];
+} | null = null;
 
 async function login(page: Page) {
   await page.goto(`${BASE}/login?role=owner`);
@@ -96,6 +103,51 @@ test.describe('Canonical organization branch management', () => {
     });
   });
 
+  test.afterEach(async () => {
+    const cleanup = doctorBranchAssignmentCleanup;
+    doctorBranchAssignmentCleanup = null;
+    if (!cleanup) return;
+
+    // BRANCH-002 temporarily assigns the shared doctor fixture to a second
+    // branch. Restore both the legacy single-branch pointer and the canonical
+    // BranchMember set so later role/visual suites start from the seeded state.
+    await prisma.$transaction(async (tx) => {
+      await tx.branchMember.updateMany({
+        where: { personId: cleanup.personId, branchId: cleanup.branchId },
+        data: { active: false },
+      });
+      await tx.clinicMember.updateMany({
+        where: {
+          userId: cleanup.userId,
+          clinicId: ownerClinicId,
+          branchId: cleanup.branchId,
+        },
+        data: { branchId: cleanup.originalClinicBranchId },
+      });
+      // Keep the temporary fixture branch and all its records for auditability,
+      // but archive it after removing the temporary doctor assignment.
+      await tx.$executeRaw`UPDATE "branches"
+        SET "active" = false, "updated_at" = CURRENT_TIMESTAMP
+        WHERE "id" = ${cleanup.branchId} AND "clinic_id" = ${ownerClinicId}`;
+    });
+
+    const restoredMembership = await prisma.clinicMember.findUnique({
+      where: { userId_clinicId: { userId: cleanup.userId, clinicId: ownerClinicId } },
+      select: { branchId: true },
+    });
+    expect(restoredMembership?.branchId, 'BRANCH-002 must restore the doctor legacy branch pointer')
+      .toBe(cleanup.originalClinicBranchId);
+
+    const activeBranchMemberships = await prisma.branchMember.findMany({
+      where: { personId: cleanup.personId, active: true },
+      select: { branchId: true },
+    });
+    expect(
+      activeBranchMemberships.map((membership) => membership.branchId).sort(),
+      'BRANCH-002 must not leak its temporary BranchMember assignment into later suites',
+    ).toEqual([...cleanup.originalActiveBranchIds].sort());
+  });
+
   test.afterAll(async () => { await prisma.$disconnect(); });
   test('BRANCH-004: branch code uniqueness is a recoverable conflict for create and edit', async ({ page }) => {
     await login(page);
@@ -181,6 +233,28 @@ test.describe('Canonical organization branch management', () => {
 
     const doctor = await prisma.user.findUnique({ where: { email: 'doctor-a@test.com' }, select: { id: true } });
     expect(doctor?.id, 'E2E doctor fixture must exist').toBeTruthy();
+    const doctorPerson = await prisma.person.findFirst({
+      where: { userId: doctor!.id, organizationId: ownerOrganizationId },
+      select: { id: true },
+    });
+    expect(doctorPerson?.id, 'E2E doctor must have its canonical clinic Person').toBeTruthy();
+    const doctorMembership = await prisma.clinicMember.findUnique({
+      where: { userId_clinicId: { userId: doctor!.id, clinicId: ownerClinicId } },
+      select: { branchId: true },
+    });
+    expect(doctorMembership, 'E2E doctor clinic membership must exist').toBeTruthy();
+    const originalBranchMemberships = await prisma.branchMember.findMany({
+      where: { personId: doctorPerson!.id, active: true },
+      select: { branchId: true },
+    });
+    doctorBranchAssignmentCleanup = {
+      userId: doctor!.id,
+      personId: doctorPerson!.id,
+      branchId,
+      originalClinicBranchId: doctorMembership!.branchId,
+      originalActiveBranchIds: originalBranchMemberships.map((membership) => membership.branchId),
+    };
+
     const assignment = await page.request.post(`/api/branches/${branchId}/members/${doctor!.id}`, {
       headers: ownerHeaders,
     });
