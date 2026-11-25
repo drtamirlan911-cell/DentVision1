@@ -51,7 +51,7 @@ vi.mock('../../lib/prisma.js', () => ({ default: {
 
 vi.mock('../../lib/clinicBranchAccess.js', () => ({ resolveClinicBranchAccess }));
 
-import { getAvailableSlots, requestAppointment, PortalActionError } from './patientPortal.service.js';
+import { getAvailableSlots, requestAppointment, isActiveClinicBranch, PortalActionError } from './patientPortal.service.js';
 
 const OPEN_CLINIC = {
   settings: {
@@ -184,6 +184,31 @@ describe('getAvailableSlots', () => {
     expect(appointmentFindMany.mock.calls[0][0].where.OR).toBeUndefined();
     expect(bookingFindMany.mock.calls[0][0].where.branchId).toBeUndefined();
     expect(bookingFindMany.mock.calls[0][0].where.OR).toBeUndefined();
+  });
+
+  it('accepts an active canonical clinic branch without a legacy clinicId', async () => {
+    organizationFindFirst.mockResolvedValueOnce({ id: 'org-1', archivedAt: null });
+    branchFindFirst.mockResolvedValueOnce({ id: 'branch-canonical' });
+
+    await expect(isActiveClinicBranch('clinic-1', 'branch-canonical')).resolves.toBe(true);
+    expect(branchFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'branch-canonical',
+        active: true,
+        OR: [
+          { clinicId: 'clinic-1' },
+          { clinicId: null, organizationId: 'org-1' },
+        ],
+      },
+      select: { id: true },
+    });
+  });
+
+  it('rejects a branch belonging to an archived clinic organization', async () => {
+    organizationFindFirst.mockResolvedValueOnce({ id: 'org-1', archivedAt: new Date() });
+
+    await expect(isActiveClinicBranch('clinic-1', 'branch-canonical')).resolves.toBe(false);
+    expect(branchFindFirst).not.toHaveBeenCalled();
   });
 
   it('returns no slots when the selected branch has no bookable clinicians', async () => {
@@ -333,6 +358,27 @@ describe('requestAppointment', () => {
     });
     expect(bookingCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ doctorId: 'doctor-1', branchId: 'branch-1' }),
+    }));
+  });
+
+  it('allows an owner-only provider with the same role used during slot discovery', async () => {
+    patientFindUnique.mockResolvedValueOnce(PATIENT);
+    clinicFindUnique.mockResolvedValueOnce(OPEN_CLINIC);
+    clinicMemberFindMany.mockResolvedValueOnce([{ userId: 'owner-1', role: 'OWNER' }]);
+    appointmentFindFirst.mockResolvedValueOnce(null);
+    bookingFindFirst.mockResolvedValueOnce(null);
+    bookingCreate.mockResolvedValueOnce({ id: 'b-owner', time: '09:30', status: 'pending' });
+
+    await requestAppointment({ ...baseInput, doctorId: 'owner-1' });
+
+    expect(resolveClinicBranchAccess).toHaveBeenCalledWith({
+      userId: 'owner-1',
+      clinicId: 'clinic-1',
+      role: 'OWNER',
+      requestedBranchId: 'branch-1',
+    });
+    expect(bookingCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ doctorId: 'owner-1', branchId: 'branch-1' }),
     }));
   });
 
