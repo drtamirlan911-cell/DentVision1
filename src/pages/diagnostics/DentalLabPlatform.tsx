@@ -10,6 +10,7 @@ import { QueryError } from '@/components/ui/ds/QueryError';
 import { Tabs } from '@/components/ui/ds/Misc';
 import { getLabPlatformDashboard, getLabPlatformFinance, getLabPlatformOrderLifecycle, getLabPlatformOrders, getLabPlatformTeam, assignLabTechnician, issueLabPlatformInvoice, requestLabPlatformPayout, updateLabPlatformOrderStatus, updateLabPlatformQualityControl, updateLabPlatformRemakeRequest, createLabPlatformShipment, confirmLabPlatformDelivery, type LabPlatformOrder } from '@/utils/labPlatformApi';
 import DentalLabServicesTab from './DentalLabServicesTab';
+import DentalLabMaterialsTab from './DentalLabMaterialsTab';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 import { useAuth } from '@/store/auth.store';
 import { PartnerBranchSubscriptionBilling } from '@/components/billing/PartnerBranchSubscriptionBilling';
@@ -303,13 +304,13 @@ function OrderCard({
 export default function DentalLabPlatform() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
-  const validTab = requestedTab === 'priority' || requestedTab === 'team' || requestedTab === 'services' || requestedTab === 'shipping' || requestedTab === 'finance' ? requestedTab : 'board';
+  const validTab = requestedTab === 'priority' || requestedTab === 'team' || requestedTab === 'services' || requestedTab === 'materials' || requestedTab === 'shipping' || requestedTab === 'finance' ? requestedTab : 'board';
   const [tab, setTab] = useState(validTab);
   const [filter, setFilter] = useState<string | undefined>();
   const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
 
   const changeTab = (nextTab: string) => {
-    const selected = nextTab === 'priority' || nextTab === 'team' || nextTab === 'services' || nextTab === 'shipping' || nextTab === 'finance' ? nextTab : 'board';
+    const selected = nextTab === 'priority' || nextTab === 'team' || nextTab === 'services' || nextTab === 'materials' || nextTab === 'shipping' || nextTab === 'finance' ? nextTab : 'board';
     setTab(selected);
     const nextParams = new URLSearchParams(searchParams);
     if (selected === 'board') nextParams.delete('tab');
@@ -334,6 +335,7 @@ export default function DentalLabPlatform() {
     : !canReadProduction && tab === 'board' && canManageShipping ? 'shipping'
     : (tab === 'finance' && !canManageFinance)
       || (['team', 'services'].includes(tab) && !canManageQc)
+      || (tab === 'materials' && !canReadProduction)
       || (tab === 'shipping' && !canManageShipping)
       || (['board', 'priority'].includes(tab) && !canReadProduction) ? 'board' : tab;
   const orders = useQuery({ queryKey: ['lab-platform', workspaceCacheScope, 'orders', filter], queryFn: () => getLabPlatformOrders(filter), enabled: canReadOrders, refetchInterval: 30_000 });
@@ -386,6 +388,7 @@ export default function DentalLabPlatform() {
     ...(canReadProduction ? [
       { id: 'board', label: 'Производство', icon: <Wrench size={14} /> },
       { id: 'priority', label: 'Приоритет', icon: <AlertTriangle size={14} /> },
+      { id: 'materials', label: 'Материалы', icon: <PackageCheck size={14} /> },
     ] : []),
     ...(canManageQc ? [
       { id: 'team', label: 'Команда', icon: <Users size={14} /> },
@@ -440,6 +443,7 @@ export default function DentalLabPlatform() {
         {!(orders.data || []).some((order) => order.status === 'ready' || order.status === 'delivered') && <Card padding="lg"><p className="text-sm text-txt-muted">Нет заказов, ожидающих отправки, самовывоза или подтверждения вручения.</p></Card>}
       </div>}
       {effectiveTab === 'services' && <DentalLabServicesTab canManage={canManageQc} cacheScope={workspaceCacheScope} />}
+      {effectiveTab === 'materials' && <DentalLabMaterialsTab canManage={canManageQc} canConsume={canReadProduction} cacheScope={workspaceCacheScope} />}
       {effectiveTab === 'team' && <Card padding="md"><div className="divide-y divide-bdr-subtle">{(team.data || []).map((member) => <div key={member.id} className="flex items-center justify-between py-3"><div><p className="text-sm font-medium">{member.firstName} {member.lastName}</p><p className="text-xs text-txt-muted">{member.email}</p></div><Badge variant="outline">{member.role || 'Сотрудник'}</Badge></div>)}{!team.data?.length && <p className="py-6 text-center text-sm text-txt-muted">Команда пока не загружена.</p>}</div></Card>}
       {effectiveTab === 'finance' && (!canManageFinance
         ? <Card padding="lg"><p className="text-sm text-txt-muted">Финансовый раздел доступен владельцу, менеджеру или назначенному сотруднику финслужбы.</p></Card>
