@@ -1,16 +1,38 @@
 name: RB-034 Context Diagnostic
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - security/doctor-agent-tenant-isolation-20261025
   pull_request:
     branches: [main]
     paths:
+      # Canonical IAM and the shared context/permission resolvers.
       - 'dentvision-backend/src/modules/iam/**'
-      - 'dentvision-backend/src/modules/ai/agents/doctor.agent.ts'
-      - 'dentvision-backend/src/modules/ai/agents/doctor.agent.security.test.ts'
+      - 'dentvision-backend/src/lib/clinicBranchAccess.ts'
+      - 'dentvision-backend/src/lib/diagnosticReferralBranchPolicy.ts'
+      - 'dentvision-backend/src/lib/patientBranchScope.ts'
+      - 'dentvision-backend/src/lib/inventoryBranchScope.ts'
+      - 'dentvision-backend/src/lib/orgContext.ts'
+      - 'dentvision-backend/src/lib/resolvePermissions.ts'
+      - 'dentvision-backend/src/lib/roleAccessRegistry.ts'
+      - 'dentvision-backend/src/middleware/auth.ts'
+      # Clinical AI and data surfaces that consume active organization/branch context.
+      - 'dentvision-backend/src/modules/ai/agents/**'
+      - 'dentvision-backend/src/modules/ai/os/**'
+      - 'dentvision-backend/src/modules/ai-patient/**'
+      - 'dentvision-backend/src/modules/patients/**'
+      - 'dentvision-backend/src/modules/appointments/**'
+      - 'dentvision-backend/src/modules/diagnostics/**'
+      - 'dentvision-backend/src/modules/lab/**'
+      - 'dentvision-backend/src/modules/inventory/**'
+      - 'dentvision-backend/src/modules/patient-portal/**'
+      # Direct API and role/branch context regression gates.
       - 'e2e/tests/rb034-iam-contexts.spec.ts'
+      - 'e2e/tests/branch-management.spec.ts'
+      - 'e2e/tests/rbac.spec.ts'
+      - 'e2e/tests/role-design-gate.spec.ts'
       - '.github/workflows/rb034-context-diagnostic.yml'
 
 jobs:
