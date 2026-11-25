@@ -1,5 +1,6 @@
 import { test, expect, APIRequestContext, request as apiRequest } from '@playwright/test';
 import { makeIin } from '../helpers/iin';
+import { switchToDefaultClinicBranch } from '../helpers/branch-context';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 
@@ -46,6 +47,15 @@ test.describe('RBAC - Role-Based Access Control', () => {
     for (const role of Object.keys(USERS) as (keyof typeof USERS)[]) {
       await loginAs(api, role);
     }
+
+    // BRANCH-002 deliberately preserves the restored branch assignment for
+    // this doctor. Select the configured default explicitly before testing
+    // branch-scoped patient and inventory permissions.
+    tokens['doctor-a'] = (await switchToDefaultClinicBranch({
+      request: api,
+      baseUrl: BASE_URL,
+      accessToken: tokens['doctor-a'],
+    })).accessToken;
   });
 
   test.afterAll(async () => {
