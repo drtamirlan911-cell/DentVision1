@@ -15,8 +15,10 @@ describe('dental lab branch isolation contract', () => {
     expect(source).toContain('branchIds: organizationWide ? null : branchIds');
     expect(source).toContain('branchId: { in: branchIds }');
     expect(source).toContain('const selectedBranchId = access.branchId');
+    expect(source).toContain('resolveUnambiguousWriteBranch(access.allowedBranchIds)');
+    expect(source).toContain('defaultWriteBranchId');
     expect(source).toContain('branchId: order.branchId ?? null');
-    expect(source).toContain('prepareLabOrderWrite(clinicId, writeBody, {}, branchIds, branchScope.selectedBranchId)');
+    expect(source).toContain('branchScope.selectedBranchId ?? branchScope.defaultWriteBranchId');
     expect(source).toContain('prepareLabOrderWrite(clinicId, writeBody, {}, branchIds, branchScope.selectedBranchId)');
     expect(source).toContain('__NO_BRANCH_ACCESS__');
     expect(source).toContain("if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN')");
@@ -71,6 +73,7 @@ describe('dental lab branch access must fail closed', () => {
     expect(source).toContain('branchId: { in: branchIds }');
     expect(source).not.toContain('patient: { branchId: { in: branchIds } }');
     expect(source).toContain('const branchId = patientBranchId || selectedBranchId || existingOrder?.branchId || null');
+    expect(source).toContain("code: 'LAB_ORDER_BRANCH_REQUIRED'");
     expect(source).toContain('branchId: { in: branchIds }');
   });
 
