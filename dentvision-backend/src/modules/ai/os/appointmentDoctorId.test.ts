@@ -36,7 +36,12 @@ vi.mock('../../../lib/orgContext.js', () => ({ resolveClinicAccess }));
 
 import { TOOLS } from './tools.js';
 
-const ctx = { userId: 'caller-1', clinicId: 'clinic-1', role: 'DOCTOR' };
+const ctx = {
+  userId: 'caller-1',
+  clinicId: 'clinic-1',
+  role: 'DOCTOR',
+  branchScope: { roleScope: 'ASSIGNED' as const, branchId: 'branch-1', allowedBranchIds: ['branch-1'] },
+};
 
 beforeEach(() => {
   vi.clearAllMocks();

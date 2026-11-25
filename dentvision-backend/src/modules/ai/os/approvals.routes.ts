@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../../lib/safeError.js';
 /**
  * Approval Center API — human-in-the-loop for high-risk kernel actions
  * (`ai/os/dataScope.ts::HIGH_RISK_TOOLS`) and for durable agents that
@@ -17,6 +18,7 @@ import { auditFromReq } from '../../compliance/audit.service.js';
 import { resolveAiToolAccess } from './access.js';
 import { runAiAction } from './kernel.js';
 import { buildApprovalFilter } from './activityQuery.js';
+import { resolveAiToolBranchScope, isNarrowAiToolBranchScope } from './aiToolBranchScope.js';
 import {
   decryptAiApprovalDecisionNote,
   decryptAiApprovalParams,
@@ -29,6 +31,32 @@ import type { AiSurface } from './kernel.types.js';
 
 const router = Router();
 
+async function hasOrganizationWideApprovalScope(req: AuthRequest, clinicId: string | null): Promise<boolean> {
+  try {
+    if (!req.user?.id || !clinicId) return false;
+    const access = await resolveAiToolAccess({
+      userId: req.user.id,
+      clinicId,
+      organizationId: req.user.organizationId,
+      organizationType: req.user.organizationType,
+      supplierId: req.user.supplierId,
+      lecturerId: req.user.lecturerId,
+      isGuest: req.user.isGuest,
+    });
+    if (!access.clinicId || access.role === 'SUPERADMIN') return false;
+    const scope = await resolveAiToolBranchScope({
+      userId: req.user.id,
+      clinicId: access.clinicId,
+      organizationId: access.organizationId || req.user.organizationId,
+      role: access.role,
+      requestedBranchId: req.user.branchId || req.user.assignedBranchId || null,
+    });
+    return Boolean(scope && !isNarrowAiToolBranchScope(scope));
+  } catch {
+    return false;
+  }
+}
+
 /** GET /api/ai/approvals — visible to the caller via the same tiered ladder as the Activity Center. */
 router.get('/', authenticate, async (req: AuthRequest, res) => {
   try {
@@ -38,6 +66,8 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
     const status = req.query.status as string | undefined;
     const clinicId = req.user.clinicId || (req.query.clinicId as string) || null;
     const { where, canReadPhi } = await buildApprovalFilter(req.user.id, clinicId);
+    const organizationWide = await hasOrganizationWideApprovalScope(req, req.user.clinicId || null);
+    if (!organizationWide) return res.json({ ok: true, data: [] });
     const finalWhere = status ? { ...where, status } : where;
 
     const approvals = await prisma.aiApproval.findMany({
@@ -58,7 +88,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
     }));
     return res.json({ ok: true, data: safeApprovals });
   } catch (error) {
-    console.error('[AI Approvals] list failed:', error);
+    console.error('[AI Approvals] list failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось получить список подтверждений' });
   }
 });
@@ -66,21 +96,44 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
 /** GET /api/ai/approvals/tasks — durable AI Employee work queue for the workspace. */
 router.get('/tasks', authenticate, async (req: AuthRequest, res) => {
   try {
-    if (!req.user?.id || !req.user.clinicId) {
-      return res.status(401).json({ ok: false, error: 'Требуется авторизация и клиника' });
+    if (!req.user?.id) {
+      return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
+    }
+    // Resolve the current membership/role from the database. JWT role and
+    // clinic claims alone are not an authorization source for the task queue.
+    const access = await resolveAiToolAccess({
+      userId: req.user.id,
+      clinicId: req.user.clinicId,
+      organizationId: req.user.organizationId,
+      organizationType: req.user.organizationType,
+      supplierId: req.user.supplierId,
+      lecturerId: req.user.lecturerId,
+      isGuest: req.user.isGuest,
+    });
+    if (!access.clinicId) {
+      return res.status(403).json({ ok: false, error: 'Рабочая очередь доступна только в подтверждённом контексте клиники' });
     }
     const rawLimit = Number(req.query.limit || 30);
     const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 100) : 30;
-    const tasks = await listAiEmployeeTasks({
-      clinicId: req.user.clinicId,
+    const taskScope = await resolveAiToolBranchScope({
       userId: req.user.id,
-      role: req.user.role,
+      clinicId: access.clinicId,
+      organizationId: access.organizationId || req.user.organizationId,
+      role: access.role,
+      requestedBranchId: req.user.branchId || req.user.assignedBranchId || null,
+    });
+    const canReadWorkspaceQueue =
+      ['OWNER', 'ADMIN'].includes(String(access.role).toUpperCase())
+      && Boolean(taskScope && !isNarrowAiToolBranchScope(taskScope));
+    if (!canReadWorkspaceQueue) return res.json({ ok: true, data: [] });
+    const tasks = await listAiEmployeeTasks({
+      clinicId: access.clinicId,
       status: typeof req.query.taskStatus === 'string' ? req.query.taskStatus as any : null,
       limit,
     });
     return res.json({ ok: true, data: tasks });
   } catch (error) {
-    console.error('[AI Employee Tasks] list failed:', error);
+    console.error('[AI Employee Tasks] list failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось получить рабочие задачи AI' });
   }
 });
@@ -88,8 +141,20 @@ router.get('/tasks', authenticate, async (req: AuthRequest, res) => {
 /** POST /api/ai/approvals/tasks/:id/transition — lifecycle control for the durable task ledger. */
 router.post('/tasks/:id/transition', authenticate, async (req: AuthRequest, res) => {
   try {
-    if (!req.user?.id || !req.user.clinicId) {
-      return res.status(401).json({ ok: false, error: 'Требуется авторизация и клиника' });
+    if (!req.user?.id) {
+      return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
+    }
+    const access = await resolveAiToolAccess({
+      userId: req.user.id,
+      clinicId: req.user.clinicId,
+      organizationId: req.user.organizationId,
+      organizationType: req.user.organizationType,
+      supplierId: req.user.supplierId,
+      lecturerId: req.user.lecturerId,
+      isGuest: req.user.isGuest,
+    });
+    if (!access.clinicId) {
+      return res.status(403).json({ ok: false, error: 'Рабочая очередь доступна только в подтверждённом контексте клиники' });
     }
     const status = String(req.body?.status || '');
     const allowedStatuses = new Set(['observing', 'proposed', 'awaiting_approval', 'executing', 'verified', 'completed', 'failed', 'cancelled']);
@@ -97,19 +162,25 @@ router.post('/tasks/:id/transition', authenticate, async (req: AuthRequest, res)
       return res.status(400).json({ ok: false, error: 'Недопустимый статус задачи' });
     }
 
-    // Only workspace owners/managers/superadmins may force a lifecycle transition
-    // on behalf of an employee. Normal users may only resolve their own queue.
-    const privileged = new Set(['OWNER', 'SUPERADMIN', 'MANAGER', 'ADMIN']);
-    if (!privileged.has(String(req.user.role || '').toUpperCase())) {
-      const own = await listAiEmployeeTasks({ clinicId: req.user.clinicId, userId: req.user.id, limit: 100 });
-      if (!own.some((task) => task.id === String(req.params.id))) {
-        return res.status(403).json({ ok: false, error: 'Недостаточно прав для изменения этой задачи' });
-      }
+    // Only verified workspace owners/managers/superadmins may transition any
+    // task in the clinic. Other roles may resolve only their own or unassigned
+    // tasks in their verified role queue.
+    const taskScope = await resolveAiToolBranchScope({
+      userId: req.user.id,
+      clinicId: access.clinicId,
+      organizationId: access.organizationId || req.user.organizationId,
+      role: access.role,
+      requestedBranchId: req.user.branchId || req.user.assignedBranchId || null,
+    });
+    const privileged = ['OWNER', 'ADMIN'].includes(String(access.role || '').toUpperCase())
+      && Boolean(taskScope && !isNarrowAiToolBranchScope(taskScope));
+    if (!privileged) {
+      return res.status(403).json({ ok: false, error: 'Изменение AI-задач доступно только подтверждённому организационному уровню: в реестре пока нет филиального ключа' });
     }
 
     const task = await transitionAiEmployeeTask({
       id: String(req.params.id),
-      clinicId: req.user.clinicId,
+      clinicId: access.clinicId,
       status: status as any,
       result: req.body?.result,
       error: typeof req.body?.error === 'string' ? req.body.error : undefined,
@@ -123,7 +194,7 @@ router.post('/tasks/:id/transition', authenticate, async (req: AuthRequest, res)
     });
     return res.json({ ok: true, data: task });
   } catch (error) {
-    console.error('[AI Employee Tasks] transition failed:', error);
+    console.error('[AI Employee Tasks] transition failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось изменить состояние задачи' });
   }
 });
@@ -145,6 +216,9 @@ router.post('/:id/approve', authenticate, async (req: AuthRequest, res) => {
       return res.status(409).json({ ok: false, error: 'Срок действия истёк' });
     }
     if (!assertSameClinic(req, res, approval.clinicId)) return;
+    if (!(await hasOrganizationWideApprovalScope(req, approval.clinicId))) {
+      return res.status(403).json({ ok: false, error: 'Для решения чужих AI-действий требуется организационный доступ' });
+    }
 
     const access = await resolveAiToolAccess({
       userId: req.user.id,
@@ -189,7 +263,7 @@ router.post('/:id/approve', authenticate, async (req: AuthRequest, res) => {
     }
     return res.json({ ok: true, data: result });
   } catch (error) {
-    console.error('[AI Approvals] approve failed:', error);
+    console.error('[AI Approvals] approve failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось подтвердить действие' });
   }
 });
@@ -208,6 +282,9 @@ router.post('/:id/reject', authenticate, async (req: AuthRequest, res) => {
       return res.status(409).json({ ok: false, error: 'Уже обработано' });
     }
     if (!assertSameClinic(req, res, approval.clinicId)) return;
+    if (!(await hasOrganizationWideApprovalScope(req, approval.clinicId))) {
+      return res.status(403).json({ ok: false, error: 'Для решения чужих AI-действий требуется организационный доступ' });
+    }
 
     const access = await resolveAiToolAccess({
       userId: req.user.id,
@@ -228,7 +305,7 @@ router.post('/:id/reject', authenticate, async (req: AuthRequest, res) => {
     await auditFromReq(req, { action: 'ai.approval.rejected', entity: 'ai_approval', entityId: approval.id });
     return res.json({ ok: true, data: { id: approval.id, status: 'rejected' } });
   } catch (error) {
-    console.error('[AI Approvals] reject failed:', error);
+    console.error('[AI Approvals] reject failed:', safeErrorKind(error));
     return res.status(500).json({ ok: false, error: 'Не удалось отклонить' });
   }
 });
