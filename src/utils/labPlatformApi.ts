@@ -192,3 +192,59 @@ export const updateDentalLabService = (id: string, body: Partial<Pick<DentalLabS
   request<DentalLabService>(`/services/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) });
 export const getAvailableDentalLabServices = (labId: string) =>
   request<AvailableDentalLabService[]>(`/available-laboratories/${encodeURIComponent(labId)}/services`);
+
+export interface DentalLabMaterialLot {
+  id: string;
+  lotNumber: string;
+  supplierName?: string | null;
+  supplierLotNumber?: string | null;
+  remainingQuantityMilli: string;
+  receivedQuantityMilli: string;
+  unitCostMinor?: string;
+  currency?: string;
+  receivedAt: string;
+  expiresAt?: string | null;
+  expired: boolean;
+}
+export interface DentalLabMaterial {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  unit: 'g' | 'ml' | 'pcs' | string;
+  minimumStockMilli: string;
+  availableStockMilli: string;
+  active: boolean;
+  lots: DentalLabMaterialLot[];
+  createdAt: string;
+  updatedAt: string;
+}
+export interface DentalLabCaseMaterial {
+  id: string;
+  material: { code?: string; name: string; unit: string };
+  lot: { lotNumber: string; supplierName?: string | null; expiresAt?: string | null };
+  quantityMilli: string;
+  unitCostMinorSnapshot?: string;
+  totalCostMinorSnapshot?: string;
+  consumedByUserId: string;
+  consumedAt: string;
+  note?: string | null;
+  reversedAt?: string | null;
+  reversedByUserId?: string | null;
+  reversalReason?: string | null;
+}
+export const getDentalLabMaterials = () => request<DentalLabMaterial[]>('/materials');
+export const createDentalLabMaterial = (body: {
+  code: string; name: string; category: string; unit: 'g' | 'ml' | 'pcs'; minimumStock?: string;
+}) => request<DentalLabMaterial>('/materials', { method: 'POST', body: JSON.stringify(body) });
+export const receiveDentalLabMaterialLot = (materialId: string, body: {
+  lotNumber: string; quantity: string; unitCost: string; supplierName?: string;
+  supplierLotNumber?: string; expiresAt?: string; note?: string;
+}) => request<DentalLabMaterialLot>(`/materials/${encodeURIComponent(materialId)}/lots`, { method: 'POST', body: JSON.stringify(body) });
+export const getDentalLabOrderMaterialConsumptions = (orderId: string) =>
+  request<DentalLabCaseMaterial[]>(`/orders/${encodeURIComponent(orderId)}/material-consumptions`);
+export const consumeDentalLabOrderMaterial = (orderId: string, body: {
+  materialId: string; lotId: string; quantity: string; idempotencyKey: string; note?: string;
+}) => request<DentalLabCaseMaterial>(`/orders/${encodeURIComponent(orderId)}/material-consumptions`, { method: 'POST', body: JSON.stringify(body) });
+export const reverseDentalLabOrderMaterialConsumption = (orderId: string, consumptionId: string, reason: string) =>
+  request<DentalLabCaseMaterial>(`/orders/${encodeURIComponent(orderId)}/material-consumptions/${encodeURIComponent(consumptionId)}/reversal`, { method: 'POST', body: JSON.stringify({ reason }) });
