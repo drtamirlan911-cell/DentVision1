@@ -53,7 +53,7 @@ export const CLINIC_ROLE_DEFINITIONS: readonly ClinicRoleDefinition[] = [
   clinicRole('DOCTOR', 'Доктор', 'Клиническая работа с назначенными пациентами и подтверждение лечения.', 'ASSIGNED', [
     'patients.read', 'patients.write', 'appointments.read', 'appointments.write',
     'medical.read', 'medical.write', 'medical.manage', 'billing.read',
-    'inventory.read', 'lab.read', 'lab.write', 'diagnostics.read', 'shop.read', 'academy.read', 'community.read',
+    'lab.read', 'lab.write', 'diagnostics.read', 'shop.read', 'academy.read', 'community.read',
   ]),
   clinicRole('ASSISTANT', 'Ассистент', 'Поддержка врача и операционная работа без клинического sign-off.', 'ASSIGNED', [
     'patients.read', 'appointments.read', 'appointments.write', 'medical.read',
