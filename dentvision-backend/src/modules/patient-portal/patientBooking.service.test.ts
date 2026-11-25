@@ -125,6 +125,36 @@ describe('getAvailableSlots', () => {
     });
   });
 
+  it('derives patient self-service availability from the patient record and filters by that active branch', async () => {
+    clinicFindUnique.mockResolvedValueOnce(OPEN_CLINIC);
+    patientFindUnique.mockResolvedValueOnce({ clinicId: 'clinic-1', branchId: 'branch-1' });
+    appointmentFindMany.mockResolvedValueOnce([]);
+    bookingFindMany.mockResolvedValueOnce([]);
+
+    await getAvailableSlots('clinic-1', '2026-08-17', null, null, 'patient-1');
+
+    expect(patientFindUnique).toHaveBeenCalledWith({
+      where: { id: 'patient-1' },
+      select: { clinicId: true, branchId: true },
+    });
+    expect(branchFindFirst).toHaveBeenCalledWith({
+      where: { id: 'branch-1', clinicId: 'clinic-1', active: true },
+      select: { id: true },
+    });
+    expect(appointmentFindMany.mock.calls[0][0].where.OR).toEqual([{ branchId: 'branch-1' }, { branchId: null }]);
+    expect(bookingFindMany.mock.calls[0][0].where.OR).toEqual([{ branchId: 'branch-1' }, { branchId: null }]);
+  });
+
+  it('refuses patient self-service availability without an assigned active branch', async () => {
+    clinicFindUnique.mockResolvedValueOnce(OPEN_CLINIC);
+    patientFindUnique.mockResolvedValueOnce({ clinicId: 'clinic-1', branchId: null });
+
+    await expect(getAvailableSlots('clinic-1', '2026-08-17', null, null, 'patient-1'))
+      .rejects.toMatchObject({ code: 'BAD_STATUS' });
+    expect(appointmentFindMany).not.toHaveBeenCalled();
+    expect(bookingFindMany).not.toHaveBeenCalled();
+  });
+
   it('validates a requested doctor against active membership in the patient branch', async () => {
     clinicFindUnique.mockResolvedValueOnce(OPEN_CLINIC);
     clinicMemberFindMany.mockResolvedValueOnce([{ userId: 'doctor-1', role: 'DOCTOR' }]);
