@@ -27,6 +27,9 @@ describe('dental laboratory material traceability schema', () => {
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS "dental_lab_materials"');
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS "dental_lab_material_lots"');
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS "dental_lab_case_materials"');
+    expect(migration).toContain('DO $ BEGIN');
+    expect(migration).not.toContain('DO $ BEGIN');
+    expect(migration).not.toContain('END $;');
     expect(migration).toContain('"receivedQuantityMilli" > 0 AND "remainingQuantityMilli" >= 0 AND "remainingQuantityMilli" <= "receivedQuantityMilli"');
     expect(migration).toContain('FOREIGN KEY ("materialId", "labId")');
     expect(migration).toContain('FOREIGN KEY ("lotId", "labId")');
