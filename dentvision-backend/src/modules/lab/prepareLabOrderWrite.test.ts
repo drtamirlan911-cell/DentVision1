@@ -12,10 +12,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * edit that says nothing about the doctor must not erase the attribution.
  */
 
-const { resolveClinicAccess } = vi.hoisted(() => ({ resolveClinicAccess: vi.fn() }));
+const { resolveClinicAccess, patientFindFirst } = vi.hoisted(() => ({
+  resolveClinicAccess: vi.fn(),
+  patientFindFirst: vi.fn(),
+}));
 
 vi.mock('../../lib/orgContext.js', () => ({ resolveClinicAccess }));
-vi.mock('../../lib/prisma.js', () => ({ default: { labOrder: {} } }));
+vi.mock('../../lib/prisma.js', () => ({
+  default: {
+    labOrder: {},
+    patient: { findFirst: patientFindFirst },
+  },
+}));
 vi.mock('../../middleware/auth.js', () => ({ authenticate: vi.fn() }));
 vi.mock('../../middleware/rbac.js', () => ({ requirePermission: () => vi.fn() }));
 vi.mock('../../middleware/planGate.js', () => ({
@@ -28,6 +36,7 @@ const { prepareLabOrderWrite } = await import('./lab.routes.js');
 beforeEach(() => {
   vi.clearAllMocks();
   resolveClinicAccess.mockResolvedValue({ role: 'DOCTOR' });
+  patientFindFirst.mockResolvedValue(null);
 });
 
 describe('who may be recorded as the ordering doctor', () => {
@@ -101,5 +110,98 @@ describe('an edit must not lose what it does not mention', () => {
   it('defaults an order with no status to pending, as before', async () => {
     const result = await prepareLabOrderWrite('clinic-1', {});
     expect(result.data!.status).toBe('pending');
+  });
+});
+describe('lab order branch ownership', () => {
+  it('assigns a patientless name-only order to the verified selected branch', async () => {
+    const result = await prepareLabOrderWrite(
+      'clinic-1',
+      { patientName: 'Иванов И.', labType: 'Коронка' },
+      {},
+      ['branch-1'],
+      'branch-1',
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.data).toMatchObject({ patientId: null, branchId: 'branch-1' });
+    expect(patientFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('derives a patient-linked order branch from the clinic-owned patient record', async () => {
+    patientFindFirst.mockResolvedValue({ id: 'patient-1', branchId: 'branch-2' });
+
+    const result = await prepareLabOrderWrite(
+      'clinic-1',
+      { patientId: 'patient-1' },
+      {},
+      null,
+      null,
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.data).toMatchObject({ patientId: 'patient-1', branchId: 'branch-2' });
+    expect(patientFindFirst).toHaveBeenCalledWith({
+      where: { id: 'patient-1', clinicId: 'clinic-1' },
+      select: { id: true, branchId: true },
+    });
+  });
+
+  it('rejects a patient outside the current branch allow-list', async () => {
+    patientFindFirst.mockResolvedValue(null);
+
+    const result = await prepareLabOrderWrite(
+      'clinic-1',
+      { patientId: 'patient-outside' },
+      {},
+      ['branch-1'],
+      'branch-1',
+    );
+
+    expect(result.error).toBe('Пациент недоступен в текущем филиале');
+    expect(result.data).toBeUndefined();
+    expect(patientFindFirst).toHaveBeenCalledWith({
+      where: { id: 'patient-outside', clinicId: 'clinic-1', branchId: { in: ['branch-1'] } },
+      select: { id: true, branchId: true },
+    });
+  });
+
+  it('does not invent a branch for organization-wide patientless legacy orders', async () => {
+    const result = await prepareLabOrderWrite(
+      'clinic-1',
+      { patientName: 'Исторический заказ' },
+      {},
+      null,
+      null,
+    );
+
+    expect(result.data).toMatchObject({ patientId: null, branchId: null });
+  });
+
+  it('preserves the existing patient and branch when an edit omits patientId', async () => {
+    patientFindFirst.mockResolvedValue({ id: 'patient-1', branchId: 'branch-1' });
+
+    const result = await prepareLabOrderWrite(
+      'clinic-1',
+      { notes: 'Уточнение для техника' },
+      {},
+      ['branch-1'],
+      'branch-1',
+      { patientId: 'patient-1', branchId: 'branch-1' },
+    );
+
+    expect(result.data).toMatchObject({ patientId: 'patient-1', branchId: 'branch-1' });
+  });
+
+  it('preserves a patientless order branch when an organization owner edits without selecting a new branch', async () => {
+    const result = await prepareLabOrderWrite(
+      'clinic-1',
+      { notes: 'Изменение описания' },
+      {},
+      null,
+      null,
+      { patientId: null, branchId: 'branch-2' },
+    );
+
+    expect(result.data).toMatchObject({ patientId: null, branchId: 'branch-2' });
   });
 });
