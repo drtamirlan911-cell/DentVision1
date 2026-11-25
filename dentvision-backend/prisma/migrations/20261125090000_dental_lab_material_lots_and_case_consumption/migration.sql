@@ -13,10 +13,10 @@ CREATE TABLE IF NOT EXISTS "dental_lab_materials" (
   CONSTRAINT "dental_lab_materials_minimumStockMilli_check" CHECK ("minimumStockMilli" >= 0)
 );
 
-DO $ BEGIN
+DO $$ BEGIN
   ALTER TABLE "dental_lab_materials"
     ADD CONSTRAINT "dental_lab_materials_minimumStockMilli_check" CHECK ("minimumStockMilli" >= 0);
-EXCEPTION WHEN duplicate_object THEN NULL; END $;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS "dental_lab_materials_labId_code_key"
   ON "dental_lab_materials"("labId", "code");
 CREATE UNIQUE INDEX IF NOT EXISTS "dental_lab_materials_id_labId_key"
@@ -52,15 +52,15 @@ CREATE TABLE IF NOT EXISTS "dental_lab_material_lots" (
   CONSTRAINT "dental_lab_material_lots_cost_check" CHECK ("unitCostMinor" >= 0)
 );
 
-DO $ BEGIN
+DO $$ BEGIN
   ALTER TABLE "dental_lab_material_lots"
     ADD CONSTRAINT "dental_lab_material_lots_quantity_check"
       CHECK ("receivedQuantityMilli" > 0 AND "remainingQuantityMilli" >= 0 AND "remainingQuantityMilli" <= "receivedQuantityMilli");
-EXCEPTION WHEN duplicate_object THEN NULL; END $;
-DO $ BEGIN
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
   ALTER TABLE "dental_lab_material_lots"
     ADD CONSTRAINT "dental_lab_material_lots_cost_check" CHECK ("unitCostMinor" >= 0);
-EXCEPTION WHEN duplicate_object THEN NULL; END $;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS "dental_lab_material_lots_labId_materialId_lotNumber_key"
   ON "dental_lab_material_lots"("labId", "materialId", "lotNumber");
 CREATE UNIQUE INDEX IF NOT EXISTS "dental_lab_material_lots_id_labId_key"
@@ -104,17 +104,17 @@ CREATE TABLE IF NOT EXISTS "dental_lab_case_materials" (
         OR ("reversedAt" IS NOT NULL AND "reversedByUserId" IS NOT NULL AND "reversalReason" IS NOT NULL))
 );
 
-DO $ BEGIN
+DO $$ BEGIN
   ALTER TABLE "dental_lab_case_materials"
     ADD CONSTRAINT "dental_lab_case_materials_amount_check"
       CHECK ("quantityMilli" > 0 AND "unitCostMinorSnapshot" >= 0 AND "totalCostMinorSnapshot" >= 0);
-EXCEPTION WHEN duplicate_object THEN NULL; END $;
-DO $ BEGIN
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
   ALTER TABLE "dental_lab_case_materials"
     ADD CONSTRAINT "dental_lab_case_materials_reversal_check"
       CHECK (("reversedAt" IS NULL AND "reversedByUserId" IS NULL AND "reversalReason" IS NULL)
           OR ("reversedAt" IS NOT NULL AND "reversedByUserId" IS NOT NULL AND "reversalReason" IS NOT NULL));
-EXCEPTION WHEN duplicate_object THEN NULL; END $;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS "dental_lab_case_materials_labId_idempotencyKey_key"
   ON "dental_lab_case_materials"("labId", "idempotencyKey");
 CREATE INDEX IF NOT EXISTS "dental_lab_case_materials_labId_labOrderId_consumedAt_idx"
