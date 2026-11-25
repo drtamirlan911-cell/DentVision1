@@ -103,6 +103,7 @@ async function branchScopedLabOrder(req: AuthRequest, clinicId: string): Promise
       where: { branchId: '__NO_BRANCH_ACCESS__' },
       branchIds: [],
       selectedBranchId: null,
+      defaultWriteBranchId: null,
       configured: false,
     };
   }
