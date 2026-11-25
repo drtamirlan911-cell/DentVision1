@@ -111,8 +111,9 @@ describe('inventory route selected-branch contract', () => {
     expect(source).not.toContain('context.branchIds[0] ||');
   });
 
-  it('does not silently choose a second branch for a selected or branch-scoped user', () => {
-    expect(source).toContain('requested || context.branchId || null');
+  it('uses only a selected or unambiguous configured default for organization-wide writes', () => {
+    expect(source).toContain('requested || context.branchId');
+    expect(source).toContain('await resolveUnambiguousWriteBranch(context.branchIds)');
     expect(source).not.toContain('context.branchIds[0]');
     expect(source).toContain('if (!context.organizationWide && context.branchId !== branchId) return null;');
     expect(source).toContain('if (!branchId || !context.branchIds.includes(branchId)) return null;');
