@@ -82,7 +82,7 @@ async function branchScopedLabOrder(req: AuthRequest, clinicId: string): Promise
   }
   if (!req.user?.id || req.user.clinicId !== clinicId) {
     return {
-      where: { patient: { branchId: '__NO_BRANCH_ACCESS__' } },
+      where: { branchId: '__NO_BRANCH_ACCESS__' },
       branchIds: [],
       selectedBranchId: null,
       configured: false,
@@ -97,8 +97,9 @@ async function branchScopedLabOrder(req: AuthRequest, clinicId: string): Promise
   });
   if (!access) {
     return {
-      where: { patient: { branchId: '__NO_BRANCH_ACCESS__' } },
+      where: { branchId: '__NO_BRANCH_ACCESS__' },
       branchIds: [],
+      selectedBranchId: null,
       configured: false,
     };
   }
