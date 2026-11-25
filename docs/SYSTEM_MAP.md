@@ -5,10 +5,10 @@
 ## Summary
 
 - Mounted routers: **69**
-- Unique route handlers: **757**
+- Unique route handlers: **763**
 - Registered HTTP routes after mount: **701**
 - Routes without detected web/mobile consumer: **107**
-- Prisma models: **171**
+- Prisma models: **174**
 - Background jobs: **13**
 - Permission roles: **11**
 
