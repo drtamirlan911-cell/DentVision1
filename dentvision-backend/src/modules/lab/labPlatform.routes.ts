@@ -523,7 +523,7 @@ labPlatformRouter.post('/materials/:id/lots', async (req: AuthRequest, res) => {
     let expiresAt: Date | null = null;
     if (req.body?.expiresAt !== undefined && req.body?.expiresAt !== null && req.body?.expiresAt !== '') {
       const expiryDateInput = String(req.body.expiresAt).trim();
-      const validDateOnly = /^\\d{4}-\\d{2}-\\d{2}$/.test(expiryDateInput);
+      const validDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(expiryDateInput);
       expiresAt = validDateOnly ? new Date(`${expiryDateInput}T23:59:59.999Z`) : new Date(Number.NaN);
       if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
         return res.status(400).json({ ok: false, error: 'Срок годности партии должен быть корректной будущей датой' } satisfies ApiResponse);
