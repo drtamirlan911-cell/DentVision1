@@ -95,6 +95,7 @@ test.describe('Partner operational lifecycle', () => {
   let dentalLabOwnerToken = '';
   let fixtureDentalLabId = '';
   let fixtureAlternativeDentalLabId = '';
+  let alternativeDentalLabOwnerToken = '';
   let dentalTechnicianId = '';
   let dentalTechnicianToken = '';
   const rb037UserIds: string[] = [];
@@ -384,10 +385,10 @@ test.describe('Partner operational lifecycle', () => {
     expect(alternativeDentalOnboard.status()).toBe(201);
     const alternativeDentalPayload = await alternativeDentalOnboard.json();
     fixtureAlternativeDentalLabId = alternativeDentalPayload.data?.entityId;
-    const alternativeDentalToken = alternativeDentalPayload.data?.accessToken || alternativeDentalPayload.accessToken;
+    alternativeDentalLabOwnerToken = alternativeDentalPayload.data?.accessToken || alternativeDentalPayload.accessToken;
     expect(fixtureAlternativeDentalLabId).toBeTruthy();
-    expect(alternativeDentalToken).toBeTruthy();
-    const alternativeDentalClaims = JSON.parse(Buffer.from(alternativeDentalToken.split('.')[1], 'base64url').toString('utf8')) as { organizationId?: string };
+    expect(alternativeDentalLabOwnerToken).toBeTruthy();
+    const alternativeDentalClaims = JSON.parse(Buffer.from(alternativeDentalLabOwnerToken.split('.')[1], 'base64url').toString('utf8')) as { organizationId?: string };
     expect(alternativeDentalClaims.organizationId).toBeTruthy();
     await approveDentalPartner(alternativeDentalClaims.organizationId);
 
@@ -1866,10 +1867,91 @@ test.describe('Partner operational lifecycle', () => {
     const technicianCannotReadOtherLifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/lifecycle`, { headers: auth(dentalTechnicianToken) });
     expect(technicianCannotReadOtherLifecycle.status()).toBe(404);
 
+    // PARTNER-003M: laboratory stock is tenant-owned and lot/case ledgers are
+    // independent of clinic InventoryItem. Only a manager can create materials
+    // and receive lots; production staff can consume only on assigned cases.
+    const materialCode = `P003-ZIR-${Date.now()}`;
+    const materialCreate = await api.post(`${BASE}/api/lab-orders/platform/materials`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { code: materialCode, name: 'Zirconia production blank', category: 'zirconia', unit: 'g', minimumStock: '2.000' },
+    });
+    const materialCreateBody = await materialCreate.json();
+    expect(materialCreate.status(), JSON.stringify(materialCreateBody)).toBe(201);
+    const material = materialCreateBody.data;
+
+    const technicianCannotCreateMaterial = await api.post(`${BASE}/api/lab-orders/platform/materials`, {
+      headers: auth(dentalTechnicianToken),
+      data: { code: `${materialCode}-TECH`, name: 'Technician-owned material', category: 'zirconia', unit: 'g' },
+    });
+    expect(technicianCannotCreateMaterial.status()).toBe(403);
+    const technicianCannotReceiveLot = await api.post(`${BASE}/api/lab-orders/platform/materials/${material.id}/lots`, {
+      headers: auth(dentalTechnicianToken),
+      data: { lotNumber: 'TECH-LOT-001', quantity: '1.000', unitCost: '1.00' },
+    });
+    expect(technicianCannotReceiveLot.status()).toBe(403);
+    const clinicCannotReadLabMaterials = await api.get(`${BASE}/api/lab-orders/platform/materials`, { headers: auth(ownerToken) });
+    expect(clinicCannotReadLabMaterials.status()).toBe(403);
+    const otherLabCannotReceiveForeignMaterial = await api.post(`${BASE}/api/lab-orders/platform/materials/${material.id}/lots`, {
+      headers: auth(alternativeDentalLabOwnerToken),
+      data: { lotNumber: 'FOREIGN-LOT-001', quantity: '1.000', unitCost: '1.00' },
+    });
+    expect(otherLabCannotReceiveForeignMaterial.status()).toBe(404);
+
+    const receipt = await api.post(`${BASE}/api/lab-orders/platform/materials/${material.id}/lots`, {
+      headers: auth(dentalLabOwnerToken),
+      data: {
+        lotNumber: 'P003-LOT-001',
+        quantity: '10.000',
+        unitCost: '2500.00',
+        supplierName: 'DentVision Materials Supplier',
+        supplierLotNumber: 'SUP-ZR-2026-001',
+        expiresAt: '2027-12-31',
+        note: 'Supplier delivery note P003-001',
+      },
+    });
+    const receiptBody = await receipt.json();
+    expect(receipt.status(), JSON.stringify(receiptBody)).toBe(201);
+    const lot = receiptBody.data;
+    const duplicateReceipt = await api.post(`${BASE}/api/lab-orders/platform/materials/${material.id}/lots`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { lotNumber: 'P003-LOT-001', quantity: '10.000', unitCost: '2500.00' },
+    });
+    expect(duplicateReceipt.status()).toBe(409);
+
+    const expiredReceipt = await api.post(`${BASE}/api/lab-orders/platform/materials/${material.id}/lots`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { lotNumber: 'P003-LOT-EXPIRED', quantity: '1.000', unitCost: '100.00', expiresAt: '2027-12-30' },
+    });
+    expect(expiredReceipt.status()).toBe(201);
+    const expiredLot = (await expiredReceipt.json()).data;
+    await prisma.dentalLabMaterialLot.update({
+      where: { id: expiredLot.id },
+      data: { expiresAt: new Date('2026-01-01T00:00:00.000Z') },
+    });
+
+    const managerMaterialList = await api.get(`${BASE}/api/lab-orders/platform/materials`, { headers: auth(dentalLabOwnerToken) });
+    expect(managerMaterialList.status()).toBe(200);
+    const managerMaterial = (await managerMaterialList.json()).data.find((item: any) => item.id === material.id);
+    expect(managerMaterial.availableStockMilli).toBe('10000');
+    expect(managerMaterial.lots.find((item: any) => item.id === lot.id).unitCostMinor).toBe('250000');
+    expect(managerMaterial.lots.find((item: any) => item.id === expiredLot.id).expired).toBe(true);
+    const technicianMaterialList = await api.get(`${BASE}/api/lab-orders/platform/materials`, { headers: auth(dentalTechnicianToken) });
+    expect(technicianMaterialList.status()).toBe(200);
+    const technicianMaterial = (await technicianMaterialList.json()).data.find((item: any) => item.id === material.id);
+    expect(technicianMaterial.lots.find((item: any) => item.id === lot.id).unitCostMinor).toBeUndefined();
+
+    const pendingConsumption = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, {
+      headers: auth(dentalTechnicianToken),
+      data: { materialId: material.id, lotId: lot.id, quantity: '0.250', idempotencyKey: `p003-pending-${Date.now()}` },
+    });
+    expect(pendingConsumption.status()).toBe(409);
+    expect((await pendingConsumption.json()).code).toBe('LAB_MATERIAL_ORDER_NOT_IN_PRODUCTION');
+
     const sent = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
       headers: auth(dentalLabOwnerToken), data: { status: 'sent', note: 'PARTNER-003 accepted by manager' },
     });
     expect(sent.status()).toBe(200);
+    let firstMaterialConsumption: any = null;
     for (const status of ['in_progress', 'try_in', 'adjustment', 'qc']) {
       const res = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
         headers: auth(dentalTechnicianToken),
@@ -1877,6 +1959,76 @@ test.describe('Partner operational lifecycle', () => {
       });
       expect(res.status()).toBe(200);
       expect((await res.json()).data.status).toBe(status);
+      if (status === 'in_progress') {
+        const idempotencyKey = `p003-material-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const consumptionPayload = { materialId: material.id, lotId: lot.id, quantity: '0.250', idempotencyKey };
+        const consumption = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, {
+          headers: auth(dentalTechnicianToken), data: consumptionPayload,
+        });
+        const consumptionBody = await consumption.json();
+        expect(consumption.status(), JSON.stringify(consumptionBody)).toBe(201);
+        firstMaterialConsumption = consumptionBody.data;
+        expect(firstMaterialConsumption).toMatchObject({ labOrderId: order.id, materialId: material.id, lotId: lot.id, quantityMilli: '250', totalCostMinorSnapshot: '62500' });
+
+        const idempotentRetry = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, {
+          headers: auth(dentalTechnicianToken), data: consumptionPayload,
+        });
+        expect(idempotentRetry.status()).toBe(200);
+        expect((await idempotentRetry.json()).idempotent).toBe(true);
+
+        const conflictingRetry = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, {
+          headers: auth(dentalTechnicianToken), data: { ...consumptionPayload, quantity: '0.251' },
+        });
+        expect(conflictingRetry.status()).toBe(409);
+        expect((await conflictingRetry.json()).code).toBe('LAB_MATERIAL_IDEMPOTENCY_CONFLICT');
+
+        const expiredConsumption = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, {
+          headers: auth(dentalTechnicianToken),
+          data: { materialId: material.id, lotId: expiredLot.id, quantity: '0.001', idempotencyKey: `p003-expired-${Date.now()}` },
+        });
+        expect(expiredConsumption.status()).toBe(409);
+        expect((await expiredConsumption.json()).code).toBe('LAB_MATERIAL_LOT_EXPIRED');
+
+        const insufficientConsumption = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, {
+          headers: auth(dentalTechnicianToken),
+          data: { materialId: material.id, lotId: lot.id, quantity: '20.000', idempotencyKey: `p003-stock-${Date.now()}` },
+        });
+        expect(insufficientConsumption.status()).toBe(409);
+        expect((await insufficientConsumption.json()).code).toBe('LAB_MATERIAL_INSUFFICIENT_STOCK');
+
+        const technicianCannotReverse = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions/${firstMaterialConsumption.id}/reversal`, {
+          headers: auth(dentalTechnicianToken), data: { reason: 'Technician must not reverse manager accounting' },
+        });
+        expect(technicianCannotReverse.status()).toBe(403);
+
+        const ownerHistory = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, { headers: auth(dentalLabOwnerToken) });
+        expect(ownerHistory.status()).toBe(200);
+        expect((await ownerHistory.json()).data[0]).toMatchObject({ id: firstMaterialConsumption.id, totalCostMinorSnapshot: '62500' });
+        const technicianHistory = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, { headers: auth(dentalTechnicianToken) });
+        expect(technicianHistory.status()).toBe(200);
+        expect((await technicianHistory.json()).data[0].totalCostMinorSnapshot).toBeUndefined();
+
+        const managerReversal = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions/${firstMaterialConsumption.id}/reversal`, {
+          headers: auth(dentalLabOwnerToken), data: { reason: 'Corrected material allocation on this case.' },
+        });
+        expect(managerReversal.status()).toBe(200);
+        expect((await managerReversal.json()).data.reversalReason).toBe('Corrected material allocation on this case.');
+        const repeatedReversal = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions/${firstMaterialConsumption.id}/reversal`, {
+          headers: auth(dentalLabOwnerToken), data: { reason: 'Corrected material allocation on this case.' },
+        });
+        expect(repeatedReversal.status()).toBe(200);
+        expect((await repeatedReversal.json()).idempotent).toBe(true);
+
+        const activeConsumption = await api.post(`${BASE}/api/lab-orders/platform/orders/${order.id}/material-consumptions`, {
+          headers: auth(dentalTechnicianToken),
+          data: { materialId: material.id, lotId: lot.id, quantity: '0.500', idempotencyKey: `p003-material-second-${Date.now()}` },
+        });
+        expect(activeConsumption.status()).toBe(201);
+        expect((await activeConsumption.json()).data.totalCostMinorSnapshot).toBe('125000');
+
+        const finalMaterialList = await api.get(`${BASE}/api/lab-orders/platform/materials`, { headers: auth(dentalLabOwnerToken) });
+        expect((await finalMaterialList.json()).data.find((item: any) => item.id === material.id).availableStockMilli).toBe('9500');
+      }
     }
     const technicianCannotDeliver = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
       headers: auth(dentalTechnicianToken), data: { status: 'delivered' },
