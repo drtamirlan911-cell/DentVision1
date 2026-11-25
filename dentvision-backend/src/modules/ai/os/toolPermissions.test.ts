@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { listToolNames } from './tools.js';
+import { listToolNames, toolCapabilitiesFor } from './tools.js';
 import { TOOL_PERMISSIONS, UNGATED_TOOLS, permissionsSatisfy } from './toolPermissions.js';
 
 describe('TOOL_PERMISSIONS coverage', () => {
@@ -15,6 +15,19 @@ describe('TOOL_PERMISSIONS coverage', () => {
     const registered = new Set(listToolNames());
     const stale = [...Object.keys(TOOL_PERMISSIONS), ...UNGATED_TOOLS].filter((n) => !registered.has(n));
     expect(stale).toEqual([]);
+  });
+
+  it('keeps the partner dental-lab queue explicitly self-authorized, not silently unclassified', () => {
+    expect(UNGATED_TOOLS).toContain('getDentalLabWorkQueue');
+    expect(UNGATED_TOOLS).toContain('getDiagnosticCenterWorkQueue');
+    expect(UNGATED_TOOLS).toContain('getSupplierInventoryOverview');
+    expect(UNGATED_TOOLS).toContain('getLecturerCoursesOverview');
+    expect(TOOL_PERMISSIONS).not.toHaveProperty('getDentalLabWorkQueue');
+    expect(TOOL_PERMISSIONS).not.toHaveProperty('getSupplierInventoryOverview');
+    expect(TOOL_PERMISSIONS).not.toHaveProperty('getLecturerCoursesOverview');
+    expect(TOOL_PERMISSIONS.getEmployerVacancyOverview).toBe('jobs.read');
+    expect(TOOL_PERMISSIONS.getMedicalLabReferralQueue).toBe('lab.read');
+    expect(UNGATED_TOOLS).not.toContain('getMedicalLabReferralQueue');
   });
 
   it('gates every mutating tool', () => {
@@ -34,6 +47,37 @@ describe('TOOL_PERMISSIONS coverage', () => {
     expect(TOOL_PERMISSIONS.getPatientCard).toBe('medical.read');
     expect(TOOL_PERMISSIONS.getVisits).toBe('medical.read');
     expect(TOOL_PERMISSIONS.getTreatmentPlans).toBe('medical.read');
+  });
+});
+
+describe('tool capability inventory', () => {
+  it('contains only capabilities in the verified allowed set', () => {
+    const capabilities = toolCapabilitiesFor(new Set(['searchProducts', 'createInvoice']));
+
+    expect(capabilities).toHaveLength(2);
+    expect(capabilities.some((item) => item.description.includes('Поиск товаров'))).toBe(true);
+    expect(capabilities.some((item) => item.description.includes('Выставить счёт'))).toBe(true);
+  });
+
+  it('distinguishes read-only tools from state-changing tools independent of registry order', () => {
+    const capabilities = toolCapabilitiesFor(new Set(['searchProducts', 'createInvoice']));
+    const search = capabilities.find((item) => item.description.includes('Поиск товаров'));
+    const invoice = capabilities.find((item) => item.description.includes('Выставить счёт'));
+
+    expect(search).toMatchObject({ effect: 'read', confirmation: 'none' });
+    expect(invoice).toMatchObject({ effect: 'change', confirmation: 'explicit' });
+  });
+
+  it('does not invent a confirmation contract where the tool does not declare one', () => {
+    const [statusChange] = toolCapabilitiesFor(new Set(['updateLabOrderStatus']));
+    expect(statusChange).toMatchObject({ effect: 'change', confirmation: 'tool-policy' });
+  });
+
+  it('does not leak internal tool names into the capability text', () => {
+    const capabilities = toolCapabilitiesFor(new Set(listToolNames()));
+    for (const capability of capabilities) {
+      for (const name of listToolNames()) expect(capability.description).not.toContain(name);
+    }
   });
 });
 
