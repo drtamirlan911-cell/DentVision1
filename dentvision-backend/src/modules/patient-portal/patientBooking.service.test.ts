@@ -315,6 +315,7 @@ describe('requestAppointment', () => {
     clinicFindUnique.mockResolvedValueOnce(OPEN_CLINIC);
     appointmentFindFirst.mockResolvedValueOnce(null);
     bookingFindFirst.mockResolvedValueOnce(null);
+    clinicMemberFindMany.mockResolvedValueOnce([{ userId: 'ghost', role: 'DOCTOR' }]);
     resolveClinicBranchAccess.mockResolvedValueOnce(null);
 
     await expect(requestAppointment({ ...baseInput, doctorId: 'ghost' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
