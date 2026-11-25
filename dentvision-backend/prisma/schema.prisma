@@ -327,6 +327,7 @@ model Branch {
   clinic       Clinic?       @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   clinicMembers ClinicMember[] @relation("ClinicMemberBranch")
   members       BranchMember[] @relation("BranchMemberBranch")
+  labOrders     LabOrder[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -904,6 +905,7 @@ model LabOrder {
   id        String         @id @default(uuid())
   patientId String?
   clinicId  String
+  branchId  String?        @map("branch_id")
   labName   String?
   status    LabOrderStatus @default(pending)
   type      String?
@@ -926,6 +928,7 @@ model LabOrder {
   treatmentCaseId String?
 
   clinic  Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  branch  Branch?  @relation(fields: [branchId], references: [id], onDelete: Restrict)
   patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
   doctor  User?    @relation("LabOrderDoctor", fields: [doctorId], references: [id], onDelete: SetNull)
   treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)
@@ -939,6 +942,7 @@ model LabOrder {
 
   @@index([clinicId])
   @@index([patientId])
+  @@index([branchId])
   @@index([doctorId])
   @@index([treatmentCaseId])
   @@index([serviceId])
