@@ -222,6 +222,8 @@ export interface Receipt {
   clinicId?: string
   branchId?: string | null
   patientId?: string
+  /** Verified clinic branch persisted on LabOrder; null for legacy organization-wide records. */
+  branchId?: string | null
   patientName?: string
   doctorId?: string
   date: string
