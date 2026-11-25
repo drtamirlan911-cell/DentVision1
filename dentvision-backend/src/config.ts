@@ -45,6 +45,7 @@ const envSchema = z.object({
   OPENAI_DAILY_FULL_TOKENS: z.coerce.number().default(240_000),
   /** Reasoning effort for full-tier calls; mini always uses low. */
   OPENAI_REASONING_EFFORT: z.enum(['low', 'medium', 'high']).default('low'),
+  OPENAI_DEEP_REASONING_EFFORT: z.enum(['medium', 'high']).default('high'),
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_FROM_NUMBER: z.string().optional(),
