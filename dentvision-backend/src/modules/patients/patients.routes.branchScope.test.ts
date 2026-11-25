@@ -134,3 +134,31 @@ describe('patients route branch scope contract', () => {
     expect(source).toContain("requirePermission('billing.write')");
   });
 });
+
+
+describe('patient route tenant and staffing authorization', () => {
+  it('scopes idempotency replay to the active clinic and preserves globally owned keys', () => {
+    const start = source.indexOf("patientsRouter.post('/',");
+    const end = source.indexOf("patientsRouter.patch('/:id'", start);
+    const route = source.slice(start, end);
+    expect(route).toContain('where:{id:r.resultId,clinicId}');
+    expect(route).toContain('IDEMPOTENCY_KEY_SCOPE_CONFLICT');
+    expect(route).toContain("if(!prior)return res.status(409)");
+    expect(route).not.toContain('findUnique({where:{id:r.resultId}');
+    expect(route).not.toContain('deleteIdempotencyKey(idempotencyKey)');
+  });
+
+  it('requires staff.write rather than patient.write to add or revoke patient assignments', () => {
+    expect(source).toContain("patientsRouter.post('/:id/assignments',requirePermission('staff.write')");
+    expect(source).toContain("patientsRouter.delete('/:id/assignments/:assignmentId',requirePermission('staff.write')");
+    expect(source).not.toContain("patientsRouter.post('/:id/assignments',requirePermission('patient.write')");
+    expect(source).not.toContain("patientsRouter.delete('/:id/assignments/:assignmentId',requirePermission('patient.write')");
+  });
+
+  it('binds assignment revocation to the route patient as well as the clinic', () => {
+    const routeStart = source.indexOf("patientsRouter.delete('/:id/assignments/:assignmentId'");
+    const routeEnd = source.indexOf('\n', routeStart);
+    const route = source.slice(routeStart, routeEnd);
+    expect(route).toContain('revokePatientAssignment({clinicId:s.clinicId,patientId:s.patientId,assignmentId:req.params.assignmentId})');
+  });
+});

@@ -44,7 +44,7 @@ describe('AI clinic tools — branch filtering allow-list', () => {
   });
 
   it('persists branchId from the verified scope for appointment and invoice creation', () => {
-    expect(toolBlock('createAppointment')).toContain('branchId: appointmentBranchId');
+    expect(toolBlock('createAppointment')).toContain('branchId: ctx.branchScope?.branchId || patient.branchId || null');
     expect(toolBlock('createInvoice')).toContain('branchId: ctx.branchScope?.branchId || patient.branchId || null');
   });
 
