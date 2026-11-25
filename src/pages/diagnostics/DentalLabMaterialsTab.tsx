@@ -112,8 +112,11 @@ export default function DentalLabMaterialsTab({
     refetchInterval: 30_000,
   });
 
-  const materials = materialsQuery.data || [];
-  const orders = (ordersQuery.data || []).filter((order) => PRODUCTION_STATUSES.has(order.status));
+  const materials = useMemo(() => materialsQuery.data ?? [], [materialsQuery.data]);
+  const orders = useMemo(
+    () => (ordersQuery.data ?? []).filter((order) => PRODUCTION_STATUSES.has(order.status)),
+    [ordersQuery.data],
+  );
   const selectedMaterial = materials.find((item) => item.id === selectedMaterialId) || materials[0] || null;
   const usableLots = useMemo(
     () => (selectedMaterial?.lots || []).filter((lot) => !lot.expired && BigInt(lot.remainingQuantityMilli) > 0n),
