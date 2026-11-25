@@ -331,7 +331,7 @@ PATIENT_TOOLS.getMyAvailableSlots = {
     if (!ctx.clinicId) throw new Error('NO_CLINIC');
     const date = String(args.date || '');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('INVALID_DATE');
-    return portalSvc.getAvailableSlots(ctx.clinicId, date, (args.doctorId as string) || null, null, ctx.patientId);
+    return portalSvc.getAvailableSlots(ctx.clinicId, date, (args.doctorId as string) || null);
   },
 };
 

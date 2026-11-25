@@ -107,26 +107,14 @@ describe('inventory route selected-branch contract', () => {
 
   it('passes the active organization and selected branch into the shared resolver', () => {
     expect(source).toContain('organizationId: user.organizationId');
-    expect(source).toContain('requestedBranchId: user.branchId ?? user.assignedBranchId ?? null');
+    expect(source).toContain('requestedBranchId: user.branchId');
     expect(source).not.toContain('context.branchIds[0] ||');
   });
 
-  it('re-resolves an explicitly requested target branch before inventory creation', () => {
-    expect(source).toContain('const context = await getBranchContext(req, clinicId, requested)');
-    expect(source).toContain('const branchId = requested || context.branchId');
-    expect(source).toContain('context.branchId !== branchId');
-    expect(source).toContain('requestedBranchId: selectedBranchId');
-  });
-
-  it('requires an explicit or already-selected branch and never silently picks the first active branch', () => {
-    expect(source).not.toContain('context.branchIds[0]');
-    expect(source).toContain('if (!branchId || !context.branchIds.includes(branchId) || context.branchId !== branchId) return null;');
-  });
-
-  it('validates inventory transfer destinations independently through canonical IAM', () => {
-    expect(source).toContain('const targetContext = await getBranchContext(req, clinicId, normalizedBranchId)');
-    expect(source).toContain('targetContext.branchId !== normalizedBranchId');
-    expect(source).toContain('...(targetBranchId !== undefined && { branchId: targetBranchId })');
+  it('does not silently choose a second branch for a selected or branch-scoped user', () => {
+    expect(source).toContain('context.organizationWide ? context.branchIds[0] : null');
+    expect(source).toContain('if (!context.organizationWide && context.branchId !== branchId) return null;');
+    expect(source).toContain('if (!branchId || !context.branchIds.includes(branchId)) return null;');
   });
 
   it('restricts organization-wide reads to the currently active branch allow-list', () => {

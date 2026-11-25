@@ -157,7 +157,11 @@ patientPortalRouter.get('/available-slots', ensurePatient, async (req: AuthReque
         code: 'PATIENT_BRANCH_UNASSIGNED',
       });
     }
-    if (!(await portalSvc.isActiveClinicBranch(clinicId, branchId))) {
+    const activeBranch = await (prisma as any).branch.findFirst({
+      where: { id: branchId, clinicId, active: true },
+      select: { id: true },
+    });
+    if (!activeBranch) {
       return res.status(409).json({
         ok: false,
         error: 'Филиал карточки пациента больше не доступен для записи.',
@@ -171,7 +175,7 @@ patientPortalRouter.get('/available-slots', ensurePatient, async (req: AuthReque
     const doctorId = req.query.doctorId ? String(req.query.doctorId) : null;
     return res.json({
       ok: true,
-      data: await portalSvc.getAvailableSlots(clinicId, date, doctorId, branchId, patientId),
+      data: await portalSvc.getAvailableSlots(clinicId, date, doctorId, branchId),
     });
   } catch (e: any) {
     if (e instanceof portalSvc.PortalActionError) {

@@ -111,12 +111,17 @@ function requirePatientMutationPermission(req: AuthRequest, res: Response, next:
 }
 
 async function branchContext(req: AuthRequest, clinicId: string) {
+  // Re-resolve current IAM for every patient operation. JWT branch lists are
+  // hints only; the canonical resolver verifies the active organization role,
+  // selected branch and active BranchMember/legacy assignment.
   return resolvePatientBranchContext(
     req.user!.id,
     clinicId,
     String(req.user!.role),
-    req.user!.branchIds ?? [],
-    req.user!.branchId ?? req.user!.assignedBranchId ?? null,
+    {
+      organizationId: req.user?.organizationId,
+      requestedBranchId: req.user?.branchId ?? req.user?.assignedBranchId ?? null,
+    },
   );
 }
 
@@ -164,12 +169,16 @@ patientsRouter.post('/', requirePatientMutationPermission, guardPatientCreate, a
         if(!canManagePatientBranch(context,requestedBranchId)||!(await assertPatientBranchBelongsToClinic(requestedBranchId,clinicId,req.user!.organizationId || '')))return res.status(400).json({ok:false,error:'Недействующий филиал'} satisfies ApiResponse);
         targetBranchId=requestedBranchId;
       }else{
-        targetBranchId=context.branchId && context.scope.branchIds.includes(context.branchId)
+        // A single active branch is unambiguous. With multiple branches, never
+        // silently place a new patient into the first row returned by storage.
+        targetBranchId = context.branchId && context.scope.branchIds.includes(context.branchId)
           ? context.branchId
-          : context.scope.branchIds[0] ?? null;
+          : context.scope.branchIds.length === 1
+            ? context.scope.branchIds[0]
+            : null;
       }
     }else if(!targetBranchId)return res.status(403).json({ok:false,error:'Сотруднику не назначен филиал'} satisfies ApiResponse);
-    if(!targetBranchId)return res.status(403).json({ok:false,error:'Нет активного филиала для создания пациента'} satisfies ApiResponse);
+    if(!targetBranchId)return res.status(409).json({ok:false,error:'Выберите активный филиал для создания пациента'} satisfies ApiResponse);
     if(!body.id){idempotencyKey=req.headers['idempotency-key'] as string|undefined;if(!idempotencyKey)idempotencyKey=`server-${createHash('sha256').update(`${req.user!.id}:${clinicId}:${JSON.stringify(body)}`).digest('hex').slice(0,32)}`;const r=await reserveIdempotencyKey(idempotencyKey);if(r.status==='in_flight')return res.status(409).json({ok:false,error:'Пациент уже создаётся, повторите позже'} satisfies ApiResponse);if(r.status==='exists'){
       // Idempotency keys are global across modules and tenants. A replay must
       // never load a result by ID alone or release a key owned by another scope.

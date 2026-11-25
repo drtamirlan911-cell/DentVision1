@@ -8,12 +8,24 @@ describe('patients route branch scope contract', () => {
   it('uses the shared patient branch resolver', () => {
     expect(source).toContain("from '../../lib/patientBranchScope.js'");
     expect(source).toContain('resolvePatientBranchContext');
-    expect(source).toContain('req.user!.branchIds ?? []');
-    expect(source).toContain('req.user!.branchId ?? req.user!.assignedBranchId ?? null');
+    expect(source).toContain('organizationId: req.user?.organizationId');
+    expect(source).toContain('requestedBranchId: req.user?.branchId ?? req.user?.assignedBranchId ?? null');
+    expect(source).not.toContain('req.user!.branchIds ?? []');
     expect(source).toContain('getPatientIdsForBranchScope');
   });
-  it('uses the explicitly selected branch before any compatibility assignment hint', () => {
-    expect(source).toContain('req.user!.branchId ?? req.user!.assignedBranchId ?? null');
+  it('re-resolves selected branch membership through canonical IAM', () => {
+    expect(source).toContain('resolvePatientBranchContext');
+    expect(source).toContain('organizationId: req.user?.organizationId');
+    expect(source).toContain('requestedBranchId: req.user?.branchId ?? req.user?.assignedBranchId ?? null');
+  });
+
+  it('requires a branch choice instead of silently selecting the first branch for an organization owner', () => {
+    const createStart = source.indexOf("patientsRouter.post('/',");
+    const patchStart = source.indexOf("patientsRouter.patch('/:id'", createStart);
+    const createRoute = source.slice(createStart, patchStart);
+    expect(createRoute).toContain('context.scope.branchIds.length === 1');
+    expect(createRoute).toContain('Выберите активный филиал для создания пациента');
+    expect(createRoute).not.toContain('context.scope.branchIds[0] ?? null');
   });
 
   it('filters patient lists by branch at query construction time', () => {
