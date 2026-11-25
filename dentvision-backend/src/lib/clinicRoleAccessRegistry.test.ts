@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CLINIC_ROLE_BY_KEY, CLINIC_ROLE_DEFINITIONS, CLINIC_ROLE_KEYS } from './clinicRoleAccessRegistry.js';
+import { permissionsForRole } from './permissions.js';
 
 describe('clinic workspace role matrix', () => {
   it('defines the complete clinic operational role set', () => {
@@ -22,6 +23,16 @@ describe('clinic workspace role matrix', () => {
     expect(CLINIC_ROLE_BY_KEY.ACCOUNTANT.permissions).toContain('billing.manage');
     expect(CLINIC_ROLE_BY_KEY.DOCTOR.permissions).not.toContain('billing.manage');
     expect(CLINIC_ROLE_BY_KEY.ASSISTANT.permissions).not.toContain('billing.manage');
+  });
+
+  it('keeps clinic inventory visibility with operational roles, not doctors', () => {
+    expect(CLINIC_ROLE_BY_KEY.DOCTOR.permissions).not.toContain('inventory.read');
+    expect(permissionsForRole('DOCTOR')).not.toContain('inventory.read');
+
+    for (const key of ['MANAGER', 'ASSISTANT']) {
+      expect(CLINIC_ROLE_BY_KEY[key].permissions).toContain('inventory.read');
+      expect(permissionsForRole(key)).toContain('inventory.read');
+    }
   });
 
   it('uses narrower operational scopes for branch and assigned roles', () => {
