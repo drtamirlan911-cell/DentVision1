@@ -10,7 +10,7 @@ CREATE INDEX IF NOT EXISTS "lab_orders_branch_id_idx"
 CREATE INDEX IF NOT EXISTS "lab_orders_clinic_branch_created_idx"
   ON "lab_orders"("clinicId", "branch_id", "createdAt" DESC);
 
-DO $
+DO $lab_order_branch_fk$
 BEGIN
   IF NOT EXISTS (
     SELECT 1
@@ -24,7 +24,7 @@ BEGIN
       ON DELETE RESTRICT ON UPDATE CASCADE;
   END IF;
 END;
-$;
+$lab_order_branch_fk$;
 
 -- Backfill only where the existing patient record proves the order's branch.
 -- Patientless orders are intentionally left NULL: their historical branch
