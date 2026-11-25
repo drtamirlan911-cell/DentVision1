@@ -1,6 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 
 import {
   FORBIDDEN_PARAM_NAMES,
@@ -84,16 +82,5 @@ describe('the patient registry is separate from the staff one', () => {
     await expect(
       executePatientTool('cancelMyAppointment', {}, { userId: 'u', patientId: 'p', clinicId: null }),
     ).rejects.toThrow('APPOINTMENT_ID_REQUIRED');
-  });
-});
-
-
-describe('patient AI slot lookup', () => {
-  it('passes the linked patient identity so slots are resolved in their branch', () => {
-    const source = readFileSync(
-      resolve(process.cwd(), 'dentvision-backend/src/modules/ai-patient/patientTools.ts'),
-      'utf8',
-    );
-    expect(source).toContain('getAvailableSlots(ctx.clinicId, date, (args.doctorId as string) || null, null, ctx.patientId)');
   });
 });

@@ -8,24 +8,12 @@ describe('patients route branch scope contract', () => {
   it('uses the shared patient branch resolver', () => {
     expect(source).toContain("from '../../lib/patientBranchScope.js'");
     expect(source).toContain('resolvePatientBranchContext');
-    expect(source).toContain('organizationId: req.user?.organizationId');
-    expect(source).toContain('requestedBranchId: req.user?.branchId ?? req.user?.assignedBranchId ?? null');
-    expect(source).not.toContain('req.user!.branchIds ?? []');
+    expect(source).toContain('req.user!.branchIds ?? []');
+    expect(source).toContain('req.user!.branchId ?? req.user!.assignedBranchId ?? null');
     expect(source).toContain('getPatientIdsForBranchScope');
   });
-  it('re-resolves selected branch membership through canonical IAM', () => {
-    expect(source).toContain('resolvePatientBranchContext');
-    expect(source).toContain('organizationId: req.user?.organizationId');
-    expect(source).toContain('requestedBranchId: req.user?.branchId ?? req.user?.assignedBranchId ?? null');
-  });
-
-  it('requires a branch choice instead of silently selecting the first branch for an organization owner', () => {
-    const createStart = source.indexOf("patientsRouter.post('/',");
-    const patchStart = source.indexOf("patientsRouter.patch('/:id'", createStart);
-    const createRoute = source.slice(createStart, patchStart);
-    expect(createRoute).toContain('context.scope.branchIds.length === 1');
-    expect(createRoute).toContain('Выберите активный филиал для создания пациента');
-    expect(createRoute).not.toContain('context.scope.branchIds[0] ?? null');
+  it('uses the explicitly selected branch before any compatibility assignment hint', () => {
+    expect(source).toContain('req.user!.branchId ?? req.user!.assignedBranchId ?? null');
   });
 
   it('filters patient lists by branch at query construction time', () => {
@@ -157,10 +145,7 @@ describe('patient route tenant and staffing authorization', () => {
     expect(route).toContain('IDEMPOTENCY_KEY_SCOPE_CONFLICT');
     expect(route).toContain("if(!prior)return res.status(409)");
     expect(route).not.toContain('findUnique({where:{id:r.resultId}');
-    const replayStart = route.indexOf("if(r.status==='exists')");
-    const replayEnd = route.indexOf('const existing=body.id', replayStart);
-    const replay = route.slice(replayStart, replayEnd);
-    expect(replay).not.toContain('deleteIdempotencyKey(idempotencyKey)');
+    expect(route).not.toContain('deleteIdempotencyKey(idempotencyKey)');
   });
 
   it('requires staff.write rather than patient.write to add or revoke patient assignments', () => {

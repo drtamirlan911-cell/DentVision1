@@ -82,6 +82,22 @@ export function mergeBranchIds(unifiedBranchIds: readonly string[], legacyBranch
   return Array.from(new Set([...unifiedBranchIds, ...legacyBranchIds].filter(Boolean)));
 }
 
+/**
+ * Resolve a compatibility branch hint without overriding an organization-wide
+ * multi-branch context. A single technical BranchMember row must not silently
+ * select one branch when OWNER/ADMIN can operate across several active branches.
+ */
+export function resolveAssignedBranchId(
+  selectedBranchId: string | undefined,
+  clinicAssignedBranchIds: readonly string[],
+  organizationWideBranchIds: readonly string[],
+): string | undefined {
+  if (selectedBranchId) return selectedBranchId;
+  if (organizationWideBranchIds.length > 1) return undefined;
+  if (organizationWideBranchIds.length === 1) return organizationWideBranchIds[0];
+  return clinicAssignedBranchIds.length === 1 ? clinicAssignedBranchIds[0] : undefined;
+}
+
 const BRANCH_CONTEXT_RECOVERY_PATHS = new Set([
   '/api/auth/me', '/api/auth/refresh', '/api/auth/logout',
   '/api/iam/me/contexts', '/api/iam/switch-context',
@@ -280,8 +296,11 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     // the database". Narrow roles with multiple active assignments must choose
     // one explicitly; otherwise patient writes could silently land in another
     // branch than the lab/finance API would authorize.
-    const assignedBranchId = effectiveBranchId
-      || (clinicAssignedBranchIds.length === 1 ? clinicAssignedBranchIds[0] : undefined);
+    const assignedBranchId = resolveAssignedBranchId(
+      effectiveBranchId,
+      clinicAssignedBranchIds,
+      organizationWideBranchIds,
+    );
 
     req.user = {
       id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName,
