@@ -338,6 +338,7 @@ model Branch {
 model Booking {
   id          String        @id @default(uuid())
   clinicId    String
+  branchId    String?       @map("branch_id")
   patientName String
   phone       String
   email       String?
@@ -362,6 +363,7 @@ model Booking {
   updatedAt DateTime? @updatedAt
 
   @@index([clinicId, status, date])
+  @@index([clinicId, branchId, date])
   @@index([releaseId])
   @@map("bookings")
 }
@@ -513,6 +515,7 @@ model Appointment {
 model WaitingList {
   id               String            @id @default(uuid())
   clinicId         String
+  branchId         String?           @map("branch_id")
   patientId        String?
   patientName      String?
   patientPhone     String?
@@ -530,6 +533,7 @@ model WaitingList {
   updatedAt DateTime? @updatedAt
 
   @@index([clinicId, status])
+  @@index([clinicId, branchId, createdAt])
   @@map("waiting_list")
 }
 
