@@ -181,6 +181,9 @@ jobs:
       - name: Seed E2E fixtures
         run: npm run db:seed:e2e
         working-directory: dentvision-backend
+      - name: Apply dental-lab branch ownership migration to E2E database
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261125130000_lab_order_branch_scope/migration.sql
+        working-directory: dentvision-backend
       - name: Apply CRM operations branch-scope migration to E2E database
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261120_add_crm_ops_branch_scope/migration.sql
         working-directory: dentvision-backend
