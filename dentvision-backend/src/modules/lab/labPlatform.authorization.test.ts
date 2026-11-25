@@ -67,13 +67,29 @@ describe('Dental Lab role boundaries', () => {
     expect(labMemberOrderReadScope({ role: 'viewer', userId: 'viewer-1', labId: 'lab-1' })).toBeNull();
   });
 
+  it('scopes branch coordinators by LabOrder.branchId, including patientless orders', () => {
+    const scope = labMemberOrderReadScope({
+      role: 'lab_coordinator',
+      userId: 'coord-1',
+      labId: 'lab-1',
+      branchIds: ['branch-1'],
+    });
+    expect(scope).toEqual({
+      AND: [
+        { files: { path: ['meta', 'laboratoryId'], equals: 'lab-1' } },
+        { branchId: { in: ['branch-1'] } },
+      ],
+    });
+    expect(JSON.stringify(scope)).not.toContain('patient');
+  });
+
   it('limits coordinators to assigned branches and allows operational coordination only', () => {
     expect(canLabMemberReadOrders('lab_coordinator')).toBe(true);
     expect(labMemberOrderReadScope({ role: 'lab_coordinator', userId: 'coord-1', labId: 'lab-1' })).toBeNull();
     expect(labMemberOrderReadScope({ role: 'lab_coordinator', userId: 'coord-1', labId: 'lab-1', branchIds: ['branch-1', 'branch-2'] })).toEqual({
       AND: [
         { files: { path: ['meta', 'laboratoryId'], equals: 'lab-1' } },
-        { patient: { branchId: { in: ['branch-1', 'branch-2'] } } },
+        { branchId: { in: ['branch-1', 'branch-2'] } },
       ],
     });
     expect(canLabMemberChangeStatus({ role: 'lab_coordinator', userId: 'coord-1', nextStatus: 'in_progress' })).toBe(true);
