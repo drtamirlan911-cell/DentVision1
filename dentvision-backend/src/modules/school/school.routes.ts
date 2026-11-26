@@ -447,6 +447,110 @@ schoolRouter.get('/courses', optionalAuth, async (req: AuthRequest, res) => {
   }
 });
 
+schoolRouter.get('/lecturers/managed', authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
+  try {
+    const academyScope = await activeAcademyScope(req);
+    if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
+
+    const lecturers = await prisma.lecturer.findMany({
+      where: { academyId: academyScope.academyId },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        _count: { select: { courses: true } },
+      },
+      orderBy: [{ createdAt: 'asc' }],
+    });
+    return res.json({
+      ok: true,
+      data: lecturers.map((lecturer) => ({
+        id: lecturer.id,
+        userId: lecturer.userId,
+        firstName: lecturer.user.firstName,
+        lastName: lecturer.user.lastName,
+        email: lecturer.user.email,
+        level: lecturer.level,
+        speciality: lecturer.speciality,
+        createdAt: lecturer.createdAt,
+        courseCount: lecturer._count.courses,
+      })),
+    });
+  } catch (error) {
+    console.error('[academy-owner] lecturer team list failed:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить команду преподавателей' });
+  }
+});
+
+schoolRouter.delete('/lecturers/managed/:lecturerId', authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
+  try {
+    const academyScope = await activeAcademyScope(req);
+    if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
+    const lecturerId = String(req.params.lecturerId || '').trim();
+    if (!lecturerId) return res.status(400).json({ ok: false, error: 'lecturerId обязателен' });
+
+    const lecturer = await prisma.lecturer.findFirst({
+      where: { id: lecturerId, academyId: academyScope.academyId },
+      select: { id: true, userId: true },
+    });
+    if (!lecturer) return res.status(404).json({ ok: false, error: 'Преподаватель не найден в этой академии' });
+    if (lecturer.userId === req.user!.id) {
+      return res.status(409).json({ ok: false, error: 'Владелец не может удалить собственный профиль из команды' });
+    }
+
+    const assignedCourses = await prisma.course.count({
+      where: { lecturerId, academyId: academyScope.academyId },
+    });
+    if (assignedCourses > 0) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Сначала переназначьте курсы преподавателя другому преподавателю. Учебная история и опубликованные курсы не будут отвязаны автоматически.',
+        code: 'ACADEMY_LECTURER_HAS_COURSES',
+        data: { assignedCourses },
+      });
+    }
+
+    const organizationId = String(req.user?.organizationId || '').trim();
+    await prisma.$transaction(async (tx) => {
+      const changed = await tx.lecturer.updateMany({
+        where: { id: lecturerId, academyId: academyScope.academyId },
+        data: { academyId: null },
+      });
+      if (changed.count !== 1) {
+        throw Object.assign(new Error('Состав команды изменился. Обновите список преподавателей.'), { status: 409 });
+      }
+
+      const person = await tx.person.findFirst({
+        where: { originalType: 'Lecturer', originalId: lecturerId },
+        select: { id: true },
+      });
+      if (person) {
+        await tx.personRole.deleteMany({
+          where: { personId: person.id, scopeType: 'organization', scopeId: organizationId },
+        });
+        await tx.person.update({
+          where: { id: person.id },
+          data: { organizationId: null },
+        });
+      }
+
+      await writeAuditLog({
+        userId: req.user!.id,
+        action: 'academy.lecturer_removed',
+        entity: 'lecturer',
+        entityId: lecturerId,
+        details: { academyId: academyScope.academyId, lecturerUserId: lecturer.userId },
+        ip: req.ip || req.socket?.remoteAddress,
+      }, tx);
+    });
+
+    return res.json({ ok: true, data: { lecturerId, removed: true } });
+  } catch (error) {
+    const status = Number((error as { status?: number })?.status);
+    if (status === 409) return res.status(409).json({ ok: false, error: (error as Error).message });
+    console.error('[academy-owner] lecturer team removal failed:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось удалить преподавателя из академии' });
+  }
+});
+
 schoolRouter.get('/courses/managed', authenticate, requireAcademyOwner, async (req: AuthRequest, res) => {
   try {
     const academyScope = await activeAcademyScope(req);
