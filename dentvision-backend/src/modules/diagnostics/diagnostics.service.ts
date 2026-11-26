@@ -257,7 +257,7 @@ export async function createRegistrationRequest(data: {
   });
 }
 
-export const DIAGNOSTICS_ROLE_TO_ROLE_KEY: Record<string, string> = { owner: 'diagnostic_owner', admin: 'diagnostic_admin', manager: 'diagnostic_manager', operator: 'diagnostic_operator', radiologist: 'radiologist' };
+export const DIAGNOSTICS_ROLE_TO_ROLE_KEY: Record<string, string> = { owner: 'diagnostic_owner', admin: 'diagnostic_admin', manager: 'diagnostic_manager', operator: 'diagnostic_operator', radiologist: 'radiologist', diagnostic_reception: 'diagnostic_reception', radiology_technician: 'radiology_technician', diagnostic_finance: 'diagnostic_finance', diagnostic_quality: 'diagnostic_quality' };
 
 const LABORATORY_LEGACY_MEMBER_ROLE: Readonly<Record<string, string>> = {
   medical_lab_admin: 'admin',
