@@ -42,6 +42,7 @@ import {
   laboratoryTypeFromSettings,
   createInvitation,
   rejectInvitation,
+  isOrganizationMemberRoleAllowed,
 } from './invitations.service.js';
 
 const NOW = new Date('2026-08-10T12:00:00Z');
