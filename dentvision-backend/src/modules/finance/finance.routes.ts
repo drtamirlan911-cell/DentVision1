@@ -19,7 +19,6 @@ import {
 } from './payout.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { auditFromReq } from '../compliance/audit.service.js';
-import { issuePartnerBranchSubscriptionInvoice, PartnerBranchBillingError } from '../billing/partnerBranchBilling.service.js';
 
 // Finance Core (Phase 4, DENTVISION_V2_INTEGRATION_PLAN.md §6). Wallets, ledger,
 // transactions and commission rules. Amounts are minor units (тиын) and returned
