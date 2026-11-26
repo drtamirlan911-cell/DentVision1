@@ -104,7 +104,10 @@ export default function SupplierTeamTab({ token, supplierId, organizationId }: S
       setEmail('')
       toast.success('Приглашение создано. Передайте сотруднику код для входа.')
       await load()
-      if (invitation?.code) setCopiedCode(null)
+      const created = (invitation?.data || invitation) as SupplierInvitation
+      if (created?.id && created?.code) {
+        setInvitations((current) => [created, ...current.filter((item) => item.id !== created.id)])
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Не удалось создать приглашение')
     } finally {
