@@ -34,5 +34,10 @@ describe('partner subscription plus transaction commission policy', () => {
     expect(economics).toContain('Branch subscription and transaction commission are separate economic layers');
     expect(economics).toContain('7% transaction commission');
     expect(economics).toContain('6% transaction commission');
+    expect(economics).toContain('Both charges apply to each branch-priced vertical');
+    expect(economics).toContain('₸49,900 per active billable branch per month');
+    expect(economics).toContain('₸19,900 per active billable branch per month');
+    expect(economics).toContain('₸29,900 per active billable branch per month');
+    expect(economics).not.toContain('The earlier v1.2 branch-subscription model is retained only as historical policy context');
   });
 });
