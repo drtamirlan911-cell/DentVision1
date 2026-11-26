@@ -158,12 +158,8 @@ describe('partner branch subscription monthly invoice cron', () => {
     expect(notifyMany).toHaveBeenCalledTimes(1);
   });
 
-  it('registers the hourly job only behind the configured background-job gate', () => {
+  it('does not schedule partner branch subscription invoices under the CRM-only SaaS model', () => {
     const bootstrap = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/index.ts'), 'utf8');
-    expect(bootstrap).toContain("import { startPartnerBranchSubscriptionCronInterval } from './jobs/partnerBranchSubscriptionCron.js';");
-    expect(bootstrap).toContain('startPartnerBranchSubscriptionCronInterval();');
-    const start = bootstrap.indexOf('startPartnerBranchSubscriptionCronInterval();');
-    const cronGate = bootstrap.lastIndexOf('if (env.REMINDER_CRON_MS > 0)', start);
-    expect(cronGate).toBeGreaterThanOrEqual(0);
+    expect(bootstrap).not.toContain("startPartnerBranchSubscriptionCronInterval");
   });
 });
