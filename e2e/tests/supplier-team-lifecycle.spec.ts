@@ -103,7 +103,13 @@ test.describe('Supplier owner team lifecycle', () => {
     });
     expect(staleTokenRead.status()).toBe(403);
     const staleTokenBody = await staleTokenRead.json();
-    expect(staleTokenBody.code).toBe('SUPPLIER_MEMBERSHIP_REVOKED');
+    // The shared IAM authenticator may deny first because removing the
+    // supplier PersonRole invalidates the organization-scoped JWT before the
+    // supplier workspace membership guard executes.
+    const deniedByIam = staleTokenBody.error === 'У вас нет активной роли в этой организации';
+    const deniedBySupplierMembership = staleTokenBody.code === 'SUPPLIER_MEMBERSHIP_REVOKED';
+    expect(staleTokenBody.ok).toBe(false);
+    expect(deniedByIam || deniedBySupplierMembership).toBe(true);
 
     const refreshedTeam = await request.get(`${API}/api/supplier/team`, { headers: auth(ownerToken) });
     expect(refreshedTeam.status()).toBe(200);
