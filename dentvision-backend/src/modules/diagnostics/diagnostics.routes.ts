@@ -923,7 +923,7 @@ diagnosticsRouter.get('/centers/:id/worklist/staff', async (req: AuthRequest, re
       return res.status(403).json({ ok: false, error: 'Состав команды доступен только владельцу и менеджерам центра' });
     }
     const members = await prisma.diagnosticCenterMember.findMany({
-      where: { centerId, role: { in: ['operator', 'radiologist', 'manager', 'admin', 'diagnostic_reception', 'radiology_technician', 'diagnostic_finance', 'diagnostic_quality'] } },
+      where: { centerId, role: { in: ['owner', 'operator', 'radiologist', 'manager', 'admin', 'diagnostic_reception', 'radiology_technician', 'diagnostic_finance', 'diagnostic_quality'] } },
       include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
       orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
     });
