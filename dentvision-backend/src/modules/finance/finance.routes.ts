@@ -302,49 +302,15 @@ financeRouter.get('/partner-branch-billing/invoices', async (req: AuthRequest, r
   }
 });
 
-/** Invoice issuance is a platform-finance operation; partners cannot set their own periods or prices. */
-financeRouter.post('/partner-branch-billing/invoices', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
-  if (!requirePlatformFinance(req, res)) return;
-  const organizationId = String(req.body?.organizationId || '').trim();
-  const periodStart = typeof req.body?.periodStart === 'string' ? new Date(req.body.periodStart) : new Date(Number.NaN);
-  const periodEnd = typeof req.body?.periodEnd === 'string' ? new Date(req.body.periodEnd) : new Date(Number.NaN);
-  if (!organizationId || Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime()) || periodEnd <= periodStart) {
-    return res.status(400).json({ ok: false, error: 'organizationId, periodStart и корректный periodEnd обязательны' } satisfies ApiResponse);
-  }
-
-  try {
-    const result = await issuePartnerBranchSubscriptionInvoice({
-      organizationId,
-      periodStart,
-      periodEnd,
-      createdByUserId: req.user?.id ?? null,
-    });
-    await auditFromReq(req, {
-      action: 'partner_branch_subscription_invoice.issued',
-      entity: 'partner_branch_subscription_invoice',
-      entityId: result.invoice.id,
-      details: {
-        organizationId,
-        invoiceNumber: result.invoice.invoiceNumber,
-        vertical: result.invoice.vertical,
-        amountMinor: String(result.invoice.amountMinor),
-        periodStart: result.invoice.periodStart.toISOString(),
-        periodEnd: result.invoice.periodEnd.toISOString(),
-        idempotent: result.idempotent,
-      },
-    });
-    return res.status(result.idempotent ? 200 : 201).json({
-      ok: true,
-      data: serializeBigInt(result.invoice),
-      idempotent: result.idempotent,
-    } satisfies ApiResponse);
-  } catch (error: any) {
-    if (error instanceof PartnerBranchBillingError) {
-      return res.status(error.status).json({ ok: false, error: error.message, code: error.code } satisfies ApiResponse);
-    }
-    console.error('[partner-branch-billing] invoice issuance failed:', safeErrorKind(error));
-    return res.status(500).json({ ok: false, error: 'Не удалось выставить счёт филиальной подписки' } satisfies ApiResponse);
-  }
+/** Partner branch access is not a subscription product. Legacy invoices remain readable for audit,
+ * but no new branch-subscription invoices may be issued under the CRM-only SaaS model.
+ */
+financeRouter.post('/partner-branch-billing/invoices', requirePermission('finance.manage'), async (_req: AuthRequest, res) => {
+  return res.status(410).json({
+    ok: false,
+    code: 'PARTNER_SUBSCRIPTION_DISABLED',
+    error: 'Партнёрские кабинеты не тарифицируются по филиалам. Доход DentVision формируется комиссией только по успешно завершённым и оплаченным транзакциям.',
+  } satisfies ApiResponse);
 });
 
 // Commission rules (platform).
