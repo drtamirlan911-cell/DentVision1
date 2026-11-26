@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-  academyFindFirst, lecturerFindFirst, lecturerFindUnique, lecturerCreate, lecturerUpdate,
+  academyFindFirst, academyFindUnique, lecturerFindFirst, lecturerFindUnique, lecturerCreate, lecturerUpdate,
   organizationFindUnique, invitationFindUnique, invitationCreate, invitationUpdateMany,
   transaction, syncPersonFromLecturer, getOrCreateWallet,
 } = vi.hoisted(() => ({
   academyFindFirst: vi.fn(),
+  academyFindUnique: vi.fn(),
   lecturerFindFirst: vi.fn(),
   lecturerFindUnique: vi.fn(),
   lecturerCreate: vi.fn(),
@@ -21,7 +22,7 @@ const {
 
 vi.mock('../../lib/prisma.js', () => ({
   default: {
-    academy: { findFirst: academyFindFirst },
+    academy: { findFirst: academyFindFirst, findUnique: academyFindUnique },
     lecturer: { findFirst: lecturerFindFirst, findUnique: lecturerFindUnique },
     organization: { findUnique: organizationFindUnique },
     organizationInvitation: { findUnique: invitationFindUnique, create: invitationCreate, updateMany: invitationUpdateMany },
@@ -44,6 +45,7 @@ const ACADEMY_ORG = {
 
 beforeEach(() => {
   academyFindFirst.mockReset();
+  academyFindUnique.mockReset().mockResolvedValue({ id: 'academy-1' });
   lecturerFindFirst.mockReset();
   lecturerFindUnique.mockReset();
   lecturerCreate.mockReset();
