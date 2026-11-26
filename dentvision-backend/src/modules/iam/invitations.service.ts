@@ -27,7 +27,7 @@ const DIAGNOSTIC_ORG_TYPES: Record<string, 'DiagnosticCenter' | 'Laboratory'> = 
 };
 
 /** Roles a diagnostics invite may carry, in that module's own vocabulary. */
-export const DIAGNOSTIC_INVITE_ROLES = ['admin', 'manager', 'radiologist', 'operator'] as const;
+export const DIAGNOSTIC_INVITE_ROLES = ['admin', 'manager', 'radiologist', 'operator', 'diagnostic_reception', 'radiology_technician', 'diagnostic_finance', 'diagnostic_quality'] as const;
 
 export const MEDICAL_LAB_INVITE_ROLES = [
   'medical_lab_admin', 'medical_lab_manager', 'medical_lab_reception',
@@ -123,6 +123,24 @@ export function normalizeEmployerInviteRole(role?: string): string {
 export function normalizeSupplierInviteRole(role?: string): string {
   const wanted = String(role || '').trim().toLowerCase();
   return (SUPPLIER_INVITE_ROLES as readonly string[]).includes(wanted) ? wanted : 'manager';
+}
+
+/** Strict role validation for owner-managed member changes. Owner/platform roles are never assignable. */
+export function isOrganizationMemberRoleAllowed(
+  organization: { type: string; settings?: unknown },
+  role: string,
+): boolean {
+  const wanted = String(role || '').trim().toLowerCase();
+  if (organization.type === 'DIAGNOSTIC_CENTER') {
+    return (DIAGNOSTIC_INVITE_ROLES as readonly string[]).includes(wanted);
+  }
+  if (organization.type === 'LABORATORY') {
+    const allowed = laboratoryTypeFromSettings(organization.settings) === 'DENTAL_LAB'
+      ? DENTAL_LAB_INVITE_ROLES
+      : MEDICAL_LAB_INVITE_ROLES;
+    return (allowed as readonly string[]).includes(wanted);
+  }
+  return false;
 }
 
 /** Eight hex characters, the same shape clinic invitations already use. */
