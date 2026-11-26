@@ -993,3 +993,13 @@ ACADEMY-010/011 are not resolved: core E2E on ce6347e4 had 259 passed, 5 skipped
 - Academy protected update/delete still fail E2E on 404 despite route/handler/course-found/history-conflict markers matching; new response writer instrumentation records the actual status/JSON writer. Keep ACADEMY-010/011 OPEN until 409 is returned and learner course/lesson/enrollment records are proven unchanged.
 - On previous SHA b580006, core E2E 259 passed, 5 skipped, 2 failed; backend/frontend lint, full lint/test, Quality Gate, RB-034, Browser UX and Mobile Design succeeded. Role/context and later owner/visual gates were still running when checked. This does not satisfy merge/release gate.
 - Partner branch monthly invoicing/QR/payment initiation/settlement is present, not automatic recurring debit. Partner verticals remain PARTIAL; paid-entitlement enforcement across all APIs, dunning, proration, refunds/credit notes, tax/EDS, bank reconciliation and live Kaspi acceptance remain OPEN.
+
+
+## 2026-11-26 — Superseding partner monetization decision (PR #353)
+
+The former partner branch-subscription work recorded in the 2026-11-23 sections below is retained as historical implementation evidence only. It is **not an active commercial requirement** and must not be enabled for new invoices or payments.
+
+- Canonical commercial authority is now `docs/business/DENTVISION_PARTNER_ECONOMICS.md` v1.3: clinic CRM is the only recurring SaaS product; partner organizations have no access or per-branch subscription; DentVision earns disclosed commission only on eligible transactions after successful settlement.
+- PR #353 commit `6b7dbac73740112fc05bc679c5295be494f521fc` removes partner branch-subscription cron startup, returns HTTP 410 / `PARTNER_SUBSCRIPTION_DISABLED` for new partner branch invoices, removes the partner branch subscription payment UI from diagnostic/laboratory workspaces and adds regression guards.
+- Existing invoices, payments, subscriptions and historical revenue remain immutable for audit. Do not delete, reprice, refund or close them automatically. Outstanding legacy balances require a separately approved accounting/legal reconciliation.
+- This commercial-policy conflict is resolved in source intent, but release verification remains pending until exact-head CI, Quality Gate, RB-034, Preview and accounting/legal review complete. Partner cabinets remain PARTIAL for their operational, settlement, payout, external-integration and mobile acceptance gates.
