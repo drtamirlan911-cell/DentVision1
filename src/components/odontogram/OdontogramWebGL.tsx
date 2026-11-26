@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { STATUS_META, normalizeTooth, type PatientTeeth } from '@/lib/odontogram';
 import { getToothMorphology } from './toothMorphology';
 
@@ -236,7 +236,7 @@ function statusRgb(status?: string): [number, number, number] {
   ];
 }
 
-function makePoints(upperTeeth: readonly number[], lowerTeeth: readonly number[]): ToothPoint[] {
+export function buildOdontogramPoints(upperTeeth: readonly number[], lowerTeeth: readonly number[]): ToothPoint[] {
   const points: ToothPoint[] = [];
   const addArch = (teeth: readonly number[], upper: boolean) => {
     const count = teeth.length;
@@ -267,6 +267,7 @@ export function OdontogramWebGL({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pointsRef = useRef<ToothPoint[]>([]);
   const [state, setState] = useState<'loading' | 'ready' | 'unsupported'>('loading');
+  const toothPoints = useMemo(() => buildOdontogramPoints(upperTeeth, lowerTeeth), [upperTeeth, lowerTeeth]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -306,7 +307,7 @@ export function OdontogramWebGL({
     }
 
     const meshCache = new Map<string, { buffer: WebGLBuffer; vertexCount: number }>();
-    const points = makePoints(upperTeeth, lowerTeeth);
+    const points = toothPoints;
     pointsRef.current = points;
     const viewProjection = multiply4(
       orthographic4(-8.45, 8.45, -4.2, 4.2, -12, 12),
@@ -332,6 +333,7 @@ export function OdontogramWebGL({
 
       for (const point of points) {
         const tooth = normalizeTooth(patientTeeth[point.tooth] ?? patientTeeth[String(point.tooth)]);
+        if (tooth.status === 'missing' || tooth.status === 'extracted') continue;
         const roots = Math.max(1, Math.min(3, getToothMorphology(point.tooth)?.roots || 1));
         const widthScale = toothWidth(point.tooth);
         const cacheKey = `${roots}:${widthScale}`;
@@ -372,7 +374,7 @@ export function OdontogramWebGL({
       meshCache.forEach((mesh) => gl!.deleteBuffer(mesh.buffer));
       gl!.deleteProgram(program);
     };
-  }, [upperTeeth, lowerTeeth, patientTeeth, selectedTooth]);
+  }, [toothPoints, upperTeeth, lowerTeeth, patientTeeth, selectedTooth]);
 
   const handleCanvasClick = (event: MouseEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -397,6 +399,17 @@ export function OdontogramWebGL({
           onClick={handleCanvasClick}
           data-testid="odontogram-webgl-canvas"
         />
+        <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+          {toothPoints.map((point) => (
+            <span
+              key={point.tooth}
+              className={`absolute -translate-x-1/2 -translate-y-1/2 text-[9px] font-semibold tabular-nums drop-shadow sm:text-[10px] ${selectedTooth === point.tooth ? 'text-cyan-200' : 'text-slate-300'}`}
+              style={{ left: `${((point.x + 8.45) / 16.9) * 100}%`, top: `${((4.2 - point.y) / 8.4) * 100}%` }}
+            >
+              {point.tooth}
+            </span>
+          ))}
+        </div>
         {state === 'unsupported' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950/95 p-5 text-center">
             <p className="m-0 text-sm font-semibold text-white">WebGL недоступен в этом браузере</p>
