@@ -447,7 +447,7 @@ describe('acceptInvitation', () => {
   });
 
   it('refuses an organization type it cannot grant membership in', async () => {
-    arrangeInvite({ organization: { id: 'org-9', type: 'ACADEMY', originalId: 'ac-1', name: 'Академия' } });
+    arrangeInvite({ organization: { id: 'org-9', type: 'CLINIC', originalId: 'clinic-9', name: 'Клиника' } });
 
     await expect(acceptInvitation('ABCD1234', { id: 'u1' })).rejects.toMatchObject({ status: 400 });
     expect(invitationUpdateMany).not.toHaveBeenCalled();
