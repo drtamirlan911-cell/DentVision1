@@ -20,11 +20,30 @@ export const supplierWorkspaceRouter = Router();
 
 supplierWorkspaceRouter.use(authenticate);
 
-function requireSupplierContext(req: AuthRequest, res: Response, next: NextFunction) {
-  if (!req.user?.supplierId) {
+async function requireSupplierContext(req: AuthRequest, res: Response, next: NextFunction) {
+  const supplierId = String(req.user?.supplierId || '').trim();
+  const userId = String(req.user?.id || '').trim();
+  if (!supplierId || !userId) {
     return res.status(403).json({ ok: false, error: 'Требуется контекст поставщика (switch-context)' } satisfies ApiResponse);
   }
-  next();
+
+  try {
+    // The scoped JWT is a context selector, not an everlasting membership grant.
+    // Re-read the live membership on every request so a removed employee loses
+    // access immediately, without waiting for token expiry.
+    const membership = await prisma.supplierMember.findUnique({
+      where: { userId_supplierId: { userId, supplierId } },
+      select: { role: true },
+    });
+    if (!membership) {
+      return res.status(403).json({ ok: false, error: 'Доступ к компании поставщика отозван', code: 'SUPPLIER_MEMBERSHIP_REVOKED' } satisfies ApiResponse);
+    }
+    req.user!.supplierRole = String(membership.role || '');
+    return next();
+  } catch (error) {
+    console.error('[supplier-workspace] membership check failed:', safeErrorKind(error));
+    return res.status(503).json({ ok: false, error: 'Не удалось проверить доступ к компании поставщика' } satisfies ApiResponse);
+  }
 }
 
 function requireSupplierWrite(req: AuthRequest, res: Response, next: NextFunction) {
@@ -34,7 +53,93 @@ function requireSupplierWrite(req: AuthRequest, res: Response, next: NextFunctio
   next();
 }
 
+function requireSupplierOwner(req: AuthRequest, res: Response, next: NextFunction) {
+  if (req.user?.supplierRole !== 'owner') {
+    return res.status(403).json({ ok: false, error: 'Управлять командой компании может только владелец' } satisfies ApiResponse);
+  }
+  next();
+}
+
 supplierWorkspaceRouter.use(requireSupplierContext);
+
+// Team management uses the existing SupplierMember + Person graph.
+supplierWorkspaceRouter.get('/team', requireSupplierOwner, async (req: AuthRequest, res) => {
+  try {
+    const supplierId = req.user!.supplierId!;
+    const memberships = await prisma.supplierMember.findMany({
+      where: { supplierId },
+      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, userId: true, role: true, createdAt: true },
+    });
+    const users = await prisma.user.findMany({
+      where: { id: { in: memberships.map((member) => member.userId) } },
+      select: { id: true, firstName: true, lastName: true, email: true },
+    });
+    const usersById = new Map(users.map((user) => [user.id, user]));
+    return res.json({
+      ok: true,
+      data: memberships.map((member) => {
+        const user = usersById.get(member.userId);
+        return {
+          id: member.id,
+          userId: member.userId,
+          role: member.role,
+          createdAt: member.createdAt,
+          firstName: user?.firstName || '',
+          lastName: user?.lastName || '',
+          email: user?.email || '',
+        };
+      }),
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[supplier-workspace] team list failed:', safeErrorKind(error));
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить команду компании' } satisfies ApiResponse);
+  }
+});
+
+supplierWorkspaceRouter.delete('/team/:memberId', requireSupplierOwner, async (req: AuthRequest, res) => {
+  const supplierId = req.user!.supplierId!;
+  const memberId = String(req.params.memberId || '').trim();
+  if (!memberId) return res.status(400).json({ ok: false, error: 'memberId обязателен' } satisfies ApiResponse);
+
+  try {
+    const target = await prisma.supplierMember.findFirst({
+      where: { id: memberId, supplierId },
+      select: { id: true, userId: true, role: true },
+    });
+    if (!target) return res.status(404).json({ ok: false, error: 'Сотрудник не найден в этой компании' } satisfies ApiResponse);
+    if (target.role === 'owner') {
+      return res.status(409).json({ ok: false, error: 'Нельзя удалить владельца компании из команды' } satisfies ApiResponse);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const removed = await tx.supplierMember.deleteMany({
+        where: { id: target.id, supplierId, userId: target.userId, role: 'manager' },
+      });
+      if (removed.count !== 1) {
+        throw Object.assign(new Error('Состав команды изменился. Обновите список сотрудников.'), { status: 409 });
+      }
+      await tx.person.deleteMany({
+        where: { originalType: 'SupplierMember', originalId: target.id },
+      });
+      await writeAuditLog({
+        userId: req.user!.id,
+        action: 'supplier.member_removed',
+        entity: 'supplier_member',
+        entityId: target.id,
+        details: { supplierId, removedUserId: target.userId, removedRole: target.role },
+        ip: req.ip || req.socket?.remoteAddress,
+      }, tx);
+    });
+
+    return res.json({ ok: true, data: { id: target.id, removed: true } } satisfies ApiResponse);
+  } catch (error) {
+    const status = Number((error as { status?: number })?.status);
+    if (status === 409) return res.status(409).json({ ok: false, error: (error as Error).message } satisfies ApiResponse);
+    console.error('[supplier-workspace] team removal failed:', safeErrorKind(error));
+    return res.status(500).json({ ok: false, error: 'Не удалось удалить сотрудника из команды' } satisfies ApiResponse);
+  }
+});
 
 supplierWorkspaceRouter.get('/me', async (req: AuthRequest, res) => {
   const supplier = await prisma.supplier.findUnique({
