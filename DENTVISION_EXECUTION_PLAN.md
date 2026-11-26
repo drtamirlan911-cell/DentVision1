@@ -1,24 +1,22 @@
-## 2026-11-26 — CRM-only partner monetization source checkpoint
+## 2026-11-27 — Corrected partner monetization and PR #353 checkpoint
 
-- Current candidate: PR #353, branch `integrate/jarvis-product-knowledge-20261125`; source HEAD at this checkpoint: `9b53d027d597f3391098195f3d44d4328016c9b6`.
-- Owner-approved commercial direction is implemented in source: only clinic CRM is recurring SaaS; partner workspaces are not charged for access or branches; partner monetization is commission-only on eligible DentVision-originated transactions after successful settlement.
-- Partner branch subscription cron startup is removed; the invoice issuance API returns HTTP 410 / `PARTNER_SUBSCRIPTION_DISABLED`; the diagnostic/laboratory Finance UI no longer presents partner branch-subscription invoices or Kaspi payment; legacy records remain immutable and available only through restricted audit/read paths.
-- Canonical policy v1.3 and the release-blocker supersession note are committed. Regression guards cover disabled scheduler, HTTP 410 issuance route and absence of the subscription UI.
-- The previously observed green CI/Quality/RB-034 results apply to the older pre-change SHA `8cdc0df61316a8407937f7702bc7d292c0d2851b`, not this candidate. All checks must be re-run on the exact current SHA. Preview, accounting/legal reconciliation and full partner cabinet acceptance remain required. Do not merge or claim production readiness yet.
-
----
-
-## 2026-11-26 — Partner commercial model v1.3 implementation checkpoint
-
-- Owner-approved monetization rule: clinic CRM is the only recurring SaaS subscription product. Diagnostic centers, medical-analysis labs, dental labs, suppliers, academies, lecturers, employers and other partners do not pay access or per-branch subscriptions.
-- DentVision partner monetization is commission-only for eligible transactions that originate through DentVision and successfully settle. Pending orders/referrals/payment intents are not earned revenue. Commission snapshots remain immutable; refunds/chargebacks use compensating ledger events.
-- PR #353 implementation commit `87966330ab67a0bc17bf5a605aa16d833e37a8b9`: partner branch-subscription cron is no longer imported or started by backend bootstrap; the partner diagnostic/laboratory Finance tab no longer renders branch-subscription invoices or Kaspi access-fee payment UI; the partner invoice-issuance API returns HTTP 410 / `PARTNER_SUBSCRIPTION_DISABLED`; canonical economics policy v1.3 explicitly supersedes conflicting v1.2 branch-subscription sections.
-- Legacy invoice/payment/subscription/revenue rows and settlement compatibility are deliberately retained as historical financial evidence. No historical rows were deleted, repriced, refunded, or mutated. Legacy reads remain available for audit; any outstanding balances require a separate approved accounting/legal reconciliation.
-- Verification pending on the new exact PR head: frontend/backend lint, focused route and cron tests, Quality Gate, full CI/E2E, RB-034 and exact-SHA Preview. No production/staging data or payment provider was touched.
+- Audited code head before the documentation corrections: PR #353, branch `integrate/jarvis-product-knowledge-20261125`, SHA `0d462bdcae88516540f0e35bf38f976726dae466`; 117 commits / 142 changed files, PR open and not merged.
+- Active business policy: clinic CRM SaaS is a separate revenue stream. Diagnostic / 3D centers, medical-analysis laboratories and dental laboratories each pay the defined monthly active-branch subscription **plus** the applicable settlement-based transaction commission.
+- Active branch prices: Diagnostic Center ₸49,900 / active billable branch / month; Medical Laboratory ₸19,900; Dental Laboratory ₸29,900. Transaction commission rates, caps, minimums and volume tiers remain those in Sections 5–7 of `docs/business/DENTVISION_PARTNER_ECONOMICS.md`.
+- PR #353 restores partner subscription invoice issuance, the monthly invoice cron and notifications, and subscription billing UI in diagnostic / laboratory Finance workspaces. The cron issues invoices; it does not itself debit a payment method.
+- The 2026-11-26 CRM-only / commission-only amendment is withdrawn and must not be used as implementation authority. Suppliers, academies and employers retain only the separately specified models; do not invent partner branch fees for those verticals.
+- Quality Gate and RB-034 succeeded and Vercel status was successful on the audited code head; CI was still running when checked. These documentation corrections change the branch head, so all exact-head checks must run again. Partner verticals and the overall release remain PARTIAL / NOT READY pending provider, legal, staging, mobile and operational acceptance.
 
 ---
 
-## 2026-11-26 — PR #353 integration and release-gate checkpoint
+## 2026-11-26 — Withdrawn commission-only implementation draft (historical; not active policy)
+
+- The 2026-11-26 proposal to make clinic CRM the only recurring product and remove partner branch subscriptions was an incorrect policy interpretation. It is withdrawn by the owner-confirmed 2026-11-27 clarification in `docs/business/DENTVISION_PARTNER_ECONOMICS.md`.
+- Do not remove partner branch subscription invoice issuance, scheduling, billing UI or Platform Finance reporting. The branch-priced Diagnostic / 3D, Medical Laboratory and Dental Laboratory models require both the monthly branch subscription and their separate transaction commission.
+- Historical invoices, payments, subscriptions and revenue entries remain immutable; no retroactive deletion, re-pricing or automatic refund is authorized.
+
+---
+## Historical PR #353 integration and release-gate checkpoint — 2026-11-26 (pre-correction snapshot)
 
 ### Verified source state
 
