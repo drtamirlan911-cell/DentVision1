@@ -1,3 +1,13 @@
+## 2026-11-26 — CRM-only partner monetization source checkpoint
+
+- Current candidate: PR #353, branch `integrate/jarvis-product-knowledge-20261125`; source HEAD at this checkpoint: `9b53d027d597f3391098195f3d44d4328016c9b6`.
+- Owner-approved commercial direction is implemented in source: only clinic CRM is recurring SaaS; partner workspaces are not charged for access or branches; partner monetization is commission-only on eligible DentVision-originated transactions after successful settlement.
+- Partner branch subscription cron startup is removed; the invoice issuance API returns HTTP 410 / `PARTNER_SUBSCRIPTION_DISABLED`; the diagnostic/laboratory Finance UI no longer presents partner branch-subscription invoices or Kaspi payment; legacy records remain immutable and available only through restricted audit/read paths.
+- Canonical policy v1.3 and the release-blocker supersession note are committed. Regression guards cover disabled scheduler, HTTP 410 issuance route and absence of the subscription UI.
+- The previously observed green CI/Quality/RB-034 results apply to the older pre-change SHA `8cdc0df61316a8407937f7702bc7d292c0d2851b`, not this candidate. All checks must be re-run on the exact current SHA. Preview, accounting/legal reconciliation and full partner cabinet acceptance remain required. Do not merge or claim production readiness yet.
+
+---
+
 ## 2026-11-26 — Partner commercial model v1.3 implementation checkpoint
 
 - Owner-approved monetization rule: clinic CRM is the only recurring SaaS subscription product. Diagnostic centers, medical-analysis labs, dental labs, suppliers, academies, lecturers, employers and other partners do not pay access or per-branch subscriptions.
