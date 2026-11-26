@@ -10,6 +10,7 @@ import { Card } from './ui/ds/Card'
 import { Badge } from './ui/ds/Badge'
 import { Button } from './ui/ds/Button'
 import { AnatomicalToothSvg } from './odontogram/AnatomicalToothSvg'
+import { OdontogramWebGL } from './odontogram/OdontogramWebGL'
 import { getToothMorphology } from './odontogram/toothMorphology'
 import { cn } from '@/lib/utils'
 import {
@@ -156,6 +157,7 @@ export function Odontogram3D({
   const [ownTool, setOwnTool] = useState<string | null>(null)
   const [hovered, setHovered] = useState<number | null>(null)
   const [pendingStatus, setPendingStatus] = useState<{ tooth: number; status: string } | null>(null)
+  const [chartView, setChartView] = useState<'clinical' | 'webgl'>('clinical')
 
   const mode: Dentition = dentition ?? ownDentition
   const setMode = (next: Dentition) => (onDentitionChange ? onDentitionChange(next) : setOwnDentition(next))
@@ -173,8 +175,8 @@ export function Odontogram3D({
     return () => window.removeEventListener('resize', measure)
   }, [])
 
-  const upperTeeth = archTeeth(mode, true)
-  const lowerTeeth = archTeeth(mode, false)
+  const upperTeeth = useMemo(() => archTeeth(mode, true), [mode])
+  const lowerTeeth = useMemo(() => archTeeth(mode, false), [mode])
   const toothOf = (n: number) => normalizeTooth(patientTeeth[n] ?? patientTeeth[String(n)])
 
   /** Statuses that can materially change the clinical record require an explicit confirmation. */
@@ -308,6 +310,25 @@ export function Odontogram3D({
           ))}
         </div>
 
+        <div className="flex items-center gap-1 rounded-lg border border-bdr-subtle p-0.5" role="group" aria-label="Режим одонтограммы">
+          <button
+            type="button"
+            onClick={() => setChartView('clinical')}
+            aria-pressed={chartView === 'clinical'}
+            className={cn('rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/50', chartView === 'clinical' ? 'bg-surface-2 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary')}
+          >
+            2D
+          </button>
+          <button
+            type="button"
+            onClick={() => setChartView('webgl')}
+            aria-pressed={chartView === 'webgl'}
+            className={cn('rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/50', chartView === 'webgl' ? 'bg-surface-2 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary')}
+          >
+            3D
+          </button>
+        </div>
+
         {onHistoryClick ? (
           <Button size="sm" variant="secondary" onClick={onHistoryClick} icon={<History size={14} />}>
             {t('diagnostics.change_history')}
@@ -334,13 +355,23 @@ export function Odontogram3D({
         )}
 
         <div className="mx-auto grid max-w-[1180px] grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
-          <div className="border-y border-bdr-subtle bg-surface-0/60 px-2 py-3 sm:px-4">
-            <div className="mx-auto flex max-w-[820px] flex-col gap-0">
-              {curvedArch(upperTeeth, true)}
-              <div className="relative z-10 -my-2 flex items-center justify-center"><div className="h-5 w-px bg-bdr-subtle/60" aria-hidden /></div>
-              {curvedArch(lowerTeeth, false)}
+          {chartView === 'webgl' ? (
+            <OdontogramWebGL
+              upperTeeth={upperTeeth}
+              lowerTeeth={lowerTeeth}
+              patientTeeth={patientTeeth}
+              selectedTooth={selectedTooth}
+              onToothClick={handleTooth}
+            />
+          ) : (
+            <div className="border-y border-bdr-subtle bg-surface-0/60 px-2 py-3 sm:px-4">
+              <div className="mx-auto flex max-w-[820px] flex-col gap-0">
+                {curvedArch(upperTeeth, true)}
+                <div className="relative z-10 -my-2 flex items-center justify-center"><div className="h-5 w-px bg-bdr-subtle/60" aria-hidden /></div>
+                {curvedArch(lowerTeeth, false)}
+              </div>
             </div>
-          </div>
+          )}
 
           {selectedTooth && (
             <div className="mx-3 mb-2 rounded-xl border border-bdr-subtle bg-surface-1/70 p-3 sm:p-4" data-testid="selected-tooth-anatomy">
