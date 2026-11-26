@@ -84,13 +84,12 @@ describe('SupplierTeamTab', () => {
   })
 
   it('removes a manager but never calls the removal API for the owner', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<SupplierTeamTab token="scoped-token" supplierId="supplier-1" organizationId="org-1" />)
     await screen.findByText('Иван Менеджер')
     fireEvent.click(screen.getByRole('button', { name: 'Удалить сотрудника' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Да, удалить сотрудника' }))
 
     await waitFor(() => expect(removeMember).toHaveBeenCalledWith('scoped-token', 'manager-member'))
-    expect(confirm).toHaveBeenCalled()
     expect(screen.getByText('Тима Владелец')).toBeInTheDocument()
   })
 })
