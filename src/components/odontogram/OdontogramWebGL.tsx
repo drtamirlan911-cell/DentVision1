@@ -374,7 +374,7 @@ export function OdontogramWebGL({
       meshCache.forEach((mesh) => gl!.deleteBuffer(mesh.buffer));
       gl!.deleteProgram(program);
     };
-  }, [toothPoints, upperTeeth, lowerTeeth, patientTeeth, selectedTooth]);
+  }, [toothPoints, patientTeeth, selectedTooth]);
 
   const handleCanvasClick = (event: MouseEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
