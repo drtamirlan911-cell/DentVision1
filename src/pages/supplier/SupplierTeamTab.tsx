@@ -179,7 +179,7 @@ export default function SupplierTeamTab({ token, supplierId, organizationId }: S
           </div>
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
             <Input
-              label="Email сотрудника (необязательно)"
+              label="Email сотрудника"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="manager@company.kz"
@@ -234,8 +234,7 @@ export default function SupplierTeamTab({ token, supplierId, organizationId }: S
                     {member.role !== 'owner' && (
                       <Button
                         size="xs"
-                        variant="ghost"
-                        color="danger"
+                        variant="danger"
                         className="min-h-10"
                         loading={busyMemberId === member.id}
                         disabled={Boolean(busyMemberId)}
