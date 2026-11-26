@@ -24,7 +24,8 @@ interface Order { id: string; total: number; status: string; createdAt: string; 
 
 /** Keep the buyer action aligned with the backend's unpaid-cash cancellation policy. */
 export function canShowBuyerOrderCancellation(order: Pick<Order, 'status' | 'meta'>): boolean {
-  if (order.status === 'cancelled' && order.meta?.cancellation?.refundPending === true) return true;
+  const refundPending = order.meta?.cancellation?.refundPending === true;
+  if (refundPending) return order.status === 'cancelled';
   if (order.status !== 'pending') return false;
 
   const meta = order.meta;
