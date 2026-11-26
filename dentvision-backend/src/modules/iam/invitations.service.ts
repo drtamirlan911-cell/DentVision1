@@ -18,6 +18,7 @@ import crypto from 'crypto';
 import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
 import { grantDiagnosticsAccess } from '../diagnostics/diagnostics.service.js';
+import { syncPersonFromSupplierMember } from '../../lib/syncMembership.js';
 
 /** Organization types this module can actually grant membership in. */
 const DIAGNOSTIC_ORG_TYPES: Record<string, 'DiagnosticCenter' | 'Laboratory'> = {
@@ -42,6 +43,9 @@ export const DENTAL_LAB_INVITE_ROLES = [
 
 /** Employer invitations grant scoped hiring access, never ownership or platform roles. */
 export const EMPLOYER_INVITE_ROLES = ['employer_recruiter', 'employer_viewer'] as const;
+
+/** Supplier company employees receive the existing manager capability; ownership is never inviteable. */
+export const SUPPLIER_INVITE_ROLES = ['manager'] as const;
 
 /** Roles that may invite others into the organization. */
 const MEMBER_MANAGER_ROLES = ['owner', 'admin'];
@@ -115,6 +119,12 @@ export function normalizeEmployerInviteRole(role?: string): string {
   return (EMPLOYER_INVITE_ROLES as readonly string[]).includes(wanted) ? wanted : 'employer_viewer';
 }
 
+/** Suppliers currently have one non-owner team permission set: manager. */
+export function normalizeSupplierInviteRole(role?: string): string {
+  const wanted = String(role || '').trim().toLowerCase();
+  return (SUPPLIER_INVITE_ROLES as readonly string[]).includes(wanted) ? wanted : 'manager';
+}
+
 /** Eight hex characters, the same shape clinic invitations already use. */
 export function generateInviteCode(): string {
   return crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -152,6 +162,14 @@ export async function canManageMembers(
     return !!member && MEMBER_MANAGER_ROLES.includes(String(member.role).toLowerCase());
   }
 
+  if (org.type === 'SUPPLIER_COMPANY') {
+    const member = await prisma.supplierMember.findFirst({
+      where: { supplierId: entityId, userId },
+      select: { role: true },
+    });
+    return !!member && MEMBER_MANAGER_ROLES.includes(String(member.role).toLowerCase());
+  }
+
   if (org.type === 'EMPLOYER') {
     const owner = await prisma.personRole.findFirst({
       where: {
@@ -181,6 +199,12 @@ export async function isAlreadyMember(
   if (org.type === 'LABORATORY') {
     return !!(await prisma.laboratoryMember.findFirst({ where: { labId: entityId, userId } }));
   }
+  if (org.type === 'SUPPLIER_COMPANY') {
+    return !!(await prisma.supplierMember.findFirst({
+      where: { supplierId: entityId, userId },
+      select: { id: true },
+    }));
+  }
   if (org.type === 'EMPLOYER') {
     return !!(await prisma.personRole.findFirst({
       where: { scopeType: 'organization', scopeId: org.id, person: { userId } },
@@ -206,6 +230,7 @@ export async function createInvitation(input: {
   }
   let role: string;
   if (organization.type === 'EMPLOYER') role = normalizeEmployerInviteRole(input.role);
+  else if (organization.type === 'SUPPLIER_COMPANY') role = normalizeSupplierInviteRole(input.role);
   else if (organization.type === 'LABORATORY') role = normalizeLaboratoryInviteRole(input.role, laboratoryTypeFromSettings(organization.settings));
   else if (organization.type === 'DIAGNOSTIC_CENTER') role = normalizeDiagnosticInviteRole(input.role);
   else throw Object.assign(new Error('Этот тип организации пока не поддерживает приглашения'), { status: 400 });
@@ -286,6 +311,43 @@ export async function acceptInvitation(
       organizationType: org.type,
       entityId,
       role: expectedRole,
+    };
+  }
+
+  if (org.type === 'SUPPLIER_COMPANY') {
+    if (!(SUPPLIER_INVITE_ROLES as readonly string[]).includes(invitation!.role)) {
+      throw Object.assign(new Error('Недопустимая роль приглашения поставщика'), { status: 400 });
+    }
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        const member = await tx.supplierMember.create({
+          data: { id: uid(), supplierId: entityId, userId: user.id, role: invitation!.role },
+        });
+        // The supplier workspace reads SupplierMember; the canonical Person graph
+        // powers organization context, branch scope and audit-aware identity.
+        await syncPersonFromSupplierMember(member.id, entityId, user.id, tx);
+        const claimed = await tx.organizationInvitation.updateMany({
+          where: { code, usedAt: null, revokedAt: null },
+          data: { usedAt: new Date(), usedBy: user.id },
+        });
+        if (claimed.count !== 1) {
+          throw Object.assign(new Error('Приглашение уже использовано'), { status: 409 });
+        }
+      });
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw Object.assign(new Error('Вы уже состоите в этой организации'), { status: 409 });
+      }
+      throw error;
+    }
+
+    return {
+      organizationId: org.id,
+      organizationName: org.name,
+      organizationType: org.type,
+      entityId,
+      role: invitation!.role,
     };
   }
 
