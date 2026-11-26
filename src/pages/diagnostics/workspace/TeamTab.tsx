@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/ds/Input'
 import { Badge } from '@/components/ui/ds/Badge'
 import { Skeleton } from '@/components/ui/ds/Skeleton'
 import { useToast } from '@/components/ui/ds/Toast'
+import { ConfirmModal } from '@/components/ui/ds/Modal'
 import { useIam } from '@/iam'
 import * as api from '@/utils/api'
 
@@ -84,6 +85,7 @@ export function TeamTab({ config, orgId }: TabProps) {
   const [email, setEmail] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
   const [branchChoiceByUser, setBranchChoiceByUser] = useState<Record<string, string>>({})
+  const [memberToRemove, setMemberToRemove] = useState<any | null>(null)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['iam', 'invitations', orgId],
@@ -343,12 +345,7 @@ export function TeamTab({ config, orgId }: TabProps) {
                           className="min-h-10"
                           loading={removeMemberMutation.isPending}
                           disabled={removeMemberMutation.isPending || updateRoleMutation.isPending}
-                          onClick={() => {
-                            const name = `${member.firstName || ''} ${member.lastName || ''}`.trim() || member.email || 'сотрудника'
-                            if (window.confirm(`Удалить ${name} из организации? Доступ к кабинету будет отозван.`)) {
-                              removeMemberMutation.mutate(member.userId)
-                            }
-                          }}
+                          onClick={() => setMemberToRemove(member)}
                           aria-label={`Удалить сотрудника ${member.firstName} ${member.lastName}`}
                         >
                           <Trash2 size={14} /> Удалить
@@ -477,6 +474,18 @@ export function TeamTab({ config, orgId }: TabProps) {
         )}
       </Card>
       )}
+      <ConfirmModal
+        open={Boolean(memberToRemove)}
+        onClose={() => setMemberToRemove(null)}
+        onConfirm={() => {
+          if (memberToRemove) removeMemberMutation.mutate(memberToRemove.userId)
+          setMemberToRemove(null)
+        }}
+        title="Удалить сотрудника из организации?"
+        message={`Сотрудник ${memberToRemove ? [memberToRemove.firstName, memberToRemove.lastName].filter(Boolean).join(' ').trim() || memberToRemove.email || '' : ''} потеряет доступ к кабинету. История его работы сохранится.`}
+        confirmLabel="Да, удалить сотрудника"
+        variant="danger"
+      />
     </div>
   )
 }
