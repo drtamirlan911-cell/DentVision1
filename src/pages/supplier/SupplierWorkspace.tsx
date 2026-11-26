@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Store, Package, Wallet, BarChart3, Plus, Trash2, CheckCircle2, Clock,
   ShieldCheck, Building2, Sparkles, TrendingUp, AlertTriangle, RotateCcw,
-  Megaphone, Tag, Star, Truck, ArrowRight, Box, Percent, Camera, ImageIcon,
+  Megaphone, Tag, Star, Truck, ArrowRight, Box, Percent, Camera, ImageIcon, Users,
 } from 'lucide-react'
 import * as api from '@/utils/api'
 import { useAuth } from '@/store/auth.store'
@@ -19,8 +19,9 @@ import { EmptyState } from '@/components/ui/ds/EmptyState'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload'
 import { SUPPLIER_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits';
+import SupplierTeamTab from './SupplierTeamTab';
 
-type TabId = 'overview' | 'sales' | 'stock' | 'returns' | 'ads' | 'analytics' | 'catalog' | 'profile'
+type TabId = 'overview' | 'sales' | 'stock' | 'returns' | 'ads' | 'analytics' | 'catalog' | 'team' | 'profile'
 type SupplierDisputeResponseType = 'ACKNOWLEDGE_RETURN_REQUEST' | 'CONTEST_RETURN_REQUEST'
 
 interface SupplierCtx {
@@ -135,6 +136,7 @@ export default function SupplierWorkspace() {
     setToken(null)
     setMe(null)
     setDash(null)
+    setTab('overview')
     setCashbackRules([])
     setDefaultCb('1')
     setAddOpen(false)
@@ -283,6 +285,10 @@ export default function SupplierWorkspace() {
   }
 
   const canWrite = me?.myRole === 'owner' || me?.myRole === 'manager'
+  const activeSupplierContext = contexts.find((context) => context.scopeId === String(me?.id || ''))
+  const supplierOrganizationId = activeSupplierContext?.organizationId
+    || (activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.organizationId : '')
+    || ''
   const products = dash?.products || []
   const kpis = dash?.kpis || {}
   const insights = dash?.insights || []
@@ -623,6 +629,7 @@ export default function SupplierWorkspace() {
     { id: 'ads', label: 'Реклама', icon: <Megaphone size={15} /> },
     { id: 'analytics', label: 'Спрос', icon: <BarChart3 size={15} /> },
     { id: 'catalog', label: 'Каталог', icon: <Package size={15} /> },
+    ...(me?.myRole === 'owner' ? [{ id: 'team' as const, label: 'Команда', icon: <Users size={15} /> }] : []),
     { id: 'profile', label: 'Профиль', icon: <Building2 size={15} /> },
   ]
 
@@ -1116,6 +1123,14 @@ export default function SupplierWorkspace() {
                 </div>
               )}
             </div>
+          )}
+
+          {tab === 'team' && me?.myRole === 'owner' && (
+            <SupplierTeamTab
+              token={token!}
+              supplierId={String(me.id)}
+              organizationId={supplierOrganizationId}
+            />
           )}
 
           {tab === 'profile' && me && (
