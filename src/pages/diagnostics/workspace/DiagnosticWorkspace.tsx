@@ -25,7 +25,6 @@ import { ServicesTab } from './ServicesTab'
 import { PaymentsTab } from './PaymentsTab'
 import { CashierTab } from './CashierTab'
 import DiagnosticSettlements from '@/pages/diagnostics/DiagnosticSettlements'
-import { PartnerBranchSubscriptionBilling } from '@/components/billing/PartnerBranchSubscriptionBilling'
 import { TeamTab } from './TeamTab'
 import { WorklistTab } from './WorklistTab'
 import { ModalitiesTab } from './ModalitiesTab'
@@ -94,9 +93,6 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   const ownOrgId = activeWorkspace?.scopeType === config.organizationType
     ? activeWorkspace.scopeId
     : user?.organizationOriginalId || user?.organizationId || ''
-  const partnerBillingOrganizationId = activeScopeType === config.organizationType
-    ? String(activeWorkspace?.organizationId || user?.organizationId || '')
-    : ''
 
   const myOrgs = useMemo(
     () => diagnosticContexts.filter((c: any) => c.scopeType === config.organizationType),
@@ -288,7 +284,6 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
           )}
           {activeTab === 'finance' && <div className="space-y-4">
             <DiagnosticSettlements />
-            {partnerBillingOrganizationId && <PartnerBranchSubscriptionBilling organizationId={partnerBillingOrganizationId} canReadBilling={canReadPartnerBilling} canManageBilling={canManagePartnerBilling} />}
           </div>}
           {activeTab === 'services' && <ServicesTab config={config} orgId={orgId} />}
           {activeTab === 'payments' && <PaymentsTab config={config} orgId={orgId} />}
