@@ -180,24 +180,25 @@ export async function removePersonFromSupplierMember(memberId: string): Promise<
  * Keep Person in sync with a Lecturer profile.
  * originalId is the Lecturer row's own id (matches the backfill).
  */
-export async function syncPersonFromLecturer(lecturerId: string, userId: string, academyId?: string | null): Promise<void> {
-  const user = await prisma.user.findUnique({
+export async function syncPersonFromLecturer(lecturerId: string, userId: string, academyId?: string | null, tx?: Prisma.TransactionClient): Promise<void> {
+  const db = tx ?? prisma;
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: { id: true, firstName: true, lastName: true, phone: true, email: true },
   });
   if (!user) return;
 
   const org = academyId
-    ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: academyId } })
+    ? await db.organization.findFirst({ where: { originalType: 'Academy', originalId: academyId } })
     : null;
 
   const fullName = `${user.firstName} ${user.lastName}`.trim() || `Lecturer ${lecturerId}`;
 
-  let person = await prisma.person.findFirst({
+  let person = await db.person.findFirst({
     where: { originalType: 'Lecturer', originalId: lecturerId },
   });
   if (!person) {
-    person = await prisma.person.create({
+    person = await db.person.create({
       data: {
         id: uid(),
         fullName,
@@ -211,7 +212,7 @@ export async function syncPersonFromLecturer(lecturerId: string, userId: string,
       },
     });
   } else {
-    await prisma.person.update({
+    await db.person.update({
       where: { id: person.id },
       data: {
         fullName,
@@ -223,21 +224,21 @@ export async function syncPersonFromLecturer(lecturerId: string, userId: string,
     });
   }
 
-  const dbRole = await prisma.role.findUnique({ where: { key: 'lecturer' } });
+  const dbRole = await db.role.findUnique({ where: { key: 'lecturer' } });
   if (!dbRole) return;
 
   if (!org) {
     // Lecturer access is organization-scoped. Never create or retain a
     // platform-scoped lecturer role when the Academy relationship is missing.
     // The Person remains unscoped until an explicit Academy is assigned.
-    await prisma.personRole.deleteMany({
+    await db.personRole.deleteMany({
       where: { personId: person.id, roleId: dbRole.id, scopeType: 'platform' },
     });
     return;
   }
 
   const scopeKey = `organization:${org.id}`;
-  await prisma.personRole.upsert({
+  await db.personRole.upsert({
     where: { personId_roleId_scopeKey: { personId: person.id, roleId: dbRole.id, scopeKey } },
     update: { scopeType: 'organization', scopeId: org.id },
     create: { personId: person.id, roleId: dbRole.id, scopeType: 'organization', scopeId: org.id, scopeKey },
