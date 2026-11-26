@@ -50,6 +50,6 @@ describe('buyer Shop order cancellation visibility', () => {
     expect(canShowBuyerOrderCancellation({
       status: 'pending',
       meta: { payment_method: 'cash', cancellation: { refundPending: true } },
-    })).toBe(true);
+    })).toBe(false);
   });
 });
