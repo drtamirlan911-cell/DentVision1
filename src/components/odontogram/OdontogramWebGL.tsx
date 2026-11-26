@@ -403,7 +403,7 @@ export function OdontogramWebGL({
           {toothPoints.map((point) => (
             <span
               key={point.tooth}
-              className={`absolute -translate-x-1/2 -translate-y-1/2 text-[9px] font-semibold tabular-nums drop-shadow sm:text-[10px] ${selectedTooth === point.tooth ? 'text-cyan-200' : 'text-slate-300'}`}
+              className={`absolute -translate-x-1/2 -translate-y-1/2 text-xs font-semibold tabular-nums drop-shadow ${selectedTooth === point.tooth ? 'text-dv-gold' : 'text-txt-secondary'}`}
               style={{ left: `${((point.x + 8.45) / 16.9) * 100}%`, top: `${((4.2 - point.y) / 8.4) * 100}%` }}
             >
               {point.tooth}
@@ -412,12 +412,12 @@ export function OdontogramWebGL({
         </div>
         {state === 'unsupported' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950/95 p-5 text-center">
-            <p className="m-0 text-sm font-semibold text-white">WebGL недоступен в этом браузере</p>
-            <p className="m-0 max-w-md text-xs text-slate-300">Откройте клинический 2D-режим или выберите зуб из доступного списка ниже.</p>
+            <p className="m-0 text-sm font-semibold text-txt-primary">WebGL недоступен в этом браузере</p>
+            <p className="m-0 max-w-md text-xs text-txt-secondary">Откройте клинический 2D-режим или выберите зуб из доступного списка ниже.</p>
           </div>
         )}
         {state === 'loading' && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[11px] text-slate-300">
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-xs text-txt-secondary">
             Подготовка 3D-модели зубных дуг…
           </div>
         )}
