@@ -1,8 +1,8 @@
 # DentVision Partner Economics
 
 **Status:** CANONICAL BUSINESS POLICY  
-**Version:** 1.2  
-**Date:** 2026-09-17  
+**Version:** 1.3  
+**Date:** 2026-11-27  
 **Authority:** Business / Monetization foundation
 
 ## Purpose
@@ -496,36 +496,43 @@ This document does not establish legal tax advice, final payment-provider pricin
 **Economic safety decision:** DentVision must maintain positive contribution economics for the platform while providing transparent net-payout simulation, minimum/cap/volume protections, settlement snapshots and partner-margin warnings so that platform fees do not knowingly create structurally unsustainable partner economics.
 
 
-## 21. Owner-approved commercial model amendment — 2026-11-26 (v1.3)
 
-**This amendment supersedes any conflicting branch-subscription pricing, examples, Finance Hub fields and release gates in sections 5–7, 16 and 18 above.** The earlier v1.2 branch-subscription model is retained only as historical policy context; it is not active pricing authority.
+## 21. Owner-confirmed commercial policy clarification — 2026-11-27 (v1.3)
 
-### 21.1 CRM-only SaaS
+**This section withdraws the incorrect commission-only amendment added on 2026-11-26.** The branch-pricing tables in Sections 5–7 remain active commercial policy; they are not historical examples and are not superseded.
 
-- DentVision charges recurring SaaS subscription fees only for clinic CRM plans (START / PRO / BUSINESS / NETWORK, according to the clinic pricing policy).
-- Diagnostic centers, medical-analysis laboratories, dental laboratories, suppliers, academies, lecturers, employers and other ecosystem partners do **not** pay a platform access fee, partner-cabinet fee, branch fee or partner branch subscription.
-- Creating, activating or operating an additional partner branch does not create a recurring DentVision charge.
-- Partner onboarding and use of the partner workspace must not be blocked by a subscription invoice or payment status.
+### 21.1 Clinic CRM is a separate SaaS product
 
-### 21.2 Commission-only partner monetization
+- Clinic CRM subscriptions (START / PRO / BUSINESS / NETWORK) remain a distinct recurring SaaS revenue stream under the clinic pricing policy.
+- Clinic CRM subscriptions do not replace or waive the separately defined economics of diagnostic centers, medical-analysis laboratories or dental laboratories.
 
-- DentVision earns partner commission only on eligible commercial transactions that originate through DentVision and have successfully settled.
-- An order, referral, booking, invoice draft, payment intent or pending payment is not earned commission.
-- The commission rate, minimum/cap, volume tier, effective policy version, gross amount, provider costs, partner net and settlement reference must be snapshotted immutably at settlement.
-- Refunds, remakes, cancellations and chargebacks create compensating ledger events linked to the original settlement; they must not rewrite the original transaction.
-- Commission rules remain domain-specific and contractually disclosed. No fee is invented for a vertical without an approved rule and legal basis.
+### 21.2 Branch-priced partner verticals pay subscription plus commission
 
-### 21.3 Legacy branch-subscription records
+- For each branch-priced vertical in Sections 5–7, the applicable active billable branch subscription and the applicable transaction commission are separate, cumulative charges.
+- Diagnostic / 3D centers: **₸49,900 per active billable branch per month plus 7%** on eligible settled transactions, subject to the per-study minimum and cap in Section 5.
+- Medical-analysis laboratories: **₸19,900 per active billable branch per month plus 6%** on eligible settled transactions, subject to the per-analysis minimum and cap in Section 6.
+- Dental laboratories: **₸29,900 per active billable branch per month plus the case commission** under the volume tiers and limits in Section 7.
+- A branch subscription monetizes operating capacity. A transaction commission is earned only after successful settlement. One must not be substituted for the other.
+- Partner branch subscriptions must remain represented in billing policy, invoice issuance, monthly scheduling, partner Finance UI and Platform Finance reporting. A blanket partner-free or commission-only switch is not permitted.
 
-- Existing partner branch-subscription invoices, payments, subscription rows and revenue entries are historical records. Do not delete, silently reprice, auto-refund or rewrite them as part of this policy migration.
-- Stop all new issuance and scheduling of partner branch-subscription invoices. Disable partner-facing branch-subscription payment UI and new invoice creation endpoints.
-- Keep legacy read/audit access restricted to authorized platform finance and the owning organization where legally required. Any outstanding or paid legacy amount requires a separately approved accounting/legal reconciliation before credit, refund or closure.
-- Do not run a production data migration or mutate historical financial records without an approved reconciliation plan.
+### 21.3 Other partner models remain vertical-specific
 
-### 21.4 Finance Hub requirements under v1.3
+- Marketplace suppliers / sellers use the transaction take-rate and approved strategic / high-volume rates in Section 8; do not invent a branch subscription for them.
+- Academies / lecturers use the acquisition-source revenue splits in Section 9; do not invent a branch subscription.
+- Employers and other partner types use only an explicitly approved model. No tariff may be inferred from organization type alone.
 
-- Partner Finance shows settled GMV, eligible transactions, commission snapshot, provider/payment costs, partner net, payout status, refunds/chargebacks, reconciliation exceptions and downloadable statements.
-- Partner Finance does not show branch subscription price, billable branch count, partner access invoices or a payment action for a platform access fee.
-- Platform Finance separates clinic SaaS revenue from partner transaction commission revenue. Legacy partner branch-subscription revenue is displayed separately as historical legacy revenue, never as an active pricing product.
+### 21.4 Settlement and financial-history safeguards
 
-**Decision:** CRM is the recurring SaaS product. Partner workspaces are ecosystem infrastructure monetized by disclosed commissions on successfully settled DentVision-generated transactions, not by partner access or branch subscriptions.
+- Transaction commission is earned on successful commercial settlement, not when a referral, order, case, invoice draft or payment intent is created.
+- Preserve immutable policy, rate, minimum/cap, volume tier, gross amount, provider-cost, partner-net and settlement snapshots.
+- Refunds, remakes, cancellations and chargebacks create compensating ledger events linked to the original settlement; do not rewrite the original record.
+- Existing partner branch-subscription invoices, payments, subscriptions and revenue entries remain immutable. Do not delete, silently reprice, auto-refund or rewrite historical records as part of this clarification.
+- Monthly scheduling creates the applicable invoice; it does not by itself authorize an automatic recurring debit. Payment collection and settlement require the separately approved provider flow and release evidence.
+
+### 21.5 Finance Hub presentation
+
+- Partner Finance shows the applicable branch subscription invoice separately from settled GMV, transaction commission, provider/payment costs, partner net, payout status, refunds/chargebacks and reconciliation exceptions.
+- Platform Finance separates clinic CRM SaaS revenue, partner branch-subscription revenue and partner transaction-commission revenue.
+- Before confirmation, show the gross amount, each distinct fee, known provider costs, deductions and expected partner net.
+
+**Decision:** for Diagnostic / 3D centers, medical-analysis laboratories and dental laboratories, the active billable branch subscription and the settlement-based transaction commission both apply. Clinic CRM SaaS remains separate. Other partner verticals follow only their expressly defined economics in this document.
