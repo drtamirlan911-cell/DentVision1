@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/ds/Card'
 import { Input } from '@/components/ui/ds/Input'
 import { ListSkeleton } from '@/components/ui/ds/Skeleton'
 import { useToast } from '@/components/ui/ds/Toast'
+import { ConfirmModal } from '@/components/ui/ds/Modal'
 
 interface AcademyLecturer {
   id: string
@@ -58,6 +59,7 @@ export default function AcademyTeamTab({ organizationId }: { organizationId: str
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
+  const [lecturerToRemove, setLecturerToRemove] = useState<AcademyLecturer | null>(null)
   const generation = useRef(0)
 
   const load = useCallback(async () => {
@@ -132,12 +134,10 @@ export default function AcademyTeamTab({ organizationId }: { organizationId: str
 
   const removeLecturer = async (lecturer: AcademyLecturer) => {
     if (busyId) return
-    const name = [lecturer.firstName, lecturer.lastName].filter(Boolean).join(' ').trim() || lecturer.email || 'преподавателя'
     if (lecturer.courseCount > 0) {
       toast.error('Сначала переназначьте курсы преподавателя. Система сохраняет учебную историю и действующие продукты.')
       return
     }
-    if (!window.confirm(`Убрать ${name} из команды академии? Его профиль лектора и исторические записи сохранятся.`)) return
 
     setBusyId(lecturer.id)
     try {
@@ -234,7 +234,7 @@ export default function AcademyTeamTab({ organizationId }: { organizationId: str
                       className="min-h-10"
                       loading={busyId === lecturer.id}
                       disabled={Boolean(busyId) || lecturer.courseCount > 0}
-                      onClick={() => void removeLecturer(lecturer)}
+                      onClick={() => setLecturerToRemove(lecturer)}
                       aria-label="Удалить преподавателя"
                       title={lecturer.courseCount > 0 ? 'Сначала переназначьте курсы преподавателя' : 'Убрать из команды'}
                     >
@@ -289,6 +289,18 @@ export default function AcademyTeamTab({ organizationId }: { organizationId: str
           )}
         </CardContent>
       </Card>
+      <ConfirmModal
+        open={Boolean(lecturerToRemove)}
+        onClose={() => setLecturerToRemove(null)}
+        onConfirm={() => {
+          if (lecturerToRemove) void removeLecturer(lecturerToRemove)
+          setLecturerToRemove(null)
+        }}
+        title="Убрать преподавателя из академии?"
+        message={`${lecturerToRemove ? [lecturerToRemove.firstName, lecturerToRemove.lastName].filter(Boolean).join(' ').trim() || lecturerToRemove.email || 'Преподаватель' : 'Преподаватель'} потеряет доступ к этой академии. Его профиль и исторические записи сохранятся.`}
+        confirmLabel="Да, убрать преподавателя"
+        variant="danger"
+      />
     </div>
   )
 }
