@@ -494,3 +494,38 @@ This document does not establish legal tax advice, final payment-provider pricin
 **Core decision:** subscription monetizes the operational capacity of a billable branch; commission monetizes DentVision-generated transactions. There is no separate "branch commission" merely for having multiple locations.
 
 **Economic safety decision:** DentVision must maintain positive contribution economics for the platform while providing transparent net-payout simulation, minimum/cap/volume protections, settlement snapshots and partner-margin warnings so that platform fees do not knowingly create structurally unsustainable partner economics.
+
+
+## 21. Owner-approved commercial model amendment — 2026-11-26 (v1.3)
+
+**This amendment supersedes any conflicting branch-subscription pricing, examples, Finance Hub fields and release gates in sections 5–7, 16 and 18 above.** The earlier v1.2 branch-subscription model is retained only as historical policy context; it is not active pricing authority.
+
+### 21.1 CRM-only SaaS
+
+- DentVision charges recurring SaaS subscription fees only for clinic CRM plans (START / PRO / BUSINESS / NETWORK, according to the clinic pricing policy).
+- Diagnostic centers, medical-analysis laboratories, dental laboratories, suppliers, academies, lecturers, employers and other ecosystem partners do **not** pay a platform access fee, partner-cabinet fee, branch fee or partner branch subscription.
+- Creating, activating or operating an additional partner branch does not create a recurring DentVision charge.
+- Partner onboarding and use of the partner workspace must not be blocked by a subscription invoice or payment status.
+
+### 21.2 Commission-only partner monetization
+
+- DentVision earns partner commission only on eligible commercial transactions that originate through DentVision and have successfully settled.
+- An order, referral, booking, invoice draft, payment intent or pending payment is not earned commission.
+- The commission rate, minimum/cap, volume tier, effective policy version, gross amount, provider costs, partner net and settlement reference must be snapshotted immutably at settlement.
+- Refunds, remakes, cancellations and chargebacks create compensating ledger events linked to the original settlement; they must not rewrite the original transaction.
+- Commission rules remain domain-specific and contractually disclosed. No fee is invented for a vertical without an approved rule and legal basis.
+
+### 21.3 Legacy branch-subscription records
+
+- Existing partner branch-subscription invoices, payments, subscription rows and revenue entries are historical records. Do not delete, silently reprice, auto-refund or rewrite them as part of this policy migration.
+- Stop all new issuance and scheduling of partner branch-subscription invoices. Disable partner-facing branch-subscription payment UI and new invoice creation endpoints.
+- Keep legacy read/audit access restricted to authorized platform finance and the owning organization where legally required. Any outstanding or paid legacy amount requires a separately approved accounting/legal reconciliation before credit, refund or closure.
+- Do not run a production data migration or mutate historical financial records without an approved reconciliation plan.
+
+### 21.4 Finance Hub requirements under v1.3
+
+- Partner Finance shows settled GMV, eligible transactions, commission snapshot, provider/payment costs, partner net, payout status, refunds/chargebacks, reconciliation exceptions and downloadable statements.
+- Partner Finance does not show branch subscription price, billable branch count, partner access invoices or a payment action for a platform access fee.
+- Platform Finance separates clinic SaaS revenue from partner transaction commission revenue. Legacy partner branch-subscription revenue is displayed separately as historical legacy revenue, never as an active pricing product.
+
+**Decision:** CRM is the recurring SaaS product. Partner workspaces are ecosystem infrastructure monetized by disclosed commissions on successfully settled DentVision-generated transactions, not by partner access or branch subscriptions.
