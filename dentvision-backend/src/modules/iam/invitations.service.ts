@@ -18,7 +18,8 @@ import crypto from 'crypto';
 import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
 import { grantDiagnosticsAccess } from '../diagnostics/diagnostics.service.js';
-import { syncPersonFromSupplierMember } from '../../lib/syncMembership.js';
+import { syncPersonFromSupplierMember, syncPersonFromLecturer } from '../../lib/syncMembership.js';
+import { getOrCreateWallet } from '../finance/finance.service.js';
 
 /** Organization types this module can actually grant membership in. */
 const DIAGNOSTIC_ORG_TYPES: Record<string, 'DiagnosticCenter' | 'Laboratory'> = {
@@ -46,6 +47,9 @@ export const EMPLOYER_INVITE_ROLES = ['employer_recruiter', 'employer_viewer'] a
 
 /** Supplier company employees receive the existing manager capability; ownership is never inviteable. */
 export const SUPPLIER_INVITE_ROLES = ['manager'] as const;
+
+/** Academy owners may invite professional lecturers; ownership and platform roles are not inviteable. */
+export const ACADEMY_INVITE_ROLES = ['lecturer'] as const;
 
 /** Roles that may invite others into the organization. */
 const MEMBER_MANAGER_ROLES = ['owner', 'admin'];
@@ -180,6 +184,13 @@ export async function canManageMembers(
     return !!member && MEMBER_MANAGER_ROLES.includes(String(member.role).toLowerCase());
   }
 
+  if (org.type === 'ACADEMY') {
+    return !!(await prisma.academy.findFirst({
+      where: { id: entityId, ownerId: userId },
+      select: { id: true },
+    }));
+  }
+
   if (org.type === 'SUPPLIER_COMPANY') {
     const member = await prisma.supplierMember.findFirst({
       where: { supplierId: entityId, userId },
@@ -217,6 +228,12 @@ export async function isAlreadyMember(
   if (org.type === 'LABORATORY') {
     return !!(await prisma.laboratoryMember.findFirst({ where: { labId: entityId, userId } }));
   }
+  if (org.type === 'ACADEMY') {
+    return !!(await prisma.lecturer.findFirst({
+      where: { academyId: entityId, userId },
+      select: { id: true },
+    }));
+  }
   if (org.type === 'SUPPLIER_COMPANY') {
     return !!(await prisma.supplierMember.findFirst({
       where: { supplierId: entityId, userId },
@@ -248,6 +265,7 @@ export async function createInvitation(input: {
   }
   let role: string;
   if (organization.type === 'EMPLOYER') role = normalizeEmployerInviteRole(input.role);
+  else if (organization.type === 'ACADEMY') role = 'lecturer';
   else if (organization.type === 'SUPPLIER_COMPANY') role = normalizeSupplierInviteRole(input.role);
   else if (organization.type === 'LABORATORY') role = normalizeLaboratoryInviteRole(input.role, laboratoryTypeFromSettings(organization.settings));
   else if (organization.type === 'DIAGNOSTIC_CENTER') role = normalizeDiagnosticInviteRole(input.role);
@@ -329,6 +347,76 @@ export async function acceptInvitation(
       organizationType: org.type,
       entityId,
       role: expectedRole,
+    };
+  }
+
+  if (org.type === 'ACADEMY') {
+    if (!(ACADEMY_INVITE_ROLES as readonly string[]).includes(invitation!.role)) {
+      throw Object.assign(new Error('Недопустимая роль приглашения академии'), { status: 400 });
+    }
+
+    const academy = await prisma.academy.findUnique({ where: { id: entityId }, select: { id: true } });
+    if (!academy) throw Object.assign(new Error('Академия не найдена'), { status: 404 });
+
+    let lecturerId = '';
+    try {
+      await prisma.$transaction(async (tx) => {
+        const account = await tx.user.findUnique({
+          where: { id: user.id },
+          select: { id: true, firstName: true, lastName: true, email: true },
+        });
+        if (!account) throw Object.assign(new Error('Пользователь не найден'), { status: 404 });
+
+        const existing = await tx.lecturer.findUnique({
+          where: { userId: user.id },
+          select: { id: true, academyId: true },
+        });
+        if (existing?.academyId && existing.academyId !== entityId) {
+          throw Object.assign(new Error('Профиль лектора уже привязан к другой академии'), { status: 409 });
+        }
+
+        const lecturer = existing
+          ? await tx.lecturer.update({
+              where: { id: existing.id },
+              data: { academyId: entityId },
+            })
+          : await tx.lecturer.create({
+              data: {
+                id: uid(),
+                userId: account.id,
+                academyId: entityId,
+                level: 'new',
+              },
+            });
+        lecturerId = lecturer.id;
+
+        await syncPersonFromLecturer(lecturer.id, account.id, entityId, tx);
+
+        const claimed = await tx.organizationInvitation.updateMany({
+          where: { code, usedAt: null, revokedAt: null },
+          data: { usedAt: new Date(), usedBy: user.id },
+        });
+        if (claimed.count !== 1) {
+          throw Object.assign(new Error('Приглашение уже использовано'), { status: 409 });
+        }
+      });
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw Object.assign(new Error('Профиль лектора уже существует или приглашение было использовано'), { status: 409 });
+      }
+      throw error;
+    }
+
+    // Wallet creation mirrors self-registration. It is a non-blocking derived
+    // account and does not affect the atomic Academy membership grant.
+    await getOrCreateWallet('LECTURER', lecturerId).catch(() => null);
+
+    return {
+      organizationId: org.id,
+      organizationName: org.name,
+      organizationType: org.type,
+      entityId: lecturerId,
+      role: 'lecturer',
     };
   }
 
