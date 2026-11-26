@@ -1,3 +1,20 @@
+## Current release checkpoint — 2026-11-26 (PR #352 merged; PR #353 integration candidate)
+
+- **Current main:** `88ac207cefad1ba42e3b272b3e4a868662eb91bb`; PR #352 is merged.
+- **Current candidate:** PR [#353](https://github.com/drtamirlan911-cell/DentVision1/pull/353), branch `integrate/jarvis-product-knowledge-20261125`, verified code SHA `96ef732508d3097ef0466018aa4831b129a4e895`. It is 100 commits ahead / 0 behind main, 126 changed files, OPEN / not merged. PR #351 remains OPEN/DRAFT; do not merge its older overlapping branch independently.
+- **Exact source gate results on `96ef732508d3097ef0466018aa4831b129a4e895`:** CI [45626319064] SUCCESS; Quality Gate [45626319150] SUCCESS; RB-034 [45626319094] SUCCESS. E2E detail: Core 262 passed / 5 skipped; Browser UX 4 passed; Mobile Design 16 passed; Role/Context 147 passed / 28 skipped; Visual Agent 48 passed; Business Owner 11 passed; Organization Owner 8 passed; Playwright CLI smoke and Visual Release Gate passed. Frontend lint, backend lint and lint-test jobs succeeded. PR review threads: 0 unresolved.
+- **Vercel Preview is still a blocker for this SHA:** no Vercel deployment was found for `96ef732508d3097ef0466018aa4831b129a4e895`; GitHub combined status links to the Vercel build-rate-limit gate. The last READY deployment found on the branch used older SHA `8133e87f0d5b69de4d1e8104157c7127122dcf31`; it is not current Preview evidence.
+- **Do not clear release blockers based on source CI.** The PR #353 changes add branch ownership and safer, read-only AI workspace projections but do not complete partner workflows, production integration, historical data protection or regulatory acceptance.
+- **RB-029 remains P0 / OPEN:** historical Patient/AI derivative PHI inventory and count/backfill; legacy worker drain and strict cutover; key versioning/rotation and old-key handling; retention/export/deletion; encryption of derived copies; verified backup/restore and rollback; exception reconciliation; approved staging dry-run/apply remain outstanding. No historical PHI operation was performed.
+- **RB-031 remains OPEN:** WebKit OPTIONS/CORS/WebSocket behavior and production-equivalent evidence are not closed.
+- **RB-033 remains OPEN / NOT VERIFIED:** required main-branch protection and required-check policy still need authoritative repository settings evidence.
+- **RB-035 remains OPEN:** full patient/clinical/billing route × role × tenant × organization × clinic × branch × active/revoked/expired-session matrix, partner-branch coverage and an explicitly authorized archive-history read policy remain outstanding.
+- **Other OPEN/PARTIAL release gates:** D1/D2 approved staging and verified backup/restore; legal templates and EDS/signature; official Kaspi merchant and callback/provider evidence; physical Android runtime; diagnostics/PACS/DICOM and complete medical-lab/LIS workflows; Dental Lab D10 logistics/settlement; Marketplace/Supplier returns and seller settlement; Academy/Community full workflows; employer lifecycle; public discovery; and true 32-tooth WebGL odontogram.
+- **Environment boundary:** migrations were exercised only in the isolated GitHub Actions E2E database. No production/staging database, PHI, secret/key, payment provider, legal signature or production deployment was accessed or modified.
+- **Release remains NOT READY.** The new documentation-only commit changes the PR head and must receive fresh exact-head CI, Quality Gate, RB-034 and Preview checks; the currently recorded green source checks refer to `96ef732508d3097ef0466018aa4831b129a4e895` before that documentation commit.
+
+---
+
 ## Current checkpoint — 2026-11-19 (RB-035 expanded source review)
 
 - **Current main remains** da1257fc650f536c76583bdff570906290b92bcd; PR #349 is merged with exact CI/Quality Gate/Vercel success. The next candidate is PR #350 / security/rb035-inactive-branch-access-main-20261119; it is not merged.

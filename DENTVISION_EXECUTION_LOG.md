@@ -1,3 +1,20 @@
+## 2026-11-26 — PR #353 source verification and integration reconciliation
+
+- Continued on the existing repository `drtamirlan911-cell/DentVision1` and existing integration candidate PR #353; no new product branch was created.
+- Verified main at `88ac207cefad1ba42e3b272b3e4a868662eb91bb`; PR #352 is merged. PR #353 code HEAD at verification time was `96ef732508d3097ef0466018aa4831b129a4e895`, 100 commits ahead / 0 behind main, 126 changed files; not merged. PR #351 remains OPEN/DRAFT and is not to be merged wholesale because its file history overlaps the already-merged #352 work.
+- Exact code SHA passed CI [45626319064], Quality Gate [45626319150] and RB-034 [45626319094]. CI jobs E2E, frontend lint, backend lint and lint-test all completed successfully.
+- E2E details from the workflow log: Core 262 passed / 5 skipped; Browser UX 4 passed; Mobile Design 16 passed; Role/Context 147 passed / 28 skipped; Visual Agent 48 passed; Business Owner 11 passed; Organization Owner 8 passed; Playwright CLI smoke and Visual Release Gate passed. Skipped tests are retained as skipped in the evidence.
+- Reviewed PR #353 branch scope and data-boundary changes across patient portal, appointments, analytics, CRM operations, diagnostics, inventory, dental/medical labs and partner workspace tools. The lab-order migration backfills only when the linked patient proves a branch; the CRM operations migration leaves ambiguous legacy branch mappings unresolved. The migrations were run in isolated CI E2E only.
+- Reviewed the newly added read-only workspace projections: diagnostic center and medical-lab queues expose operational workflow metadata only; dental-lab queue uses the production read-scope predicate and assigned-work limits; supplier overview is restricted to that supplier's catalogue/stock; lecturer course overview checks lecturer ownership; student progress uses the authenticated user's enrollment; employer vacancy overview verifies active employer organization, scoped role and `jobs.read`. No new partner write tool was enabled.
+- Reviewed Product Knowledge: local guide file, bounded lexical retrieval, no external embedding request with conversational text, prompt text explicitly treats guide excerpts as untrusted reference material, and patient portal receives only patient-guide chunks. Model routing uses explicit model capability metadata and refuses image analysis when no vision-capable model is available.
+- Replied to and resolved all PR #353 review threads. The two former P1 comments concerned (1) the branch-ownership contract assertion and (2) cleanup of one-shot mocks; both corresponding source changes were already present on the verified HEAD and exact-head CI passed. Review-thread count: 0 unresolved.
+- Vercel open-deployment lookup found no Preview deployment for `96ef732508d3097ef0466018aa4831b129a4e895`. GitHub combined status points to the Vercel build-rate-limit gate. The latest READY preview found on the same branch was attached to older SHA `8133e87f0d5b69de4d1e8104157c7127122dcf31`; it does not certify the current candidate.
+- No source-code modification, main merge, staging/production DB operation, historical PHI operation, key/secret change, payment-provider action, legal signature or production deployment was performed in this verification pass.
+- This checkpoint is a documentation-only reconciliation. Because it changes the PR branch HEAD, rerun exact-head CI, Quality Gate, RB-034 and Preview before merge. No old SHA result should be reused as proof for the documentation commit.
+- RB-029 remains P0/OPEN; release remains NOT READY.
+
+---
+
 ## 2026-11-15 — RB-029 staged AI Admin writes and retained queue backfill candidate
 
 - Continued on existing PR #347 / security/rb029-ai-admin-external-id-20261114; no new branch or PR.

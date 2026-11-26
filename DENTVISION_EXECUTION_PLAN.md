@@ -1,3 +1,31 @@
+## 2026-11-26 — PR #353 integration and release-gate checkpoint
+
+### Verified source state
+
+- Main is `88ac207cefad1ba42e3b272b3e4a868662eb91bb`; PR #352 is merged.
+- PR #353 is the current integration candidate: `integrate/jarvis-product-knowledge-20261125`, code HEAD `96ef732508d3097ef0466018aa4831b129a4e895`, 100 commits ahead / 0 behind main, 126 changed files, GitHub mergeable flag true. It is not merged.
+- PR #351 remains open/draft. Its unique Jarvis work is being reconciled through #353; do not merge its older overlapping branch independently.
+- Exact code-HEAD CI, Quality Gate and RB-034 all succeeded. CI details: Core E2E 262 passed / 5 skipped; Browser UX 4; Mobile Design 16; Role/Context 147 passed / 28 skipped; Visual Agent 48; Business Owner 11; Organization Owner 8; Playwright CLI smoke and Visual Release Gate passed. Frontend lint, backend lint and lint-test jobs passed.
+- All PR #353 review threads are resolved (0 unresolved). The corrected branch-contract test and one-shot mock-reset test passed on the exact code SHA.
+- Vercel has no deployment for `96ef732508d3097ef0466018aa4831b129a4e895`; the GitHub Preview status fails at the build-rate-limit gate. The latest READY deployment is from older SHA `8133e87f0d5b69de4d1e8104157c7127122dcf31` and is not valid evidence for this candidate.
+
+### Ordered next actions
+
+1. **Restore Preview verification without changing production configuration.** Check the deployment quota/build-rate-limit in Vercel. Do not create repeated no-op commits or treat an older preview as current. Once a deployment exists for the exact PR SHA, verify build readiness, app startup, primary role workspaces, branch switching, patient portal, partner read-only projections and responsive/mobile flows.
+2. **Complete merge governance.** Confirm required repository branch-protection checks and approvals from the repository owner. GitHub's mergeable flag is not proof that the Vercel Preview requirement is satisfied. Keep PR #353 open until the exact current head has all required checks.
+3. **Merge only the reviewed integration candidate.** Preserve the original PR #351 branch and history. Do not reintroduce overlapping #351 files that were superseded by merged #352.
+4. **Post-merge verify main.** Rerun CI/E2E, Quality Gate, RB-034 and Vercel against the newly created main SHA. Confirm Prisma migration ordering and that deployment migration execution is still limited to the intended environment. No production database migration or PHI operation is authorized by this code review.
+5. **Reconcile remaining IAM and workflow parity.** Continue the full patient-route × role × tenant × organization × clinic × branch × active/revoked/expired-session matrix (RB-035), partner branch isolation, clinic operational workflows, and role-by-role cabinet acceptance. A route or tab existing is not a completed workflow.
+6. **Continue P0 data-protection work separately.** RB-029 remains P0/OPEN. Require historical PHI inventory, worker drain, key rotation/old-key handling, retention/export/deletion, encrypted derivatives, backup/restore and approved staging reconciliation before any strict cutover. Do not run historical-data writes from this branch review.
+7. **Keep domain classifications honest.** Diagnostic Center, Medical Laboratory, Dental Laboratory, Supplier/Marketplace, Academy/Community and Employer remain partial until their full intake → operation → exception → finance/settlement → audit → mobile acceptance paths are proven. The new AI partner tools are bounded read-only summaries, not complete partner operations.
+8. **Maintain scope boundaries.** `aiEmployeeTaskScope.ts` is a resolver prerequisite only; cross-partner AI Employee task queues are not enabled. Product Knowledge is a local lexical guide lookup; live permissions and live business data must continue to come from server-authorized tools.
+
+### Release decision
+
+**NOT READY.** The source-level code gates passed on `96ef732508d3097ef0466018aa4831b129a4e895`, but Preview is absent for that SHA and several legal, security, staging, provider, financial, mobile and product-completeness blockers remain open. The documentation checkpoint added below is non-code; its new commit still requires fresh exact-head checks.
+
+---
+
 ## 2026-11-24 — PR #352 clinic acceptance continuation
 
 - Added an explicit clinic acceptance step after verified dental-lab delivery. It is bound to the active clinic and branch, the latest persisted shipment proof and the delivery recipient; retries are idempotent per shipment.

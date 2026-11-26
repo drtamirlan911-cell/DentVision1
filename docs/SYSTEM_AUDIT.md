@@ -1,3 +1,32 @@
+## Integration source audit update — 2026-11-26 (PR #352 merged; PR #353 candidate)
+
+- **Audited repository:** `drtamirlan911-cell/DentVision1`.
+- **Main baseline:** `88ac207cefad1ba42e3b272b3e4a868662eb91bb`; PR #352 is merged.
+- **Candidate:** PR [#353](https://github.com/drtamirlan911-cell/DentVision1/pull/353), branch `integrate/jarvis-product-knowledge-20261125`, verified code SHA `96ef732508d3097ef0466018aa4831b129a4e895`, 100 commits ahead / 0 behind main, 126 changed files. Candidate remains OPEN and is not merged. PR #351 remains OPEN/DRAFT and is not a separate merge target because #353 reconciles its non-overlapping changes after #352.
+- **Exact source checks:** CI [45626319064], Quality Gate [45626319150], RB-034 [45626319094] all SUCCESS on `96ef732508d3097ef0466018aa4831b129a4e895`; all CI jobs succeeded. E2E breakdown: Core 262 passed / 5 skipped; Browser UX 4; Mobile Design 16; Role/Context 147 passed / 28 skipped; Visual Agent 48; Business Owner 11; Organization Owner 8; Playwright CLI smoke and Visual Release Gate passed. PR review has 0 unresolved threads.
+- **Preview limitation:** no Vercel deployment exists for `96ef732508d3097ef0466018aa4831b129a4e895`; combined status fails at the build-rate-limit gate. The latest READY deployment in the branch history references older SHA `8133e87f0d5b69de4d1e8104157c7127122dcf31`, so no visual/runtime claim is made for this candidate.
+
+### Source areas reviewed in PR #353
+
+- **Branch isolation:** appointments, analytics, CRM operations, treatment cases, diagnostics, inventory, medical/dental laboratory, patient portal and patient routes now use current server-resolved branch membership and fail-closed scope rules. Default branch selection is not an authorization shortcut; ambiguous or stale selection must deny writes.
+- **Booking and waitlist ownership:** branch columns are additive; backfill is based on persisted patient/appointment/unique-staff relationships only. Ambiguous historical mappings remain NULL instead of being guessed.
+- **Dental lab order ownership:** the migration adds a persisted branch key, backfills only from a linked patient in the same clinic, and enforces active branch / clinic or canonical clinic-organization consistency at write time. Patientless legacy orders are not assigned a guessed historical branch.
+- **AI Product Knowledge:** approved local guide retrieval uses lexical scoring and no external embedding request for user text. Guide content is explicitly reference material, not policy or a permission source; actual capability list and tool calls remain server-controlled.
+- **Model routing:** modality/capability metadata is explicit; image input requires a verified vision-capable model, otherwise the path fails closed. Transcription/provider errors no longer write raw response bodies or raw exceptions to logs.
+- **Partner workspace summaries:** supplier, diagnostic center, dental lab, medical lab, lecturer, student and employer read tools validate the active organization or entity membership and return minimized operational projections. They are read-only and do not close partner workflows, sign results, trigger payments, change stock or alter vacancies.
+- **AI Employee:** the scope resolver is a prerequisite only. The existing ledger remains clinic-only; cross-partner task queues are not enabled until the schema, event, approval, audit and UI contracts are migrated together.
+
+### Findings and release state
+
+- Two former P1 review findings in PR #353 (canonical branch contract test and queued mock cleanup) were already fixed in the candidate source; exact-head CI passed. All review threads are now resolved.
+- **RB-029 remains P0/OPEN** for historical PHI inventory, worker drain, key lifecycle/rotation, retention/export/deletion, encrypted derivatives, backup/restore/rollback and approved staging reconciliation.
+- **RB-031, RB-033 and RB-035 remain OPEN or not fully evidenced** for WebKit/CORS/WebSocket, repository branch-protection proof, and the full patient-route × role × tenant × branch × session negative matrix.
+- D1/D2 staging/restore; legal/EDS and signature evidence; official Kaspi merchant/callback evidence; Android physical-device acceptance; D10 settlement; full diagnostics/medical-lab production integrations; Marketplace/Supplier returns and settlement; Academy/Community; employer lifecycle; public discovery; and true 32-tooth WebGL odontogram remain open or partial.
+- No staging/production database, PHI, secret/key, payment provider, legal signature or production deployment was accessed or modified. Additive migrations ran in isolated CI E2E only.
+- **Release classification: NOT READY.** This audit entry proves source checks for the stated candidate SHA, not preview, staging, provider, legal, mobile or production readiness. The documentation-only commit that adds this checkpoint must receive fresh exact-head checks.
+
+---
+
 ## RB-035 source review update — 2026-11-19
 
 - PR #350 / security/rb035-inactive-branch-access-main-20261119 remains an open candidate based on main da1257fc650f536c76583bdff570906290b92bcd. No merge to main has occurred.
