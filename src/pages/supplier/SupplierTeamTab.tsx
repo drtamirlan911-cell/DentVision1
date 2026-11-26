@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/ds/Card'
 import { Input } from '@/components/ui/ds/Input'
 import { useToast } from '@/components/ui/ds/Toast'
 import { ListSkeleton } from '@/components/ui/ds/Skeleton'
+import { ConfirmModal } from '@/components/ui/ds/Modal'
 
 interface SupplierTeamMember {
   id: string
@@ -59,6 +60,7 @@ export default function SupplierTeamTab({ token, supplierId, organizationId }: S
   const [busyMemberId, setBusyMemberId] = useState<string | null>(null)
   const [busyInvitationId, setBusyInvitationId] = useState<string | null>(null)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
+  const [memberToRemove, setMemberToRemove] = useState<SupplierTeamMember | null>(null)
   const requestGeneration = useRef(0)
 
   const load = useCallback(async () => {
@@ -130,9 +132,7 @@ export default function SupplierTeamTab({ token, supplierId, organizationId }: S
   }
 
   const removeMember = async (member: SupplierTeamMember) => {
-    const memberName = [member.firstName, member.lastName].filter(Boolean).join(' ').trim() || member.email || 'сотрудника'
     if (member.role === 'owner' || busyMemberId) return
-    if (!window.confirm(`Удалить ${memberName} из компании? Доступ к кабинету будет отозван.`)) return
 
     setBusyMemberId(member.id)
     try {
@@ -241,7 +241,7 @@ export default function SupplierTeamTab({ token, supplierId, organizationId }: S
                         className="min-h-10"
                         loading={busyMemberId === member.id}
                         disabled={Boolean(busyMemberId)}
-                        onClick={() => void removeMember(member)}
+                        onClick={() => setMemberToRemove(member)}
                         aria-label="Удалить сотрудника"
                       >
                         <Trash2 size={14} /> Удалить
@@ -298,6 +298,18 @@ export default function SupplierTeamTab({ token, supplierId, organizationId }: S
           )}
         </CardContent>
       </Card>
+      <ConfirmModal
+        open={Boolean(memberToRemove)}
+        onClose={() => setMemberToRemove(null)}
+        onConfirm={() => {
+          if (memberToRemove) void removeMember(memberToRemove)
+          setMemberToRemove(null)
+        }}
+        title="Удалить сотрудника из компании?"
+        message={`${memberToRemove ? [memberToRemove.firstName, memberToRemove.lastName].filter(Boolean).join(' ').trim() || memberToRemove.email || 'Сотрудник' : 'Сотрудник'} потеряет доступ к кабинету поставщика. История заказов и операций сохранится.`}
+        confirmLabel="Да, удалить сотрудника"
+        variant="danger"
+      />
     </div>
   )
 }
