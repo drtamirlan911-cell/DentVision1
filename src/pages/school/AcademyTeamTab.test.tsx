@@ -77,10 +77,10 @@ describe('AcademyTeamTab', () => {
   })
 
   it('removes a lecturer without courses after confirmation', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<AcademyTeamTab organizationId="academy-org-1" />)
     await screen.findByText('Айжан Преподаватель')
     fireEvent.click(screen.getAllByRole('button', { name: 'Удалить преподавателя' })[0])
+    fireEvent.click(await screen.findByRole('button', { name: 'Да, убрать преподавателя' }))
 
     await waitFor(() => expect(removeLecturer).toHaveBeenCalledWith('lecturer-1'))
     expect(screen.queryByText('Айжан Преподаватель')).not.toBeInTheDocument()
