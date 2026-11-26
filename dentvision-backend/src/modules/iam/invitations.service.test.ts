@@ -208,6 +208,26 @@ describe('createInvitation — laboratory role family', () => {
   });
 });
 
+describe('organization partner staff role policy', () => {
+  it('accepts all supported diagnostic center roles but rejects owner escalation and unknown roles', () => {
+    const center = { type: 'DIAGNOSTIC_CENTER', settings: null };
+    expect(isOrganizationMemberRoleAllowed(center, 'diagnostic_reception')).toBe(true);
+    expect(isOrganizationMemberRoleAllowed(center, 'radiology_technician')).toBe(true);
+    expect(isOrganizationMemberRoleAllowed(center, 'diagnostic_finance')).toBe(true);
+    expect(isOrganizationMemberRoleAllowed(center, 'diagnostic_quality')).toBe(true);
+    expect(isOrganizationMemberRoleAllowed(center, 'owner')).toBe(false);
+    expect(isOrganizationMemberRoleAllowed(center, 'SUPERADMIN')).toBe(false);
+  });
+
+  it('keeps medical and dental laboratory roles isolated by the canonical organization settings', () => {
+    expect(isOrganizationMemberRoleAllowed({ type: 'LABORATORY', settings: { laboratoryType: 'MEDICAL_LAB' } }, 'medical_lab_validator')).toBe(true);
+    expect(isOrganizationMemberRoleAllowed({ type: 'LABORATORY', settings: { laboratoryType: 'MEDICAL_LAB' } }, 'dental_technician')).toBe(false);
+    expect(isOrganizationMemberRoleAllowed({ type: 'LABORATORY', settings: { laboratoryType: 'DENTAL_LAB' } }, 'dental_technician')).toBe(true);
+    expect(isOrganizationMemberRoleAllowed({ type: 'LABORATORY', settings: { laboratoryType: 'DENTAL_LAB' } }, 'medical_lab_validator')).toBe(false);
+    expect(isOrganizationMemberRoleAllowed({ type: 'LABORATORY', settings: { laboratoryType: 'DENTAL_LAB' } }, 'dental_lab_owner')).toBe(false);
+  });
+});
+
 describe('supplier invitation role', () => {
   it('allows the supplier manager role but never grants supplier ownership', () => {
     expect(normalizeSupplierInviteRole('manager')).toBe('manager');
