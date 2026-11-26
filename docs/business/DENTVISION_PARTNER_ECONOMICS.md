@@ -508,7 +508,7 @@ This document does not establish legal tax advice, final payment-provider pricin
 
 ### 21.2 Branch-priced partner verticals pay subscription plus commission
 
-- For each branch-priced vertical in Sections 5–7, the applicable active billable branch subscription and the applicable transaction commission are separate, cumulative charges.
+- Both charges apply to each branch-priced vertical in Sections 5–7: the applicable active billable branch subscription is charged monthly, and the applicable transaction commission is earned separately on eligible settled transactions.
 - Diagnostic / 3D centers: **₸49,900 per active billable branch per month plus 7%** on eligible settled transactions, subject to the per-study minimum and cap in Section 5.
 - Medical-analysis laboratories: **₸19,900 per active billable branch per month plus 6%** on eligible settled transactions, subject to the per-analysis minimum and cap in Section 6.
 - Dental laboratories: **₸29,900 per active billable branch per month plus the case commission** under the volume tiers and limits in Section 7.
