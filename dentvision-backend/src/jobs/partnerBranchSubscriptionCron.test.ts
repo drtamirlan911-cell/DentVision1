@@ -158,8 +158,9 @@ describe('partner branch subscription monthly invoice cron', () => {
     expect(notifyMany).toHaveBeenCalledTimes(1);
   });
 
-  it('does not schedule partner branch subscription invoices under the CRM-only SaaS model', () => {
+  it('schedules partner branch subscription invoices with the backend billing jobs', () => {
     const bootstrap = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/index.ts'), 'utf8');
-    expect(bootstrap).not.toContain("startPartnerBranchSubscriptionCronInterval");
+    expect(bootstrap).toContain("import { startPartnerBranchSubscriptionCronInterval } from './jobs/partnerBranchSubscriptionCron.js';");
+    expect(bootstrap).toContain('startPartnerBranchSubscriptionCronInterval();');
   });
 });
