@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { STATUS_META, normalizeTooth, type PatientTeeth } from '@/lib/odontogram';
 import { getToothMorphology } from './toothMorphology';
 
@@ -374,7 +374,7 @@ export function OdontogramWebGL({
     };
   }, [upperTeeth, lowerTeeth, patientTeeth, selectedTooth]);
 
-  const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleCanvasClick = (event: MouseEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     const x = ((event.clientX - rect.left) / rect.width) * 16.9 - 8.45;
