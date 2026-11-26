@@ -119,9 +119,18 @@ supplierWorkspaceRouter.delete('/team/:memberId', requireSupplierOwner, async (r
       if (removed.count !== 1) {
         throw Object.assign(new Error('Состав команды изменился. Обновите список сотрудников.'), { status: 409 });
       }
-      await tx.person.deleteMany({
+      const person = await tx.person.findFirst({
         where: { originalType: 'SupplierMember', originalId: target.id },
+        select: { id: true },
       });
+      if (person) {
+        await tx.branchMember.deleteMany({ where: { personId: person.id } });
+        await tx.personRole.deleteMany({
+          where: { personId: person.id, scopeType: 'organization', scopeId: req.user!.organizationId },
+        });
+      }
+      // Keep the Person identity so old orders, invoices and audit references
+      // remain attributable after the user's supplier access is revoked.
       await writeAuditLog({
         userId: req.user!.id,
         action: 'supplier.member_removed',
