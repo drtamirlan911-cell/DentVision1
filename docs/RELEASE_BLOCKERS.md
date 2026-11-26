@@ -1,4 +1,15 @@
-## Current release checkpoint — 2026-11-26 (PR #352 merged; PR #353 integration candidate)
+## Current release checkpoint — 2026-11-27 (PR #353 integration candidate)
+
+- **Current candidate:** PR #353, branch `integrate/jarvis-product-knowledge-20261125`, audited code SHA before these documentation updates: `0d462bdcae88516540f0e35bf38f976726dae466`. PR is OPEN / not merged; 117 commits and 142 changed files.
+- **Exact-head checks on that code SHA:** Quality Gate SUCCESS; RB-034 SUCCESS; CI IN PROGRESS; Vercel status SUCCESS. The subsequent policy/documentation corrections change the head and require fresh exact-head CI, Quality Gate, RB-034 and Preview verification.
+- **Commercial policy:** partner branch subscriptions plus transaction commissions are active for Diagnostic / 3D centers, Medical Analysis laboratories and Dental laboratories. Clinic CRM SaaS is separate. The withdrawn 2026-11-26 commission-only amendment is not active policy.
+- **Release blockers remain open:** RB-029 P0 historical PHI lifecycle and backup/restore; RB-031 WebKit/CORS/WebSocket; RB-033 branch-protection evidence; RB-035 full patient/clinical/billing route × role × tenant × branch × session matrix; D1/D2 staging and restore; Kazakhstan legal / EDS; official Kaspi provider evidence; physical Android acceptance; diagnostics/PACS/DICOM and LIS; Dental Lab D10 settlement; Marketplace/Supplier returns and settlement; Academy/Community; employer lifecycle; public discovery; and true 32-tooth WebGL odontogram.
+- **Environment boundary:** no production/staging database, PHI, secret/key, payment provider, legal signature or production deployment was accessed or modified in this audit.
+- **Release remains NOT READY.** Passing source checks do not establish production, legal, provider, mobile or operational readiness.
+
+---
+
+## Historical release checkpoint — 2026-11-26 (superseded by 2026-11-27 policy / source audit)
 
 - **Current main:** `88ac207cefad1ba42e3b272b3e4a868662eb91bb`; PR #352 is merged.
 - **Current candidate:** PR [#353](https://github.com/drtamirlan911-cell/DentVision1/pull/353), branch `integrate/jarvis-product-knowledge-20261125`, verified code SHA `96ef732508d3097ef0466018aa4831b129a4e895`. It is 100 commits ahead / 0 behind main, 126 changed files, OPEN / not merged. PR #351 remains OPEN/DRAFT; do not merge its older overlapping branch independently.
@@ -995,11 +1006,19 @@ ACADEMY-010/011 are not resolved: core E2E on ce6347e4 had 259 passed, 5 skipped
 - Partner branch monthly invoicing/QR/payment initiation/settlement is present, not automatic recurring debit. Partner verticals remain PARTIAL; paid-entitlement enforcement across all APIs, dunning, proration, refunds/credit notes, tax/EDS, bank reconciliation and live Kaspi acceptance remain OPEN.
 
 
-## 2026-11-26 — Superseding partner monetization decision (PR #353)
 
-The former partner branch-subscription work recorded in the 2026-11-23 sections below is retained as historical implementation evidence only. It is **not an active commercial requirement** and must not be enabled for new invoices or payments.
+## 2026-11-27 — Reaffirmed partner branch monetization policy (PR #353)
 
-- Canonical commercial authority is now `docs/business/DENTVISION_PARTNER_ECONOMICS.md` v1.3: clinic CRM is the only recurring SaaS product; partner organizations have no access or per-branch subscription; DentVision earns disclosed commission only on eligible transactions after successful settlement.
-- PR #353 commit `6b7dbac73740112fc05bc679c5295be494f521fc` removes partner branch-subscription cron startup, returns HTTP 410 / `PARTNER_SUBSCRIPTION_DISABLED` for new partner branch invoices, removes the partner branch subscription payment UI from diagnostic/laboratory workspaces and adds regression guards.
-- Existing invoices, payments, subscriptions and historical revenue remain immutable for audit. Do not delete, reprice, refund or close them automatically. Outstanding legacy balances require a separately approved accounting/legal reconciliation.
-- This commercial-policy conflict is resolved in source intent, but release verification remains pending until exact-head CI, Quality Gate, RB-034, Preview and accounting/legal review complete. Partner cabinets remain PARTIAL for their operational, settlement, payout, external-integration and mobile acceptance gates.
+The 2026-11-26 CRM-only / commission-only amendment was an incorrect interpretation and is withdrawn. The active authority is the corrected v1.3 of `docs/business/DENTVISION_PARTNER_ECONOMICS.md`.
+
+- Clinic CRM SaaS remains a distinct recurring subscription.
+- Diagnostic / 3D centers pay **₸49,900 per active billable branch / month plus 7%** on eligible settled transactions.
+- Medical-analysis laboratories pay **₸19,900 per active billable branch / month plus 6%** on eligible settled transactions.
+- Dental laboratories pay **₸29,900 per active billable branch / month plus the case commission** defined by the active volume tiers.
+- Marketplace sellers, academies / lecturers, employers and other partner types follow their separately defined economics. Do not invent a branch tariff for a vertical without one.
+- PR #353 restores partner branch-subscription invoice issuance, the monthly invoicing cron and in-app finance notifications, the partner Finance UI and Platform Finance visibility. Monthly invoicing is not an automatic recurring debit.
+- Branch subscriptions and transaction commissions are separate revenue streams. Commission is earned only on successful settlement; refunds and chargebacks use compensating ledger events.
+- Existing invoices, payments, subscription rows and revenue entries remain immutable. No automatic legacy re-pricing, deletion, refund or balance closure is authorized.
+- Partner verticals remain PARTIAL until paid-entitlement enforcement, dunning / recovery, proration / credits, refunds / credit notes, VAT / EDS, bank reconciliation, official Kaspi acceptance, payout and full operational lifecycle evidence are complete.
+
+**Release remains NOT READY.** This correction fixes commercial-policy alignment; it does not close staging, privacy, legal, provider, mobile, RB-029, RB-031, RB-033, RB-035 or product-completeness blockers.
