@@ -478,6 +478,8 @@ export async function getAcademyHub(): Promise<any> { return apiRequest('/api/sc
 export async function getSchoolCourses(params: Record<string, string> = {}): Promise<any> { const q = new URLSearchParams(); Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); }); const qs = q.toString(); return collection(await apiRequest(`/api/school/courses${qs ? `?${qs}` : ''}`)); }
 export async function getManagedSchoolCourses(): Promise<any> { return collection(await apiRequest('/api/school/courses/managed')); }
 export async function getManagedSchoolEnrollments(): Promise<any> { return collection(await apiRequest('/api/school/enrollments/managed')); }
+export async function getManagedSchoolLecturers(): Promise<any> { return collection(await apiRequest('/api/school/lecturers/managed')); }
+export async function removeManagedSchoolLecturer(id: string): Promise<any> { return apiRequest(`/api/school/lecturers/managed/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
 export async function updateSchoolCoursePublication(id: string, publicationStatus: 'draft' | 'published' | 'archived'): Promise<any> {
   return apiRequest(`/api/school/courses/${id}/publication`, {
     method: 'PATCH',
