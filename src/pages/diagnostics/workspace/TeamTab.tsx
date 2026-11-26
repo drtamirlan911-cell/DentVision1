@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Copy, Mail, UserPlus, Users } from 'lucide-react'
+import { Check, Copy, Mail, UserPlus, Users, Trash2, ShieldCheck } from 'lucide-react'
 
 import { Card } from '@/components/ui/ds/Card'
 import { Button } from '@/components/ui/ds/Button'
@@ -26,8 +26,12 @@ import type { TabProps } from './types'
 /** The diagnostics member vocabulary. `owner` is deliberately not invitable. */
 const ROLES = [
   { value: 'operator', label: 'Оператор' },
+  { value: 'diagnostic_reception', label: 'Регистратура' },
+  { value: 'radiology_technician', label: 'Рентген-лаборант' },
   { value: 'radiologist', label: 'Рентгенолог' },
-  { value: 'manager', label: 'Менеджер' },
+  { value: 'diagnostic_quality', label: 'Контроль качества' },
+  { value: 'diagnostic_finance', label: 'Финансы' },
+  { value: 'manager', label: 'Управляющий' },
   { value: 'admin', label: 'Администратор' },
 ]
 
@@ -188,6 +192,38 @@ export function TeamTab({ config, orgId }: TabProps) {
     onError: (e: any) => toast.error(e?.message || 'Не удалось создать код'),
   })
 
+  const updateRoleMutation = useMutation({
+    mutationFn: ({ userId, nextRole }: { userId: string; nextRole: string }) =>
+      api.updateOrganizationMemberRole(userId, nextRole),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['diagnostics', 'center-worklist-staff', orgId] })
+      queryClient.invalidateQueries({ queryKey: ['dental-lab', 'team', orgId] })
+      queryClient.invalidateQueries({ queryKey: ['medical-lab', 'team', orgId] })
+      toast.success('Роль сотрудника обновлена')
+    },
+    onError: (e: any) => toast.error(e?.message || 'Не удалось изменить роль сотрудника'),
+  })
+
+  const removeMemberMutation = useMutation({
+    mutationFn: (userId: string) => api.removeOrganizationMember(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['diagnostics', 'center-worklist-staff', orgId] })
+      queryClient.invalidateQueries({ queryKey: ['dental-lab', 'team', orgId] })
+      queryClient.invalidateQueries({ queryKey: ['medical-lab', 'team', orgId] })
+      toast.success('Сотрудник удалён из организации')
+    },
+    onError: (e: any) => toast.error(e?.message || 'Не удалось удалить сотрудника'),
+  })
+
+  const revokeInvitationMutation = useMutation({
+    mutationFn: (invitationId: string) => api.revokeOrganizationInvitation(invitationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['iam', 'invitations', orgId] })
+      toast.success('Приглашение отозвано')
+    },
+    onError: (e: any) => toast.error(e?.message || 'Не удалось отозвать приглашение'),
+  })
+
   const copy = async (code: string) => {
     try {
       await navigator.clipboard.writeText(code)
@@ -265,6 +301,46 @@ export function TeamTab({ config, orgId }: TabProps) {
                     <p className="text-xs text-txt-muted">{member.email}</p>
                   </div>
                   <Badge variant="outline">{ROLE_LABELS[member.role] || member.role}</Badge>
+                  {canManageInvitations && member.role !== 'owner' && (
+                    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                      <label className="sr-only" htmlFor={`staff-role-${member.userId}`}>Роль сотрудника {member.firstName} {member.lastName}</label>
+                      <select
+                        id={`staff-role-${member.userId}`}
+                        value={inviteRoleOptions.some((option) => option.value === String(member.role).toLowerCase()) ? String(member.role).toLowerCase() : ''}
+                        onChange={(event) => {
+                          const nextRole = event.target.value
+                          if (nextRole && nextRole !== String(member.role).toLowerCase()) {
+                            updateRoleMutation.mutate({ userId: member.userId, nextRole })
+                          }
+                        }}
+                        disabled={updateRoleMutation.isPending || removeMemberMutation.isPending}
+                        className="min-h-10 min-w-0 flex-1 rounded-lg border border-bdr-subtle bg-surface-1 px-3 py-2 text-xs text-txt-primary sm:flex-none"
+                      >
+                        {!inviteRoleOptions.some((option) => option.value === String(member.role).toLowerCase()) && (
+                          <option value="" disabled>{ROLE_LABELS[member.role] || member.role}</option>
+                        )}
+                        {inviteRoleOptions.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                      <Button
+                        size="xs"
+                        variant="danger"
+                        className="min-h-10"
+                        loading={removeMemberMutation.isPending}
+                        disabled={removeMemberMutation.isPending || updateRoleMutation.isPending}
+                        onClick={() => {
+                          const name = `${member.firstName || ''} ${member.lastName || ''}`.trim() || member.email || 'сотрудника'
+                          if (window.confirm(`Удалить ${name} из организации? Доступ к кабинету будет отозван.`)) {
+                            removeMemberMutation.mutate(member.userId)
+                          }
+                        }}
+                        aria-label={`Удалить сотрудника ${member.firstName} ${member.lastName}`}
+                      >
+                        <Trash2 size={14} /> Удалить
+                      </Button>
+                    </div>
+                  )}
                   {canManageBranches && (
                     <div className="w-full space-y-2 rounded-lg bg-surface-1 p-3 sm:max-w-[420px]">
                       <p className="text-xs font-medium text-txt-secondary">Доступ к филиалам</p>
@@ -368,6 +444,17 @@ export function TeamTab({ config, orgId }: TabProps) {
                   onClick={() => copy(inv.code)}
                 >
                   {copied === inv.code ? <><Check size={14} /> Скопировано</> : <><Copy size={14} /> Копировать</>}
+                </Button>
+                <Button
+                  size="xs"
+                  variant="danger"
+                  className="min-h-11"
+                  loading={revokeInvitationMutation.isPending}
+                  disabled={revokeInvitationMutation.isPending}
+                  onClick={() => revokeInvitationMutation.mutate(inv.id)}
+                  aria-label={`Отозвать приглашение ${inv.code}`}
+                >
+                  <Trash2 size={14} /> Отозвать
                 </Button>
               </li>
             ))}
