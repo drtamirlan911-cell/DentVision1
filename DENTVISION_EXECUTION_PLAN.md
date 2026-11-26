@@ -1,6 +1,9 @@
 ## 2026-11-27 — Corrected partner monetization and PR #353 checkpoint
 
-- Audited code head before the documentation corrections: PR #353, branch `integrate/jarvis-product-knowledge-20261125`, SHA `0d462bdcae88516540f0e35bf38f976726dae466`; 117 commits / 142 changed files, PR open and not merged.
+- Candidate snapshot before this execution-plan update: PR #353, branch `integrate/jarvis-product-knowledge-20261125`, code SHA `e1e8c7bb6d51c96748c91e19be815b3e757e0516`; PR open and not merged. New document commits require fresh exact-head checks.
+- **WebGL odontogram implementation added:** procedural 3D tooth meshes with morphology-driven root counts, permanent/primary FDI arch mapping, current patient statuses and existing tooth-selection/status handler; 2D clinical chart remains available. Regression tests cover single/double/triple-root meshes, 32 permanent / 20 primary FDI positions and the no-WebGL keyboard-accessible fallback.
+- **Odontogram component-size gate:** reusable status swatches and chart buttons extracted; `src/components/Odontogram3D.tsx` reduced below the 800-line release-gate ceiling.
+- **WebGL odontogram is not yet a closed release blocker:** exact-head CI / Quality Gate, visual browser review, tooth-by-tooth clinical morphology, treatment-surface parity, mobile performance and clinical sign-off remain required.
 - Active business policy: clinic CRM SaaS is a separate revenue stream. Diagnostic / 3D centers, medical-analysis laboratories and dental laboratories each pay the defined monthly active-branch subscription **plus** the applicable settlement-based transaction commission.
 - Active branch prices: Diagnostic Center ₸49,900 / active billable branch / month; Medical Laboratory ₸19,900; Dental Laboratory ₸29,900. Transaction commission rates, caps, minimums and volume tiers remain those in Sections 5–7 of `docs/business/DENTVISION_PARTNER_ECONOMICS.md`.
 - PR #353 restores partner subscription invoice issuance, the monthly invoice cron and notifications, and subscription billing UI in diagnostic / laboratory Finance workspaces. The cron issues invoices; it does not itself debit a payment method.
