@@ -883,7 +883,9 @@ iamRouter.delete('/members/:userId', async (req: AuthRequest, res) => {
         await tx.personRole.deleteMany({
           where: { personId: person.id, scopeType: 'organization', scopeId: organization.id },
         });
-        await tx.person.deleteMany({ where: { id: person.id } });
+        // Keep the Person identity for historical work-item references and audit
+        // history. Removing the scoped role + active branch memberships revokes
+        // workspace access without erasing the employee's historical identity.
       }
 
       await auditFromReq(req, {
