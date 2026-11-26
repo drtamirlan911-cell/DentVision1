@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Copy, Mail, UserPlus, Users, Trash2, ShieldCheck } from 'lucide-react'
+import { Check, Copy, Mail, UserPlus, Users, Trash2 } from 'lucide-react'
 
 import { Card } from '@/components/ui/ds/Card'
 import { Button } from '@/components/ui/ds/Button'
@@ -58,9 +58,20 @@ const DENTAL_LAB_ROLES = [
   { value: 'lab_finance', label: 'Финансы' },
 ] as const
 
-const ROLE_LABELS: Record<string, string> = Object.fromEntries(
-  [...ROLES, ...MEDICAL_LAB_ROLES, ...DENTAL_LAB_ROLES].map((r) => [r.value, r.label]),
-)
+const ROLE_LABELS: Record<string, string> = {
+  ...Object.fromEntries([...ROLES, ...MEDICAL_LAB_ROLES, ...DENTAL_LAB_ROLES].map((r) => [r.value, r.label])),
+  owner: 'Владелец',
+  admin: 'Администратор',
+  manager: 'Управляющий',
+}
+
+function roleOptionForMember(role: string, isDiagnosticCenter: boolean, isDentalLab: boolean): string {
+  const normalized = String(role || '').toLowerCase()
+  if (isDiagnosticCenter) return normalized
+  if (normalized === 'admin') return isDentalLab ? 'dental_lab_admin' : 'medical_lab_admin'
+  if (normalized === 'manager' && isDentalLab) return 'dental_lab_manager'
+  return normalized
+}
 
 export function TeamTab({ config, orgId }: TabProps) {
   const toast = useToast()
@@ -68,6 +79,7 @@ export function TeamTab({ config, orgId }: TabProps) {
   const iam = useIam()
   const canManageBranches = iam.hasPermission('staff.write') || iam.hasPermission('staff.manage')
   const canManageInvitations = canManageBranches
+  const canManageStaffRoles = iam.hasPermission('staff.manage')
   const [role, setRole] = useState('operator')
   const [email, setEmail] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
@@ -303,42 +315,45 @@ export function TeamTab({ config, orgId }: TabProps) {
                   <Badge variant="outline">{ROLE_LABELS[member.role] || member.role}</Badge>
                   {canManageInvitations && member.role !== 'owner' && (
                     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-                      <label className="sr-only" htmlFor={`staff-role-${member.userId}`}>Роль сотрудника {member.firstName} {member.lastName}</label>
-                      <select
-                        id={`staff-role-${member.userId}`}
-                        value={inviteRoleOptions.some((option) => option.value === String(member.role).toLowerCase()) ? String(member.role).toLowerCase() : ''}
-                        onChange={(event) => {
-                          const nextRole = event.target.value
-                          if (nextRole && nextRole !== String(member.role).toLowerCase()) {
-                            updateRoleMutation.mutate({ userId: member.userId, nextRole })
-                          }
-                        }}
-                        disabled={updateRoleMutation.isPending || removeMemberMutation.isPending}
-                        className="min-h-10 min-w-0 flex-1 rounded-lg border border-bdr-subtle bg-surface-1 px-3 py-2 text-xs text-txt-primary sm:flex-none"
-                      >
-                        {!inviteRoleOptions.some((option) => option.value === String(member.role).toLowerCase()) && (
-                          <option value="" disabled>{ROLE_LABELS[member.role] || member.role}</option>
-                        )}
-                        {inviteRoleOptions.map((option) => (
-                          <option key={option.value} value={option.value}>{option.label}</option>
-                        ))}
-                      </select>
-                      <Button
-                        size="xs"
-                        variant="danger"
-                        className="min-h-10"
-                        loading={removeMemberMutation.isPending}
-                        disabled={removeMemberMutation.isPending || updateRoleMutation.isPending}
-                        onClick={() => {
-                          const name = `${member.firstName || ''} ${member.lastName || ''}`.trim() || member.email || 'сотрудника'
-                          if (window.confirm(`Удалить ${name} из организации? Доступ к кабинету будет отозван.`)) {
-                            removeMemberMutation.mutate(member.userId)
-                          }
-                        }}
-                        aria-label={`Удалить сотрудника ${member.firstName} ${member.lastName}`}
-                      >
-                        <Trash2 size={14} /> Удалить
-                      </Button>
+                      {canManageStaffRoles && (
+                        <>
+                          <label className="sr-only" htmlFor={`staff-role-${member.userId}`}>Роль сотрудника {member.firstName} {member.lastName}</label>
+                          <select
+                            id={`staff-role-${member.userId}`}
+                            value={roleOptionForMember(member.role, isDiagnosticCenter, isDentalLab)}
+                            onChange={(event) => {
+                              const nextRole = event.target.value
+                              if (nextRole && nextRole !== roleOptionForMember(member.role, isDiagnosticCenter, isDentalLab)) {
+                                updateRoleMutation.mutate({ userId: member.userId, nextRole })
+                              }
+                            }}
+                            disabled={updateRoleMutation.isPending || removeMemberMutation.isPending}
+                            className="min-h-10 min-w-0 flex-1 rounded-lg border border-bdr-subtle bg-surface-1 px-3 py-2 text-xs text-txt-primary sm:flex-none"
+                          >
+                            {inviteRoleOptions.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                        </>
+                      )}
+                      {(canManageStaffRoles || String(member.role).toLowerCase() !== 'admin') && (
+                        <Button
+                          size="xs"
+                          variant="danger"
+                          className="min-h-10"
+                          loading={removeMemberMutation.isPending}
+                          disabled={removeMemberMutation.isPending || updateRoleMutation.isPending}
+                          onClick={() => {
+                            const name = `${member.firstName || ''} ${member.lastName || ''}`.trim() || member.email || 'сотрудника'
+                            if (window.confirm(`Удалить ${name} из организации? Доступ к кабинету будет отозван.`)) {
+                              removeMemberMutation.mutate(member.userId)
+                            }
+                          }}
+                          aria-label={`Удалить сотрудника ${member.firstName} ${member.lastName}`}
+                        >
+                          <Trash2 size={14} /> Удалить
+                        </Button>
+                      )}
                     </div>
                   )}
                   {canManageBranches && (
