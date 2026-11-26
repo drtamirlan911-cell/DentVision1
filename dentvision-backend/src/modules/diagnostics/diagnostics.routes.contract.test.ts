@@ -249,7 +249,7 @@ describe('diagnostics route contract', () => {
     const route = source.slice(start, end);
     expect(route).toContain("sameOrgContext(req.user, 'DiagnosticCenter', centerId)");
     expect(route).toContain('canManageDiagnosticCenterTeam(req.user)');
-    expect(route).toContain("role: { in: ['operator', 'radiologist', 'manager', 'admin'] }");
+    expect(route).toContain("role: { in: ['owner', 'operator', 'radiologist', 'manager', 'admin', 'diagnostic_reception', 'radiology_technician', 'diagnostic_finance', 'diagnostic_quality'] }");
     expect(route).toContain('firstName: member.user.firstName');
     expect(route).toContain('lastName: member.user.lastName');
   });
