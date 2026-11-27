@@ -203,6 +203,12 @@ describe('role-aware workspace navigation', () => {
     expect(items.some((entry) => ['results', 'calendar', 'settings'].includes(entry.id))).toBe(false)
   })
 
+  it('does not expose the diagnostic cashier to an admin with billing read but no billing manage', () => {
+    const items = getWorkspaceNavigationGroups('DIAGNOSTIC_CENTER', 'diagnostic_admin').flatMap((entry) => entry.items)
+    expect(items.some((entry) => entry.id === 'cashier')).toBe(false)
+    expect(items.some((entry) => entry.id === 'settings')).toBe(true)
+  })
+
   it('directs diagnostic quality staff to results and analytics, not reception tasks', () => {
     const items = getWorkspaceNavigationGroups('DIAGNOSTIC_CENTER', 'diagnostic_quality').flatMap((entry) => entry.items)
     expect(items.map((entry) => entry.id)).toEqual(['results', 'analytics'])
