@@ -191,6 +191,11 @@ function AcademyManagement() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [query, setQuery] = useState('');
+  useEffect(() => {
+    setTab(requestedTab);
+    setQuery('');
+  }, [requestedTab]);
+
   const [formOpen, setFormOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<AcademyCourse | null>(null);
   const [form, setForm] = useState<CourseForm>({ ...EMPTY_FORM });
