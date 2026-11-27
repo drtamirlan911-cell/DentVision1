@@ -141,6 +141,17 @@ describe('role-aware workspace navigation', () => {
     expect(items.map((entry) => entry.id)).toEqual(['finance'])
   })
 
+  it('shows read-only finance to medical-lab reception because the role grants finance.read', () => {
+    const items = getWorkspaceNavigationGroups('LABORATORY', 'medical_lab_reception').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toEqual(['orders', 'finance'])
+  })
+
+  it('shows read-only settlements to diagnostic-centre reception with finance.read', () => {
+    const items = getWorkspaceNavigationGroups('DIAGNOSTIC_CENTER', 'diagnostic_reception').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toContain('finance')
+    expect(items.map((entry) => entry.id)).toContain('queue')
+  })
+
   it('keeps medical-lab operations and finance separate by employee role', () => {
     const technician = getWorkspaceNavigationGroups('LABORATORY', 'medical_lab_technician').flatMap((entry) => entry.items)
     const finance = getWorkspaceNavigationGroups('LABORATORY', 'medical_lab_finance').flatMap((entry) => entry.items)
