@@ -62,6 +62,19 @@ describe('role-aware workspace navigation', () => {
     expect(owner.some((entry) => entry.id === 'finance')).toBe(true)
   })
 
+  it('gives a diagnostic finance employee direct access to settlements without operational clutter', () => {
+    const items = getWorkspaceNavigationGroups('DIAGNOSTIC_CENTER', 'diagnostic_finance').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toEqual(['finance'])
+    expect(items[0].path).toBe('/diagnostics/center?tab=finance')
+  })
+
+  it('shows operational work and finance to a diagnostic-centre owner', () => {
+    const items = getWorkspaceNavigationGroups('DIAGNOSTIC_CENTER', 'diagnostic_owner').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toEqual(expect.arrayContaining([
+      'today', 'queue', 'referrals', 'results', 'calendar', 'analytics', 'settings', 'finance', 'cashier',
+    ]))
+  })
+
   it('exposes production, management, shipping and finance sections to a dental-lab manager', () => {
     const items = getWorkspaceNavigationGroups('LABORATORY', 'dental_lab_manager').flatMap((entry) => entry.items)
     expect(items.map((entry) => entry.id)).toEqual(expect.arrayContaining([
