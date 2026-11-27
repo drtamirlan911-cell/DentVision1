@@ -13,6 +13,7 @@ import { useAuth } from '@/store/auth.store';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
 import { PartnerBranchSubscriptionBilling } from '@/components/billing/PartnerBranchSubscriptionBilling';
 import { WorkspaceRoleStart } from '@/components/workspaces/WorkspaceRoleStart';
+import { resolveWorkspaceTab } from '@/lib/workspaceNavigation';
 import { createMedicalLabAliquot, createMedicalLabOrder, createMedicalLabSpecimen, getMedicalLabCapabilities, getMedicalLabFinance, getMedicalLabOrder, listMedicalLabOrders, performMedicalLabQualityControl, requestMedicalLabPayout, saveMedicalLabInterpretation, saveMedicalLabResults, scanMedicalLabSpecimen, updateMedicalLabStatus, verifyMedicalLabOrder, type MedicalLabOrder, type MedicalLabStatus } from '@/utils/medicalLabApi';
 
 const STAGES: Array<{ id: MedicalLabStatus; label: string }> = [
@@ -43,8 +44,6 @@ export default function MedicalLabWorkspace() {
   const isLaboratoryWorkspace = activeScopeType === 'LABORATORY';
   const medicalLabRoleTokens = String(activeWorkspace?.roleKey || activeWorkspace?.role || user?.effectiveRole || user?.role || '')
     .toLowerCase().split(',').map((value) => value.trim()).filter(Boolean);
-  const isFinanceOnlyRole = medicalLabRoleTokens.some((value) => value.includes('finance') || value === 'accountant')
-    && !medicalLabRoleTokens.some((value) => /(?:^|_)(owner|admin|manager|director|reception|technician|validator|doctor|quality)$/.test(value));
   const queryClient = useQueryClient();
   const billingOrganizationId = String(activeWorkspace?.organizationId || user?.organizationId || context.organizationId || '');
   const workspaceCacheScope = JSON.stringify([billingOrganizationId, String(activeWorkspace?.scopeId || ''), String(context.branchId || '')]);
@@ -56,6 +55,9 @@ export default function MedicalLabWorkspace() {
   const medicalLabCapabilities = capabilitiesQuery.data?.capabilities ?? [];
   const canReadFinance = medicalLabCapabilities.includes('finance.read');
   const canManageFinance = medicalLabCapabilities.includes('finance.manage');
+  const canReadOperations = medicalLabCapabilities.some((capability) =>
+    ['specimen.collect', 'specimen.receive', 'order.process', 'order.cancel', 'result.write', 'result.verify', 'result.interpret', 'quality.perform'].includes(capability),
+  );
   const financeQuery = useQuery({
     queryKey: ['medical-lab-finance', workspaceCacheScope],
     queryFn: getMedicalLabFinance,
@@ -64,7 +66,7 @@ export default function MedicalLabWorkspace() {
   const [payoutAmount, setPayoutAmount] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeSection, setActiveSection] = useState<'operations' | 'finance'>(() =>
-    searchParams.get('tab') === 'finance' || isFinanceOnlyRole ? 'finance' : 'operations',
+    searchParams.get('tab') === 'finance' || (!canReadOperations && canReadFinance) ? 'finance' : 'operations',
   );
   const selectSection = (section: 'operations' | 'finance') => {
     setActiveSection(section);
@@ -74,14 +76,23 @@ export default function MedicalLabWorkspace() {
     setSearchParams(next, { replace: true });
   };
   useEffect(() => {
-    if (searchParams.get('tab') === 'finance' && canReadFinance) {
-      setActiveSection('finance');
-    } else if (isFinanceOnlyRole && canReadFinance) {
-      setActiveSection('finance');
-    } else if (searchParams.get('tab') !== 'finance') {
-      setActiveSection('operations');
+    const availableSections = [
+      ...(canReadOperations ? ['operations'] : []),
+      ...(canReadFinance ? ['finance'] : []),
+    ];
+    const fallbackSection = canReadOperations ? 'operations' : canReadFinance ? 'finance' : 'operations';
+    const requestedSection = searchParams.get('tab') === 'finance' ? 'finance' : null;
+    const nextSection = resolveWorkspaceTab(requestedSection, availableSections, fallbackSection) as 'operations' | 'finance';
+    setActiveSection(nextSection);
+
+    const expectedTab = nextSection === 'finance' ? 'finance' : null;
+    if (searchParams.get('tab') !== expectedTab) {
+      const nextParams = new URLSearchParams(searchParams);
+      if (expectedTab) nextParams.set('tab', expectedTab);
+      else nextParams.delete('tab');
+      setSearchParams(nextParams, { replace: true });
     }
-  }, [workspaceCacheScope, searchParams, isFinanceOnlyRole, canReadFinance]);
+  }, [workspaceCacheScope, searchParams, canReadOperations, canReadFinance, setSearchParams]);
   const payoutAmountMinor = parsePayoutAmountMinor(payoutAmount);
   const payoutMutation = useMutation({
     mutationFn: () => requestMedicalLabPayout(payoutAmount.trim()),
@@ -110,8 +121,8 @@ export default function MedicalLabWorkspace() {
     setPayoutAmount('');
   }, [workspaceCacheScope]);
   const [creating, setCreating] = useState(false);
-  const listQuery = useQuery({ queryKey: ['medical-lab-orders', workspaceCacheScope, context.patientId, context.caseId], queryFn: () => listMedicalLabOrders({ patientId: context.patientId || undefined, caseId: context.caseId || undefined }), enabled: isLaboratoryWorkspace });
-  const detailQuery = useQuery({ queryKey: ['medical-lab-order', workspaceCacheScope, selectedId], queryFn: () => getMedicalLabOrder(selectedId!), enabled: isLaboratoryWorkspace && !!selectedId });
+  const listQuery = useQuery({ queryKey: ['medical-lab-orders', workspaceCacheScope, context.patientId, context.caseId], queryFn: () => listMedicalLabOrders({ patientId: context.patientId || undefined, caseId: context.caseId || undefined }), enabled: isLaboratoryWorkspace && canReadOperations });
+  const detailQuery = useQuery({ queryKey: ['medical-lab-order', workspaceCacheScope, selectedId], queryFn: () => getMedicalLabOrder(selectedId!), enabled: isLaboratoryWorkspace && canReadOperations && !!selectedId });
   const refresh = () => { queryClient.invalidateQueries({ queryKey: ['medical-lab-orders', workspaceCacheScope] }); if (selectedId) queryClient.invalidateQueries({ queryKey: ['medical-lab-order', workspaceCacheScope, selectedId] }); };
   const statusMutation = useMutation({ mutationFn: ({ id, status }: { id: string; status: MedicalLabStatus }) => updateMedicalLabStatus(id, status), onSuccess: refresh });
   const verifyMutation = useMutation({ mutationFn: (id: string) => verifyMedicalLabOrder(id), onSuccess: refresh });
@@ -197,17 +208,21 @@ export default function MedicalLabWorkspace() {
           onAction={() => selectSection(isFinanceRole && canReadFinance ? 'finance' : 'operations')}
         />
       )}
-      {isLaboratoryWorkspace && canReadFinance && (
+      {isLaboratoryWorkspace && (canReadOperations || canReadFinance) && (
         <div role="group" aria-label="Разделы медицинской лаборатории" className="flex flex-wrap gap-2 border-b border-bdr-subtle pb-3">
-          <Button id="medical-lab-operations-tab" aria-pressed={activeSection === 'operations'} variant={activeSection === 'operations' ? 'primary' : 'secondary'} size="sm" onClick={() => selectSection('operations')}>
-            Операции и образцы
-          </Button>
-          <Button id="medical-lab-finance-tab" aria-pressed={activeSection === 'finance'} variant={activeSection === 'finance' ? 'primary' : 'secondary'} size="sm" onClick={() => selectSection('finance')}>
-            Финансы
-          </Button>
+          {canReadOperations && (
+            <Button id="medical-lab-operations-tab" aria-pressed={activeSection === 'operations'} variant={activeSection === 'operations' ? 'primary' : 'secondary'} size="sm" onClick={() => selectSection('operations')}>
+              Операции и образцы
+            </Button>
+          )}
+          {canReadFinance && (
+            <Button id="medical-lab-finance-tab" aria-pressed={activeSection === 'finance'} variant={activeSection === 'finance' ? 'primary' : 'secondary'} size="sm" onClick={() => selectSection('finance')}>
+              Финансы
+            </Button>
+          )}
         </div>
       )}
-      {(!isLaboratoryWorkspace || !canReadFinance || activeSection === 'operations') && (
+      {(!isLaboratoryWorkspace || (canReadOperations && activeSection === 'operations')) && (
         <section id="medical-lab-operations-panel" aria-labelledby="medical-lab-operations-tab" tabIndex={0} className="space-y-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
         {[['ordered', 'Направлено', Activity], ['sample_collected', 'Материал', TestTube2], ['processing', 'В работе', FlaskConical], ['result_ready', 'Результаты', Clock3], ['verified', 'Проверено', ShieldCheck], ['cancelled', 'Отменено', XCircle]].map(([id, label, Icon]) => (
