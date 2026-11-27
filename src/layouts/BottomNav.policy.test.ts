@@ -1,3 +1,6 @@
+import { describe, expect, it } from 'vitest';
+import { resolveBottomNavWorkspaceHomePath, shouldShowClinicWorkspaceTab } from './BottomNav';
+
 describe('resolveBottomNavWorkspaceHomePath', () => {
   it('returns the active supplier cabinet instead of the clinic workspace', () => {
     expect(resolveBottomNavWorkspaceHomePath({
@@ -34,9 +37,7 @@ describe('resolveBottomNavWorkspaceHomePath', () => {
   });
 });
 
-import { describe, expect, it } from 'vitest';
 
-import { resolveBottomNavWorkspaceHomePath, shouldShowClinicWorkspaceTab } from './BottomNav';
 
 describe('shouldShowClinicWorkspaceTab', () => {
   it('keeps the clinic demo entry available to unauthenticated visitors', () => {
