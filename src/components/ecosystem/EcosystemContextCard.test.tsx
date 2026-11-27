@@ -76,6 +76,28 @@ describe('EcosystemContextCard active workspace shortcut', () => {
     window.removeEventListener('dentvision:open-workspace-switcher', onOpen);
   })
 
+  it('asks for an explicit context instead of reopening a stale cabinet', () => {
+    useAuthStore.setState({
+      activeWorkspace: null,
+      workspaceContexts: [
+        { id: 'supplier-workspace', scopeType: 'SUPPLIER', scopeId: 'supplier-1', organizationId: 'supplier-organization', name: 'Dental Supply', roleKey: 'manager', roleLabel: 'Менеджер поставщика' },
+        { id: 'clinic-workspace', scopeType: 'CLINIC', scopeId: 'clinic-1', name: 'Dental Clinic', roleKey: 'doctor', roleLabel: 'Врач' },
+      ] as any,
+    });
+    const onOpen = vi.fn();
+    window.addEventListener('dentvision:open-workspace-switcher', onOpen);
+    render(
+      <MemoryRouter initialEntries={['/crm/patients']}>
+        <EcosystemContextCard user={null} />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть рабочий кабинет' }));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('location')).toHaveTextContent('/crm/patients');
+    window.removeEventListener('dentvision:open-workspace-switcher', onOpen);
+  })
+
   it('keeps the cabinet shortcut available when the sidebar is collapsed', () => {
     render(
       <MemoryRouter initialEntries={['/shop']}>
