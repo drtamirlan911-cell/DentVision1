@@ -1,3 +1,16 @@
+## Continuation checkpoint — 2026-11-27 (PR #353 cabinet UX and navigation remediation)
+
+- Canonical repository: `drtamirlan911-cell/DentVision1`; normative product contract: `docs/DENTVISION_MASTER_SPEC.md` v5.0 and `docs/PRODUCT/CABINET_UX_AND_WORKFLOW_STANDARD.md`.
+- Active candidate remains PR [#353](https://github.com/drtamirlan911-cell/DentVision1/pull/353), branch `integrate/jarvis-product-knowledge-20261125`. This remains an integration candidate; do not merge before all required exact-head checks and review gates pass. No changes were made directly to `main`.
+- Cabinet navigation now pins the active workspace shortcut, exposes separate role/domain navigation for clinic, diagnostics, medical/dental laboratories, supplier, lecturer, Academy and employer, and supports URL-backed section links. Query-tab highlighting no longer marks the base tab active while a different tab is open.
+- Multi-organization sidebar context is fail-closed: a stale profile organization claim is not used to manufacture an active-cabinet link when IAM returns multiple workspaces but no active selection. The context card opens the existing workspace selector, which switches through the authenticated workspace flow.
+- Employee-first entry guidance was added for clinic scheduling, medical/dental laboratories and lecturer workspace. Dental-lab navigation and page tabs now share the same canonical/legacy role capability resolver; medical-lab finance staff default back to Finance.
+- Regression tests cover navigation helpers, staff-role visibility, multi-org fallback and laboratory scope resolution.
+- **Verification caution:** an intermediate exact-head CI exposed two missing imports, both corrected afterward. CI, Quality Gate and RB-034 must be read again from the current PR head after this checkpoint commit. Previous SHA results do not certify this checkpoint.
+- Preview is not certified unless its deployment/status belongs to the exact current SHA. Release remains NOT READY because independent P0 privacy, staging/restore, legal/EDS, payment-provider, partner lifecycle, mobile and operator-acceptance gates remain open.
+
+---
+
 ## Continuation checkpoint — 2026-11-26 (PR #352 merged; PR #353 exact-head verification)
 
 - **Canonical repository:** `drtamirlan911-cell/DentVision1`; normative product contract remains `docs/DENTVISION_MASTER_SPEC.md` v5.0. Follow `docs/README_SESSION_BOOTSTRAP.md` and `DENTVISION_OPERATING_DIRECTIVE.md` for the document hierarchy and Inspect → implement → test → fix → verify → document loop.

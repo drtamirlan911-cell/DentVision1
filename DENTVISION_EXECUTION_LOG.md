@@ -1,3 +1,18 @@
+## 2026-11-27 — Cabinet UX, role-first navigation and multi-organization return path (PR #353)
+
+- Continued on the existing candidate PR #353 / `integrate/jarvis-product-knowledge-20261125`; `main` was not changed and no new branch was created.
+- Reworked `src/layouts/EcosystemSidebar.tsx`: the active cabinet entry is pinned outside collapsible groups, the sidebar now renders domain-specific partner navigation, and active state distinguishes URL-backed tabs from the cabinet-level shortcut.
+- Consolidated role/workspace destination rules in `src/lib/workspaceNavigation.ts`. Added direct routes to existing workflow tabs for diagnostic-centre finance, medical/dental laboratory operations, supplier orders/stock/catalogue/returns, lecturer work and Academy sections. No duplicate pages or new authorization paths were introduced.
+- Added multi-organization switch entry in `EcosystemContextCard.tsx`; it opens the existing `WorkspaceSwitcher`. If multiple contexts exist but there is no authenticated active context, the UI now asks the user to choose rather than reusing a stale organization claim. Switcher positioning also updates after workspace loading finishes.
+- Added query-backed section selection to lecturer and diagnostic-centre workspaces; supplier sections already use URL state and now all internal shortcut actions preserve that URL state. Medical-lab finance-only staff return to the finance section; diagnostic-finance staff have a direct finance tab.
+- Added a shared dental-lab role capability resolver used by sidebar navigation and `DentalLabPlatform`, covering legacy and canonical IAM role names. This prevents a role link from appearing while the corresponding page tab remains hidden. Mixed legacy dental/medical laboratory role lists resolve to dental production when a dental-lab role is present; legacy `lab_diagnostic` remains medical-laboratory.
+- Added role-first task guidance to clinic scheduling, medical and dental laboratory workspaces and lecturer workspace. Guidance differs for doctors, reception, clinic managers, laboratory technicians, quality roles, finance staff and delivery roles; it does not grant permissions.
+- Regression coverage added for ambiguous multi-organization selection, cabinet return, tab highlighting, diagnostic finance navigation, dental-lab role capability mapping and laboratory workspace resolution.
+- **Verification at source HEAD `74b7a6e96f6f343347a677543fef9968c7e228a6`:** frontend lint, backend lint and RB-034 were successful; CI `lint-test` / Quality Gate exposed two missing imports (`resolveDentalLabRoleCapabilities` in `workspaceNavigation.ts`, `WorkspaceRoleStart` in `Schedule.tsx`). Both imports were corrected in subsequent source commits. Fresh checks are required on the documentation commit and final current PR HEAD; no older SHA is accepted as final evidence.
+- Vercel/Supabase Preview is not treated as a successful deployment unless the exact final SHA receives a READY deployment/status. No production/staging database, PHI, secret/key, payment provider, legal signature or production deployment was accessed or changed.
+
+---
+
 ## 2026-11-26 — PR #353 source verification and integration reconciliation
 
 - Continued on the existing repository `drtamirlan911-cell/DentVision1` and existing integration candidate PR #353; no new product branch was created.
