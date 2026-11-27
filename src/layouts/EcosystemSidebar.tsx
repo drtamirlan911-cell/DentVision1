@@ -79,6 +79,13 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
   const canSee = (item: Item) => {
     if (item.id === 'active-workspace') return true;
     if (isGuest) return Boolean(item.guest);
+    // Partner navigation is built from the active organization-scoped role.
+    // Do not filter those items through a legacy/global clinic page list: it
+    // can hide a valid lab/supplier/academy route after an organization switch.
+    // The route and backend API still enforce the actual workspace permissions.
+    if (partnerWorkspace && contextualGroups.some((group) =>
+      group.items.some((entry) => entry.id === item.id && entry.path === item.path),
+    )) return true;
     if (isPatient) return ['shop', 'academy', 'profile'].includes(item.id);
     if (item.id === 'home' || item.id === 'ai' || item.id === 'help') return true;
     return iam.canAccessPage(item.page || pageIdFromPath(item.path));
