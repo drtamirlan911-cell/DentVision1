@@ -2,7 +2,7 @@ import React from 'react';
 import { ArrowLeftRight, Building2, ChevronRight, Globe2, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/store/auth.store';
-import { getWorkspaceHomeTarget } from '@/lib/workspaceNavigation';
+import { getWorkspaceHomeTarget, isClinicFinanceOnlyRole } from '@/lib/workspaceNavigation';
 import { firstAllowedCrmPath } from '@/lib/roleAccess';
 import { cn } from '@/lib/utils';
 import type { User as UserType } from '@/types';
@@ -41,7 +41,10 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
     hasClinic: activeWorkspace.scopeType === 'CLINIC',
   }) : null;
   const hasOrg = Boolean(activeWorkspace?.id || (!workspaceContexts.length && ((user as any)?.organizationId || (user as any)?.clinicId || org)));
-  const homePath = home?.scopeType === 'CLINIC' ? (pages.length ? firstAllowedCrmPath(pages) : home.path) : home?.path;
+  const clinicFinanceHome = home?.scopeType === 'CLINIC' && isClinicFinanceOnlyRole(activeWorkspace?.roleKey || activeWorkspace?.role)
+    && (pages.includes('cashier') || pages.includes('finance'));
+  const homePath = clinicFinanceHome ? '/crm/cashier'
+    : home?.scopeType === 'CLINIC' ? (pages.length ? firstAllowedCrmPath(pages) : home.path) : home?.path;
   const openSwitcher = () => window.dispatchEvent(new CustomEvent('dentvision:open-workspace-switcher'));
   const canSwitchWorkspace = !isGuest && workspaceContexts.length > 1;
   const openWorkspace = () => {
