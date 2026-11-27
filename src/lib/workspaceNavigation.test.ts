@@ -161,6 +161,15 @@ describe('role-aware workspace navigation', () => {
     expect(items.map((entry) => entry.path)).toContain('/supplier?tab=returns')
   })
 
+  it('shows supplier team management only to the owner, not a seller or manager', () => {
+    const owner = getWorkspaceNavigationGroups('SUPPLIER', 'supplier.owner').flatMap((entry) => entry.items)
+    const seller = getWorkspaceNavigationGroups('SUPPLIER', 'supplier.seller').flatMap((entry) => entry.items)
+    const manager = getWorkspaceNavigationGroups('SUPPLIER', 'supplier.manager').flatMap((entry) => entry.items)
+    expect(owner.map((entry) => entry.id)).toContain('team')
+    expect(seller.map((entry) => entry.id)).not.toContain('team')
+    expect(manager.map((entry) => entry.id)).not.toContain('team')
+  })
+
   it('separates medical-lab finance from the technician workflow', () => {
     const technician = getWorkspaceNavigationGroups('LABORATORY', 'medical_lab_technician').flatMap((entry) => entry.items)
     const owner = getWorkspaceNavigationGroups('LABORATORY', 'medical_lab_owner').flatMap((entry) => entry.items)
