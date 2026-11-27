@@ -192,7 +192,7 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
       ['owner', 'admin', 'manager', 'director', 'diagnostic_owner', 'diagnostic_admin', 'diagnostic_manager'].includes(token),
     )
     const financeRoles = tokens.some((token) =>
-      token.includes('finance') || token === 'cashier' || token === 'accountant',
+      token.includes('finance') || token === 'cashier' || token === 'accountant' || token.endsWith('_reception') || token === 'reception',
     )
     const cashierRoles = tokens.some((token) =>
       ['owner', 'admin', 'diagnostic_owner', 'diagnostic_admin'].includes(token),
@@ -237,9 +237,10 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
         : resolveLaboratoryWorkspaceKind({ roleKey: role, organizationType: 'LABORATORY' })
 
     if (kind === 'medical') {
-      const canManageFinance = tokens.some((token) =>
+      const canReadFinance = tokens.some((token) =>
         token.includes('finance')
         || token === 'accountant'
+        || token === 'reception'
         || /(?:^|_)(owner|admin|manager|director)$/.test(token),
       )
       const financeOnly = tokens.some((token) => token.includes('finance') || token === 'accountant')
@@ -250,7 +251,7 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
           item('orders', 'Заказы и образцы', '/diagnostics/lab?workspace=medical-lab', 'diagnostics'),
         ]))
       }
-      if (canManageFinance) {
+      if (canReadFinance) {
         groups.push(group('medical-lab-finance', 'Финансы', [
           item('finance', 'Расчёты и выплаты', '/diagnostics/lab?workspace=medical-lab&tab=finance', 'diagnostics'),
         ]))
