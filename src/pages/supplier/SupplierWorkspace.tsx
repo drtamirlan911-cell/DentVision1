@@ -7,7 +7,8 @@ import {
   Megaphone, Tag, Star, Truck, ArrowRight, Box, Percent, Camera, ImageIcon, Users,
 } from 'lucide-react'
 import * as api from '@/utils/api'
-import { useAuth } from '@/store/auth.store'
+import { useAuth, useAuthStore } from '@/store/auth.store'
+import { useSearchParams } from 'react-router-dom'
 import { beginWorkspaceRequest, isWorkspaceRequestCurrent, selectWorkspaceContext } from '@/lib/workspaceContext'
 import { useToast } from '@/components/ui/ds/Toast'
 import { Button } from '@/components/ui/ds/Button'
@@ -92,7 +93,22 @@ export default function SupplierWorkspace() {
   const [contexts, setContexts] = useState<SupplierCtx[]>([])
   const [token, setToken] = useState<string | null>(null)
   const [contextSwitching, setContextSwitching] = useState(false)
-  const [tab, setTab] = useState<TabId>('overview')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const isSupplierTab = (value: string | null): value is TabId =>
+    value === 'overview' || value === 'sales' || value === 'stock' || value === 'returns'
+    || value === 'ads' || value === 'analytics' || value === 'catalog' || value === 'team' || value === 'profile'
+  const [tab, setTab] = useState<TabId>(() => isSupplierTab(requestedTab) ? requestedTab : 'overview')
+  useEffect(() => {
+    setTab(isSupplierTab(requestedTab) ? requestedTab : 'overview')
+  }, [requestedTab])
+  const selectTab = useCallback((nextTab: TabId) => {
+    setTab(nextTab)
+    const next = new URLSearchParams(searchParams)
+    if (nextTab === 'overview') next.delete('tab')
+    else next.set('tab', nextTab)
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const [me, setMe] = useState<any>(null)
   const [dash, setDash] = useState<any>(null)
@@ -187,15 +203,34 @@ export default function SupplierWorkspace() {
     setLoading(true)
     setContextSwitching(true)
     try {
-      const res = await api.switchContext('SUPPLIER', scopeId)
+      const auth = useAuthStore.getState()
+      const selectedContext = auth.workspaceContexts.find(
+        (workspace) => workspace.scopeType === 'SUPPLIER' && workspace.scopeId === scopeId,
+      )
+      let accessToken = auth.activeWorkspace?.scopeType === 'SUPPLIER'
+        && auth.activeWorkspace.scopeId === scopeId
+        ? auth.token
+        : null
+
+      // Workspace entry must update the same auth/read-model state used by
+      // permissions, sidebar navigation and AI. Do not mutate only the JWT.
+      if (!accessToken && selectedContext) {
+        await auth.switchWorkspace(selectedContext)
+        accessToken = useAuthStore.getState().token
+      } else if (!accessToken) {
+        const switched = await api.switchContext('SUPPLIER', scopeId)
+        await useAuthStore.getState().restoreSession()
+        accessToken = useAuthStore.getState().token || switched.accessToken
+      }
+      if (!accessToken) throw new Error('Не удалось определить активную сессию поставщика')
       if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return
-      activeTokenRef.current = res.accessToken
-      setToken(res.accessToken)
-      await loadAll(res.accessToken, generation)
-    } catch {
+      activeTokenRef.current = accessToken
+      setToken(accessToken)
+      await loadAll(accessToken, generation)
+    } catch (error) {
       if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
         clearWorkspaceData()
-        toast.error('Не удалось войти в выбранную организацию поставщика')
+        toast.error(error instanceof Error ? error.message : 'Не удалось войти в выбранную организацию поставщика')
       }
     } finally {
       if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
@@ -673,7 +708,7 @@ export default function SupplierWorkspace() {
             ? ['Проверьте новые заказы и сроки отгрузки', 'Контролируйте остатки, возвраты и выплаты', 'Проверьте команду и актуальность профиля компании']
             : ['Откройте «Продажи» и проверьте новые заказы клиник', 'Подготовьте заказ и зарегистрируйте отправку', 'Подтвердите вручение и сообщите о проблемах с остатками']}
           actionLabel="Открыть заказы"
-          onAction={() => setTab('sales')}
+          onAction={() => selectTab('sales')}
         />
       )}
 
@@ -681,7 +716,7 @@ export default function SupplierWorkspace() {
         {TABS.map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => selectTab(t.id)}
             className={`flex items-center gap-1.5 px-3 py-2.5 min-h-11 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
               tab === t.id ? 'border-dv-gold text-dv-gold' : 'border-transparent text-txt-muted hover:text-txt-primary'
             }`}
