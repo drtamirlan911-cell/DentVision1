@@ -93,25 +93,34 @@ export default function SupplierWorkspace() {
   const [contexts, setContexts] = useState<SupplierCtx[]>([])
   const [token, setToken] = useState<string | null>(null)
   const [contextSwitching, setContextSwitching] = useState(false)
+  const [me, setMe] = useState<any>(null)
+  const [dash, setDash] = useState<any>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
-  const isSupplierTab = (value: string | null): value is TabId =>
-    value === 'overview' || value === 'sales' || value === 'stock' || value === 'returns'
-    || value === 'ads' || value === 'analytics' || value === 'catalog' || value === 'team' || value === 'profile'
+  const isSupplierTab = (value: string | null): value is TabId => {
+    const isBaseTab = value === 'overview' || value === 'sales' || value === 'stock' || value === 'returns'
+      || value === 'ads' || value === 'analytics' || value === 'catalog' || value === 'profile'
+    return isBaseTab || (value === 'team' && me?.myRole === 'owner')
+  }
   const [tab, setTab] = useState<TabId>(() => isSupplierTab(requestedTab) ? requestedTab : 'overview')
   useEffect(() => {
-    setTab(isSupplierTab(requestedTab) ? requestedTab : 'overview')
-  }, [requestedTab])
+    if (loading) return
+    const allowedTab = isSupplierTab(requestedTab) ? requestedTab : 'overview'
+    setTab(allowedTab)
+    if (requestedTab && requestedTab !== allowedTab) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('tab')
+      setSearchParams(next, { replace: true })
+    }
+  }, [requestedTab, loading, me?.myRole, searchParams, setSearchParams])
   const selectTab = useCallback((nextTab: TabId) => {
+    if (nextTab === 'team' && me?.myRole !== 'owner') return
     setTab(nextTab)
     const next = new URLSearchParams(searchParams)
     if (nextTab === 'overview') next.delete('tab')
     else next.set('tab', nextTab)
     setSearchParams(next, { replace: true })
-  }, [searchParams, setSearchParams])
-
-  const [me, setMe] = useState<any>(null)
-  const [dash, setDash] = useState<any>(null)
+  }, [me?.myRole, searchParams, setSearchParams])
 
   const [addOpen, setAddOpen] = useState(false)
   const [promoOpen, setPromoOpen] = useState(false)
