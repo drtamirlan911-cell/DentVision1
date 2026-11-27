@@ -66,8 +66,8 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
           id: 'core',
           label: 'Рабочее пространство',
           items: [
-            groups[0].items[0],
             ...(homeItem ? [homeItem] : []),
+            groups[0].items[0],
           ],
         },
         ...groups.filter((group) => group.id === 'market'),
