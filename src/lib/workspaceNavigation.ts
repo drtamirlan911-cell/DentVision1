@@ -1,4 +1,5 @@
 import { resolveLaboratoryWorkspaceKind } from './laboratoryWorkspace'
+import { resolveDentalLabRoleCapabilities } from './dentalLabWorkspaceRole'
 
 export interface WorkspaceHomeSource {
   scopeType?: string | null
