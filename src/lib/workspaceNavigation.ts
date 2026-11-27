@@ -152,12 +152,20 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
         : resolveLaboratoryWorkspaceKind({ roleKey: role, organizationType: 'LABORATORY' })
 
     if (kind === 'medical') {
-      const groups = [
-        group('medical-lab-work', 'Работа с анализами', [
+      const canManageFinance = tokens.some((token) =>
+        token.includes('finance')
+        || token === 'accountant'
+        || /(?:^|_)(owner|admin|manager|director)$/.test(token),
+      )
+      const financeOnly = tokens.some((token) => token.includes('finance') || token === 'accountant')
+        && !tokens.some((token) => /(?:^|_)(owner|admin|manager|director|reception|technician|validator|doctor|quality)$/.test(token))
+      const groups: WorkspaceNavigationGroup[] = []
+      if (!financeOnly) {
+        groups.push(group('medical-lab-work', 'Работа с анализами', [
           item('orders', 'Заказы и образцы', '/diagnostics/lab?workspace=medical-lab', 'diagnostics'),
-        ]),
-      ]
-      if (tokens.some((token) => token.includes('finance') || /^(owner|admin|org_owner|org_admin)$/.test(token))) {
+        ]))
+      }
+      if (canManageFinance) {
         groups.push(group('medical-lab-finance', 'Финансы', [
           item('finance', 'Расчёты и выплаты', '/diagnostics/lab?workspace=medical-lab&tab=finance', 'diagnostics'),
         ]))
