@@ -218,39 +218,70 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
     const managementRoles = tokens.some((token) =>
       ['owner', 'admin', 'manager', 'director', 'diagnostic_owner', 'diagnostic_admin', 'diagnostic_manager'].includes(token),
     )
+    const ownerOrAdmin = tokens.some((token) =>
+      ['owner', 'diagnostic_owner', 'admin', 'diagnostic_admin'].includes(token),
+    )
     const financeRoles = tokens.some((token) =>
       token.includes('finance') || token === 'cashier' || token === 'accountant' || token.endsWith('_reception') || token === 'reception',
     )
-    const cashierRoles = tokens.some((token) =>
-      ['owner', 'admin', 'diagnostic_owner', 'diagnostic_admin'].includes(token),
+    const financeOnly = financeRoles && !managementRoles && !tokens.some((token) =>
+      token.includes('radiologist') || token.includes('radiology_technician')
+        || token.includes('operator') || token.includes('reception') || token.includes('quality'),
     )
-    const operationalRoles = tokens.some((token) =>
-      token.includes('radiologist')
-      || token.includes('radiology_technician')
-      || token.includes('operator')
-      || token.includes('reception')
-      || token.includes('quality'),
+    const receptionRole = tokens.some((token) =>
+      token.includes('reception') || token === 'operator' || token.endsWith('_operator'),
     )
-    const financeOnly = financeRoles && !managementRoles && !operationalRoles
+    const radiologyRole = tokens.some((token) =>
+      token.includes('radiologist') || token.includes('radiology_technician'),
+    )
+    const qualityRole = tokens.some((token) => token.includes('quality'))
+    const analyticsRoles = managementRoles || financeRoles || qualityRole
     const groups: WorkspaceNavigationGroup[] = []
-    if (!financeOnly) {
+
+    if (financeOnly) {
+      groups.push(group('diagnostic-finance', 'Финансовая работа', [
+        item('finance', 'Расчёты и выплаты', '/diagnostics/center?tab=finance', 'diagnostics'),
+        item('analytics', 'Финансовая аналитика', '/diagnostics/statistics', 'diagnostics-statistics'),
+      ]))
+      return groups
+    }
+
+    if (qualityRole && !managementRoles) {
+      groups.push(group('diagnostic-quality', 'Контроль качества', [
+        item('results', 'Результаты на проверку', '/diagnostics/results', 'diagnostics-results'),
+      ]))
+    } else if (receptionRole) {
+      groups.push(group('diagnostic-reception', 'Приём и регистрация', [
+        item('queue', 'Входящая очередь', '/diagnostics/center?tab=worklist', 'diagnostics'),
+        item('referrals', 'Направления пациентов', '/diagnostics/referrals', 'diagnostics-referrals'),
+      ]))
+    } else if (radiologyRole) {
+      groups.push(group('diagnostic-radiology', 'Исследования', [
+        item('queue', 'Назначенные исследования', '/diagnostics/center?tab=worklist', 'diagnostics'),
+        item('referrals', 'Направления', '/diagnostics/referrals', 'diagnostics-referrals'),
+        item('results', 'Результаты', '/diagnostics/results', 'diagnostics-results'),
+      ]))
+    } else {
       groups.push(group('diagnostic-work', 'Работа с исследованиями', [
         item('queue', 'Рабочая очередь', '/diagnostics/center?tab=worklist', 'diagnostics'),
         item('referrals', 'Направления', '/diagnostics/referrals', 'diagnostics-referrals'),
         item('results', 'Результаты', '/diagnostics/results', 'diagnostics-results'),
       ]))
     }
-    if (managementRoles) {
-      groups.push(group('diagnostic-management', 'Организация центра', [
-        item('calendar', 'Расписание', '/diagnostics/calendar', 'diagnostics-calendar'),
-        item('analytics', 'Аналитика', '/diagnostics/statistics', 'diagnostics-statistics'),
-        item('settings', 'Настройки центра', '/diagnostics/settings', 'diagnostics-settings'),
-      ]))
+
+    if (managementRoles || qualityRole) {
+      const managementItems = [
+        ...(managementRoles ? [item('calendar', 'Расписание', '/diagnostics/calendar', 'diagnostics-calendar')] : []),
+        ...(analyticsRoles ? [item('analytics', 'Аналитика центра', '/diagnostics/statistics', 'diagnostics-statistics')] : []),
+        ...(ownerOrAdmin ? [item('settings', 'Настройки центра', '/diagnostics/settings', 'diagnostics-settings')] : []),
+      ]
+      if (managementItems.length) groups.push(group('diagnostic-management', 'Управление и качество', managementItems))
     }
+
     if (financeRoles || managementRoles) {
       groups.push(group('diagnostic-finance', 'Финансы и расчёты', [
         item('finance', 'Расчёты и выплаты', '/diagnostics/center?tab=finance', 'diagnostics'),
-        ...(cashierRoles ? [item('cashier', 'Касса', '/diagnostics/center?tab=cashier', 'diagnostics')] : []),
+        ...(ownerOrAdmin ? [item('cashier', 'Касса', '/diagnostics/center?tab=cashier', 'diagnostics')] : []),
       ]))
     }
     return groups
