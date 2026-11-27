@@ -10,6 +10,34 @@ describe('partner workspace route authorization', () => {
     expect(isScopedWorkspaceRouteAllowed('supplier', null)).toBe(false)
   })
 
+  it('allows the lecturer workspace only in an active lecturer context', () => {
+    expect(isScopedWorkspaceRouteAllowed('school', 'LECTURER')).toBe(true)
+    expect(isScopedWorkspaceRouteAllowed('school', 'ACADEMY')).toBe(false)
+    expect(isScopedWorkspaceRouteAllowed('school', 'CLINIC')).toBe(false)
+  })
+
+  it('allows diagnostic finance only at the route granted to the active role', () => {
+    expect(isScopedWorkspaceRouteAllowed(
+      'diagnostics', 'DIAGNOSTIC_CENTER', 'diagnostic_finance',
+      '/diagnostics/center', '?tab=cashier',
+    )).toBe(true)
+    expect(isScopedWorkspaceRouteAllowed(
+      'diagnostics', 'DIAGNOSTIC_CENTER', 'diagnostic_reception',
+      '/diagnostics/results', '',
+    )).toBe(false)
+  })
+
+  it('allows QC specialists into the dental-lab QC queue but not into another role tab', () => {
+    expect(isScopedWorkspaceRouteAllowed(
+      'diagnostics', 'LABORATORY', 'qc_specialist',
+      '/diagnostics/lab', '?workspace=dental-lab&tab=quality',
+    )).toBe(true)
+    expect(isScopedWorkspaceRouteAllowed(
+      'diagnostics', 'LABORATORY', 'dental_technician',
+      '/diagnostics/lab', '?workspace=dental-lab&tab=quality',
+    )).toBe(false)
+  })
+
   it('allows an employer cabinet only in employer or explicitly supported clinic context', () => {
     expect(isScopedWorkspaceRouteAllowed('employer', 'EMPLOYER')).toBe(true)
     expect(isScopedWorkspaceRouteAllowed('employer', 'CLINIC')).toBe(true)
