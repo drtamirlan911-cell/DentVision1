@@ -77,9 +77,12 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
     if (item.id === 'home' || item.id === 'ai' || item.id === 'help') return true;
     return iam.canAccessPage(item.page || pageIdFromPath(item.path));
   };
+  const activeWorkspaceRole = String(
+    activeWorkspace?.roleKey || activeWorkspace?.role || (user as any)?.effectiveRole || (user as any)?.role || '',
+  ).toLowerCase();
   const contextualGroups = getWorkspaceNavigationGroups(
     activeWorkspace?.scopeType || (user as any)?.organizationType,
-    activeWorkspace?.roleKey || activeWorkspace?.role || (user as any)?.effectiveRole || (user as any)?.role,
+    activeWorkspaceRole,
   ).map((group) => ({
     ...group,
     items: group.items.map((item) => ({ ...item, icon: contextualIcon(item.id) })),
@@ -97,10 +100,16 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
       ]
     : groups;
   const visibleGroups = navigationGroups.map(g => ({ ...g, items: g.items.filter(canSee) })).filter(g => g.items.length);
+  const clinicRoleTokens = activeWorkspaceRole.split(/[\s,]+/).map((value) => value.split('.').pop() || value);
+  const clinicFinanceOnly = clinicWorkspace
+    && clinicRoleTokens.some((value) => ['cashier', 'finance', 'accountant'].includes(value))
+    && !clinicRoleTokens.some((value) => ['owner', 'director', 'admin', 'manager', 'doctor', 'assistant', 'reception'].includes(value));
   const visibleMore = (partnerWorkspace
     ? moreItems.filter((item) => ['profile', 'settings', 'help'].includes(item.id))
     : clinicWorkspace
-      ? moreItems.filter((item) => ['profile', 'settings', 'help', 'integrations'].includes(item.id))
+      ? moreItems.filter((item) => clinicFinanceOnly
+        ? ['profile', 'help'].includes(item.id)
+        : ['profile', 'settings', 'help', 'integrations'].includes(item.id))
       : moreItems
   ).filter(canSee);
   const visibleAdmin = isAdmin ? adminItems.filter(canSee) : [];
