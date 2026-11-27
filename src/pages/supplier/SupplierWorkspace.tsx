@@ -97,11 +97,11 @@ export default function SupplierWorkspace() {
   const [dash, setDash] = useState<any>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
-  const isSupplierTab = (value: string | null): value is TabId => {
+  const isSupplierTab = useCallback((value: string | null): value is TabId => {
     const isBaseTab = value === 'overview' || value === 'sales' || value === 'stock' || value === 'returns'
       || value === 'ads' || value === 'analytics' || value === 'catalog' || value === 'profile'
     return isBaseTab || (value === 'team' && me?.myRole === 'owner')
-  }
+  }, [me?.myRole])
   const [tab, setTab] = useState<TabId>(() => isSupplierTab(requestedTab) ? requestedTab : 'overview')
   useEffect(() => {
     if (loading) return
@@ -112,7 +112,7 @@ export default function SupplierWorkspace() {
       next.delete('tab')
       setSearchParams(next, { replace: true })
     }
-  }, [requestedTab, loading, me?.myRole, searchParams, setSearchParams])
+  }, [requestedTab, loading, isSupplierTab, searchParams, setSearchParams])
   const selectTab = useCallback((nextTab: TabId) => {
     if (nextTab === 'team' && me?.myRole !== 'owner') return
     setTab(nextTab)
