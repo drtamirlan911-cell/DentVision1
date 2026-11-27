@@ -46,7 +46,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
   const homePath = clinicFinanceHome ? '/crm/cashier'
     : home?.scopeType === 'CLINIC' ? (pages.length ? firstAllowedCrmPath(pages) : home.path) : home?.path;
   const openSwitcher = () => window.dispatchEvent(new CustomEvent('dentvision:open-workspace-switcher'));
-  const canSwitchWorkspace = !isGuest && workspaceContexts.length > 1;
+  const canSwitchWorkspace = !isGuest && workspaceContexts.length > 0;
   const openWorkspace = () => {
     if (activeWorkspace && homePath) navigate(homePath);
     else if (workspaceContexts.length > 0) openSwitcher();
@@ -57,7 +57,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
     return (
       <div className="mx-auto mb-2 flex flex-col items-center gap-1">
         <button type="button" title={`Мой рабочий кабинет · ${org || home?.label || label}`} aria-label="Открыть рабочий кабинет" data-testid="active-workspace-link" onClick={openWorkspace} className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--dv-accent-soft)] text-[var(--dv-accent)] hover:opacity-90"><Building2 size={16} /></button>
-        {canSwitchWorkspace && <button type="button" title="Сменить рабочее пространство" aria-label="Сменить рабочее пространство" onClick={openSwitcher} className="grid h-9 w-9 place-items-center rounded-xl text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"><ArrowLeftRight size={15} /></button>}
+        {canSwitchWorkspace && <button type="button" title="Сменить организацию или филиал" aria-label="Сменить организацию или филиал" onClick={openSwitcher} className="grid h-9 w-9 place-items-center rounded-xl text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"><ArrowLeftRight size={15} /></button>}
       </div>
     );
   }
@@ -75,7 +75,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
       <button
         type="button"
         onClick={openSwitcher}
-        aria-label="Сменить рабочее пространство"
+        aria-label="Сменить организацию или филиал"
         className="mt-2 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--dv-border)] px-2 py-1.5 text-[10px] font-medium text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"
       >
         <ArrowLeftRight size={12} /> Сменить рабочее пространство
