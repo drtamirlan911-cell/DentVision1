@@ -51,18 +51,18 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
   if (collapsed) {
     return (
       <div className="mx-auto mb-2 flex flex-col items-center gap-1">
-        <button type="button" title={`Открыть рабочий кабинет · ${label}${org ? ` · ${org}` : ''}`} aria-label="Открыть рабочий кабинет" onClick={openWorkspace} className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--dv-accent-soft)] text-[var(--dv-accent)] hover:opacity-90"><Building2 size={16} /></button>
+        <button type="button" title={`Мой рабочий кабинет · ${org || home?.label || label}`} aria-label="Открыть рабочий кабинет" data-testid="active-workspace-link" onClick={openWorkspace} className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--dv-accent-soft)] text-[var(--dv-accent)] hover:opacity-90"><Building2 size={16} /></button>
         {canSwitchWorkspace && <button type="button" title="Сменить рабочее пространство" aria-label="Сменить рабочее пространство" onClick={openSwitcher} className="grid h-9 w-9 place-items-center rounded-xl text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"><ArrowLeftRight size={15} /></button>}
       </div>
     );
   }
 
   return <div className={cn('mx-3 mb-2 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] p-2.5', isGuest && 'border-[var(--dv-accent)]/20')}>
-    <button type="button" aria-label="Открыть рабочий кабинет" onClick={openWorkspace} className="flex min-h-11 w-full items-center gap-2.5 text-left">
+    <button type="button" aria-label="Открыть рабочий кабинет" data-testid="active-workspace-link" onClick={openWorkspace} className="flex min-h-11 w-full items-center gap-2.5 text-left">
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]">{hasOrg ? <Building2 size={15} /> : <Globe2 size={15} />}</span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[11px] font-semibold text-[var(--dv-text)]">{hasUnselectedWorkspaces ? 'Выберите рабочее пространство' : org || home?.label || 'Личный контекст'}</span>
-        <span className="mt-0.5 block truncate text-[10px] text-[var(--dv-muted)]">{hasUnselectedWorkspaces ? "Кабинет не выбран" : `${label} · ${home ? "Открыть кабинет" : "Личный контекст"}`}</span>
+        <span className="block truncate text-[11px] font-semibold text-[var(--dv-text)]">{hasUnselectedWorkspaces ? 'Выберите рабочее пространство' : 'Мой рабочий кабинет'}</span>
+        <span className="mt-0.5 block truncate text-[10px] text-[var(--dv-muted)]">{hasUnselectedWorkspaces ? 'Организация и роль пока не выбраны' : [org || home?.label || 'Личный контекст', label, home?.label].filter(Boolean).join(' · ')}</span>
       </span>
       <ChevronRight size={14} className="shrink-0 text-[var(--dv-muted)]" />
     </button>
