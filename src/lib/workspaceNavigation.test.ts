@@ -4,8 +4,8 @@ import { getWorkspaceHomeTarget, isPartnerWorkspaceType } from './workspaceNavig
 describe('workspace home navigation', () => {
   it.each([
     ['CLINIC', 'doctor', '/crm/schedule'],
-    ['DIAGNOSTIC_CENTER', 'diagnostic_operator', '/diagnostics/workspace'],
-    ['LABORATORY', 'medical_lab_technician', '/diagnostics/workspace'],
+    ['DIAGNOSTIC_CENTER', 'diagnostic_operator', '/diagnostics/center-dashboard'],
+    ['LABORATORY', 'medical_lab_technician', '/diagnostics/lab-dashboard'],
     ['LABORATORY', 'dental_technician', '/dental-lab'],
     ['SUPPLIER', 'manager', '/supplier'],
     ['LECTURER', 'lecturer', '/school/workspace'],
