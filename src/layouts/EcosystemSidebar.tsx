@@ -26,8 +26,8 @@ const groups: Group[] = [
 ];
 const moreItems: Item[] = [{ id: 'profile', label: 'Профиль', path: '/profile', icon: <UserRound /> }, { id: 'settings', label: 'Настройки', path: '/settings', icon: <Settings /> }, { id: 'help', label: 'Помощь', path: '/help', icon: <CircleHelp />, guest: true }, { id: 'clinic-settings', label: 'Настройки клиники', path: '/crm/clinic-settings', icon: <Settings /> }, { id: 'billing', label: 'Тариф и оплата', path: '/crm/billing', icon: <WalletCards /> }, { id: 'integrations', label: 'Интеграции', path: '/crm/integrations/messaging', icon: <MessageCircle /> }, { id: 'icd10', label: 'МКБ-10', path: '/crm/icd10', icon: <FileCheck2 /> }];
 const adminItems: Item[] = [{ id: 'admin', label: 'Администрирование', path: '/admin', icon: <ShieldCheck /> }, { id: 'approvals', label: 'Подтверждения AI', path: '/ai-approvals', icon: <Bot /> }, { id: 'agents', label: 'Активность AI', path: '/agent-activity', icon: <Sparkles /> }, { id: 'audit', label: 'Аудит и безопасность', path: '/audit', icon: <Database /> }, { id: 'bi', label: 'Business Intelligence', path: '/bi', icon: <BarChart3 /> }, { id: 'backup', label: 'Резервные копии', path: '/backup', icon: <Database /> }];
-function activePath(pathname: string, search: string, path: string) {
-  return isWorkspaceNavigationActive(pathname, search, path);
+function activePath(pathname: string, search: string, path: string, matchAllTabs = false) {
+  return isWorkspaceNavigationActive(pathname, search, path, { matchAllTabs });
 }
 function contextualIcon(id: string): React.ReactNode {
   const icons: Record<string, React.ReactNode> = {
@@ -124,7 +124,7 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
             type="button"
             onClick={() => go(homeTarget.path)}
             aria-label="Мой рабочий кабинет"
-            aria-current={activePath(location.pathname, location.search, homeTarget.path) ? 'page' : undefined}
+            aria-current={activePath(location.pathname, location.search, homeTarget.path, true) ? 'page' : undefined}
             data-testid="active-workspace-link"
             title={collapsed && !isMobile ? homeTarget.label : undefined}
             className={cn(
