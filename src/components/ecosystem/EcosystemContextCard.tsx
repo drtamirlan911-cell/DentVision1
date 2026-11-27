@@ -47,8 +47,9 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
   const hasOrg = Boolean(activeWorkspace?.id || (!workspaceContexts.length && ((user as any)?.organizationId || (user as any)?.clinicId || org)));
   const clinicFinanceHome = home?.scopeType === 'CLINIC' && isClinicFinanceOnlyRole(activeWorkspace?.roleKey || activeWorkspace?.role)
     && (pages.includes('cashier') || pages.includes('finance'));
+  const firstClinicPath = pages.length ? firstAllowedCrmPath(pages) : home?.path;
   const homePath = clinicFinanceHome ? '/crm/cashier'
-    : home?.scopeType === 'CLINIC' ? (pages.length ? firstAllowedCrmPath(pages) : home.path) : home?.path;
+    : home?.scopeType === 'CLINIC' ? (firstClinicPath && firstClinicPath !== '/' ? firstClinicPath : home.path) : home?.path;
   const openSwitcher = () => window.dispatchEvent(new CustomEvent('dentvision:open-workspace-switcher'));
   const canSwitchWorkspace = !isGuest && Boolean(activeWorkspace) && workspaceContexts.length > 0;
   const openWorkspace = () => {
