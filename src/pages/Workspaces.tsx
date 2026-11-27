@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowRight, BriefcaseBusiness, Building2, Check, FlaskConical,
-  GraduationCap, Loader2, RefreshCw, Store,
+  GraduationCap, RefreshCw, Store,
 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/ds/Badge'
