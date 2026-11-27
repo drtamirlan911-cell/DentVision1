@@ -288,12 +288,12 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       className="fixed z-[1000] rounded-2xl border border-bdr-strong bg-surface-raised shadow-elev-3 p-1.5 overflow-y-auto overscroll-contain"
       style={{ top: menuPosition.top, left: menuPosition.left, width: menuPosition.width, maxHeight: Math.min(560, window.innerHeight - menuPosition.top - 12) }}
       role="menu"
-      aria-label="Рабочее пространство"
+      aria-label="Организация и филиал"
       data-testid="workspace-switcher-menu"
     >
       <div className="px-2 py-1.5 border-b border-bdr-subtle mb-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-txt-muted">Рабочее пространство</p>
-        <p className="text-[11px] text-txt-secondary mt-0.5">Выберите контекст DentVision</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-txt-muted">Организация и филиал</p>
+        <p className="text-[11px] text-txt-secondary mt-0.5">Выберите организацию, рабочий кабинет и филиал</p>
       </div>
       <div className="space-y-1">
         {grouped.map((group) => (
