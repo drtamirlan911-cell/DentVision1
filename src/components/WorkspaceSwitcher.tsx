@@ -206,10 +206,15 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const Icon = TYPE_ICON[current?.scopeType || 'CLINIC'] || Building2
 
   const pick = async (ws: WorkspaceContext) => {
-    if (busyId || current?.id === ws.id) {
+    if (busyId) return
+    const home = getWorkspaceHomeTarget({ scopeType: ws.scopeType, roleKey: ws.roleKey || ws.role })
+    if (current?.id === ws.id) {
       setOpen(false)
+      if (home) navigate(home.path)
+      else if (ws.scopeType === 'CLINIC' && !location.pathname.startsWith('/crm')) navigate('/crm/schedule')
       return
     }
+
     setBusyId(ws.id)
     try {
       await switchWorkspace(ws)
@@ -222,7 +227,6 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.waitingList })
       void queryClient.invalidateQueries({ queryKey: queryKeys.chairs })
 
-      const home = getWorkspaceHomeTarget({ scopeType: ws.scopeType, roleKey: ws.roleKey || ws.role })
       if (home) navigate(home.path)
       else if (ws.scopeType === 'CLINIC' && !location.pathname.startsWith('/crm')) navigate('/crm/schedule')
     } catch (e) {
