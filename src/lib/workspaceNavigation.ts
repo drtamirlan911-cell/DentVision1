@@ -136,6 +136,9 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
     const financeRoles = tokens.some((token) =>
       token.includes('finance') || token === 'cashier' || token === 'accountant',
     )
+    const cashierRoles = tokens.some((token) =>
+      ['owner', 'admin', 'diagnostic_owner', 'diagnostic_admin'].includes(token),
+    )
     const operationalRoles = tokens.some((token) =>
       token.includes('radiologist')
       || token.includes('radiology_technician')
@@ -163,7 +166,7 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
     if (financeRoles || managementRoles) {
       groups.push(group('diagnostic-finance', 'Финансы и расчёты', [
         item('finance', 'Расчёты и выплаты', '/diagnostics/center?tab=finance', 'diagnostics'),
-        ...(managementRoles ? [item('cashier', 'Касса', '/diagnostics/center?tab=cashier', 'diagnostics')] : []),
+        ...(cashierRoles ? [item('cashier', 'Касса', '/diagnostics/center?tab=cashier', 'diagnostics')] : []),
       ]))
     }
     return groups
