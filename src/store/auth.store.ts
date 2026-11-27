@@ -109,7 +109,7 @@ const _seedStore: { clinics: Clinic[]; users: User[] } = { clinics: [...INIT_CLI
 
 export interface WorkspaceContext {
   id: string; scopeType: string; scopeId: string; organizationId?: string;
-  name: string; roleKey: string; roleLabel: string; personType?: string;
+  name: string; roleKey: string; roleLabel: string; personType?: string; permissions?: string[];
   logo?: string | null; joinedAt?: string; role?: string; level?: string;
   branchId?: string;
   clinic?: unknown; supplier?: unknown; academy?: unknown;
