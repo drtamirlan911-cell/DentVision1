@@ -71,7 +71,13 @@ export function getWorkspaceHomeTarget(source: WorkspaceHomeSource): WorkspaceHo
     || resolvedLabKind === 'medical'
     || (rawScope !== 'LABORATORY' && isMedicalLabRole)
   ) {
-    return { scopeType: 'LABORATORY', path: '/diagnostics/lab?workspace=medical-lab', label: 'Кабинет медицинской лаборатории' }
+    const financeOnlyRole = tokens.some((token) => token.includes('finance') || token === 'accountant')
+      && !tokens.some((token) => /(?:^|_)(owner|admin|manager|director|reception|technician|validator|doctor|quality)$/.test(token))
+    return {
+      scopeType: 'LABORATORY',
+      path: financeOnlyRole ? '/diagnostics/lab?workspace=medical-lab&tab=finance' : '/diagnostics/lab?workspace=medical-lab',
+      label: 'Кабинет медицинской лаборатории',
+    }
   }
   if (
     rawScope === 'DENTAL_LAB'
@@ -79,7 +85,16 @@ export function getWorkspaceHomeTarget(source: WorkspaceHomeSource): WorkspaceHo
     || resolvedLabKind === 'dental'
     || (rawScope !== 'LABORATORY' && isDentalLabRole)
   ) {
-    return { scopeType: 'DENTAL_LAB', path: '/diagnostics/lab?workspace=dental-lab', label: 'Кабинет зуботехнической лаборатории' }
+    const workPath = tokens.some((token) => token.includes('finance') || token === 'accountant')
+      ? '/diagnostics/lab?workspace=dental-lab&tab=finance'
+      : tokens.some((token) => token === 'qc_specialist' || token.endsWith('_quality'))
+        ? '/diagnostics/lab?workspace=dental-lab&tab=quality'
+        : tokens.some((token) => ['courier', 'logistics', 'delivery_operator', 'dispatcher'].includes(token))
+          ? '/diagnostics/lab?workspace=dental-lab&tab=shipping'
+          : tokens.some((token) => ['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician', 'lab_coordinator'].includes(token))
+            ? '/diagnostics/lab?workspace=dental-lab&tab=priority'
+            : '/diagnostics/lab?workspace=dental-lab'
+    return { scopeType: 'DENTAL_LAB', path: workPath, label: 'Кабинет зуботехнической лаборатории' }
   }
 
   const scopeType = rawScope || (
@@ -95,8 +110,20 @@ export function getWorkspaceHomeTarget(source: WorkspaceHomeSource): WorkspaceHo
   switch (scopeType) {
     case 'CLINIC':
       return { scopeType, path: '/crm/schedule', label: 'Рабочее место клиники' }
-    case 'DIAGNOSTIC_CENTER':
-      return { scopeType, path: '/diagnostics/center', label: 'Кабинет диагностического центра' }
+    case 'DIAGNOSTIC_CENTER': {
+      const financeOnlyRole = tokens.some((token) => token.includes('finance') || token === 'accountant')
+        && !tokens.some((token) => /(?:^|_)(owner|admin|manager|director|reception|operator|radiologist|technician|quality)$/.test(token))
+      const qualityRole = tokens.some((token) => token.includes('quality') || token.includes('radiologist'))
+      return {
+        scopeType,
+        path: financeOnlyRole
+          ? '/diagnostics/center?tab=finance'
+          : qualityRole
+            ? '/diagnostics/center?tab=results'
+            : '/diagnostics/center?tab=worklist',
+        label: 'Кабинет диагностического центра',
+      }
+    }
     case 'LABORATORY': {
       const kind = resolveLaboratoryWorkspaceKind({ roleKey, organizationType: 'LABORATORY' })
       return kind === 'medical'
