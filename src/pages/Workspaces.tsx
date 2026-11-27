@@ -14,26 +14,10 @@ import { ListSkeleton } from '@/components/ui/ds/Skeleton'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { useToast } from '@/components/ui/ds/Toast'
 import { getWorkspaceHomeTarget } from '@/lib/workspaceNavigation'
-import { resolveGlobalRoleLabel, selectWorkspaceContext, workspaceContextFrom } from '@/lib/workspaceContext'
+import { resolveGlobalRoleLabel, selectWorkspaceContext } from '@/lib/workspaceContext'
 import { queryKeys } from '@/queries/keys'
-import { useAuth, useAuthStore, getRoleDisplayLabel } from '@/store/auth.store'
-import { useWorkspaceStore } from '@/store/workspace.store'
+import { useAuth, getRoleDisplayLabel, type WorkspaceContext } from '@/store/auth.store'
 import * as api from '@/utils/api'
-
-interface WorkspaceContext {
-  id: string
-  scopeType: string
-  scopeId: string
-  organizationId?: string
-  branchId?: string
-  permissions?: string[]
-  ownDataOnly?: boolean
-  roleKey?: string
-  role?: string
-  personType?: string | null
-  name: string
-  roleLabel: string
-}
 
 const TYPE_LABEL: Record<string, string> = {
   CLINIC: 'Стоматологическая клиника',
@@ -80,16 +64,14 @@ export default function Workspaces() {
   const navigate = useNavigate()
   const toast = useToast()
   const queryClient = useQueryClient()
-  const { user, isAuthenticated, activeWorkspace } = useAuth()
-  const setActiveWorkspace = useWorkspaceStore((state) => state.setActiveWorkspace)
-  const setContextFocus = useWorkspaceStore((state) => state.setContextFocus)
+  const { user, isAuthenticated, activeWorkspace, switchWorkspace } = useAuth()
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const { data: workspaces = [], isLoading, isError, refetch } = useQuery<WorkspaceContext[]>({
     queryKey: ['workspaces', user?.id],
     queryFn: async () => {
-      const result = await api.getMyContexts()
-      return (result.contexts || []) as WorkspaceContext[]
+      const response = await api.getMyContexts()
+      return (response.contexts || []) as WorkspaceContext[]
     },
     enabled: isAuthenticated && Boolean(user),
     staleTime: 30_000,
@@ -138,46 +120,7 @@ export default function Workspaces() {
 
     setBusyId(workspace.id)
     try {
-      // Keep the legacy scope identity for supplier and lecturer tokens.
-      const scopeId = workspace.scopeType === 'LECTURER' || workspace.scopeType === 'SUPPLIER'
-        ? workspace.scopeId
-        : (workspace.organizationId || workspace.scopeId)
-      const tokens = await api.switchContext(workspace.scopeType, scopeId, workspace.branchId)
-      if (tokens?.accessToken) api.setTokens(tokens.accessToken, tokens.refreshToken || null)
-      await useAuthStore.getState().restoreSession()
-
-      const contract = workspaceContextFrom(workspace, workspace.permissions || [])
-      api.setWorkspaceContext(contract)
-      setActiveWorkspace({
-        id: workspace.id,
-        scopeType: workspace.scopeType,
-        organizationId: workspace.organizationId,
-        branchId: workspace.branchId,
-        name: workspace.name,
-        roleKey: workspace.roleKey,
-        roleLabel: workspace.roleLabel,
-        permissions: workspace.permissions,
-        participant: workspace.personType,
-        dataScope: contract.dataScope,
-      }, contract)
-      setContextFocus('workspace', workspace.id, {
-        organizationId: workspace.organizationId || null,
-        branchId: workspace.branchId || null,
-        roleKey: workspace.roleKey || workspace.role || null,
-        scopeType: workspace.scopeType,
-      })
-      window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', {
-        detail: {
-          id: workspace.id,
-          scopeId: workspace.scopeId,
-          scopeType: workspace.scopeType,
-          organizationId: workspace.organizationId,
-          branchId: workspace.branchId || null,
-          name: workspace.name,
-          roleLabel: workspace.roleLabel,
-          roleKey: workspace.roleKey || null,
-        },
-      }))
+      await switchWorkspace(workspace)
 
       await queryClient.invalidateQueries({ queryKey: ['workspaces', user?.id] })
       void queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
