@@ -268,16 +268,10 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
     return [
       group('academy-learning', 'Обучение', [
         item('courses', 'Курсы', '/academy/workspace?tab=courses', 'school'),
-        item('content', 'Учебные материалы', '/academy/workspace?section=content', 'school'),
-        item('assessments', 'Оценивание и тесты', '/academy/workspace?section=assessments', 'school'),
         item('students', 'Учащиеся', '/academy/workspace?tab=students', 'school'),
-        item('certificates', 'Сертификаты', '/academy/workspace?section=certificates', 'school'),
       ]),
-      group('academy-management', 'Управление академией', [
-        item('schedule', 'Расписание', '/academy/workspace?section=schedule', 'school'),
-        item('finance', 'Финансы и выплаты', '/academy/workspace?section=finance', 'school'),
-        item('analytics', 'Аналитика обучения', '/academy/workspace?section=analytics', 'school'),
-        item('team', 'Команда', '/academy/workspace?section=team', 'school'),
+      group('academy-management', 'Команда', [
+        item('team', 'Сотрудники академии', '/academy/workspace?section=team', 'school'),
       ]),
     ]
   }
