@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useIam } from '@/iam';
 import { getRoleDisplayLabel, useAuth } from '@/store/auth.store';
 import { firstAllowedCrmPath, pageIdFromPath } from '@/lib/roleAccess';
-import { getWorkspaceHomeTarget, getWorkspaceNavigationGroups, isPartnerWorkspaceType, isWorkspaceNavigationActive } from '@/lib/workspaceNavigation';
+import { getWorkspaceHomeTarget, getWorkspaceNavigationGroups, isClinicFinanceOnlyRole, isPartnerWorkspaceType, isWorkspaceNavigationActive } from '@/lib/workspaceNavigation';
 
 export interface EcosystemSidebarProps { collapsed: boolean; setCollapsed: (value: boolean) => void; sidebarVisible: boolean; isMobile: boolean; sidebarOpen: boolean; user: UserType | null; logout: () => void; toggleSidebar: () => void; isGuest?: boolean; pendingApprovals?: number; isAdmin?: boolean; }
 type Item = { id: string; label: string; path: string; icon: React.ReactNode; page?: string; guest?: boolean };
@@ -63,8 +63,14 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
           hasClinic: Boolean((user as any)?.clinicId || (user as any)?.organizationId),
         })
       : null;
+  const activeWorkspaceRole = String(
+    activeWorkspace?.roleKey || activeWorkspace?.role || (user as any)?.effectiveRole || (user as any)?.role || '',
+  );
+  const clinicFinanceHome = workspaceHome?.scopeType === 'CLINIC'
+    && isClinicFinanceOnlyRole(activeWorkspaceRole)
+    && (iam.pages.includes('cashier') || iam.pages.includes('finance'));
   const homeTarget = workspaceHome?.scopeType === 'CLINIC'
-    ? { ...workspaceHome, path: firstAllowedCrmPath(iam.pages) }
+    ? { ...workspaceHome, path: clinicFinanceHome ? '/crm/cashier' : firstAllowedCrmPath(iam.pages) }
     : workspaceHome;
   const partnerWorkspace = Boolean(homeTarget && isPartnerWorkspaceType(homeTarget.scopeType));
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({ core: true, care: true, partners: false, market: false, business: true });
@@ -100,10 +106,7 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
       ]
     : groups;
   const visibleGroups = navigationGroups.map(g => ({ ...g, items: g.items.filter(canSee) })).filter(g => g.items.length);
-  const clinicRoleTokens = activeWorkspaceRole.split(/[\s,]+/).map((value) => value.split('.').pop() || value);
-  const clinicFinanceOnly = clinicWorkspace
-    && clinicRoleTokens.some((value) => ['cashier', 'finance', 'accountant'].includes(value))
-    && !clinicRoleTokens.some((value) => ['owner', 'director', 'admin', 'manager', 'doctor', 'assistant', 'reception'].includes(value));
+  const clinicFinanceOnly = clinicWorkspace && isClinicFinanceOnlyRole(activeWorkspaceRole);
   const visibleMore = (partnerWorkspace
     ? moreItems.filter((item) => ['profile', 'settings', 'help'].includes(item.id))
     : clinicWorkspace
