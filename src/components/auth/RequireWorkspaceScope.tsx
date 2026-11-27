@@ -31,10 +31,16 @@ export function RequireWorkspaceScope({
   children: React.ReactNode
 }) {
   const location = useLocation()
-  const { user, loading, effectiveRole, activeWorkspace } = useAuth()
+  const { user, loading, effectiveRole, activeWorkspace, workspaceContexts } = useAuth()
 
   if (loading) return null
   if (!user) return <Navigate to="/login" state={{ from: location }} replace />
+  // A multi-organization user with no active IAM selection must choose one
+  // before any protected workspace route can render. Never fall back to the
+  // profile's legacy organizationType in this ambiguous state.
+  if (!activeWorkspace && workspaceContexts.length > 0) {
+    return <Navigate to="/my-clinics" state={{ from: location }} replace />
+  }
   if (workspaceScopeAllowed(user, effectiveRole, scopeType, activeWorkspace?.scopeType)) return <>{children}</>
   const activeHome = activeWorkspace ? getWorkspaceHomeTarget({
     scopeType: activeWorkspace.scopeType,
