@@ -34,7 +34,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
   const { activeWorkspace, workspaceContexts, pages } = useAuth();
   const hasUnselectedWorkspaces = workspaceContexts.length > 0 && !activeWorkspace;
   const org = activeWorkspace?.name || (!workspaceContexts.length ? organizationLabel(user) : null);
-  const label = hasUnselectedWorkspaces ? 'Контекст не выбран' : activeWorkspace?.roleLabel || roleLabel(user, activeWorkspace?.roleKey);
+  const label = hasUnselectedWorkspaces ? 'Контекст не выбран' : activeWorkspace?.roleLabel || roleLabel(user, activeWorkspace?.roleKey || activeWorkspace?.role);
   const home = activeWorkspace ? getWorkspaceHomeTarget({
     scopeType: activeWorkspace.scopeType,
     roleKey: activeWorkspace.roleKey || activeWorkspace.role || (user as any)?.effectiveRole || (user as any)?.role,
