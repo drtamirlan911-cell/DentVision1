@@ -60,6 +60,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const queryClient = useQueryClient()
   const { user, clinic, activeMembership, roleInfo, effectiveRole, isAuthenticated } = useAuth()
   const setActiveWorkspace = useWorkspaceStore(s => s.setActiveWorkspace)
+  const activeWorkspace = useWorkspaceStore(s => s.activeWorkspace)
   const setContextFocus = useWorkspaceStore(s => s.setContextFocus)
   const [open, setOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -118,6 +119,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const activeLecturerId = (user as { lecturerId?: string } | null)?.lecturerId || null
 
   const isActive = useCallback((ws: WorkspaceContext) => {
+    if (activeWorkspace?.id) return ws.id === activeWorkspace.id
     if (ws.scopeType === 'LECTURER') {
       return activeLecturerId ? ws.scopeId === activeLecturerId : Boolean(activeOrgId && ws.organizationId === activeOrgId)
     }
@@ -126,10 +128,12 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     }
     if (activeOrgType && activeOrgType !== 'CLINIC') return ws.organizationId === activeOrgId || ws.scopeId === activeOrgId
     return ws.scopeType === 'CLINIC' && ws.scopeId === activeClinicId
-  }, [activeClinicId, activeOrgId, activeOrgType, activeSupplierId, activeLecturerId])
+  }, [activeWorkspace?.id, activeClinicId, activeOrgId, activeOrgType, activeSupplierId, activeLecturerId])
 
   const current = useMemo(
     () => {
+      const selected = activeWorkspace?.id ? workspaces.find((workspace) => workspace.id === activeWorkspace.id) : null
+      if (selected) return selected
       const exact = workspaces.find(isActive)
       if (exact) return exact
       // Reuse the canonical fail-closed selector. A stale identity or an
@@ -139,7 +143,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         organizationId: activeOrgId,
       })
     },
-    [workspaces, isActive, activeOrgId, activeClinicId, activeSupplierId, activeLecturerId],
+    [workspaces, isActive, activeWorkspace?.id, activeOrgId, activeClinicId, activeSupplierId, activeLecturerId],
   )
   const isGenericRoleLabel = (label?: string | null) =>
     !label?.trim() || /^(?:участник(?: экосистемы)?|member|participant|user|пользователь)$/i.test(label.trim())
@@ -258,16 +262,9 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.waitingList })
       void queryClient.invalidateQueries({ queryKey: queryKeys.chairs })
 
-      switch (ws.scopeType) {
-        case 'CLINIC': if (!location.pathname.startsWith('/crm')) navigate('/crm/schedule'); break
-        case 'DIAGNOSTIC_CENTER': navigate('/diagnostics/center-dashboard'); break
-        case 'LABORATORY': navigate('/diagnostics/lab-dashboard'); break
-        case 'SUPPLIER': navigate('/supplier'); break
-        case 'LECTURER': navigate('/school/workspace'); break
-        case 'ACADEMY': navigate('/academy/workspace'); break
-        case 'PARTNER': navigate('/shop'); break
-        case 'EMPLOYER': navigate('/employer'); break
-      }
+      const home = getWorkspaceHomeTarget({ scopeType: ws.scopeType, roleKey: ws.roleKey || ws.role })
+      if (home) navigate(home.path)
+      else if (ws.scopeType === 'CLINIC' && !location.pathname.startsWith('/crm')) navigate('/crm/schedule')
     } catch (e) {
       toast.error((e as Error)?.message || t('platform.clinic_switch_error'))
     } finally {
