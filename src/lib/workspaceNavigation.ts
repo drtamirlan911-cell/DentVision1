@@ -302,6 +302,8 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
         token.includes('finance')
         || token === 'accountant'
         || token === 'reception'
+        || token.endsWith('_reception')
+        || token.endsWith('.reception')
         || /(?:^|_)(owner|admin|manager|director)$/.test(token),
       )
       const financeOnly = tokens.some((token) => token.includes('finance') || token === 'accountant')
