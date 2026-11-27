@@ -47,6 +47,28 @@ describe('EcosystemContextCard active workspace shortcut', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/supplier')
   })
 
+  it('uses the scoped membership role when roleKey is absent', () => {
+    useAuthStore.setState({
+      workspaceContexts: [{
+        id: 'lab-workspace', scopeType: 'LABORATORY', scopeId: 'lab-1',
+        name: 'Dental Lab', role: 'qc_specialist', roleLabel: 'Контроль качества',
+      }] as any,
+      activeWorkspace: {
+        id: 'lab-workspace', scopeType: 'LABORATORY', scopeId: 'lab-1',
+        name: 'Dental Lab', role: 'qc_specialist', roleLabel: 'Контроль качества',
+        switchedAt: 3,
+      } as any,
+    });
+    render(
+      <MemoryRouter initialEntries={['/shop']}>
+        <EcosystemContextCard user={null} />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть рабочий кабинет' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/diagnostics/lab?workspace=dental-lab&tab=quality');
+  })
+
   it('opens the shared workspace directory when no organization is active', () => {
     useAuthStore.setState({ activeWorkspace: null, workspaceContexts: [] })
     render(
