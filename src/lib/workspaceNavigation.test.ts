@@ -28,6 +28,13 @@ describe('workspace home navigation', () => {
       .toBe('/diagnostics/lab?workspace=medical-lab')
   })
 
+  it('returns a dental-lab home for the legacy mixed technician membership payload', () => {
+    expect(getWorkspaceHomeTarget({
+      scopeType: 'LABORATORY',
+      roleKey: 'laboratory_technician,medical_lab_technician,dental_technician',
+    })?.path).toBe('/diagnostics/lab?workspace=dental-lab')
+  })
+
   it('does not guess a workspace when the active identity is ambiguous', () => {
     expect(getWorkspaceHomeTarget({})).toBeNull()
   })
