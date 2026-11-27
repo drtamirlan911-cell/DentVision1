@@ -60,12 +60,15 @@ export function getWorkspaceHomeTarget(source: WorkspaceHomeSource): WorkspaceHo
     || ['dental_technician', 'cad_designer', 'ceramist', 'orthodontic_technician', 'qc_specialist', 'lab_coordinator'].includes(token),
   )
   const isMedicalLabRole = tokens.some((token) => token.startsWith('medical_lab_'))
+  const resolvedLabKind = rawScope === 'LABORATORY'
+    ? resolveLaboratoryWorkspaceKind({ roleKey, organizationType: 'LABORATORY' })
+    : null
 
-  if (rawScope === 'DENTAL_LAB' || rawScope === 'DENTAL_LABORATORY' || isDentalLabRole) {
-    return { scopeType: 'DENTAL_LAB', path: '/diagnostics/lab?workspace=dental-lab', label: 'Кабинет зуботехнической лаборатории' }
-  }
-  if (rawScope === 'MEDICAL_LAB' || rawScope === 'MEDICAL_LABORATORY' || isMedicalLabRole) {
+  if (rawScope === 'MEDICAL_LAB' || rawScope === 'MEDICAL_LABORATORY' || isMedicalLabRole || resolvedLabKind === 'medical') {
     return { scopeType: 'LABORATORY', path: '/diagnostics/lab?workspace=medical-lab', label: 'Кабинет медицинской лаборатории' }
+  }
+  if (rawScope === 'DENTAL_LAB' || rawScope === 'DENTAL_LABORATORY' || isDentalLabRole || resolvedLabKind === 'dental') {
+    return { scopeType: 'DENTAL_LAB', path: '/diagnostics/lab?workspace=dental-lab', label: 'Кабинет зуботехнической лаборатории' }
   }
 
   const scopeType = rawScope || (
