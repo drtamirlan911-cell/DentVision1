@@ -28,6 +28,18 @@ const TYPE_ICON: Record<ScopeType, typeof Building2> = {
   EMPLOYER: BriefcaseBusiness,
 }
 
+function workspaceRoleLabel(workspace: WorkspaceContext): string {
+  for (const candidate of [workspace.roleKey, workspace.role]) {
+    if (!candidate) continue
+    const label = getRoleDisplayLabel(candidate)
+    if (label && label.toLowerCase() !== String(candidate).toLowerCase()) return label
+  }
+  if (workspace.roleLabel && !/^(?:участник(?: экосистемы)?|member|participant|user|пользователь)$/i.test(workspace.roleLabel.trim())) {
+    return workspace.roleLabel
+  }
+  return getRoleDisplayLabel(workspace.roleKey || workspace.role)
+}
+
 function workspaceTypeLabel(workspace: WorkspaceContext): string {
   const label = getWorkspaceHomeTarget({
     scopeType: workspace.scopeType,
@@ -172,15 +184,22 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       }
       return t('platform.workspace_choose', { defaultValue: 'Контекст не выбран' })
     }
-    // Prefer the application's canonical role vocabulary over stale labels saved
-    // in older workspace rows (for example, "Руководитель" vs "Владелец").
-    const canonicalCandidates = [current?.roleKey, effectiveRole, (user as any)?.role, (user as any)?.platformRole, current?.role]
-    for (const candidate of canonicalCandidates) {
+    // The selected membership is authoritative for the label. A platform/global
+    // OWNER or ADMIN role must never replace the role the person has inside this
+    // particular clinic, lab, supplier or academy.
+    const scopedCandidates = [current?.roleKey, current?.role]
+    for (const candidate of scopedCandidates) {
       if (!candidate) continue
       const label = getRoleDisplayLabel(candidate)
       if (!isGenericRoleLabel(label) && label.toLowerCase() !== String(candidate).toLowerCase()) return label
     }
-    if (!isGenericRoleLabel(current?.roleLabel)) return current?.roleLabel || roleInfo?.label || 'Участник экосистемы'
+    if (!isGenericRoleLabel(current?.roleLabel)) return current?.roleLabel || 'Участник экосистемы'
+    const globalCandidates = [effectiveRole, (user as any)?.role, (user as any)?.platformRole]
+    for (const candidate of globalCandidates) {
+      if (!candidate) continue
+      const label = getRoleDisplayLabel(candidate)
+      if (!isGenericRoleLabel(label) && label.toLowerCase() !== String(candidate).toLowerCase()) return label
+    }
     return roleInfo?.label || 'Участник экосистемы'
   }, [current, workspaces.length, effectiveRole, user, roleInfo?.label, t])
 
@@ -316,7 +335,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
                     <span className={cn('h-8 w-8 rounded-lg flex items-center justify-center shrink-0 border', active ? 'bg-dv-gold/15 border-dv-gold/30 text-dv-gold' : 'bg-surface-2 border-bdr-subtle text-txt-secondary')}><WsIcon size={15} /></span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-xs font-semibold truncate">{ws.name}</span>
-                      <span className="block text-[10px] text-txt-muted truncate">{workspaceTypeLabel(ws)} · {ws.roleLabel || getRoleDisplayLabel(ws.roleKey || ws.role)}</span>
+                      <span className="block text-[10px] text-txt-muted truncate">{workspaceTypeLabel(ws)} · {workspaceRoleLabel(ws)}</span>
                     </span>
                     {loading ? <Loader2 size={15} className="animate-spin shrink-0 text-dv-gold" /> : active ? <Check size={15} className="shrink-0 text-dv-gold" /> : null}
                   </button>
