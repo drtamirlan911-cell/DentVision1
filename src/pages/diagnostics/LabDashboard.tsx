@@ -16,7 +16,7 @@ export default function LabDashboard() {
     workspaceParam: searchParams.get('workspace'),
     roleKey: activeWorkspace?.roleKey || activeWorkspace?.role,
     effectiveRole: user?.effectiveRole || user?.role,
-    organizationType: user?.organizationType,
+    organizationType: activeWorkspace?.scopeType || user?.organizationType,
   });
 
   if (workspaceKind === 'medical') return <MedicalLabWorkspace />;
