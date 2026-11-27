@@ -191,6 +191,28 @@ describe('role-aware workspace navigation', () => {
     expect(items.map((entry) => entry.id)).toEqual(['orders', 'finance'])
   })
 
+  it('keeps a diagnostic finance employee in finance and analytics only', () => {
+    const items = getWorkspaceNavigationGroups('DIAGNOSTIC_CENTER', 'diagnostic_finance').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toEqual(['finance', 'analytics'])
+    expect(items.some((entry) => ['queue', 'referrals', 'results', 'calendar', 'settings'].includes(entry.id))).toBe(false)
+  })
+
+  it('keeps diagnostic reception on incoming registrations and permitted read-only finance', () => {
+    const items = getWorkspaceNavigationGroups('DIAGNOSTIC_CENTER', 'diagnostic_reception').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toEqual(['queue', 'referrals', 'finance'])
+    expect(items.some((entry) => ['results', 'calendar', 'settings'].includes(entry.id))).toBe(false)
+  })
+
+  it('directs diagnostic quality staff to results and analytics, not reception tasks', () => {
+    const items = getWorkspaceNavigationGroups('DIAGNOSTIC_CENTER', 'diagnostic_quality').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toEqual(['results', 'analytics'])
+  })
+
+  it('directs radiologists to assigned studies and their results', () => {
+    const items = getWorkspaceNavigationGroups('DIAGNOSTIC_CENTER', 'radiologist').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toEqual(['queue', 'referrals', 'results'])
+  })
+
   it('shows read-only settlements to diagnostic-centre reception with finance.read', () => {
     const items = getWorkspaceNavigationGroups('DIAGNOSTIC_CENTER', 'diagnostic_reception').flatMap((entry) => entry.items)
     expect(items.map((entry) => entry.id)).toContain('finance')
