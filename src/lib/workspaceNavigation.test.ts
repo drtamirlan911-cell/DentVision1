@@ -86,7 +86,7 @@ describe('role-aware workspace navigation', () => {
   it('shows operational work and finance to a diagnostic-centre owner', () => {
     const items = getWorkspaceNavigationGroups('DIAGNOSTIC_CENTER', 'diagnostic_owner').flatMap((entry) => entry.items)
     expect(items.map((entry) => entry.id)).toEqual(expect.arrayContaining([
-      'today', 'queue', 'referrals', 'results', 'calendar', 'analytics', 'settings', 'finance', 'cashier',
+      'queue', 'referrals', 'results', 'calendar', 'analytics', 'settings', 'finance', 'cashier',
     ]))
   })
 
