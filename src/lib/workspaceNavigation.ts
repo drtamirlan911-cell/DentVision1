@@ -130,19 +130,43 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
   const tokens = roleTokens(role)
 
   if (scope === 'DIAGNOSTIC_CENTER') {
-    return [
-      group('diagnostic-work', 'Работа с исследованиями', [
+    const managementRoles = tokens.some((token) =>
+      ['owner', 'admin', 'manager', 'director', 'diagnostic_owner', 'diagnostic_admin', 'diagnostic_manager'].includes(token),
+    )
+    const financeRoles = tokens.some((token) =>
+      token.includes('finance') || token === 'cashier' || token === 'accountant',
+    )
+    const operationalRoles = tokens.some((token) =>
+      token.includes('radiologist')
+      || token.includes('radiology_technician')
+      || token.includes('operator')
+      || token.includes('reception')
+      || token.includes('quality'),
+    )
+    const financeOnly = financeRoles && !managementRoles && !operationalRoles
+    const groups: WorkspaceNavigationGroup[] = []
+    if (!financeOnly) {
+      groups.push(group('diagnostic-work', 'Работа с исследованиями', [
         item('today', 'Сегодня', '/diagnostics/center', 'diagnostics'),
         item('queue', 'Рабочая очередь', '/diagnostics/workspace', 'diagnostics'),
         item('referrals', 'Направления', '/diagnostics/referrals', 'diagnostics-referrals'),
         item('results', 'Результаты', '/diagnostics/results', 'diagnostics-results'),
-      ]),
-      group('diagnostic-management', 'Организация центра', [
+      ]))
+    }
+    if (managementRoles) {
+      groups.push(group('diagnostic-management', 'Организация центра', [
         item('calendar', 'Расписание', '/diagnostics/calendar', 'diagnostics-calendar'),
         item('analytics', 'Аналитика', '/diagnostics/statistics', 'diagnostics-statistics'),
         item('settings', 'Настройки центра', '/diagnostics/settings', 'diagnostics-settings'),
-      ]),
-    ]
+      ]))
+    }
+    if (financeRoles || managementRoles) {
+      groups.push(group('diagnostic-finance', 'Финансы и расчёты', [
+        item('finance', 'Расчёты и выплаты', '/diagnostics/center?tab=finance', 'diagnostics'),
+        ...(managementRoles ? [item('cashier', 'Касса', '/diagnostics/center?tab=cashier', 'diagnostics')] : []),
+      ]))
+    }
+    return groups
   }
 
   if (scope === 'LABORATORY' || scope === 'MEDICAL_LAB' || scope === 'MEDICAL_LABORATORY' || scope === 'DENTAL_LAB' || scope === 'DENTAL_LABORATORY') {
