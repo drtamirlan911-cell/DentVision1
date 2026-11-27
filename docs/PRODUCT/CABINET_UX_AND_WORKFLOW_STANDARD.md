@@ -158,6 +158,10 @@ All cabinets use the shared platform capabilities instead of re-implementing the
 - A sidebar item that opens a tab must encode the tab in the URL. The workspace must respond when that URL changes while the page remains mounted, preserve query parameters relevant to the active context, and restore the selected tab on browser back/forward.
 - A deep link to a tab not granted to the active role must fall back to a permitted default. It must never show a blank panel, expose an unavailable action or switch organization.
 - Do not present placeholder or unimplemented routes as working business processes. Hide them from operational navigation until the workflow is implemented, or label the limitation explicitly outside the primary task navigation.
+- Clinic employees receive a focused sidebar by scoped role: doctors, assistants/front desk, management and finance each see an appropriate work route; IAM page permissions still filter every item.
+- Dental-lab QC specialists may perform quality checks without inheriting team administration, service pricing, finance or shipping management.
+- Academy navigation exposes only workflows that are implemented in the current cabinet. Placeholder sections must not appear as actionable sidebar destinations.
+- URL-backed tabs in the lecturer, academy, medical-lab, dental-lab and diagnostic-centre cabinets must respond to route changes while mounted and restore state from browser history.
 - Automated coverage must include: return to the same cabinet from another module; switch A → B → A; same-named organizations of different types; branch selection; role-specific menu visibility; query-backed tab activation; unauthorized-tab fallback; and browser history restoration.
 
 ## 3. Domain-specific operating contracts
