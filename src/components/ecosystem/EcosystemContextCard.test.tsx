@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 
@@ -51,7 +51,29 @@ describe('EcosystemContextCard active workspace shortcut', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Подключить рабочий контекст' }))
-    expect(screen.getByTestId('location')).toHaveTextContent('/workspaces')
+    expect(screen.getByTestId('location')).toHaveTextContent('/my-clinics')
+  })
+
+  it('opens the workspace switcher when the user belongs to multiple organizations', () => {
+    useAuthStore.setState({
+      workspaceContexts: [
+        { id: 'supplier-workspace', scopeType: 'SUPPLIER', scopeId: 'supplier-1', organizationId: 'supplier-organization', name: 'Dental Supply', roleKey: 'manager', roleLabel: 'Менеджер поставщика' },
+        { id: 'clinic-workspace', scopeType: 'CLINIC', scopeId: 'clinic-1', name: 'Dental Clinic', roleKey: 'doctor', roleLabel: 'Врач' },
+      ] as any,
+    });
+    const onOpen = vi.fn();
+    window.addEventListener('dentvision:open-workspace-switcher', onOpen);
+
+    render(
+      <MemoryRouter initialEntries={['/crm/patients']}>
+        <EcosystemContextCard user={null} />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Сменить рабочее пространство' }));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    window.removeEventListener('dentvision:open-workspace-switcher', onOpen);
   })
 
   it('keeps the cabinet shortcut available when the sidebar is collapsed', () => {
