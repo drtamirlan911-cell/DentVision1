@@ -1,5 +1,6 @@
 export interface DentalLabRoleCapabilities {
   canManageQc: boolean
+  canPerformQc: boolean
   canManageShipping: boolean
   canManageFinance: boolean
   canReadProduction: boolean
@@ -29,6 +30,7 @@ export function hasDentalLabRole(role: unknown, ...expectedRoles: string[]): boo
  */
 export function resolveDentalLabRoleCapabilities(role: unknown): DentalLabRoleCapabilities {
   const canManageQc = hasDentalLabRole(role, 'owner', 'admin', 'manager', 'director', 'lab_manager')
+  const canPerformQc = canManageQc || hasDentalLabRole(role, 'qc_specialist')
   const canManageShipping = canManageQc || hasDentalLabRole(role, 'courier', 'logistics', 'delivery_operator', 'dispatcher')
   const canManageFinance = canManageQc || hasDentalLabRole(role, 'lab_finance', 'finance', 'accountant')
   const canReadProduction = canManageQc || hasDentalLabRole(
@@ -55,6 +57,7 @@ export function resolveDentalLabRoleCapabilities(role: unknown): DentalLabRoleCa
 
   return {
     canManageQc,
+    canPerformQc,
     canManageShipping,
     canManageFinance,
     canReadProduction,
