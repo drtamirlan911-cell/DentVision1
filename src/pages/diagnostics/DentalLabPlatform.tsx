@@ -15,6 +15,7 @@ import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 import { useAuth } from '@/store/auth.store';
 import { PartnerBranchSubscriptionBilling } from '@/components/billing/PartnerBranchSubscriptionBilling';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
+import { WorkspaceRoleStart } from '@/components/workspaces/WorkspaceRoleStart';
 
 const STAGES = [
   { id: 'pending', label: 'Новые' },
@@ -398,11 +399,63 @@ export default function DentalLabPlatform() {
     ...(canManageShipping ? [{ id: 'shipping', label: 'Выдача и доставка', icon: <Truck size={14} /> }] : []),
     ...(canManageFinance ? [{ id: 'finance', label: 'Финансы', icon: <Wallet size={14} /> }] : []),
   ];
+  const roleGuide = !canReadProduction && canManageFinance
+    ? {
+        role: 'Финансовый специалист',
+        heading: 'Работайте со счетами и выплатами лаборатории',
+        description: 'Ваш основной раздел — финансы. Проверяйте выставленные счета, состояние расчётов и выплаты. Производственные действия остаются у назначенных сотрудников.',
+        steps: ['Откройте финансовый раздел', 'Проверьте счета и доступный баланс', 'Подайте заявку на выплату и отслеживайте её статус'],
+        actionLabel: 'Открыть финансы',
+        action: () => changeTab('finance'),
+      }
+    : !canReadProduction && canManageShipping
+      ? {
+          role: 'Сотрудник доставки',
+          heading: 'Передавайте готовые работы клиникам',
+          description: 'Здесь собраны заказы, которые ожидают отправки или выдачи. Фиксируйте перевозчика, отслеживание и подтверждение вручения.',
+          steps: ['Откройте выдачу и доставку', 'Зарегистрируйте отправку или самовывоз', 'Подтвердите вручение с доказательством доставки'],
+          actionLabel: 'Открыть доставку',
+          action: () => changeTab('shipping'),
+        }
+      : canManageQc
+        ? {
+            role: 'Руководитель лаборатории',
+            heading: 'Управляйте производством и сроками заказов',
+            description: 'Начните с производственной доски. Назначайте ответственных, контролируйте контроль качества, переделки и отгрузки.',
+            steps: ['Проверьте новые и просроченные заказы', 'Назначьте техника и проконтролируйте QC', 'Завершите выдачу и проверьте финансовое закрытие'],
+            actionLabel: 'Открыть производство',
+            action: () => changeTab('board'),
+          }
+        : memberRole.includes('qc')
+          ? {
+              role: 'Специалист контроля качества',
+              heading: 'Проверяйте работы, ожидающие контроля качества',
+              description: 'Сначала откройте приоритетные задачи. По каждой работе зафиксируйте все проверки и причину несоответствия.',
+              steps: ['Откройте приоритетные задачи', 'Проверьте комплектность и качество', 'Зафиксируйте результат или переделку'],
+              actionLabel: 'Открыть приоритеты',
+              action: () => changeTab('priority'),
+            }
+          : {
+              role: 'Сотрудник производства',
+              heading: 'Выполняйте назначенные лабораторные работы',
+              description: 'Ваш основной рабочий маршрут — приоритетные заказы и материалы. Открывайте карточку работы, проверяйте срок и отмечайте следующий выполненный этап.',
+              steps: ['Откройте приоритетные задачи', 'Проверьте срок и требования к работе', 'Обновите статус своего этапа'],
+              actionLabel: 'Мои приоритетные задачи',
+              action: () => changeTab('priority'),
+            };
 
   return (
     <div className="max-w-full space-y-6 overflow-x-hidden p-4 sm:p-6">
       {context.patientId || context.caseId ? <EcosystemRelationRail node="lab-order" title="Клинический контекст заказа" patientId={context.patientId} caseId={context.caseId} branchId={context.branchId} organizationId={context.organizationId} /> : null}
       <PageHeader title={d.lab.name} subtitle="Dental Lab · производство, контроль качества и выдача" icon={<FlaskConical size={22} />} actions={<Button size="sm" variant="ghost" onClick={() => { dashboard.refetch(); if (canReadOrders) orders.refetch(); if (effectiveTab === 'finance' && canManageFinance) finance.refetch(); }}><RefreshCw size={15} /> Обновить</Button>} />
+      <WorkspaceRoleStart
+        roleLabel={roleGuide.role}
+        heading={roleGuide.heading}
+        description={roleGuide.description}
+        steps={roleGuide.steps}
+        actionLabel={roleGuide.actionLabel}
+        onAction={roleGuide.action}
+      />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           ['В работе', d.totals.active, <Wrench size={18} />],
