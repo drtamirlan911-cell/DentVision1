@@ -130,9 +130,11 @@ describe('role-aware workspace navigation', () => {
     expect(items.some((entry) => entry.id === 'team' || entry.id === 'finance')).toBe(false)
   })
 
-  it('gives a dental-lab QC specialist the priority worklist without management tabs', () => {
+  it('gives a dental-lab QC specialist a dedicated QC queue without management tabs', () => {
     const items = getWorkspaceNavigationGroups('LABORATORY', 'qc_specialist').flatMap((entry) => entry.items)
-    expect(items.map((entry) => entry.id)).toEqual(['priority', 'materials'])
+    expect(items.map((entry) => entry.id)).toEqual(['priority', 'materials', 'quality'])
+    expect(items.find((entry) => entry.id === 'quality')?.path)
+      .toBe('/diagnostics/lab?workspace=dental-lab&tab=quality')
     expect(items.some((entry) => ['team', 'services', 'finance', 'shipping'].includes(entry.id))).toBe(false)
   })
 
