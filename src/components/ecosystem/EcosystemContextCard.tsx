@@ -3,6 +3,7 @@ import { ArrowLeftRight, Building2, ChevronRight, Globe2, UserRound } from 'luci
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/store/auth.store';
 import { getWorkspaceHomeTarget } from '@/lib/workspaceNavigation';
+import { firstAllowedCrmPath } from '@/lib/roleAccess';
 import { cn } from '@/lib/utils';
 import type { User as UserType } from '@/types';
 
@@ -30,7 +31,7 @@ function organizationLabel(user: UserType | null) {
 
 export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false, isGuest = false }) => {
   const navigate = useNavigate();
-  const { activeWorkspace, workspaceContexts } = useAuth();
+  const { activeWorkspace, workspaceContexts, pages } = useAuth();
   const hasUnselectedWorkspaces = workspaceContexts.length > 0 && !activeWorkspace;
   const org = activeWorkspace?.name || (!workspaceContexts.length ? organizationLabel(user) : null);
   const label = hasUnselectedWorkspaces ? 'Контекст не выбран' : activeWorkspace?.roleLabel || roleLabel(user, activeWorkspace?.roleKey);
@@ -40,10 +41,11 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
     hasClinic: activeWorkspace.scopeType === 'CLINIC',
   }) : null;
   const hasOrg = Boolean(activeWorkspace?.id || (!workspaceContexts.length && ((user as any)?.organizationId || (user as any)?.clinicId || org)));
+  const homePath = home?.scopeType === 'CLINIC' ? firstAllowedCrmPath(pages) : home?.path;
   const openSwitcher = () => window.dispatchEvent(new CustomEvent('dentvision:open-workspace-switcher'));
   const canSwitchWorkspace = !isGuest && workspaceContexts.length > 1;
   const openWorkspace = () => {
-    if (activeWorkspace && home) navigate(home.path);
+    if (activeWorkspace && homePath) navigate(homePath);
     else if (workspaceContexts.length > 0) openSwitcher();
     else navigate('/my-clinics');
   };
