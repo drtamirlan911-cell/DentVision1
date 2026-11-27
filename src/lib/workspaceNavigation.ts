@@ -221,9 +221,8 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
     const managementRoles = tokens.some((token) =>
       ['owner', 'admin', 'manager', 'director', 'diagnostic_owner', 'diagnostic_admin', 'diagnostic_manager'].includes(token),
     )
-    const ownerOrAdmin = tokens.some((token) =>
-      ['owner', 'diagnostic_owner', 'admin', 'diagnostic_admin'].includes(token),
-    )
+    const ownerRoles = tokens.some((token) => ['owner', 'diagnostic_owner'].includes(token))
+    const ownerOrAdmin = ownerRoles || tokens.some((token) => ['admin', 'diagnostic_admin'].includes(token))
     const financeRoles = tokens.some((token) =>
       token.includes('finance') || token === 'cashier' || token === 'accountant' || token.endsWith('_reception') || token === 'reception',
     )
@@ -284,7 +283,7 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
     if (financeRoles || managementRoles) {
       groups.push(group('diagnostic-finance', 'Финансы и расчёты', [
         item('finance', 'Расчёты и выплаты', '/diagnostics/center?tab=finance', 'diagnostics'),
-        ...(ownerOrAdmin ? [item('cashier', 'Касса', '/diagnostics/center?tab=cashier', 'diagnostics')] : []),
+        ...(ownerRoles ? [item('cashier', 'Касса', '/diagnostics/center?tab=cashier', 'diagnostics')] : []),
       ]))
     }
     return groups
