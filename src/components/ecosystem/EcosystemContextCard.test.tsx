@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 
 import EcosystemContextCard from './EcosystemContextCard'
-import { useWorkspaceStore } from '@/store/workspace.store'
+import { useAuthStore } from '@/store/auth.store'
 
 function LocationProbe() {
   const location = useLocation()
@@ -12,7 +12,11 @@ function LocationProbe() {
 
 describe('EcosystemContextCard active workspace shortcut', () => {
   beforeEach(() => {
-    useWorkspaceStore.setState({
+    useAuthStore.setState({
+      workspaceContexts: [{
+        id: 'supplier-workspace', scopeType: 'SUPPLIER', scopeId: 'supplier-1', organizationId: 'supplier-organization',
+        name: 'Dental Supply', roleKey: 'manager', roleLabel: 'Менеджер поставщика',
+      }] as any,
       activeWorkspace: {
         id: 'supplier-workspace',
         scopeType: 'SUPPLIER',
@@ -21,7 +25,7 @@ describe('EcosystemContextCard active workspace shortcut', () => {
         roleLabel: 'Менеджер поставщика',
         roleKey: 'manager',
         switchedAt: 1,
-      },
+      } as any,
     })
   })
 
@@ -38,7 +42,7 @@ describe('EcosystemContextCard active workspace shortcut', () => {
   })
 
   it('opens the shared workspace directory when no organization is active', () => {
-    useWorkspaceStore.setState({ activeWorkspace: null })
+    useAuthStore.setState({ activeWorkspace: null, workspaceContexts: [] })
     render(
       <MemoryRouter initialEntries={['/profile']}>
         <EcosystemContextCard user={null} />
