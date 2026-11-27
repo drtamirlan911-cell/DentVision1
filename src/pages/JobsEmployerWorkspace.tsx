@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+      <WorkspaceRoleStart
+        roleLabel={employerRoleGuide.role}
+        heading={employerRoleGuide.heading}
+        description={employerRoleGuide.description}
+        steps={employerRoleGuide.steps}
+      />import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { BriefcaseBusiness, Users, Plus, ArrowLeft, RefreshCw, CalendarClock, Pencil, PauseCircle, PlayCircle } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
@@ -9,6 +15,7 @@ import { EmptyState } from '@/components/ui/ds/EmptyState';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { useAuth } from '@/store/auth.store';
 import { useToast } from '@/components/ui/ds/Toast';
+import { WorkspaceRoleStart } from '@/components/workspaces/WorkspaceRoleStart';
 import {
   createEmployerVacancy,
   updateEmployerVacancy,
@@ -122,6 +129,32 @@ export default function JobsEmployerWorkspace() {
     () => vacancies.find((item) => item.id === selectedVacancyId) || null,
     [vacancies, selectedVacancyId],
   );
+
+  const employerRoleKey = String(
+    activeWorkspace?.roleKey || activeWorkspace?.role || user?.effectiveRole || user?.role || '',
+  ).toLowerCase();
+  const isRecruiterRole = employerRoleKey.includes('recruiter');
+  const isViewerRole = employerRoleKey.includes('viewer');
+  const employerRoleGuide = isRecruiterRole
+    ? {
+        role: 'Рекрутер',
+        heading: 'Обрабатывайте отклики и сопровождайте кандидатов',
+        description: 'Ваш рабочий маршрут — проверка новых откликов, коммуникация с кандидатами, назначение собеседований и отправка предложений. Публикация вакансий зависит от статуса организации и ваших прав.',
+        steps: ['Откройте вакансию и разберите новые отклики', 'Назначьте собеседование и зафиксируйте решение', 'Отправьте предложение и проверьте ответ кандидата'],
+      }
+    : isViewerRole
+      ? {
+          role: 'Наблюдатель работодателя',
+          heading: 'Следите за состоянием подбора специалистов',
+          description: 'Просматривайте вакансии и ход рассмотрения откликов. Изменение статусов, приглашения и публикация доступны только сотрудникам с соответствующими правами.',
+          steps: ['Выберите нужную вакансию', 'Проверьте текущие этапы откликов', 'Передайте ответственному сотруднику вакансии, требующие внимания'],
+        }
+      : {
+          role: 'Владелец / руководитель работодателя',
+          heading: 'Управляйте вакансиями и процессом найма',
+          description: 'Проверяйте юридический статус организации, публикуйте вакансии и контролируйте весь путь кандидата до предложения и выхода на работу.',
+          steps: ['Проверьте готовность организации к публикации', 'Создайте вакансию и обработайте отклики', 'Контролируйте собеседования, предложения и сроки ответа'],
+        };
 
   const visibleResumes = useMemo(() => {
     const query = resumeQuery.trim().toLocaleLowerCase();
