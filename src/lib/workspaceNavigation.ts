@@ -150,8 +150,7 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
     const groups: WorkspaceNavigationGroup[] = []
     if (!financeOnly) {
       groups.push(group('diagnostic-work', 'Работа с исследованиями', [
-        item('today', 'Сегодня', '/diagnostics/center', 'diagnostics'),
-        item('queue', 'Рабочая очередь', '/diagnostics/workspace', 'diagnostics'),
+        item('queue', 'Рабочая очередь', '/diagnostics/center?tab=worklist', 'diagnostics'),
         item('referrals', 'Направления', '/diagnostics/referrals', 'diagnostics-referrals'),
         item('results', 'Результаты', '/diagnostics/results', 'diagnostics-results'),
       ]))
@@ -329,6 +328,15 @@ export function isWorkspaceNavigationActive(
     if (actualParams.get(key) !== value) return false
   }
   return true
+}
+
+/** Resolve a query-backed workspace tab without opening sections the active role cannot access. */
+export function resolveWorkspaceTab(
+  requestedTab: string | null | undefined,
+  availableTabs: readonly string[],
+  fallbackTab: string,
+): string {
+  return requestedTab && availableTabs.includes(requestedTab) ? requestedTab : fallbackTab
 }
 
 export function isPartnerWorkspaceType(scopeType?: string | null): boolean {
