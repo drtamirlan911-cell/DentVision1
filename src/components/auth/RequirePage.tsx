@@ -4,12 +4,43 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/store/auth.store'
 import { useIam } from '@/iam'
 import { firstAllowedCrmPath, pageIdFromPath } from '@/lib/roleAccess'
+import { getWorkspaceNavigationGroups, isWorkspaceNavigationActive } from '@/lib/workspaceNavigation'
 import Welcome from '@/pages/Welcome'
 
 /**
  * Application-entry and authorization gate.
  * Authentication is deliberately separate from the public application entry.
  */
+/**
+ * Partner cabinet routes are authorized from the active organization scope.
+ * Diagnostic subroutes are additionally matched against the active role's
+ * own sidebar destinations. Server APIs remain the final data authorization.
+ */
+export function isScopedWorkspaceRouteAllowed(
+  pageId: string | null | undefined,
+  scopeType?: string | null,
+  roleKey?: string | null,
+  pathname?: string,
+  search?: string,
+): boolean {
+  const scope = String(scopeType || '').trim().toUpperCase()
+  if (pageId === 'supplier') return scope === 'SUPPLIER' || scope === 'SUPPLIER_COMPANY'
+  if (pageId === 'employer') return scope === 'EMPLOYER' || scope === 'CLINIC'
+  if (pageId === 'school') return scope === 'LECTURER'
+  if (
+    scope === 'DIAGNOSTIC_CENTER' || scope === 'LABORATORY'
+    || scope === 'MEDICAL_LAB' || scope === 'MEDICAL_LABORATORY'
+    || scope === 'DENTAL_LAB' || scope === 'DENTAL_LABORATORY'
+  ) {
+    if (!String(pageId || '').startsWith('diagnostics')) return false
+    const groups = getWorkspaceNavigationGroups(scope, roleKey)
+    return groups.some((group) => group.items.some((item) =>
+      isWorkspaceNavigationActive(pathname || '', search || '', item.path),
+    ))
+  }
+  return false
+}
+
 export function RequirePage({
   page,
   children,
@@ -53,11 +84,15 @@ export function RequirePage({
   // Supplier is a workspace, not a clinic/platform role. It must be reachable only
   // while the authenticated session is actually scoped to a supplier workspace;
   // otherwise /supplier becomes a cross-context data boundary bypass.
-  const supplierWorkspace = isScopedWorkspaceRouteAllowed(pageId, activeWorkspace?.scopeType)
-    && pageId === 'supplier'
-
-  const employerWorkspace = isScopedWorkspaceRouteAllowed(pageId, activeWorkspace?.scopeType)
-    && pageId === 'employer'
+  const scopedPartnerRoute = isScopedWorkspaceRouteAllowed(
+    pageId,
+    activeWorkspace?.scopeType,
+    activeWorkspace?.roleKey || activeWorkspace?.role,
+    location.pathname,
+    location.search,
+  )
+  const supplierWorkspace = pageId === 'supplier' && scopedPartnerRoute
+  const employerWorkspace = pageId === 'employer' && scopedPartnerRoute
 
   // Supplier is a separate organization workspace. Never let a clinic,
   // platform, or generic role's page permissions accidentally expose it.
@@ -71,7 +106,7 @@ export function RequirePage({
     return <Navigate to="/ai" replace />
   }
 
-  if (supplierWorkspace || employerWorkspace) {
+  if (scopedPartnerRoute) {
     return <>{children}</>
   }
 
