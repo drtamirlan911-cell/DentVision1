@@ -119,10 +119,14 @@ describe('role-aware workspace navigation', () => {
     expect(owner.map((entry) => entry.id)).toEqual(['orders', 'finance'])
   })
 
-  it('provides owner navigation for Academy sections already supported by the URL', () => {
+  it('shows only implemented Academy courses, learner and team sections', () => {
     const items = getWorkspaceNavigationGroups('ACADEMY', 'academy_owner').flatMap((entry) => entry.items)
-    expect(items.map((entry) => entry.path)).toContain('/academy/workspace?tab=students')
-    expect(items.map((entry) => entry.path)).toContain('/academy/workspace?section=finance')
+    expect(items.map((entry) => entry.path)).toEqual([
+      '/academy/workspace?tab=courses',
+      '/academy/workspace?tab=students',
+      '/academy/workspace?section=team',
+    ])
+    expect(items.some((entry) => ['finance', 'content', 'assessments', 'certificates', 'schedule', 'analytics'].includes(entry.id))).toBe(false)
   })
 
   it('marks query-backed sections active only when their query value matches', () => {
