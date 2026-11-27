@@ -268,6 +268,11 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
           item('materials', 'Материалы', '/diagnostics/lab?workspace=dental-lab&tab=materials', 'diagnostics'),
         ]))
       }
+      if (access.canPerformQc) {
+        groups.push(group('dental-lab-quality', 'Контроль качества', [
+          item('quality', 'Очередь QC', '/diagnostics/lab?workspace=dental-lab&tab=quality', 'diagnostics'),
+        ]))
+      }
       if (access.canManageQc) {
         groups.push(group('dental-lab-management', 'Управление лабораторией', [
           item('team', 'Команда и назначения', '/diagnostics/lab?workspace=dental-lab&tab=team', 'diagnostics'),
