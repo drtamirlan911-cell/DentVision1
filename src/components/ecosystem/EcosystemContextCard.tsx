@@ -33,7 +33,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
   const { activeWorkspace, workspaceContexts } = useAuth();
   const hasUnselectedWorkspaces = workspaceContexts.length > 0 && !activeWorkspace;
   const org = activeWorkspace?.name || (!workspaceContexts.length ? organizationLabel(user) : null);
-  const label = activeWorkspace?.roleLabel || roleLabel(user, activeWorkspace?.roleKey);
+  const label = hasUnselectedWorkspaces ? 'Контекст не выбран' : activeWorkspace?.roleLabel || roleLabel(user, activeWorkspace?.roleKey);
   const home = activeWorkspace ? getWorkspaceHomeTarget({
     scopeType: activeWorkspace.scopeType,
     roleKey: activeWorkspace.roleKey || (user as any)?.effectiveRole || (user as any)?.role,
@@ -61,7 +61,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
     <button type="button" aria-label="Открыть рабочий кабинет" onClick={openWorkspace} className="flex min-h-11 w-full items-center gap-2.5 text-left">
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]">{hasOrg ? <Building2 size={15} /> : <Globe2 size={15} />}</span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[11px] font-semibold text-[var(--dv-text)]">{org || home?.label || 'Личный контекст'}</span>
+        <span className="block truncate text-[11px] font-semibold text-[var(--dv-text)]">{hasUnselectedWorkspaces ? 'Выберите рабочее пространство' : org || home?.label || 'Личный контекст'}</span>
         <span className="mt-0.5 block truncate text-[10px] text-[var(--dv-muted)]">{hasUnselectedWorkspaces ? "Кабинет не выбран" : `${label} · ${home ? "Открыть кабинет" : "Личный контекст"}`}</span>
       </span>
       <ChevronRight size={14} className="shrink-0 text-[var(--dv-muted)]" />
