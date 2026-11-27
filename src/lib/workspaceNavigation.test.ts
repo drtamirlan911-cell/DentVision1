@@ -93,6 +93,17 @@ describe('workspace home navigation', () => {
       .toBe('/diagnostics/results')
   })
 
+  it('gives employer recruiters a candidate-focused menu', () => {
+    const items = getWorkspaceNavigationGroups('EMPLOYER', 'employer_recruiter').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.label)).toEqual(['Отклики и собеседования', 'Рынок специалистов'])
+  })
+
+  it('keeps employer viewers on vacancy and hiring status monitoring', () => {
+    const items = getWorkspaceNavigationGroups('EMPLOYER', 'employer_viewer').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toEqual(['vacancies'])
+    expect(items[0].label).toBe('Вакансии и этапы подбора')
+  })
+
   it('does not guess a workspace when the active identity is ambiguous', () => {
     expect(getWorkspaceHomeTarget({})).toBeNull()
   })
