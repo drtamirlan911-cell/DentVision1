@@ -46,7 +46,8 @@ export default function MedicalLabWorkspace() {
     .toLowerCase().split(',').map((value) => value.trim()).filter(Boolean);
   const queryClient = useQueryClient();
   const billingOrganizationId = String(activeWorkspace?.organizationId || user?.organizationId || context.organizationId || '');
-  const workspaceCacheScope = JSON.stringify([billingOrganizationId, String(activeWorkspace?.scopeId || ''), String(context.branchId || '')]);
+  const workspaceRoleScope = String(activeWorkspace?.roleKey || activeWorkspace?.role || user?.effectiveRole || user?.role || '');
+  const workspaceCacheScope = JSON.stringify([billingOrganizationId, String(activeWorkspace?.scopeId || ''), String(context.branchId || ''), workspaceRoleScope]);
   const capabilitiesQuery = useQuery({
     queryKey: ['medical-lab-capabilities', workspaceCacheScope],
     queryFn: getMedicalLabCapabilities,
