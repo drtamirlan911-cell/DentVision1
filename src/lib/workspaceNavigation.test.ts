@@ -113,6 +113,13 @@ describe('role-aware workspace navigation', () => {
   it('marks query-backed sections active only when their query value matches', () => {
     expect(isWorkspaceNavigationActive('/supplier', '?tab=sales', '/supplier?tab=sales')).toBe(true)
     expect(isWorkspaceNavigationActive('/supplier', '?tab=stock', '/supplier?tab=sales')).toBe(false)
-    expect(isWorkspaceNavigationActive('/supplier', '?tab=stock', '/supplier')).toBe(true)
+    expect(isWorkspaceNavigationActive('/supplier', '?tab=stock', '/supplier')).toBe(false)
+    expect(isWorkspaceNavigationActive('/supplier', '?tab=stock', '/supplier', { matchAllTabs: true })).toBe(true)
+    expect(isWorkspaceNavigationActive('/supplier', '?organizationId=org-1', '/supplier')).toBe(true)
+  })
+
+  it('does not highlight a dashboard base link when another diagnostic tab is active', () => {
+    expect(isWorkspaceNavigationActive('/diagnostics/center', '?tab=finance', '/diagnostics/center')).toBe(false)
+    expect(isWorkspaceNavigationActive('/diagnostics/center', '?tab=finance', '/diagnostics/center?tab=finance')).toBe(true)
   })
 })
