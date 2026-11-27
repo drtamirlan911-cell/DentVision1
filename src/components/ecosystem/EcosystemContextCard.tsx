@@ -37,7 +37,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
   const label = hasUnselectedWorkspaces ? 'Контекст не выбран' : activeWorkspace?.roleLabel || roleLabel(user, activeWorkspace?.roleKey);
   const home = activeWorkspace ? getWorkspaceHomeTarget({
     scopeType: activeWorkspace.scopeType,
-    roleKey: activeWorkspace.roleKey || (user as any)?.effectiveRole || (user as any)?.role,
+    roleKey: activeWorkspace.roleKey || activeWorkspace.role || (user as any)?.effectiveRole || (user as any)?.role,
     hasClinic: activeWorkspace.scopeType === 'CLINIC',
   }) : null;
   const hasOrg = Boolean(activeWorkspace?.id || (!workspaceContexts.length && ((user as any)?.organizationId || (user as any)?.clinicId || org)));
@@ -56,7 +56,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
   if (collapsed) {
     return (
       <div className="mx-auto mb-2 flex flex-col items-center gap-1">
-        <button type="button" title={`Мой рабочий кабинет · ${org || home?.label || label}`} aria-label="Открыть рабочий кабинет" data-testid="active-workspace-link" onClick={openWorkspace} className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--dv-accent-soft)] text-[var(--dv-accent)] hover:opacity-90"><Building2 size={16} /></button>
+        <button type="button" title={`Открыть кабинет · ${org || home?.label || label} · ${label}`} aria-label="Открыть рабочий кабинет" data-testid="active-workspace-link" onClick={openWorkspace} className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--dv-accent-soft)] text-[var(--dv-accent)] hover:opacity-90"><Building2 size={16} /></button>
         {canSwitchWorkspace && <button type="button" title="Сменить организацию или филиал" aria-label="Сменить организацию или филиал" onClick={openSwitcher} className="grid h-9 w-9 place-items-center rounded-xl text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"><ArrowLeftRight size={15} /></button>}
       </div>
     );
@@ -66,7 +66,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
     <button type="button" aria-label="Открыть рабочий кабинет" data-testid="active-workspace-link" onClick={openWorkspace} className="flex min-h-11 w-full items-center gap-2.5 text-left">
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]">{hasOrg ? <Building2 size={15} /> : <Globe2 size={15} />}</span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[11px] font-semibold text-[var(--dv-text)]">{hasUnselectedWorkspaces ? 'Выберите рабочее пространство' : 'Мой рабочий кабинет'}</span>
+        <span className="block truncate text-[11px] font-semibold text-[var(--dv-text)]">{hasUnselectedWorkspaces ? 'Выберите рабочее пространство' : 'Открыть рабочий кабинет'}</span>
         <span className="mt-0.5 block truncate text-[10px] text-[var(--dv-muted)]">{hasUnselectedWorkspaces ? 'Организация и роль пока не выбраны' : [org || home?.label || 'Личный контекст', label, home?.label].filter(Boolean).join(' · ')}</span>
       </span>
       <ChevronRight size={14} className="shrink-0 text-[var(--dv-muted)]" />
@@ -78,7 +78,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
         aria-label="Сменить организацию или филиал"
         className="mt-2 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--dv-border)] px-2 py-1.5 text-[10px] font-medium text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"
       >
-        <ArrowLeftRight size={12} /> Сменить рабочее пространство
+        <ArrowLeftRight size={12} /> Сменить организацию / филиал
       </button>
     )}
     {!isGuest && !hasOrg && workspaceContexts.length === 0 && <button type="button" onClick={() => navigate('/my-clinics')} className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--dv-border)] px-2 py-1.5 text-[10px] font-medium text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"><UserRound size={12} /> Подключить рабочий контекст</button>}
