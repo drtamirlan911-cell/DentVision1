@@ -13,10 +13,16 @@ function LocationProbe() {
 describe('EcosystemContextCard active workspace shortcut', () => {
   beforeEach(() => {
     useAuthStore.setState({
-      workspaceContexts: [{
-        id: 'supplier-workspace', scopeType: 'SUPPLIER', scopeId: 'supplier-1', organizationId: 'supplier-organization',
-        name: 'Dental Supply', roleKey: 'manager', roleLabel: 'Менеджер поставщика',
-      }] as any,
+      workspaceContexts: [
+        {
+          id: 'supplier-workspace', scopeType: 'SUPPLIER', scopeId: 'supplier-1', organizationId: 'supplier-organization',
+          name: 'Dental Supply', roleKey: 'manager', roleLabel: 'Менеджер поставщика',
+        },
+        {
+          id: 'clinic-workspace', scopeType: 'CLINIC', scopeId: 'clinic-1',
+          name: 'Dental Clinic', roleKey: 'doctor', roleLabel: 'Врач',
+        },
+      ] as any,
       activeWorkspace: {
         id: 'supplier-workspace',
         scopeType: 'SUPPLIER',
