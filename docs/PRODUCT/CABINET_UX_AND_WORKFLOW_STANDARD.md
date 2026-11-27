@@ -162,6 +162,11 @@ All cabinets use the shared platform capabilities instead of re-implementing the
 - Dental-lab QC specialists may perform quality checks without inheriting team administration, service pricing, finance or shipping management.
 - Academy navigation exposes only workflows that are implemented in the current cabinet. Placeholder sections must not appear as actionable sidebar destinations.
 - URL-backed tabs in the lecturer, academy, medical-lab, dental-lab and diagnostic-centre cabinets must respond to route changes while mounted and restore state from browser history.
+- The organization / branch selector remains accessible even when the account has only one organization: that organization may still contain multiple branches. When a context has not yet been selected, the primary cabinet action opens the selector; do not show a duplicate “connect context” action.
+- Keep the sidebar visually focused: open the active contextual group; when a workspace is at its root without a matching tab item, open only its first operational group. Other groups remain collapsible, including on mobile. Do not expand every partner section simultaneously.
+- Return destinations are employee-task-aware: clinic cashier → cashier, medical-lab finance → finance, dental-lab QC → quality queue, dental-lab technician → assigned priority tasks, dental-lab logistics → shipping, diagnostic finance → cashier, diagnostic quality → results, radiology → assigned worklist.
+- Diagnostic-centre menus distinguish owner/admin/manager, reception/operator, radiologist/technician, quality and finance. A cashier action is shown only when the role has billing-management access; read-only billing must not expose collection controls.
+- Employer menus distinguish recruiter and viewer: recruiters see candidate/interview work; viewers see hiring status without an unnecessary public market shortcut.
 - Automated coverage must include: return to the same cabinet from another module; switch A → B → A; same-named organizations of different types; branch selection; role-specific menu visibility; query-backed tab activation; unauthorized-tab fallback; and browser history restoration.
 
 ## 3. Domain-specific operating contracts
