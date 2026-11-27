@@ -64,10 +64,20 @@ export function getWorkspaceHomeTarget(source: WorkspaceHomeSource): WorkspaceHo
     ? resolveLaboratoryWorkspaceKind({ roleKey, organizationType: 'LABORATORY' })
     : null
 
-  if (rawScope === 'MEDICAL_LAB' || rawScope === 'MEDICAL_LABORATORY' || isMedicalLabRole || resolvedLabKind === 'medical') {
+  if (
+    rawScope === 'MEDICAL_LAB'
+    || rawScope === 'MEDICAL_LABORATORY'
+    || resolvedLabKind === 'medical'
+    || (rawScope !== 'LABORATORY' && isMedicalLabRole)
+  ) {
     return { scopeType: 'LABORATORY', path: '/diagnostics/lab?workspace=medical-lab', label: 'Кабинет медицинской лаборатории' }
   }
-  if (rawScope === 'DENTAL_LAB' || rawScope === 'DENTAL_LABORATORY' || isDentalLabRole || resolvedLabKind === 'dental') {
+  if (
+    rawScope === 'DENTAL_LAB'
+    || rawScope === 'DENTAL_LABORATORY'
+    || resolvedLabKind === 'dental'
+    || (rawScope !== 'LABORATORY' && isDentalLabRole)
+  ) {
     return { scopeType: 'DENTAL_LAB', path: '/diagnostics/lab?workspace=dental-lab', label: 'Кабинет зуботехнической лаборатории' }
   }
 
