@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/ds/Badge'
 import { Tabs } from '@/components/ui/ds/Misc'
 import { countAwaitingAction, countByPhase, type PhaseId } from '@/lib/referralStatus'
 import { selectWorkspaceContext } from '@/lib/workspaceContext'
+import { resolveWorkspaceTab } from '@/lib/workspaceNavigation'
 import { queryKeys } from '@/queries/keys'
 import { useAuth } from '@/store/auth.store'
 import { useIam } from '@/iam'
@@ -153,31 +154,6 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   const needsOnboarding = !pinnedKind && !claimedKind && !requiresWorkspaceSelection && !isOwnOrg && !isSuperadmin
     && !contextsLoading && !contextsError && diagnosticContexts.length === 0
 
-  useEffect(() => {
-    const requestedIsAllowed =
-      (requestedTab === 'finance' && canReadPartnerBilling)
-      || (requestedTab === 'cashier' && canManageBilling)
-      || (requestedTab === 'worklist' && kind === 'CENTER' && canReadOperations)
-      || (requestedTab === 'online-bookings' && kind === 'CENTER' && canReadOperations)
-      || (requestedTab === 'modalities' && kind === 'CENTER' && canManageCatalog)
-      || (requestedTab === 'referrals' && canReadOperations)
-      || (requestedTab === 'payments' && canReadFinance && canReadOperations)
-      || (requestedTab === 'services' && canManageCatalog)
-      || (requestedTab === 'team' && canReadTeam)
-    if (requestedTab && requestedIsAllowed) {
-      setActiveTabState(requestedTab)
-      return
-    }
-
-    if (isFinanceRole && canManageBilling) setActiveTabState('cashier')
-    else if (isFinanceRole && canReadPartnerBilling) setActiveTabState('finance')
-    else if (kind === 'CENTER' && canReadOperations) setActiveTabState('worklist')
-    else if (canReadOperations) setActiveTabState('referrals')
-    else if (canManageBilling) setActiveTabState('cashier')
-    else if (canReadPartnerBilling) setActiveTabState('finance')
-    else setActiveTabState('')
-  }, [requestedTab, kind, isFinanceRole, canReadOperations, canReadPartnerBilling, canManageBilling, canManageCatalog, canReadFinance, canReadTeam])
-
   const scope = config.referralScope(orgId)
   const { data: referralsData } = useQuery({
     queryKey: queryKeys.diagnostics.referrals({ ...scope, limit: '100' }),
@@ -233,6 +209,26 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
       { id: 'team', label: 'Сотрудники', icon: <Users size={14} /> },
     ] : []),
   ]
+
+  const availableTabIds = tabs.map((tab) => tab.id)
+  const fallbackTab = availableTabIds.includes(roleStartTab)
+    ? roleStartTab
+    : availableTabIds[0] || ''
+  const availableTabSignature = availableTabIds.join('|')
+
+  // The route is the source of truth for sidebar deep-links and browser
+  // back/forward. Invalid or unauthorized tab requests fall back to the
+  // first role-allowed workspace section instead of showing an empty panel.
+  useEffect(() => {
+    const nextTab = resolveWorkspaceTab(requestedTab, availableTabIds, fallbackTab)
+    setActiveTabState(nextTab)
+    if (requestedTab !== nextTab) {
+      const next = new URLSearchParams(searchParams)
+      if (nextTab) next.set('tab', nextTab)
+      else next.delete('tab')
+      setSearchParams(next, { replace: true })
+    }
+  }, [requestedTab, availableTabSignature, fallbackTab, searchParams, setSearchParams])
 
   return (
     <motion.div
