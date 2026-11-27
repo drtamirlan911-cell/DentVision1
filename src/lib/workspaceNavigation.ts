@@ -364,6 +364,9 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
   }
 
   if (scope === 'SUPPLIER' || scope === 'SUPPLIER_COMPANY') {
+    const supplierOwner = tokens.some((token) =>
+      token === 'owner' || token.endsWith('.owner') || token.endsWith('_owner'),
+    )
     return [
       group('supplier-operations', 'Работа с заказами', [
         item('sales', 'Заказы клиник', '/supplier?tab=sales', 'supplier'),
@@ -376,6 +379,11 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
         item('analytics', 'Аналитика спроса', '/supplier?tab=analytics', 'supplier'),
         item('profile', 'Профиль компании', '/supplier?tab=profile', 'supplier'),
       ]),
+      ...(supplierOwner ? [
+        group('supplier-management', 'Управление компанией', [
+          item('team', 'Команда сотрудников', '/supplier?tab=team', 'supplier'),
+        ]),
+      ] : []),
     ]
   }
 
