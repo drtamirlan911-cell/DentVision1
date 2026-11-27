@@ -424,6 +424,16 @@ export function resolveWorkspaceTab(
   return requestedTab && availableTabs.includes(requestedTab) ? requestedTab : fallbackTab
 }
 
+/** Finance-only clinic employees return to the cashier, not the first broad JWT page. */
+export function isClinicFinanceOnlyRole(roleKey?: string | null): boolean {
+  const roles = roleTokens(String(roleKey || '')).map((token) => token.split('.').pop() || token)
+  const finance = roles.some((role) => ['cashier', 'finance', 'accountant'].includes(role))
+  const hasOperationalOrManagementRole = roles.some((role) =>
+    ['owner', 'director', 'admin', 'manager', 'doctor', 'assistant', 'reception'].includes(role),
+  )
+  return finance && !hasOperationalOrManagementRole
+}
+
 export function isPartnerWorkspaceType(scopeType?: string | null): boolean {
   const value = String(scopeType || '').trim().toUpperCase()
   return Boolean(value && value !== 'CLINIC')
