@@ -60,6 +60,28 @@ describe('EcosystemContextCard active workspace shortcut', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/my-clinics')
   })
 
+  it('returns a finance-scoped clinic employee to an allowed cashier page', () => {
+    useAuthStore.setState({
+      pages: ['cashier', 'billing'],
+      workspaceContexts: [{
+        id: 'clinic-workspace', scopeType: 'CLINIC', scopeId: 'clinic-1', name: 'Dental Clinic',
+        roleKey: 'clinic.cashier', roleLabel: 'Кассир',
+      }] as any,
+      activeWorkspace: {
+        id: 'clinic-workspace', scopeType: 'CLINIC', scopeId: 'clinic-1', name: 'Dental Clinic',
+        roleLabel: 'Кассир', roleKey: 'clinic.cashier', switchedAt: 2,
+      } as any,
+    });
+    render(
+      <MemoryRouter initialEntries={['/profile']}>
+        <EcosystemContextCard user={null} />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть рабочий кабинет' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/crm/cashier');
+  })
+
   it('opens the workspace switcher when the user belongs to multiple organizations', () => {
     useAuthStore.setState({
       workspaceContexts: [
