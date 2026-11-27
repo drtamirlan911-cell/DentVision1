@@ -82,7 +82,7 @@ describe('EcosystemContextCard active workspace shortcut', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/crm/cashier');
   })
 
-  it('opens the workspace switcher when the user belongs to multiple organizations', () => {
+  it('opens the organization selector from the active workspace card', () => {
     useAuthStore.setState({
       workspaceContexts: [
         { id: 'supplier-workspace', scopeType: 'SUPPLIER', scopeId: 'supplier-1', organizationId: 'supplier-organization', name: 'Dental Supply', roleKey: 'manager', roleLabel: 'Менеджер поставщика' },
@@ -99,7 +99,7 @@ describe('EcosystemContextCard active workspace shortcut', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Сменить рабочее пространство' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сменить организацию или филиал' }));
     expect(onOpen).toHaveBeenCalledTimes(1);
     window.removeEventListener('dentvision:open-workspace-switcher', onOpen);
   })
