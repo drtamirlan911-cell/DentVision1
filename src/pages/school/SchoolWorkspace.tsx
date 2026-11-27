@@ -16,6 +16,7 @@ import { EmptyState } from '@/components/ui/ds/EmptyState';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload';
 import { LECTURER_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits';
+import { WorkspaceRoleStart } from '@/components/workspaces/WorkspaceRoleStart';
 
 interface LecturerCtx { scopeId: string; organizationId?: string; name?: string; roleLabel?: string; level?: string; academy?: { id: string; name: string } | null }
 
@@ -447,6 +448,16 @@ export default function SchoolWorkspace() {
           </Badge>
         )}
       />
+      {tab === 'courses' && (
+        <WorkspaceRoleStart
+          roleLabel="Преподаватель"
+          heading="Создавайте и развивайте свои образовательные продукты"
+          description="В этом кабинете вы управляете курсами, вебинарами и учебниками. После публикации отслеживайте продажи, прогресс учащихся и доступный баланс."
+          steps={['Проверьте или создайте образовательный продукт', 'Подготовьте материалы и условия доступа', 'Следите за результатами и выплатами в аналитике']}
+          actionLabel="Создать продукт"
+          onAction={() => { setForm({ ...EMPTY_FORM }); setAddOpen(true); }}
+        />
+      )}
 
       <div className="flex flex-wrap gap-1 mt-4 mb-5 border-b border-white/[0.06]">
         {TABS.map((t) => (
