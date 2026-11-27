@@ -327,7 +327,8 @@ export default function DentalLabPlatform() {
   // The backend validates this ID against the signed active organization context;
   // the client value is used only to key the query and is never authorization proof.
   const billingOrganizationId = String(activeWorkspace?.organizationId || user?.organizationId || '');
-  const workspaceCacheScope = JSON.stringify([billingOrganizationId, String(activeWorkspace?.scopeId || ''), String(context.branchId || '')]);
+  const workspaceRoleScope = String(activeWorkspace?.roleKey || activeWorkspace?.role || user?.effectiveRole || user?.role || '');
+  const workspaceCacheScope = JSON.stringify([billingOrganizationId, String(activeWorkspace?.scopeId || ''), String(context.branchId || ''), workspaceRoleScope]);
   const dashboard = useQuery({ queryKey: ['lab-platform', workspaceCacheScope, 'dashboard'], queryFn: getLabPlatformDashboard, refetchInterval: 30_000 });
   // Membership roles arrive in a legacy vocabulary in some accounts, while
   // IAM contexts use canonical dental_lab_* keys. Resolve both through one
