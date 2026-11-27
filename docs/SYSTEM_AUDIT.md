@@ -11,6 +11,12 @@
 - **Academy:** remove placeholder content/assessment/certificate/schedule/finance/analytics links from the operational sidebar until those processes are implemented. Keep courses, students and team; synchronize `?tab=` selection when a deep-link changes.
 - **Dental Lab OS:** synchronize role-allowed tabs to the query string and browser history; an unauthorized tab falls back to a role-allowed tab without changing organization.
 - **Supplier/lecturer/medical-lab/diagnostic-centre:** the existing tab URL contracts are retained; direct sidebar destinations now map to actual implemented sections. No placeholder route is promoted as a completed process.
+- **Diagnostic-centre employees:** split the side navigation for reception/operators, radiology staff, quality reviewers, finance staff and managers. Diagnostic finance staff return to the cashier and receive cashier/settlement/analytics links according to granted capabilities; reception gets a limited read-only finance link; diagnostic admin with billing.read only does not receive a cashier action.
+- **Dental Lab QC queue:** add the dedicated `?tab=quality` view filtered to `status === 'qc'`, expose it only when `canPerformQc` is granted, and provide a direct menu/home route for QC specialists. Existing backend `/orders/:id/qc` authorization allows manager or QC specialist; the UI separates this action from team/service/shipping/finance administration.
+- **Role-specific return paths:** active context returns to the actual employee start section (cashier, finance, quality, assigned production, shipping, results, or diagnostic worklist), not only the organization's generic root.
+- **Branch selection:** expose organization/branch selection for a single active organization as well as multi-organization accounts. An unselected context opens the picker instead of rendering a duplicate “connect organization” action.
+- **Sidebar focus:** only the current contextual group and its active destination are expanded by default; other partner groups remain collapsible on desktop and mobile.
+- **Employer menus:** distinguish recruiters from viewers; recruiter navigation foregrounds candidate/interview flow, while viewer navigation stays read-only and status-focused.
 - **Limit:** source-level navigation remediation does not certify every domain workflow as complete. The Academy placeholder sections and other domain lifecycle gaps remain governed by their existing release blockers; do not describe them as complete.
 
 ---
