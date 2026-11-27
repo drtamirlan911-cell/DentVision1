@@ -130,6 +130,12 @@ describe('role-aware workspace navigation', () => {
     expect(items.some((entry) => entry.id === 'team' || entry.id === 'finance')).toBe(false)
   })
 
+  it('gives a dental-lab QC specialist the priority worklist without management tabs', () => {
+    const items = getWorkspaceNavigationGroups('LABORATORY', 'qc_specialist').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toEqual(['priority', 'materials'])
+    expect(items.some((entry) => ['team', 'services', 'finance', 'shipping'].includes(entry.id))).toBe(false)
+  })
+
   it('gives a dental-lab finance specialist the finance tab without production controls', () => {
     const items = getWorkspaceNavigationGroups('LABORATORY', 'lab_finance').flatMap((entry) => entry.items)
     expect(items.map((entry) => entry.id)).toEqual(['finance'])
