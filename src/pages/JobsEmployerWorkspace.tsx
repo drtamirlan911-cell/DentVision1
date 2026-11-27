@@ -1,10 +1,4 @@
-
-      <WorkspaceRoleStart
-        roleLabel={employerRoleGuide.role}
-        heading={employerRoleGuide.heading}
-        description={employerRoleGuide.description}
-        steps={employerRoleGuide.steps}
-      />import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { BriefcaseBusiness, Users, Plus, ArrowLeft, RefreshCw, CalendarClock, Pencil, PauseCircle, PlayCircle } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
