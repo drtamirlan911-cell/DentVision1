@@ -32,6 +32,13 @@ describe('resolveLaboratoryWorkspaceKind', () => {
     })).toBe('medical');
   });
 
+  it('preserves the legacy lab_diagnostic role as a medical-laboratory context', () => {
+    expect(resolveLaboratoryWorkspaceKind({
+      roleKey: 'lab_diagnostic',
+      organizationType: 'LABORATORY',
+    })).toBe('medical');
+  });
+
   it('uses the route hint only when no scoped lab role is available', () => {
     expect(resolveLaboratoryWorkspaceKind({
       workspaceParam: 'medical-lab',
