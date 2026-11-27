@@ -148,6 +148,18 @@ All cabinets use the shared platform capabilities instead of re-implementing the
 - AI that can explain, summarize, navigate and draft within the active scope;
 - confirmation gates for clinical, legal and financial mutations.
 
+### 2.9 Sidebar, cabinet return and deep-link contract
+
+- The shell exposes **one** persistent action to return to the active cabinet. Do not render a second button that duplicates the same destination beside the context card.
+- The persistent context control identifies the active organization, organization type and scoped role. Its primary action returns to that organization's role-appropriate cabinet; its separate switch action opens the organization selector.
+- When no context is active and more than one membership exists, show an explicit “Выберите рабочее пространство” state and open the selector. Never infer a context from a stale global role or silently pick the first membership.
+- The organization selector distinguishes organizations by type as well as name and role. Branch selection is visible and remains inside the selected organization.
+- Sidebar groups are role-first. A technician, receptionist, finance employee, reviewer and owner must not receive the same long feature catalog. Show only workflows that the role can open; backend authorization remains authoritative for every action and record.
+- A sidebar item that opens a tab must encode the tab in the URL. The workspace must respond when that URL changes while the page remains mounted, preserve query parameters relevant to the active context, and restore the selected tab on browser back/forward.
+- A deep link to a tab not granted to the active role must fall back to a permitted default. It must never show a blank panel, expose an unavailable action or switch organization.
+- Do not present placeholder or unimplemented routes as working business processes. Hide them from operational navigation until the workflow is implemented, or label the limitation explicitly outside the primary task navigation.
+- Automated coverage must include: return to the same cabinet from another module; switch A → B → A; same-named organizations of different types; branch selection; role-specific menu visibility; query-backed tab activation; unauthorized-tab fallback; and browser history restoration.
+
 ## 3. Domain-specific operating contracts
 
 ## 3.1 Diagnostic Center OS — RIS/PACS, not just referrals
