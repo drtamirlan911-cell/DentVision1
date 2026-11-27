@@ -43,12 +43,22 @@ function contextualIcon(id: string): React.ReactNode {
 }
 function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, sidebarOpen, user, logout, toggleSidebar, isGuest = false, pendingApprovals = 0, isAdmin = false }: EcosystemSidebarProps) {
   const navigate = useNavigate(); const location = useLocation(); const { t } = useTranslation(); const iam = useIam(); const { setOpen } = useCommandPalette();
-  const { activeWorkspace } = useAuth();
-  const workspaceHome = getWorkspaceHomeTarget({
-    scopeType: activeWorkspace?.scopeType || (user as any)?.organizationType,
-    roleKey: activeWorkspace?.roleKey || (user as any)?.effectiveRole || (user as any)?.role,
-    hasClinic: Boolean((user as any)?.clinicId || (user as any)?.organizationId),
-  });
+  const { activeWorkspace, workspaceContexts } = useAuth();
+  // Never manufacture a cabinet link from a stale user-level organization
+  // claim when IAM has several contexts but no active selection.
+  const workspaceHome = activeWorkspace
+    ? getWorkspaceHomeTarget({
+        scopeType: activeWorkspace.scopeType,
+        roleKey: activeWorkspace.roleKey || activeWorkspace.role || (user as any)?.effectiveRole || (user as any)?.role,
+        hasClinic: activeWorkspace.scopeType === 'CLINIC',
+      })
+    : workspaceContexts.length === 0
+      ? getWorkspaceHomeTarget({
+          scopeType: (user as any)?.organizationType,
+          roleKey: (user as any)?.effectiveRole || (user as any)?.role,
+          hasClinic: Boolean((user as any)?.clinicId || (user as any)?.organizationId),
+        })
+      : null;
   const homeTarget = workspaceHome?.scopeType === 'CLINIC'
     ? { ...workspaceHome, path: firstAllowedCrmPath(iam.pages) }
     : workspaceHome;
