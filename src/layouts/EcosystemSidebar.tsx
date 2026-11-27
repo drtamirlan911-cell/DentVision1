@@ -11,7 +11,9 @@ import { useCommandPalette } from '@/components/CommandPalette';
 import { useTranslation } from 'react-i18next';
 import { useIam } from '@/iam';
 import { getRoleDisplayLabel } from '@/store/auth.store';
-import { pageIdFromPath } from '@/lib/roleAccess';
+import { firstAllowedCrmPath, pageIdFromPath } from '@/lib/roleAccess';
+import { useWorkspaceStore } from '@/store/workspace.store';
+import { getWorkspaceHomeTarget, isPartnerWorkspaceType } from '@/lib/workspaceNavigation';
 
 export interface EcosystemSidebarProps { collapsed: boolean; setCollapsed: (value: boolean) => void; sidebarVisible: boolean; isMobile: boolean; sidebarOpen: boolean; user: UserType | null; logout: () => void; toggleSidebar: () => void; isGuest?: boolean; pendingApprovals?: number; isAdmin?: boolean; }
 type Item = { id: string; label: string; path: string; icon: React.ReactNode; page?: string; guest?: boolean };
@@ -28,16 +30,54 @@ const adminItems: Item[] = [{ id: 'admin', label: 'Администрирова�
 function activePath(pathname: string, path: string) { return path === '/' ? pathname === '/' : pathname === path || pathname.startsWith(`${path}/`); }
 function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, sidebarOpen, user, logout, toggleSidebar, isGuest = false, pendingApprovals = 0, isAdmin = false }: EcosystemSidebarProps) {
   const navigate = useNavigate(); const location = useLocation(); const { t } = useTranslation(); const iam = useIam(); const { setOpen } = useCommandPalette();
+  const activeWorkspace = useWorkspaceStore((state) => state.activeWorkspace);
+  const workspaceHome = getWorkspaceHomeTarget({
+    scopeType: activeWorkspace?.scopeType || (user as any)?.organizationType,
+    roleKey: activeWorkspace?.roleKey || (user as any)?.effectiveRole || (user as any)?.role,
+    hasClinic: Boolean((user as any)?.clinicId || (user as any)?.organizationId),
+  });
+  const homeTarget = workspaceHome?.scopeType === 'CLINIC'
+    ? { ...workspaceHome, path: firstAllowedCrmPath(iam.pages) }
+    : workspaceHome;
+  const partnerWorkspace = Boolean(homeTarget && isPartnerWorkspaceType(homeTarget.scopeType));
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({ core: true, care: true, partners: true, market: true, business: false });
   const text = (key: string, fallback: string) => { const v = t(key); return v && v !== key ? v : fallback; };
   const isPatient = String(iam.role || '').toLowerCase() === 'patient';
   const canSee = (item: Item) => {
+    if (item.id === 'active-workspace') return true;
     if (isGuest) return Boolean(item.guest);
     if (isPatient) return ['shop', 'academy', 'profile'].includes(item.id);
     if (item.id === 'home' || item.id === 'ai' || item.id === 'help') return true;
     return iam.canAccessPage(item.page || pageIdFromPath(item.path));
   };
-  const visibleGroups = groups.map(g => ({ ...g, items: g.items.filter(canSee) })).filter(g => g.items.length); const visibleMore = moreItems.filter(canSee); const visibleAdmin = isAdmin ? adminItems.filter(canSee) : [];
+  const homeItem: Item | null = homeTarget ? {
+    id: 'active-workspace',
+    label: homeTarget.scopeType === 'CLINIC' ? 'Мой рабочий кабинет' : homeTarget.label,
+    path: homeTarget.path,
+    icon: homeTarget.scopeType === 'SUPPLIER' ? <ShoppingBag />
+      : homeTarget.scopeType === 'EMPLOYER' ? <BriefcaseBusiness />
+        : homeTarget.scopeType === 'ACADEMY' || homeTarget.scopeType === 'LECTURER' ? <GraduationCap />
+          : homeTarget.scopeType === 'DIAGNOSTIC_CENTER' || homeTarget.scopeType === 'LABORATORY' || homeTarget.scopeType === 'DENTAL_LAB' ? <FlaskConical />
+            : <Building2 />,
+  } : null;
+  const navigationGroups = partnerWorkspace
+    ? [
+        {
+          id: 'core',
+          label: 'Рабочее пространство',
+          items: [
+            groups[0].items[0],
+            ...(homeItem ? [homeItem] : []),
+          ],
+        },
+        ...groups.filter((group) => group.id === 'market'),
+      ]
+    : groups.map((group) => group.id === 'core' && homeItem
+      ? { ...group, items: group.items.map((item) => item.id === 'home' ? homeItem : item) }
+      : group);
+  const visibleGroups = navigationGroups.map(g => ({ ...g, items: g.items.filter(canSee) })).filter(g => g.items.length);
+  const visibleMore = moreItems.filter(canSee);
+  const visibleAdmin = isAdmin ? adminItems.filter(canSee) : [];
   React.useEffect(() => {
     if (!isMobile || !sidebarOpen) return;
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') toggleSidebar(); };
@@ -54,9 +94,9 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
     <motion.aside role={isMobile && sidebarOpen ? 'dialog' : undefined} aria-modal={isMobile && sidebarOpen ? true : undefined} aria-label="Навигация DentVision" initial={false} animate={{ width, x: isMobile && !sidebarOpen ? -300 : 0 }} transition={{ type: 'spring', stiffness: 360, damping: 34 }} className="fixed inset-y-0 left-0 z-[60] flex flex-col overflow-hidden border-r border-[var(--dv-border)] bg-[var(--dv-sidebar)]">
       <div className={cn('flex h-16 shrink-0 items-center border-b border-[var(--dv-border)] px-3', collapsed && !isMobile ? 'justify-center' : 'justify-between')}><button type="button" onClick={() => go('/')} aria-label="DentVision — главная" className="flex min-h-11 min-w-0 items-center gap-2.5"><Logo variant="compact" height={30} /></button>{isMobile ? <button type="button" onClick={toggleSidebar} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-[var(--dv-muted)]" aria-label={text('common.close','Закрыть')}><X size={18}/></button> : <button type="button" onClick={() => setCollapsed(!collapsed)} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-[var(--dv-muted)]" aria-label="Свернуть меню"><ChevronRight className={cn('transition-transform', !collapsed && 'rotate-180')} size={17}/></button>}</div>
       <div className="px-3 pt-3">{!isPatient && <button type="button" onClick={() => setOpen(true)} className={cn('flex w-full items-center gap-2.5 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] px-2.5 py-2 text-left', collapsed && !isMobile && 'justify-center')}><span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]"><Command size={14}/></span>{(!collapsed || isMobile) && <><span className="flex-1 text-xs font-medium">Поиск</span><kbd className="rounded-md border px-1.5 py-0.5 text-[10px]">⌘K</kbd></>}</button>}</div>
-      {(!collapsed || isMobile) && <div className="pt-3"><EcosystemContextCard user={user} isGuest={isGuest} /></div>}
+      <div className={cn((collapsed && !isMobile) ? 'pt-2' : 'pt-3')}><EcosystemContextCard user={user} collapsed={collapsed && !isMobile} isGuest={isGuest} /></div>
       <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4 [scrollbar-width:none]">
-        {visibleGroups.map(group => { const expanded = isMobile || !!openGroups[group.id] || group.items.some(i => activePath(location.pathname,i.path)); return <section key={group.id} className="mb-3">{(!collapsed || isMobile) && <button type="button" onClick={() => setOpenGroups(v => ({...v,[group.id]:!v[group.id]}))} className="mb-1 flex min-h-11 w-full items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--dv-muted)]"><span>{group.label}</span><ChevronRight size={12} className={cn(expanded && 'rotate-90')}/></button>}{(expanded || collapsed) && <div className="space-y-0.5">{group.items.map(item => { const active = activePath(location.pathname,item.path); return <button key={item.id} type="button" aria-current={active?'page':undefined} aria-label={item.label} title={collapsed?item.label:undefined} onClick={() => go(item.path)} className={cn('group relative flex min-h-11 w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left transition', collapsed?'justify-center px-2':'', active?'bg-[var(--dv-nav-active)] text-[var(--dv-text)]':'text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]')}>{active && <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-[var(--dv-accent)]"/>}<span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-[9px]',active?'bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]':'bg-[var(--dv-icon-bg)]')}>{React.cloneElement(item.icon as React.ReactElement,{size:17,strokeWidth:1.8})}</span>{(!collapsed||isMobile)&&<span className="min-w-0 flex-1 truncate text-[13px] font-medium">{item.label}</span>}</button>})}</div>}</section>})}
+        {visibleGroups.map(group => { const expanded = isMobile || !!openGroups[group.id] || group.items.some(i => activePath(location.pathname,i.path)); return <section key={group.id} className="mb-3">{(!collapsed || isMobile) && <button type="button" onClick={() => setOpenGroups(v => ({...v,[group.id]:!v[group.id]}))} className="mb-1 flex min-h-11 w-full items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--dv-muted)]"><span>{group.label}</span><ChevronRight size={12} className={cn(expanded && 'rotate-90')}/></button>}{(expanded || collapsed) && <div className="space-y-0.5">{group.items.map(item => { const active = activePath(location.pathname,item.path); return <button key={item.id} type="button" aria-current={active?'page':undefined} aria-label={item.label} data-testid={item.id === 'active-workspace' ? 'active-workspace-link' : undefined} title={collapsed?item.label:undefined} onClick={() => go(item.path)} className={cn('group relative flex min-h-11 w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left transition', collapsed?'justify-center px-2':'', active?'bg-[var(--dv-nav-active)] text-[var(--dv-text)]':'text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]')}>{active && <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-[var(--dv-accent)]"/>}<span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-[9px]',active?'bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]':'bg-[var(--dv-icon-bg)]')}>{React.cloneElement(item.icon as React.ReactElement,{size:17,strokeWidth:1.8})}</span>{(!collapsed||isMobile)&&<span className="min-w-0 flex-1 truncate text-[13px] font-medium">{item.label}</span>}</button>})}</div>}</section>})}
         {visibleMore.length > 0 && <section className="mb-3"><button type="button" onClick={() => setOpenGroups(v=>({...v,more:!v.more}))} className={cn('mb-1 flex min-h-11 w-full items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--dv-muted)]',collapsed&&'justify-center')}><span>{collapsed?'···':'Дополнительно'}</span>{!collapsed&&<ChevronRight size={12} className={cn(openGroups.more&&'rotate-90')}/>}</button>{openGroups.more&&!collapsed&&<div className="space-y-0.5">{visibleMore.map(item=><button key={item.id} type="button" onClick={()=>go(item.path)} className="flex min-h-11 w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left text-[13px] text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]"><span className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--dv-icon-bg)]">{React.cloneElement(item.icon as React.ReactElement,{size:17})}</span><span>{item.label}</span></button>)}</div>}</section>}
         {visibleAdmin.length > 0 && <section className="border-t border-[var(--dv-border)] pt-3"><div className="mb-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--dv-muted)]">Администрирование</div>{visibleAdmin.map(item=><button key={item.id} type="button" onClick={()=>go(item.path)} className="flex min-h-11 w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left text-[13px] text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]"><span className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--dv-icon-bg)]">{React.cloneElement(item.icon as React.ReactElement,{size:17})}</span><span className="min-w-0 flex-1 truncate">{item.label}</span>{item.id==='approvals'&&pendingApprovals>0&&<span className="rounded-full bg-[var(--dv-accent)] px-1.5 py-0.5 text-[10px] font-bold text-white">{pendingApprovals}</span>}</button>)}</section>}
       </nav>
