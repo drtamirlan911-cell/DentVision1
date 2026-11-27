@@ -48,7 +48,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
   }
 
   return <div className={cn('mx-3 mb-2 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] p-2.5', isGuest && 'border-[var(--dv-accent)]/20')}>
-    <button type="button" onClick={() => navigate(target)} className="flex min-h-11 w-full items-center gap-2.5 text-left">
+    <button type="button" aria-label="Открыть рабочий кабинет" onClick={openWorkspace} className="flex min-h-11 w-full items-center gap-2.5 text-left">
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]">{hasOrg ? <Building2 size={15} /> : <Globe2 size={15} />}</span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[11px] font-semibold text-[var(--dv-text)]">{org || home?.label || 'Личный контекст'}</span>
