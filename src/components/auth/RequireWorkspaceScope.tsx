@@ -39,7 +39,9 @@ export function RequireWorkspaceScope({
   // before any protected workspace route can render. Never fall back to the
   // profile's legacy organizationType in this ambiguous state.
   if (!activeWorkspace && workspaceContexts.length > 0) {
-    return <Navigate to="/my-clinics" state={{ from: location }} replace />
+    // The general shell hosts the all-organization WorkspaceSwitcher.
+    // /my-clinics is clinic-only and would strand partner-only accounts.
+    return <Navigate to="/" state={{ from: location }} replace />
   }
   if (workspaceScopeAllowed(user, effectiveRole, scopeType, activeWorkspace?.scopeType)) return <>{children}</>
   const activeHome = activeWorkspace ? getWorkspaceHomeTarget({
