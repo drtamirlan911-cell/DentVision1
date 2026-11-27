@@ -7,7 +7,7 @@ import { useAuthStore } from '@/store/auth.store'
 
 function LocationProbe() {
   const location = useLocation()
-  return <output data-testid="location">{location.pathname}</output>
+  return <output data-testid="location">{location.pathname}{location.search}</output>
 }
 
 describe('EcosystemContextCard active workspace shortcut', () => {
