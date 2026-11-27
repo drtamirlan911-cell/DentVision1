@@ -342,6 +342,9 @@ export default function Schedule() {
   const clinicRoleTokens = String(activeWorkspace?.roleKey || role || user?.effectiveRole || user?.role || '')
     .toLowerCase().split(',').map((value) => value.trim()).filter(Boolean);
   const isReceptionRole = clinicRoleTokens.some((value) => value.includes('reception') || value.includes('registr'));
+  const isManagerRole = clinicRoleTokens.some((value) =>
+    ['owner', 'director', 'admin', 'manager'].includes(value) || /[._](owner|director|admin|manager)$/.test(value),
+  );
   const isDoctorRole = clinicRoleTokens.some((value) => value === 'doctor' || value.includes('.doctor'));
   const clinicRoleGuide = isReceptionRole
     ? {
@@ -352,8 +355,17 @@ export default function Schedule() {
         actionLabel: canManageScheduleBoard ? 'Создать запись' : undefined,
         action: openNew,
       }
-    : isDoctorRole
+    : isManagerRole
       ? {
+          role: activeWorkspace?.roleLabel || roleInfo?.label || 'Руководитель клиники',
+          heading: 'Координируйте поток пациентов и загрузку клиники',
+          description: 'Проверяйте расписание команды, очередь ожидания и онлайн-заявки. При необходимости создавайте запись или распределяйте приёмы.',
+          steps: ['Проверьте загрузку врачей и свободные окна', 'Разберите лист ожидания и онлайн-заявки', 'Проверьте изменения и незавершённые приёмы'],
+          actionLabel: 'Открыть лист ожидания',
+          action: () => setActiveTab('waiting'),
+        }
+      : isDoctorRole
+        ? {
           role: 'Врач',
           heading: 'Начинайте рабочий день с ваших приёмов',
           description: 'Смотрите личную загрузку, открывайте запись пациента и продолжайте работу с его медицинской картой и планом лечения.',
@@ -361,16 +373,16 @@ export default function Schedule() {
           actionLabel: 'Показать записи на сегодня',
           action: () => { setSelDate(today()); setActiveTab('schedule'); },
         }
-      : canManageScheduleBoard
-        ? {
-            role: activeWorkspace?.roleLabel || roleInfo?.label || 'Руководитель клиники',
-            heading: 'Координируйте поток пациентов и загрузку клиники',
-            description: 'Проверяйте расписание команды, очередь ожидания и онлайн-заявки. При необходимости создавайте запись или распределяйте приёмы.',
-            steps: ['Проверьте загрузку врачей и свободные окна', 'Разберите лист ожидания и онлайн-заявки', 'Проверьте изменения и незавершённые приёмы'],
-            actionLabel: 'Открыть лист ожидания',
-            action: () => setActiveTab('waiting'),
-          }
-        : {
+        : canManageScheduleBoard
+          ? {
+              role: activeWorkspace?.roleLabel || roleInfo?.label || 'Сотрудник клиники',
+              heading: 'Организуйте ежедневную работу с расписанием',
+              description: 'Используйте расписание как список задач команды. Проверяйте свободные окна, открывайте карточки пациентов и координируйте следующий шаг.',
+              steps: ['Проверьте записи на сегодня', 'Откройте нужную запись и проверьте данные', 'Согласуйте следующий шаг с ответственным врачом'],
+              actionLabel: 'Создать запись',
+              action: openNew,
+            }
+          : {
             role: activeWorkspace?.roleLabel || roleInfo?.label || 'Сотрудник клиники',
             heading: 'Работайте с назначенными записями пациентов',
             description: 'Используйте расписание как список текущих задач. Открывайте доступные записи и передавайте информацию ответственному врачу.',
