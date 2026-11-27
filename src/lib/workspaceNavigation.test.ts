@@ -85,7 +85,7 @@ describe('workspace home navigation', () => {
 
   it('returns diagnostic finance staff to the finance workspace', () => {
     expect(getWorkspaceHomeTarget({ scopeType: 'DIAGNOSTIC_CENTER', roleKey: 'diagnostic_finance' })?.path)
-      .toBe('/diagnostics/center?tab=finance')
+      .toBe('/diagnostics/center?tab=cashier')
   })
 
   it('returns diagnostic quality staff to results, not a generic dashboard', () => {
@@ -158,8 +158,8 @@ describe('role-aware workspace navigation', () => {
 
   it('gives a diagnostic finance employee direct access to settlements without operational clutter', () => {
     const items = getWorkspaceNavigationGroups('DIAGNOSTIC_CENTER', 'diagnostic_finance').flatMap((entry) => entry.items)
-    expect(items.map((entry) => entry.id)).toEqual(['finance', 'analytics'])
-    expect(items[0].path).toBe('/diagnostics/center?tab=finance')
+    expect(items.map((entry) => entry.id)).toEqual(['cashier', 'finance', 'analytics'])
+    expect(items[0].path).toBe('/diagnostics/center?tab=cashier')
   })
 
   it('shows operational work and finance to a diagnostic-centre owner', () => {
