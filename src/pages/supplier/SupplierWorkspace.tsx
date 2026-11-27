@@ -20,6 +20,7 @@ import { PageHeader } from '@/components/ui/ds/StatCard'
 import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload'
 import { SUPPLIER_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits';
 import SupplierTeamTab from './SupplierTeamTab';
+import { WorkspaceRoleStart } from '@/components/workspaces/WorkspaceRoleStart';
 
 type TabId = 'overview' | 'sales' | 'stock' | 'returns' | 'ads' | 'analytics' | 'catalog' | 'team' | 'profile'
 type SupplierDisputeResponseType = 'ACKNOWLEDGE_RETURN_REQUEST' | 'CONTEST_RETURN_REQUEST'
@@ -658,6 +659,23 @@ export default function SupplierWorkspace() {
         <StatCell icon={<AlertTriangle size={16} />} label="Низкий остаток" value={String(kpis.lowStockCount || 0)} />
         <StatCell icon={<RotateCcw size={16} />} label="Возвраты" value={String(kpis.openReturns || 0)} />
       </div>
+
+      {tab === 'overview' && (
+        <WorkspaceRoleStart
+          roleLabel={me?.myRole === 'owner' ? 'Владелец поставщика' : 'Менеджер поставщика'}
+          heading={me?.myRole === 'owner'
+            ? 'Контролируйте заказы, ассортимент и работу компании'
+            : 'Обрабатывайте заказы клиник и контролируйте отгрузки'}
+          description={me?.myRole === 'owner'
+            ? 'Начинайте с заказов, следите за остатками и возвратами, проверяйте выплаты. Управление сотрудниками находится в разделе «Команда».'
+            : 'Ваш основной рабочий маршрут: открыть заказ клиники, перевести его в сборку, оформить отгрузку и подтвердить вручение. Низкие остатки и претензии проверяйте в отдельных разделах.'}
+          steps={me?.myRole === 'owner'
+            ? ['Проверьте новые заказы и сроки отгрузки', 'Контролируйте остатки, возвраты и выплаты', 'Проверьте команду и актуальность профиля компании']
+            : ['Откройте «Продажи» и проверьте новые заказы клиник', 'Подготовьте заказ и зарегистрируйте отправку', 'Подтвердите вручение и сообщите о проблемах с остатками']}
+          actionLabel="Открыть заказы"
+          onAction={() => setTab('sales')}
+        />
+      )}
 
       <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06] pb-px">
         {TABS.map((t) => (
