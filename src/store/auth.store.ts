@@ -210,6 +210,12 @@ function syncWorkspaceReadModel(workspace: WorkspaceContext | null, fallbackPerm
     participant: workspace.personType,
     dataScope: contract.dataScope,
   }, contract);
+  store.setContextFocus('workspace', workspace.id, {
+    organizationId: workspace.organizationId || null,
+    branchId: workspace.branchId || null,
+    roleKey: workspace.roleKey || null,
+    scopeType: workspace.scopeType,
+  });
 }
 function buildClinicFromMembership(m: Membership | null): Clinic | null { if (!m) return null; if (m.clinic) return m.clinic as Clinic; if (m.clinicId) return { id: m.clinicId, name: 'Клиника' } as Clinic; return null }
 function resolveRole(activeMembership: Membership | null, user: User | null): string { return normalizeRole(activeMembership?.role || user?.platformRole || user?.role || 'user') }
@@ -403,6 +409,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         activeWorkspace,
         error: null,
       });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', {
+          detail: {
+            id: activeWorkspace.id,
+            scopeId: activeWorkspace.scopeId,
+            scopeType: activeWorkspace.scopeType,
+            organizationId: activeWorkspace.organizationId,
+            branchId: activeWorkspace.branchId || null,
+            name: activeWorkspace.name,
+            roleLabel: activeWorkspace.roleLabel,
+            roleKey: activeWorkspace.roleKey || null,
+          },
+        }));
+      }
       try { useAIStore.getState().resetAI() } catch { /* ignore */ }
     } catch (err) {
       set({ error: (err as Error).message || 'Failed to switch workspace' });
