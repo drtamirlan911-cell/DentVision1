@@ -171,6 +171,8 @@ All cabinets use the shared platform capabilities instead of re-implementing the
 - With multiple memberships and no selected active workspace, the mobile **Кабинет** action opens the organization selector. It must never select the first membership automatically.
 - The cabinet indicator remains active across tabs inside that workspace, while its click returns to the role start tab. Preserve organization identity in query-backed workspace routes while ignoring only the current tab for the cabinet-level active indicator.
 - Protected partner routes must resolve against active organization scope; diagnostic routes must also match a route present in that active role's menu. Legacy/global clinic page lists must not strand a valid partner membership, and APIs remain authoritative for data/action authorization.
+- The selected workspace role shown in the context card and organization selector must come from that membership's `roleKey` / `role`, not from the user's global account role. Prefer a mapped scoped role label, then the saved membership label; use the global role only when no organization is active.
+- During IAM hydration, a clinic cabinet return must not resolve to `/` just because the page list has not loaded yet. Preserve the role-derived clinic home until a non-empty allowed-page list is available.
 - Automated coverage must include: return to the same cabinet from another module; switch A → B → A; same-named organizations of different types; branch selection; role-specific menu visibility; query-backed tab activation; unauthorized-tab fallback; and browser history restoration.
 
 ## 3. Domain-specific operating contracts
