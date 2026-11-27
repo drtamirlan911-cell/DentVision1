@@ -102,7 +102,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       window.removeEventListener('resize', onViewport)
       window.removeEventListener('scroll', onViewport, true)
     }
-  }, [open])
+  }, [open, workspacesLoading])
 
   const activeClinicId = clinic?.id || activeMembership?.clinicId || null
   const activeOrgId = (user as { organizationId?: string } | null)?.organizationId || null
