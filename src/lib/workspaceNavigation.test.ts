@@ -202,9 +202,9 @@ describe('role-aware workspace navigation', () => {
     expect(items.map((entry) => entry.id)).toEqual(['orders', 'finance'])
   })
 
-  it('keeps a diagnostic finance employee in finance and analytics only', () => {
+  it('keeps a diagnostic finance employee in cashier, settlements and analytics only', () => {
     const items = getWorkspaceNavigationGroups('DIAGNOSTIC_CENTER', 'diagnostic_finance').flatMap((entry) => entry.items)
-    expect(items.map((entry) => entry.id)).toEqual(['finance', 'analytics'])
+    expect(items.map((entry) => entry.id)).toEqual(['cashier', 'finance', 'analytics'])
     expect(items.some((entry) => ['queue', 'referrals', 'results', 'calendar', 'settings'].includes(entry.id))).toBe(false)
   })
 
