@@ -66,6 +66,16 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
       </span>
       <ChevronRight size={14} className="shrink-0 text-[var(--dv-muted)]" />
     </button>
+    {canSwitchWorkspace && (
+      <button
+        type="button"
+        onClick={openSwitcher}
+        aria-label="Сменить рабочее пространство"
+        className="mt-2 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--dv-border)] px-2 py-1.5 text-[10px] font-medium text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"
+      >
+        <ArrowLeftRight size={12} /> Сменить рабочее пространство
+      </button>
+    )}
     {!isGuest && !hasOrg && <button type="button" onClick={() => navigate('/my-clinics')} className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--dv-border)] px-2 py-1.5 text-[10px] font-medium text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"><UserRound size={12} /> Подключить рабочий контекст</button>}
   </div>;
 };
