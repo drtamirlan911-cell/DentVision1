@@ -1,3 +1,15 @@
+## Cabinet navigation remediation — 2026-11-27 (PR #353)
+
+- **Scope:** sidebar clarity, active-cabinet return path, multi-organization selection and role-specific partner navigation. The source contract is Master Spec 5.0 plus `docs/PRODUCT/CABINET_UX_AND_WORKFLOW_STANDARD.md`.
+- **Confirmed UX defects:** the shell had two competing return-to-cabinet controls; workspace switcher entries showed organization name and role but not organization type; diagnostic-centre menu links used query-backed tabs whose state needed a single, tested URL synchronization contract.
+- **Source changes on the candidate branch:** consolidate the cabinet return into the persistent context card; keep organization switching as a separate action; show resolved organization type and scoped role in the switcher; use role-scoped navigation groups for diagnostic, laboratory, supplier, lecturer, academy and employer contexts; resolve dental/medical laboratory identity from scoped roles rather than a legacy global role; synchronize diagnostic workspace tabs to query state and browser history, with unauthorized tabs falling back to an allowed default.
+- **Authorization boundary:** these changes do not grant new backend permissions. Sidebar visibility continues to use the active IAM page/permission surface, and each route/API remains responsible for enforcing organization, branch and role scope.
+- **Regression coverage added/updated:** workspace-home resolution, mixed legacy dental-lab role lists, partner role menu visibility, query-backed navigation highlighting, allowed-tab resolution/fallback and context-card return/switch behavior.
+- **Verification:** exact-head CI, Quality Gate, RB-034 and Vercel Preview must pass on the final PR #353 head after these code and documentation changes. No earlier green run certifies a later head.
+- **Limit:** source-level navigation remediation does not certify every domain workflow as complete. The Academy placeholder sections and other domain lifecycle gaps remain governed by their existing release blockers; do not describe them as complete.
+
+---
+
 ## Integration source audit correction — 2026-11-27 (PR #353)
 
 - **Audited repository:** `drtamirlan911-cell/DentVision1`.
