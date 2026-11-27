@@ -166,11 +166,43 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
     }
 
     if (kind === 'dental') {
-      return [
-        group('dental-lab-work', 'Производство', [
-          item('production', 'Заказы и производство', '/diagnostics/lab?workspace=dental-lab', 'diagnostics'),
-        ]),
-      ]
+      const canManage = tokens.some((token) =>
+        ['owner', 'admin', 'manager', 'director', 'lab_manager'].includes(token)
+        || /_owner$|_admin$|_manager$/.test(token),
+      )
+      const canReadProduction = canManage || tokens.some((token) =>
+        ['lab_coordinator', 'dental_technician', 'technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician', 'qc_specialist'].includes(token),
+      )
+      const canManageShipping = canManage || tokens.some((token) =>
+        ['courier', 'logistics', 'delivery_operator', 'dispatcher'].includes(token),
+      )
+      const canManageFinance = canManage || tokens.some((token) =>
+        ['lab_finance', 'finance', 'accountant'].includes(token),
+      )
+      const groups: WorkspaceNavigationGroup[] = []
+      if (canReadProduction) {
+        groups.push(group('dental-lab-work', 'Производство', [
+          item('priority', 'Мои приоритетные задачи', '/diagnostics/lab?workspace=dental-lab&tab=priority', 'diagnostics'),
+          item('materials', 'Материалы', '/diagnostics/lab?workspace=dental-lab&tab=materials', 'diagnostics'),
+        ]))
+      }
+      if (canManage) {
+        groups.push(group('dental-lab-management', 'Управление лабораторией', [
+          item('team', 'Команда и назначения', '/diagnostics/lab?workspace=dental-lab&tab=team', 'diagnostics'),
+          item('services', 'Услуги и цены', '/diagnostics/lab?workspace=dental-lab&tab=services', 'diagnostics'),
+        ]))
+      }
+      if (canManageShipping) {
+        groups.push(group('dental-lab-shipping', 'Выдача и доставка', [
+          item('shipping', 'Отправка и выдача', '/diagnostics/lab?workspace=dental-lab&tab=shipping', 'diagnostics'),
+        ]))
+      }
+      if (canManageFinance) {
+        groups.push(group('dental-lab-finance', 'Финансы', [
+          item('finance', 'Счета и выплаты', '/diagnostics/lab?workspace=dental-lab&tab=finance', 'diagnostics'),
+        ]))
+      }
+      return groups
     }
 
     return [
