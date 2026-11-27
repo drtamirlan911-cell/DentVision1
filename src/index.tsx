@@ -109,6 +109,7 @@ const SchoolAdmin = lazyWithRetry(() => import('./pages/admin/SchoolAdmin'));
 const LegalLayout = lazyWithRetry(() => import('./pages/legal/LegalLayout'));
 const PartnerLegal = lazyWithRetry(() => import('./pages/partner/PartnerLegal'));
 const MyClinics = lazyWithRetry(() => import('./pages/MyClinics'));
+const WorkspacesPage = lazyWithRetry(() => import('./pages/Workspaces'));
 const SupplierWorkspace = lazyWithRetry(() => import('./pages/supplier/SupplierWorkspace'));
 const NotFound = lazyWithRetry(() => import('./pages/NotFound'))
 const Onboarding = lazyWithRetry(() => import('./pages/Onboarding'));
@@ -144,6 +145,7 @@ if (container) {
                 <Route index element={<Suspense fallback={<PageLoader />}><Welcome /></Suspense>} />
                 {/* Canonical Master Spec v5 aliases. These preserve the existing
                     implementations while moving the public IA toward contextual cabinets. */ }
+                <Route path="workspaces" element={<Suspense fallback={<PageLoader />}><WorkspacesPage /></Suspense>} />
                 <Route path="home" element={<Navigate to="/ai" replace />} />
                 <Route path="context" element={<Navigate to="/ai" replace />} />
                 <Route path="practice" element={<Navigate to="/crm/schedule" replace />} />
