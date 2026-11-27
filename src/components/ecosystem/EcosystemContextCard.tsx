@@ -46,7 +46,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
   const homePath = clinicFinanceHome ? '/crm/cashier'
     : home?.scopeType === 'CLINIC' ? (pages.length ? firstAllowedCrmPath(pages) : home.path) : home?.path;
   const openSwitcher = () => window.dispatchEvent(new CustomEvent('dentvision:open-workspace-switcher'));
-  const canSwitchWorkspace = !isGuest && workspaceContexts.length > 0;
+  const canSwitchWorkspace = !isGuest && Boolean(activeWorkspace) && workspaceContexts.length > 0;
   const openWorkspace = () => {
     if (activeWorkspace && homePath) navigate(homePath);
     else if (workspaceContexts.length > 0) openSwitcher();
@@ -81,7 +81,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
         <ArrowLeftRight size={12} /> Сменить рабочее пространство
       </button>
     )}
-    {!isGuest && !hasOrg && <button type="button" onClick={() => navigate('/my-clinics')} className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--dv-border)] px-2 py-1.5 text-[10px] font-medium text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"><UserRound size={12} /> Подключить рабочий контекст</button>}
+    {!isGuest && !hasOrg && workspaceContexts.length === 0 && <button type="button" onClick={() => navigate('/my-clinics')} className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--dv-border)] px-2 py-1.5 text-[10px] font-medium text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"><UserRound size={12} /> Подключить рабочий контекст</button>}
   </div>;
 };
 
