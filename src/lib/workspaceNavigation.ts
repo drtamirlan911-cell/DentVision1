@@ -466,6 +466,25 @@ export function isWorkspaceNavigationActive(
   return true
 }
 
+/** Use the role attached to the selected membership before a saved label. Never accept a global account role here. */
+export function resolveWorkspaceRoleLabel(
+  roleKey: string | null | undefined,
+  role: string | null | undefined,
+  savedLabel: string | null | undefined,
+  getRoleLabel: (role: string) => string,
+): string {
+  const genericLabel = (value?: string | null) =>
+    !value?.trim() || /^(?:участник(?: экосистемы)?|member|participant|user|пользователь)$/i.test(value.trim())
+  const candidates = [roleKey, role].filter((value): value is string => Boolean(value?.trim()))
+  for (const candidate of candidates) {
+    const label = getRoleLabel(candidate)
+    if (!genericLabel(label) && label.toLowerCase() !== candidate.toLowerCase()) return label
+  }
+  if (!genericLabel(savedLabel)) return savedLabel!.trim()
+  const fallbackRole = candidates[0]
+  return fallbackRole ? getRoleLabel(fallbackRole) : 'Участник экосистемы'
+}
+
 /** Resolve a query-backed workspace tab without opening sections the active role cannot access. */
 export function resolveWorkspaceTab(
   requestedTab: string | null | undefined,
