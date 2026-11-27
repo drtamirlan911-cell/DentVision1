@@ -10,7 +10,7 @@ import { getRoleDisplayLabel, useAuth, type WorkspaceContext as AuthWorkspaceCon
 import { useToast } from '@/components/ui/ds/Toast'
 import { queryKeys } from '@/queries/keys'
 import { resolveGlobalRoleLabel, selectWorkspaceContext } from '@/lib/workspaceContext'
-import { getWorkspaceHomeTarget } from '@/lib/workspaceNavigation'
+import { getWorkspaceHomeTarget, resolveWorkspaceRoleLabel } from '@/lib/workspaceNavigation'
 import * as api from '@/utils/api'
 
 type ScopeType = 'CLINIC' | 'DIAGNOSTIC_CENTER' | 'LABORATORY' | 'SUPPLIER' | 'LECTURER' | 'ACADEMY' | 'PARTNER' | 'EMPLOYER'
@@ -29,15 +29,12 @@ const TYPE_ICON: Record<ScopeType, typeof Building2> = {
 }
 
 function workspaceRoleLabel(workspace: WorkspaceContext): string {
-  for (const candidate of [workspace.roleKey, workspace.role]) {
-    if (!candidate) continue
-    const label = getRoleDisplayLabel(candidate)
-    if (label && label.toLowerCase() !== String(candidate).toLowerCase()) return label
-  }
-  if (workspace.roleLabel && !/^(?:участник(?: экосистемы)?|member|participant|user|пользователь)$/i.test(workspace.roleLabel.trim())) {
-    return workspace.roleLabel
-  }
-  return getRoleDisplayLabel(workspace.roleKey || workspace.role)
+  return resolveWorkspaceRoleLabel(
+    workspace.roleKey,
+    workspace.role,
+    workspace.roleLabel,
+    getRoleDisplayLabel,
+  )
 }
 
 function workspaceTypeLabel(workspace: WorkspaceContext): string {
@@ -184,23 +181,16 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       }
       return t('platform.workspace_choose', { defaultValue: 'Контекст не выбран' })
     }
-    // The selected membership is authoritative for the label. A platform/global
-    // OWNER or ADMIN role must never replace the role the person has inside this
-    // particular clinic, lab, supplier or academy.
-    const scopedCandidates = [current?.roleKey, current?.role]
-    for (const candidate of scopedCandidates) {
-      if (!candidate) continue
-      const label = getRoleDisplayLabel(candidate)
-      if (!isGenericRoleLabel(label) && label.toLowerCase() !== String(candidate).toLowerCase()) return label
-    }
-    if (!isGenericRoleLabel(current?.roleLabel)) return current?.roleLabel || 'Участник экосистемы'
-    const globalCandidates = [effectiveRole, (user as any)?.role, (user as any)?.platformRole]
-    for (const candidate of globalCandidates) {
-      if (!candidate) continue
-      const label = getRoleDisplayLabel(candidate)
-      if (!isGenericRoleLabel(label) && label.toLowerCase() !== String(candidate).toLowerCase()) return label
-    }
-    return roleInfo?.label || 'Участник экосистемы'
+    // The selected membership is authoritative; global role is only a fallback
+    // for accounts that have no organization workspace at all.
+    const scopedLabel = resolveWorkspaceRoleLabel(
+      current.roleKey,
+      current.role,
+      current.roleLabel,
+      getRoleDisplayLabel,
+    )
+    if (!isGenericRoleLabel(scopedLabel)) return scopedLabel
+    return 'Участник экосистемы'
   }, [current, workspaces.length, effectiveRole, user, roleInfo?.label, t])
 
   interface BranchOption { id: string; name: string; code?: string | null; active?: boolean }
