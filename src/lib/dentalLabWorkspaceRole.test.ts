@@ -40,6 +40,7 @@ describe('dental-lab role capabilities', () => {
   it('isolates a finance-only employee from production and shipping', () => {
     expect(resolveDentalLabRoleCapabilities('lab_finance')).toEqual({
       canManageQc: false,
+      canPerformQc: false,
       canManageShipping: false,
       canManageFinance: true,
       canReadProduction: false,
@@ -51,6 +52,7 @@ describe('dental-lab role capabilities', () => {
   it('keeps delivery staff limited to ready and delivered order work', () => {
     expect(resolveDentalLabRoleCapabilities('courier')).toEqual({
       canManageQc: false,
+      canPerformQc: false,
       canManageShipping: true,
       canManageFinance: false,
       canReadProduction: false,
