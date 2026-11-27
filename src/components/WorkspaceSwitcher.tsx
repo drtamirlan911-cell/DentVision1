@@ -379,7 +379,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
           </div>
         </div>
       )}
-      <button type="button" onClick={() => { setOpen(false); navigate('/workspaces') }} className="mt-1 w-full flex items-center gap-2 px-2.5 py-2 min-h-11 rounded-xl border border-transparent text-xs font-medium text-txt-secondary hover:text-txt-primary hover:bg-surface-2 hover:border-bdr-subtle transition-colors"><Plus size={14} />Все рабочие пространства</button>
+      <button type="button" onClick={() => { setOpen(false); navigate('/workspaces') }} className="mt-1 w-full flex items-center gap-2 px-2.5 py-2 min-h-11 rounded-xl border border-transparent text-xs font-medium text-txt-secondary hover:text-txt-primary hover:bg-surface-2 hover:border-bdr-subtle transition-colors"><Building2 size={14} />Все рабочие пространства</button>
     </div>,
     document.body,
   ) : null
