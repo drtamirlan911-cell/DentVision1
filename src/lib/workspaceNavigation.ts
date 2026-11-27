@@ -301,7 +301,12 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
 }
 
 /** Match route and query-backed tabs without treating every query value as a different route. */
-export function isWorkspaceNavigationActive(pathname: string, search: string, target: string): boolean {
+export function isWorkspaceNavigationActive(
+  pathname: string,
+  search: string,
+  target: string,
+  options: { matchAllTabs?: boolean } = {},
+): boolean {
   const [targetPath, targetQuery = ''] = target.split('?')
   const pathMatches = targetPath === '/'
     ? pathname === '/'
@@ -310,6 +315,13 @@ export function isWorkspaceNavigationActive(pathname: string, search: string, ta
 
   const actualParams = new URLSearchParams(search)
   const expectedParams = new URLSearchParams(targetQuery)
+  const targetSelectsTab = expectedParams.has('tab') || expectedParams.has('section')
+  const actualSelectsTab = actualParams.has('tab') || actualParams.has('section')
+  // A base menu item (e.g. "Today") must not remain highlighted when another
+  // query-backed tab is open on the same route. The pinned cabinet shortcut
+  // opts into matchAllTabs because it represents the whole workspace.
+  if (!options.matchAllTabs && actualSelectsTab && !targetSelectsTab) return false
+
   for (const [key, value] of expectedParams.entries()) {
     if (actualParams.get(key) !== value) return false
   }
