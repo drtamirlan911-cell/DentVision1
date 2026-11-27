@@ -27,6 +27,15 @@ describe('workspaceScopeAllowed', () => {
     expect(workspaceScopeAllowed(makeUser('LECTURER'), 'OWNER', 'ACADEMY')).toBe(false)
   })
 
+  it('uses the explicitly active organization when the profile has a stale organization type', () => {
+    expect(workspaceScopeAllowed(makeUser('CLINIC'), 'OWNER', 'ACADEMY', 'ACADEMY')).toBe(true)
+    expect(workspaceScopeAllowed(makeUser('ACADEMY'), 'OWNER', 'DIAGNOSTIC_CENTER', 'DIAGNOSTIC_CENTER')).toBe(true)
+  })
+
+  it('rejects a route that does not match the explicitly active organization', () => {
+    expect(workspaceScopeAllowed(makeUser('ACADEMY'), 'OWNER', 'DIAGNOSTIC_CENTER', 'CLINIC')).toBe(false)
+  })
+
   it('allows superadmin to inspect partner and Academy workspaces', () => {
     expect(workspaceScopeAllowed(makeUser('CLINIC'), 'SUPERADMIN', 'DIAGNOSTIC_CENTER')).toBe(true)
     expect(workspaceScopeAllowed(makeUser('CLINIC'), 'SUPERADMIN', 'LABORATORY')).toBe(true)
