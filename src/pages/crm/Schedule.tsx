@@ -353,7 +353,7 @@ export default function Schedule() {
         description: 'Начинайте с ближайших записей и входящих онлайн-заявок. Проверяйте контактные данные, подтверждайте время и передавайте пациента врачу.',
         steps: ['Проверьте записи и онлайн-заявки на сегодня', 'Подтвердите запись и подготовьте пациента', 'Передайте врачу актуальную информацию'],
         actionLabel: canManageScheduleBoard ? 'Создать запись' : undefined,
-        action: openNew,
+        action: () => { setEditAppt(null); setForm(EMPTY_FORM); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setModalOpen(true); },
       }
     : isManagerRole
       ? {
@@ -380,7 +380,7 @@ export default function Schedule() {
               description: 'Используйте расписание как список задач команды. Проверяйте свободные окна, открывайте карточки пациентов и координируйте следующий шаг.',
               steps: ['Проверьте записи на сегодня', 'Откройте нужную запись и проверьте данные', 'Согласуйте следующий шаг с ответственным врачом'],
               actionLabel: 'Создать запись',
-              action: openNew,
+              action: () => { setEditAppt(null); setForm(EMPTY_FORM); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setModalOpen(true); },
             }
           : {
             role: activeWorkspace?.roleLabel || roleInfo?.label || 'Сотрудник клиники',
