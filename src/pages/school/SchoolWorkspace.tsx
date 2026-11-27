@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { ListSkeleton } from '@/components/ui/ds';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GraduationCap, BookOpen, Wallet, BarChart3, Plus, Trash2, Users, Award, Building2, Camera, ImageIcon, Radio, BookMarked } from 'lucide-react';
 import * as api from '@/utils/api';
@@ -65,11 +65,20 @@ export default function SchoolWorkspace() {
   const navigate = useNavigate();
   const toast = useToast();
   const { activeWorkspace } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const tab: 'courses' | 'analytics' | 'profile' =
+    requestedTab === 'analytics' || requestedTab === 'profile' ? requestedTab : 'courses';
+  const selectTab = useCallback((nextTab: 'courses' | 'analytics' | 'profile') => {
+    const next = new URLSearchParams(searchParams);
+    if (nextTab === 'courses') next.delete('tab');
+    else next.set('tab', nextTab);
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
   const [loading, setLoading] = useState(true);
   const [contexts, setContexts] = useState<LecturerCtx[]>([]);
   const [token, setToken] = useState<string | null>(null);
   const [contextSwitching, setContextSwitching] = useState(false);
-  const [tab, setTab] = useState<'courses' | 'analytics' | 'profile'>('courses');
 
   const [me, setMe] = useState<any>(null);
   const [courses, setCourses] = useState<any[]>([]);
@@ -100,7 +109,6 @@ export default function SchoolWorkspace() {
     setPublicationUpdatingId(null);
     setForm({ ...EMPTY_FORM });
     setListFilter('all');
-    setTab('courses');
     setSaving(false);
     setPhotoUploading(false);
   }, []);
@@ -444,7 +452,7 @@ export default function SchoolWorkspace() {
         {TABS.map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => selectTab(t.id)}
             className={`flex items-center gap-1.5 px-4 py-2.5 min-h-11 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t.id ? 'border-dv-gold text-dv-gold' : 'border-transparent text-txt-muted hover:text-txt-primary'}`}
           >
             {t.icon}{t.label}
