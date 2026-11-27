@@ -53,11 +53,11 @@ export function RequirePage({
   // Supplier is a workspace, not a clinic/platform role. It must be reachable only
   // while the authenticated session is actually scoped to a supplier workspace;
   // otherwise /supplier becomes a cross-context data boundary bypass.
-  const supplierWorkspace = pageId === 'supplier' &&
-    String(activeWorkspace?.scopeType || '').toUpperCase() === 'SUPPLIER'
+  const supplierWorkspace = isScopedWorkspaceRouteAllowed(pageId, activeWorkspace?.scopeType)
+    && pageId === 'supplier'
 
-  const employerWorkspace = pageId === 'employer' &&
-    ['EMPLOYER', 'CLINIC'].includes(String(activeWorkspace?.scopeType || '').toUpperCase())
+  const employerWorkspace = isScopedWorkspaceRouteAllowed(pageId, activeWorkspace?.scopeType)
+    && pageId === 'employer'
 
   // Supplier is a separate organization workspace. Never let a clinic,
   // platform, or generic role's page permissions accidentally expose it.
@@ -69,6 +69,10 @@ export function RequirePage({
     // Do not fall back to a clinic route: platform-wide permissions do not create
     // a clinic or supplier workspace.
     return <Navigate to="/ai" replace />
+  }
+
+  if (supplierWorkspace || employerWorkspace) {
+    return <>{children}</>
   }
 
   if (iam.canAccessPage(pageId)) {
