@@ -28,6 +28,25 @@ const TYPE_ICON: Record<ScopeType, typeof Building2> = {
   EMPLOYER: BriefcaseBusiness,
 }
 
+function workspaceTypeLabel(workspace: WorkspaceContext): string {
+  const label = getWorkspaceHomeTarget({
+    scopeType: workspace.scopeType,
+    roleKey: workspace.roleKey || workspace.role,
+  })?.label
+  if (label) return label.replace(/^(?:Кабинет|Рабочее место)\s+/i, '')
+  const fallback: Record<string, string> = {
+    CLINIC: 'Стоматологическая клиника',
+    DIAGNOSTIC_CENTER: 'Диагностический центр',
+    LABORATORY: 'Лаборатория',
+    SUPPLIER: 'Поставщик',
+    LECTURER: 'Преподаватель',
+    ACADEMY: 'Академия',
+    PARTNER: 'Партнёр',
+    EMPLOYER: 'Работодатель',
+  }
+  return fallback[workspace.scopeType] || 'Рабочая организация'
+}
+
 const GROUPS: Array<{ label: string; types: ScopeType[] }> = [
   { label: 'Клиники', types: ['CLINIC'] },
   { label: 'Диагностические центры', types: ['DIAGNOSTIC_CENTER'] },
@@ -295,7 +314,10 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
                     className={cn('w-full flex items-center gap-2.5 px-2.5 py-2 min-h-12 rounded-xl text-left border transition-[background-color,border-color,color] duration-150 disabled:opacity-60', active ? 'border-dv-gold/50 bg-dv-gold/10 text-txt-primary' : 'border-transparent text-txt-primary hover:border-bdr-subtle hover:bg-surface-2')}
                   >
                     <span className={cn('h-8 w-8 rounded-lg flex items-center justify-center shrink-0 border', active ? 'bg-dv-gold/15 border-dv-gold/30 text-dv-gold' : 'bg-surface-2 border-bdr-subtle text-txt-secondary')}><WsIcon size={15} /></span>
-                    <span className="min-w-0 flex-1"><span className="block text-xs font-semibold truncate">{ws.name}</span><span className="block text-[10px] text-txt-muted truncate">{ws.roleLabel}</span></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-semibold truncate">{ws.name}</span>
+                      <span className="block text-[10px] text-txt-muted truncate">{workspaceTypeLabel(ws)} · {ws.roleLabel || getRoleDisplayLabel(ws.roleKey || ws.role)}</span>
+                    </span>
                     {loading ? <Loader2 size={15} className="animate-spin shrink-0 text-dv-gold" /> : active ? <Check size={15} className="shrink-0 text-dv-gold" /> : null}
                   </button>
                 )
