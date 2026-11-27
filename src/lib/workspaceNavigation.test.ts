@@ -6,7 +6,44 @@ import {
   isWorkspaceNavigationActive,
   isClinicFinanceOnlyRole,
   resolveWorkspaceTab,
+  resolveWorkspaceRoleLabel,
 } from './workspaceNavigation'
+
+describe('selected workspace role labels', () => {
+  const labels: Record<string, string> = {
+    qc_specialist: 'Контроль качества лаборатории',
+    dental_lab_owner: 'Владелец зуботехнической лаборатории',
+    doctor: 'Врач',
+    owner: 'Владелец',
+  }
+
+  it('prefers the active membership role over a stale saved label', () => {
+    expect(resolveWorkspaceRoleLabel(
+      'qc_specialist',
+      'owner',
+      'Владелец',
+      (role) => labels[role] || role,
+    )).toBe('Контроль качества лаборатории')
+  })
+
+  it('uses the legacy scoped membership role when roleKey is absent', () => {
+    expect(resolveWorkspaceRoleLabel(
+      null,
+      'qc_specialist',
+      'Сотрудник',
+      (role) => labels[role] || role,
+    )).toBe('Контроль качества лаборатории')
+  })
+
+  it('falls back to the saved scoped role label when the role key is not mapped', () => {
+    expect(resolveWorkspaceRoleLabel(
+      'supplier_stock_controller',
+      null,
+      'Контролёр остатков',
+      (role) => labels[role] || role,
+    )).toBe('Контролёр остатков')
+  })
+})
 
 describe('workspace tab resolution', () => {
   it('opens the requested tab when that tab is available to the active role', () => {
