@@ -29,6 +29,7 @@ interface WorkspaceState {
   setContextData: (data: Record<string, unknown>) => void
   clearContext: () => void
   setActiveWorkspace: (workspace: Omit<ActiveWorkspaceMeta, 'switchedAt'>, contract?: WorkspaceContextContract | null) => void
+  clearActiveWorkspace: () => void
   setOnboardingComplete: (completed: boolean) => void
   setOnboardingScreen: (screen: number) => void
   setOnboardingSkipped: (skipped: boolean) => void
@@ -84,6 +85,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       context: { focusType: 'workspace', focusId: workspace.id, data: { workspaceName: workspace.name, workspaceRole: workspace.roleLabel, workspaceType: workspace.scopeType }, lastUpdated: same ? state.context.lastUpdated : Date.now() },
     }
   }),
+  clearActiveWorkspace: () => {
+    setActiveWorkspaceContext(null)
+    set({
+      activeWorkspace: null,
+      contextContract: null,
+      context: { focusType: 'workspace', focusId: null, data: {}, lastUpdated: Date.now() },
+    })
+  },
   setOnboardingComplete: (completed) => {
     try { if (completed) sessionStorage.setItem('dv_welcomed', '1') } catch { /* ignore */ }
     set((state) => ({ onboarding: { ...state.onboarding, completed } }))
