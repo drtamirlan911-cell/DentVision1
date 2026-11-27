@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/ds/Toast'
 import { queryKeys } from '@/queries/keys'
 import { useWorkspaceStore } from '@/store/workspace.store'
 import { resolveGlobalRoleLabel, selectWorkspaceContext, workspaceContextFrom } from '@/lib/workspaceContext'
+import { getWorkspaceHomeTarget } from '@/lib/workspaceNavigation'
 import * as api from '@/utils/api'
 
 type ScopeType = 'CLINIC' | 'DIAGNOSTIC_CENTER' | 'LABORATORY' | 'SUPPLIER' | 'LECTURER' | 'ACADEMY' | 'PARTNER' | 'EMPLOYER'
