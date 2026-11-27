@@ -41,6 +41,10 @@ export default function MedicalLabWorkspace() {
   const { user, activeWorkspace } = useAuth();
   const activeScopeType = String(activeWorkspace?.scopeType || user?.organizationType || '').toUpperCase();
   const isLaboratoryWorkspace = activeScopeType === 'LABORATORY';
+  const medicalLabRoleTokens = String(activeWorkspace?.roleKey || activeWorkspace?.role || user?.effectiveRole || user?.role || '')
+    .toLowerCase().split(',').map((value) => value.trim()).filter(Boolean);
+  const isFinanceOnlyRole = medicalLabRoleTokens.some((value) => value.includes('finance') || value === 'accountant')
+    && !medicalLabRoleTokens.some((value) => /(?:^|_)(owner|admin|manager|director|reception|technician|validator|doctor|quality)$/.test(value));
   const queryClient = useQueryClient();
   const billingOrganizationId = String(activeWorkspace?.organizationId || user?.organizationId || context.organizationId || '');
   const workspaceCacheScope = JSON.stringify([billingOrganizationId, String(activeWorkspace?.scopeId || ''), String(context.branchId || '')]);
@@ -60,7 +64,7 @@ export default function MedicalLabWorkspace() {
   const [payoutAmount, setPayoutAmount] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeSection, setActiveSection] = useState<'operations' | 'finance'>(() =>
-    searchParams.get('tab') === 'finance' ? 'finance' : 'operations',
+    searchParams.get('tab') === 'finance' || isFinanceOnlyRole ? 'finance' : 'operations',
   );
   const selectSection = (section: 'operations' | 'finance') => {
     setActiveSection(section);
@@ -69,6 +73,15 @@ export default function MedicalLabWorkspace() {
     else next.delete('tab');
     setSearchParams(next, { replace: true });
   };
+  useEffect(() => {
+    if (searchParams.get('tab') === 'finance' && canReadFinance) {
+      setActiveSection('finance');
+    } else if (isFinanceOnlyRole && canReadFinance) {
+      setActiveSection('finance');
+    } else if (searchParams.get('tab') !== 'finance') {
+      setActiveSection('operations');
+    }
+  }, [workspaceCacheScope, searchParams, isFinanceOnlyRole, canReadFinance]);
   const payoutAmountMinor = parsePayoutAmountMinor(payoutAmount);
   const payoutMutation = useMutation({
     mutationFn: () => requestMedicalLabPayout(payoutAmount.trim()),
@@ -156,8 +169,7 @@ export default function MedicalLabWorkspace() {
       : selected?.order.status === 'received' ? 'order.process' : null;
   const canAdvanceCurrentStage = Boolean(currentNext && currentNextCapability
     && (!activeLabScope || hasCapability(currentNextCapability)));
-  const medicalRoleTokens = String(activeWorkspace?.roleKey || activeWorkspace?.role || user?.effectiveRole || user?.role || '')
-    .toLowerCase().split(',').map((value) => value.trim()).filter(Boolean);
+  const medicalRoleTokens = medicalLabRoleTokens;
   const isFinanceRole = medicalRoleTokens.some((value) => value.includes('finance') || value === 'accountant');
   const isReceptionRole = medicalRoleTokens.some((value) => value.includes('reception') || value.includes('operator'));
   const isQualityRole = medicalRoleTokens.some((value) => value.includes('validator') || value.includes('quality') || value.includes('doctor'));
