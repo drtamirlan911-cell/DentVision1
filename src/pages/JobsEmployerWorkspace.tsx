@@ -452,6 +452,13 @@ export default function JobsEmployerWorkspace() {
         }
       />
 
+      <WorkspaceRoleStart
+        roleLabel={employerRoleGuide.role}
+        heading={employerRoleGuide.heading}
+        description={employerRoleGuide.description}
+        steps={employerRoleGuide.steps}
+      />
+
       {!workspaceStatus?.canPublish && (
         <Card padding="md" className="border border-amber-500/30 bg-amber-500/[0.04]">
           <p className="font-medium text-txt-primary">Публикация пока недоступна</p>
