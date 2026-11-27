@@ -119,7 +119,7 @@ export function getWorkspaceHomeTarget(source: WorkspaceHomeSource): WorkspaceHo
         path: financeOnlyRole
           ? '/diagnostics/center?tab=finance'
           : qualityRole
-            ? '/diagnostics/center?tab=results'
+            ? '/diagnostics/results'
             : '/diagnostics/center?tab=worklist',
         label: 'Кабинет диагностического центра',
       }
