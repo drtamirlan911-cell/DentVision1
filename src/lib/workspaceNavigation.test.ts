@@ -37,7 +37,7 @@ describe('clinic role home resolution', () => {
 describe('workspace home navigation', () => {
   it.each([
     ['CLINIC', 'doctor', '/crm/schedule'],
-    ['DIAGNOSTIC_CENTER', 'diagnostic_operator', '/diagnostics/center'],
+    ['DIAGNOSTIC_CENTER', 'diagnostic_operator', '/diagnostics/center?tab=worklist'],
     ['SUPPLIER', 'manager', '/supplier'],
     ['LECTURER', 'lecturer', '/school/workspace'],
     ['ACADEMY', 'academy_owner', '/academy/workspace'],
@@ -158,7 +158,7 @@ describe('role-aware workspace navigation', () => {
 
   it('gives a diagnostic finance employee direct access to settlements without operational clutter', () => {
     const items = getWorkspaceNavigationGroups('DIAGNOSTIC_CENTER', 'diagnostic_finance').flatMap((entry) => entry.items)
-    expect(items.map((entry) => entry.id)).toEqual(['finance'])
+    expect(items.map((entry) => entry.id)).toEqual(['finance', 'analytics'])
     expect(items[0].path).toBe('/diagnostics/center?tab=finance')
   })
 
