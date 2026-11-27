@@ -38,6 +38,10 @@ function contextualIcon(id: string): React.ReactNode {
     courses: <GraduationCap />, content: <BookOpen />, assessments: <ClipboardList />, students: <Users />,
     certificates: <FileCheck2 />, schedule: <CalendarDays />, team: <Users />,
     vacancies: <BriefcaseBusiness />, 'jobs-market': <BriefcaseBusiness />, shop: <ShoppingBag />,
+    patients: <Users />, visits: <CalendarDays />, 'medical-card': <FileText />, 'dental-chart': <Activity />,
+    'treatment-plans': <FileCheck2 />, documents: <FileText />, icd10: <FileCheck2 />, lab: <FlaskConical />,
+    inventory: <Package />, pricelist: <WalletCards />, cashier: <WalletCards />, billing: <WalletCards />,
+    staff: <Users />, 'clinic-settings': <Settings />,
   };
   return icons[id] || <LayoutDashboard />;
 }
@@ -83,7 +87,9 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
   // The selected cabinet is pinned separately below. The menu now exposes the
   // actual workflows of the active partner instead of replacing them with the
   // generic public marketplace links.
-  const navigationGroups = partnerWorkspace
+  const clinicWorkspace = homeTarget?.scopeType === 'CLINIC';
+  const contextualWorkspace = partnerWorkspace || clinicWorkspace;
+  const navigationGroups = contextualWorkspace
     ? [
         { id: 'core', label: 'DentVision', items: [groups[0].items[0]] },
         ...contextualGroups,
@@ -93,7 +99,9 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
   const visibleGroups = navigationGroups.map(g => ({ ...g, items: g.items.filter(canSee) })).filter(g => g.items.length);
   const visibleMore = (partnerWorkspace
     ? moreItems.filter((item) => ['profile', 'settings', 'help'].includes(item.id))
-    : moreItems
+    : clinicWorkspace
+      ? moreItems.filter((item) => ['profile', 'settings', 'help', 'integrations'].includes(item.id))
+      : moreItems
   ).filter(canSee);
   const visibleAdmin = isAdmin ? adminItems.filter(canSee) : [];
   React.useEffect(() => {
