@@ -1,7 +1,7 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Activity, BarChart3, BriefcaseBusiness, CalendarDays, ChevronRight, CircleHelp, Command, Database, FileCheck2, FileText, GraduationCap, LayoutDashboard, LogOut, MessageCircle, Package, Settings, ShieldCheck, ShoppingBag, Sparkles, Stethoscope, UserRound, Users, WalletCards, X, ClipboardList, Bot, Building2, FlaskConical, HeartPulse } from 'lucide-react';
+import { Activity, BarChart3, BookOpen, BriefcaseBusiness, CalendarDays, ChevronRight, CircleHelp, Command, Database, FileCheck2, FileText, GraduationCap, LayoutDashboard, LogOut, MessageCircle, Package, Settings, ShieldCheck, ShoppingBag, Sparkles, Stethoscope, UserRound, Users, WalletCards, X, ClipboardList, Bot, Building2, FlaskConical, HeartPulse } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '@/components/brand';
 import { Avatar } from '@/components/ui/ds/Avatar';
@@ -24,7 +24,7 @@ const groups: Group[] = [
   { id: 'market', label: 'Рынок и развитие', items: [{ id: 'shop', label: 'DentVision Market', path: '/shop', icon: <ShoppingBag />, guest: true }, { id: 'academy', label: 'Academy', path: '/school', icon: <GraduationCap />, guest: true }, { id: 'jobs', label: 'Jobs', path: '/jobs', icon: <BriefcaseBusiness />, guest: true }, { id: 'community', label: 'Network / Community', path: '/community', icon: <Users />, guest: true }] },
   { id: 'business', label: 'Бизнес', items: [{ id: 'finance', label: 'Финансы', path: '/crm/cashier', icon: <WalletCards /> }, { id: 'inventory', label: 'Склад', path: '/crm/inventory', icon: <Package /> }, { id: 'pricelist', label: 'Прайс', path: '/crm/pricelist', icon: <FileText /> }, { id: 'staff', label: 'Команда', path: '/crm/staff', icon: <Users /> }, { id: 'marketing', label: 'Маркетинг', path: '/crm/marketing', icon: <BarChart3 /> }, { id: 'documents', label: 'Документы', path: '/crm/documents', icon: <FileText /> }, { id: 'analytics', label: 'Аналитика', path: '/analytics', icon: <BarChart3 /> }] },
 ];
-const moreItems: Item[] = [{ id: 'profile', label: 'Профиль', path: '/profile', icon: <UserRound /> }, { id: 'workspaces', label: 'Рабочие пространства', path: '/workspaces', icon: <Building2 /> }, { id: 'settings', label: 'Настройки', path: '/settings', icon: <Settings /> }, { id: 'help', label: 'Помощь', path: '/help', icon: <CircleHelp />, guest: true }, { id: 'clinic-settings', label: 'Настройки клиники', path: '/crm/clinic-settings', icon: <Settings /> }, { id: 'billing', label: 'Тариф и оплата', path: '/crm/billing', icon: <WalletCards /> }, { id: 'integrations', label: 'Интеграции', path: '/crm/integrations/messaging', icon: <MessageCircle /> }, { id: 'icd10', label: 'МКБ-10', path: '/crm/icd10', icon: <FileCheck2 /> }];
+const moreItems: Item[] = [{ id: 'profile', label: 'Профиль', path: '/profile', icon: <UserRound /> }, { id: 'settings', label: 'Настройки', path: '/settings', icon: <Settings /> }, { id: 'help', label: 'Помощь', path: '/help', icon: <CircleHelp />, guest: true }, { id: 'clinic-settings', label: 'Настройки клиники', path: '/crm/clinic-settings', icon: <Settings /> }, { id: 'billing', label: 'Тариф и оплата', path: '/crm/billing', icon: <WalletCards /> }, { id: 'integrations', label: 'Интеграции', path: '/crm/integrations/messaging', icon: <MessageCircle /> }, { id: 'icd10', label: 'МКБ-10', path: '/crm/icd10', icon: <FileCheck2 /> }];
 const adminItems: Item[] = [{ id: 'admin', label: 'Администрирование', path: '/admin', icon: <ShieldCheck /> }, { id: 'approvals', label: 'Подтверждения AI', path: '/ai-approvals', icon: <Bot /> }, { id: 'agents', label: 'Активность AI', path: '/agent-activity', icon: <Sparkles /> }, { id: 'audit', label: 'Аудит и безопасность', path: '/audit', icon: <Database /> }, { id: 'bi', label: 'Business Intelligence', path: '/bi', icon: <BarChart3 /> }, { id: 'backup', label: 'Резервные копии', path: '/backup', icon: <Database /> }];
 function activePath(pathname: string, search: string, path: string) {
   return isWorkspaceNavigationActive(pathname, search, path);
@@ -87,7 +87,7 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
     : groups;
   const visibleGroups = navigationGroups.map(g => ({ ...g, items: g.items.filter(canSee) })).filter(g => g.items.length);
   const visibleMore = (partnerWorkspace
-    ? moreItems.filter((item) => ['profile', 'workspaces', 'settings', 'help'].includes(item.id))
+    ? moreItems.filter((item) => ['profile', 'settings', 'help'].includes(item.id))
     : moreItems
   ).filter(canSee);
   const visibleAdmin = isAdmin ? adminItems.filter(canSee) : [];
