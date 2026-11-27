@@ -1,7 +1,7 @@
 import React from 'react';
 import { Building2, ChevronRight, Globe2, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useWorkspaceStore } from '@/store/workspace.store';
+import { useAuth } from '@/store/auth.store';
 import { getWorkspaceHomeTarget } from '@/lib/workspaceNavigation';
 import { cn } from '@/lib/utils';
 import type { User as UserType } from '@/types';
@@ -30,18 +30,19 @@ function organizationLabel(user: UserType | null) {
 
 export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false, isGuest = false }) => {
   const navigate = useNavigate();
-  const activeWorkspace = useWorkspaceStore((state) => state.activeWorkspace);
-  const org = activeWorkspace?.name || organizationLabel(user);
+  const { activeWorkspace, workspaceContexts } = useAuth();
+  const hasUnselectedWorkspaces = workspaceContexts.length > 0 && !activeWorkspace;
+  const org = activeWorkspace?.name || (!workspaceContexts.length ? organizationLabel(user) : null);
   const label = activeWorkspace?.roleLabel || roleLabel(user, activeWorkspace?.roleKey);
-  const scopeType = activeWorkspace?.scopeType || (user as any)?.organizationType;
-  const home = getWorkspaceHomeTarget({
-    scopeType,
-    roleKey: activeWorkspace?.roleKey || (user as any)?.effectiveRole || (user as any)?.role,
-    hasClinic: Boolean((user as any)?.clinicId || (user as any)?.organizationId),
-  });
-  const hasOrg = Boolean(activeWorkspace?.id || (user as any)?.organizationId || (user as any)?.clinicId || org);
+  const home = activeWorkspace ? getWorkspaceHomeTarget({
+    scopeType: activeWorkspace.scopeType,
+    roleKey: activeWorkspace.roleKey || (user as any)?.effectiveRole || (user as any)?.role,
+    hasClinic: activeWorkspace.scopeType === 'CLINIC',
+  }) : null;
+  const hasOrg = Boolean(activeWorkspace?.id || (!workspaceContexts.length && ((user as any)?.organizationId || (user as any)?.clinicId || org)));
   const target = home?.path || '/workspaces';
   const openWorkspace = () => navigate(target);
+  const openSwitcher = () => window.dispatchEvent(new CustomEvent('dentvision:open-workspace-switcher'));
 
   if (collapsed) {
     return <button type="button" title={`Открыть рабочий кабинет · ${label}${org ? ` · ${org}` : ''}`} aria-label="Открыть рабочий кабинет" onClick={openWorkspace} className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-xl bg-[var(--dv-accent-soft)] text-[var(--dv-accent)] hover:opacity-90"><Building2 size={16} /></button>;
@@ -52,7 +53,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]">{hasOrg ? <Building2 size={15} /> : <Globe2 size={15} />}</span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[11px] font-semibold text-[var(--dv-text)]">{org || home?.label || 'Личный контекст'}</span>
-        <span className="mt-0.5 block truncate text-[10px] text-[var(--dv-muted)]">{label} · Открыть кабинет</span>
+        <span className="mt-0.5 block truncate text-[10px] text-[var(--dv-muted)]">{hasUnselectedWorkspaces ? "Кабинет не выбран" : `${label} · ${home ? "Открыть кабинет" : "Личный контекст"}`}</span>
       </span>
       <ChevronRight size={14} className="shrink-0 text-[var(--dv-muted)]" />
     </button>
