@@ -40,9 +40,9 @@ export function getWorkspaceHomeTarget(source: WorkspaceHomeSource): WorkspaceHo
     case 'CLINIC':
       return { scopeType, path: '/crm/schedule', label: 'Рабочее место клиники' }
     case 'DIAGNOSTIC_CENTER':
-      return { scopeType, path: '/diagnostics/workspace', label: 'Кабинет диагностического центра' }
+      return { scopeType, path: '/diagnostics/center-dashboard', label: 'Кабинет диагностического центра' }
     case 'LABORATORY':
-      return { scopeType, path: '/diagnostics/workspace', label: 'Кабинет лаборатории' }
+      return { scopeType, path: '/diagnostics/lab-dashboard', label: 'Кабинет лаборатории' }
     case 'SUPPLIER':
     case 'SUPPLIER_COMPANY':
       return { scopeType: 'SUPPLIER', path: '/supplier', label: 'Кабинет поставщика' }
