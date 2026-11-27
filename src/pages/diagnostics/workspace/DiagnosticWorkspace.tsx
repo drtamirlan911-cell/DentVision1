@@ -220,7 +220,8 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   // back/forward. Invalid or unauthorized tab requests fall back to the
   // first role-allowed workspace section instead of showing an empty panel.
   useEffect(() => {
-    const nextTab = resolveWorkspaceTab(requestedTab, availableTabIds, fallbackTab)
+    const allowedTabs = availableTabSignature ? availableTabSignature.split('|') : []
+    const nextTab = resolveWorkspaceTab(requestedTab, allowedTabs, fallbackTab)
     setActiveTabState(nextTab)
     if (requestedTab !== nextTab) {
       const next = new URLSearchParams(searchParams)
