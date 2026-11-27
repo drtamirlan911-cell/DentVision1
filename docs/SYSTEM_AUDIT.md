@@ -6,6 +6,11 @@
 - **Authorization boundary:** these changes do not grant new backend permissions. Sidebar visibility continues to use the active IAM page/permission surface, and each route/API remains responsible for enforcing organization, branch and role scope.
 - **Regression coverage added/updated:** workspace-home resolution, mixed legacy dental-lab role lists, partner role menu visibility, query-backed navigation highlighting, allowed-tab resolution/fallback and context-card return/switch behavior.
 - **Verification:** exact-head CI, Quality Gate, RB-034 and Vercel Preview must pass on the final PR #353 head after these code and documentation changes. No earlier green run certifies a later head.
+- **Clinic employees:** add context-scoped menus for doctor, assistant/front desk, owner/manager and cashier/finance roles. The sidebar keeps the daily schedule/patient path short, exposes clinical records to roles whose IAM page surface includes them, and exposes team/stock/settings/finance only in the relevant role groups.
+- **Dental-lab QC:** add a separate `canPerformQc` UI capability for the existing `QC_SPECIALIST` role, which already carries the backend `lab.manage` permission. It does not grant `canManageQc` (team, service pricing or technician assignment); backend authorization remains authoritative.
+- **Academy:** remove placeholder content/assessment/certificate/schedule/finance/analytics links from the operational sidebar until those processes are implemented. Keep courses, students and team; synchronize `?tab=` selection when a deep-link changes.
+- **Dental Lab OS:** synchronize role-allowed tabs to the query string and browser history; an unauthorized tab falls back to a role-allowed tab without changing organization.
+- **Supplier/lecturer/medical-lab/diagnostic-centre:** the existing tab URL contracts are retained; direct sidebar destinations now map to actual implemented sections. No placeholder route is promoted as a completed process.
 - **Limit:** source-level navigation remediation does not certify every domain workflow as complete. The Academy placeholder sections and other domain lifecycle gaps remain governed by their existing release blockers; do not describe them as complete.
 
 ---
