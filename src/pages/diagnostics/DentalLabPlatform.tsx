@@ -16,6 +16,7 @@ import { useAuth } from '@/store/auth.store';
 import { PartnerBranchSubscriptionBilling } from '@/components/billing/PartnerBranchSubscriptionBilling';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
 import { WorkspaceRoleStart } from '@/components/workspaces/WorkspaceRoleStart';
+import { hasDentalLabRole, resolveDentalLabRoleCapabilities } from '@/lib/dentalLabWorkspaceRole';
 
 const STAGES = [
   { id: 'pending', label: 'Новые' },
@@ -326,13 +327,22 @@ export default function DentalLabPlatform() {
   const billingOrganizationId = String(activeWorkspace?.organizationId || user?.organizationId || '');
   const workspaceCacheScope = JSON.stringify([billingOrganizationId, String(activeWorkspace?.scopeId || ''), String(context.branchId || '')]);
   const dashboard = useQuery({ queryKey: ['lab-platform', workspaceCacheScope, 'dashboard'], queryFn: getLabPlatformDashboard, refetchInterval: 30_000 });
-  const memberRole = String(dashboard.data?.membershipRole || '').toLowerCase();
-  const canManageQc = ['owner', 'admin', 'manager', 'director', 'lab_manager'].includes(memberRole);
-  const canManageShipping = canManageQc || ['courier', 'logistics', 'delivery_operator', 'dispatcher'].includes(memberRole);
-  const canManageFinance = canManageQc || ['lab_finance', 'finance', 'accountant'].includes(memberRole);
-  const canReadProduction = canManageQc || ['lab_coordinator', 'qc_specialist', 'technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician'].includes(memberRole);
-  const canConsumeMaterials = canManageQc || ['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician'].includes(memberRole);
-  const canReadOrders = canReadProduction || ['courier', 'logistics', 'delivery_operator', 'dispatcher'].includes(memberRole);
+  // Membership roles arrive in a legacy vocabulary in some accounts, while
+  // IAM contexts use canonical dental_lab_* keys. Resolve both through one
+  // shared capability contract so sidebar links and in-page tabs never drift.
+  const memberRole = [
+    dashboard.data?.membershipRole,
+    activeWorkspace?.roleKey,
+    activeWorkspace?.role,
+  ].filter(Boolean).join(',').toLowerCase();
+  const {
+    canManageQc,
+    canManageShipping,
+    canManageFinance,
+    canReadProduction,
+    canConsumeMaterials,
+    canReadOrders,
+  } = resolveDentalLabRoleCapabilities(memberRole);
   const effectiveTab = !canReadProduction && tab === 'board' && canManageFinance ? 'finance'
     : !canReadProduction && tab === 'board' && canManageShipping ? 'shipping'
     : (tab === 'finance' && !canManageFinance)
@@ -358,7 +368,15 @@ export default function DentalLabPlatform() {
     mutationFn: ({ id, body }: { id: string; body: { proofUrl: string; recipientName: string; note?: string } }) => confirmLabPlatformDelivery(id, body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform', workspaceCacheScope] }); },
   });
-  const technicians = (team.data || []).filter((member) => ['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician'].includes(String(member.role || '').toLowerCase()));
+  const technicians = (team.data || []).filter((member) => hasDentalLabRole(
+    member.role,
+    'technician',
+    'dental_technician',
+    'lab_technician',
+    'cad_designer',
+    'ceramist',
+    'orthodontic_technician',
+  ));
   const [payoutAmount, setPayoutAmount] = useState('');
   useEffect(() => { setPayoutAmount(''); setExpandedStages({}); }, [workspaceCacheScope]);
   const payoutAmountMinor = payoutAmountToMinor(payoutAmount);
