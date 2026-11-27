@@ -126,6 +126,36 @@ describe('EcosystemContextCard active workspace shortcut', () => {
     window.removeEventListener('dentvision:open-workspace-switcher', onOpen);
   })
 
+  it('keeps organization and branch selection accessible with a single active workspace', () => {
+    const onOpen = vi.fn();
+    window.addEventListener('dentvision:open-workspace-switcher', onOpen);
+    render(
+      <MemoryRouter initialEntries={['/crm/schedule']}>
+        <EcosystemContextCard user={null} />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Сменить организацию или филиал' }));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    window.removeEventListener('dentvision:open-workspace-switcher', onOpen);
+  })
+
+  it('prompts an unselected single workspace to be selected without showing a duplicate connect action', () => {
+    useAuthStore.setState({ activeWorkspace: null });
+    const onOpen = vi.fn();
+    window.addEventListener('dentvision:open-workspace-switcher', onOpen);
+    render(
+      <MemoryRouter initialEntries={['/profile']}>
+        <EcosystemContextCard user={null} />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole('button', { name: 'Подключить рабочий контекст' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть рабочий кабинет' }));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    window.removeEventListener('dentvision:open-workspace-switcher', onOpen);
+  })
+
   it('keeps the cabinet shortcut available when the sidebar is collapsed', () => {
     render(
       <MemoryRouter initialEntries={['/shop']}>
