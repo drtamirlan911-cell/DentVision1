@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GraduationCap, BookOpen, Wallet, BarChart3, Plus, Trash2, Users, Award, Building2, Camera, ImageIcon, Radio, BookMarked } from 'lucide-react';
 import * as api from '@/utils/api';
-import { useAuth } from '@/store/auth.store';
+import { useAuth, useAuthStore } from '@/store/auth.store';
 import { beginWorkspaceRequest, isWorkspaceRequestCurrent, selectWorkspaceContext } from '@/lib/workspaceContext';
 import { useToast } from '@/components/ui/ds/Toast';
 import { Button } from '@/components/ui/ds/Button';
@@ -124,14 +124,32 @@ export default function SchoolWorkspace() {
     setContextSwitching(true);
     clearWorkspaceData();
     try {
-      const res = await api.switchContext('LECTURER', scopeId);
+      const auth = useAuthStore.getState();
+      const selectedContext = auth.workspaceContexts.find(
+        (workspace) => workspace.scopeType === 'LECTURER' && workspace.scopeId === scopeId,
+      );
+      let accessToken = auth.activeWorkspace?.scopeType === 'LECTURER'
+        && auth.activeWorkspace.scopeId === scopeId
+        ? auth.token
+        : null;
+
+      // Keep the lecturer token and the global active-workspace contract aligned.
+      if (!accessToken && selectedContext) {
+        await auth.switchWorkspace(selectedContext);
+        accessToken = useAuthStore.getState().token;
+      } else if (!accessToken) {
+        const switched = await api.switchContext('LECTURER', scopeId);
+        await useAuthStore.getState().restoreSession();
+        accessToken = useAuthStore.getState().token || switched.accessToken;
+      }
+      if (!accessToken) throw new Error('Не удалось определить активную сессию лектора');
       if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
-      setToken(res.accessToken);
-      await loadAll(res.accessToken, generation);
-    } catch {
+      setToken(accessToken);
+      await loadAll(accessToken, generation);
+    } catch (error) {
       if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
         setToken(null);
-        toast.error('Не удалось войти в выбранную организацию лектора');
+        toast.error(error instanceof Error ? error.message : 'Не удалось войти в выбранную организацию лектора');
       }
     } finally {
       if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
