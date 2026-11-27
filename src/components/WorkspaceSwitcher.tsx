@@ -95,6 +95,15 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   }
 
   useEffect(() => {
+    const openFromSidebar = () => {
+      updateMenuPosition()
+      setOpen(true)
+    }
+    window.addEventListener('dentvision:open-workspace-switcher', openFromSidebar)
+    return () => window.removeEventListener('dentvision:open-workspace-switcher', openFromSidebar)
+  }, [])
+
+  useEffect(() => {
     if (!open) return
     updateMenuPosition()
     const onDoc = (e: MouseEvent) => {
