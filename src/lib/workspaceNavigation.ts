@@ -129,6 +129,64 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
   const role = String(roleKey || '').trim().toLowerCase()
   const tokens = roleTokens(role)
 
+  if (scope === 'CLINIC') {
+    // Role keys arrive in both canonical and legacy dotted forms
+    // (for example, clinic.doctor and doctor). Normalize only for menu
+    // grouping; IAM page checks below remain the authorization boundary.
+    const roles = new Set(tokens.map((token) => token.split('.').pop() || token))
+    const has = (...keys: string[]) => keys.some((key) => roles.has(key))
+    const management = has('owner', 'director', 'admin', 'manager')
+    const doctor = has('doctor')
+    const assistant = has('assistant', 'reception')
+    const laboratory = has('lab')
+    const finance = has('cashier', 'accountant', 'finance')
+    const financeOnly = finance && !management && !doctor && !assistant && !laboratory
+    const groups: WorkspaceNavigationGroup[] = []
+
+    if (!financeOnly) {
+      groups.push(group('clinic-day', 'Рабочий день', [
+        item('schedule', 'Расписание приёма', '/crm/schedule', 'schedule'),
+        item('patients', 'Пациенты', '/crm/patients', 'patients'),
+        item('visits', 'Приёмы и посещения', '/crm/visits', 'visits'),
+      ]))
+    }
+
+    if (doctor || management) {
+      groups.push(group('clinic-care', 'Клиническая работа', [
+        item('medical-card', 'Медицинские карты', '/crm/medical-card', 'medical-card'),
+        item('dental-chart', 'Зубная карта', '/crm/dental-chart', 'dental-chart'),
+        item('treatment-plans', 'Планы лечения', '/crm/treatment-plans', 'treatment-plans'),
+        item('documents', 'Медицинские документы', '/crm/documents', 'documents'),
+        item('icd10', 'МКБ-10', '/crm/icd10', 'icd10'),
+      ]))
+    }
+
+    if (laboratory || management) {
+      groups.push(group('clinic-lab', 'Лабораторная работа', [
+        item('lab', 'Заказы лаборатории', '/crm/lab', 'lab'),
+      ]))
+    }
+
+    if (management) {
+      groups.push(group('clinic-management', 'Управление клиникой', [
+        item('staff', 'Сотрудники', '/crm/staff', 'staff'),
+        item('inventory', 'Склад и материалы', '/crm/inventory', 'inventory'),
+        item('pricelist', 'Прайс и услуги', '/crm/pricelist', 'pricelist'),
+        item('clinic-settings', 'Настройки клиники', '/crm/clinic-settings', 'clinic-settings'),
+        item('analytics', 'Аналитика клиники', '/analytics', 'analytics'),
+      ]))
+    }
+
+    if (finance || management) {
+      groups.push(group('clinic-finance', 'Финансы', [
+        item('cashier', 'Касса и оплаты', '/crm/cashier', 'cashier'),
+        item('billing', 'Тариф и оплата DentVision', '/crm/billing', 'billing'),
+      ]))
+    }
+
+    return groups
+  }
+
   if (scope === 'DIAGNOSTIC_CENTER') {
     const managementRoles = tokens.some((token) =>
       ['owner', 'admin', 'manager', 'director', 'diagnostic_owner', 'diagnostic_admin', 'diagnostic_manager'].includes(token),
