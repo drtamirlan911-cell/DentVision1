@@ -97,7 +97,7 @@ describe('workspace home navigation', () => {
     expect(getWorkspaceHomeTarget({
       scopeType: 'LABORATORY',
       roleKey: 'laboratory_technician,medical_lab_technician,dental_technician',
-    })?.path).toBe('/diagnostics/lab?workspace=dental-lab')
+    })?.path).toBe('/diagnostics/lab?workspace=dental-lab&tab=priority')
   })
 
   it('returns medical-lab finance staff directly to finances', () => {
