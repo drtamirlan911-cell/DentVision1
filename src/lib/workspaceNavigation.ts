@@ -109,7 +109,7 @@ export function getWorkspaceHomeTarget(source: WorkspaceHomeSource): WorkspaceHo
 
   switch (scopeType) {
     case 'CLINIC':
-      return { scopeType, path: '/crm/schedule', label: 'Рабочее место клиники' }
+      return { scopeType, path: isClinicFinanceOnlyRole(roleKey) ? '/crm/cashier' : '/crm/schedule', label: 'Рабочее место клиники' }
     case 'DIAGNOSTIC_CENTER': {
       const financeOnlyRole = tokens.some((token) => token.includes('finance') || token === 'accountant')
         && !tokens.some((token) => /(?:^|_)(owner|admin|manager|director|reception|operator|radiologist|technician|quality)$/.test(token))
