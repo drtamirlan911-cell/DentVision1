@@ -77,6 +77,31 @@ describe('role-aware workspace navigation', () => {
     expect(owner.some((entry) => entry.id === 'finance')).toBe(true)
   })
 
+  it('gives a clinic doctor a focused appointment and clinical-record menu', () => {
+    const items = getWorkspaceNavigationGroups('CLINIC', 'clinic.doctor').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toEqual(expect.arrayContaining([
+      'schedule', 'patients', 'visits', 'medical-card', 'dental-chart', 'treatment-plans',
+    ]))
+    expect(items.some((entry) => ['staff', 'inventory', 'clinic-settings', 'cashier'].includes(entry.id))).toBe(false)
+  })
+
+  it('keeps a clinic assistant focused on the daily front-desk workflow', () => {
+    const items = getWorkspaceNavigationGroups('CLINIC', 'clinic.assistant').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toEqual(['schedule', 'patients', 'visits'])
+  })
+
+  it('exposes clinic administration and finance sections to an owner', () => {
+    const items = getWorkspaceNavigationGroups('CLINIC', 'clinic.owner').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toEqual(expect.arrayContaining([
+      'schedule', 'patients', 'visits', 'staff', 'inventory', 'pricelist', 'clinic-settings', 'analytics', 'cashier', 'billing',
+    ]))
+  })
+
+  it('keeps a clinic cashier in the finance workflow', () => {
+    const items = getWorkspaceNavigationGroups('CLINIC', 'clinic.cashier').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toEqual(['cashier', 'billing'])
+  })
+
   it('gives a diagnostic finance employee direct access to settlements without operational clutter', () => {
     const items = getWorkspaceNavigationGroups('DIAGNOSTIC_CENTER', 'diagnostic_finance').flatMap((entry) => entry.items)
     expect(items.map((entry) => entry.id)).toEqual(['finance'])
