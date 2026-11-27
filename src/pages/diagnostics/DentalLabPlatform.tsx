@@ -17,6 +17,7 @@ import { PartnerBranchSubscriptionBilling } from '@/components/billing/PartnerBr
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
 import { WorkspaceRoleStart } from '@/components/workspaces/WorkspaceRoleStart';
 import { hasDentalLabRole, resolveDentalLabRoleCapabilities } from '@/lib/dentalLabWorkspaceRole';
+import { resolveWorkspaceTab } from '@/lib/workspaceNavigation';
 
 const STAGES = [
   { id: 'pending', label: 'Новые' },
@@ -345,6 +346,31 @@ export default function DentalLabPlatform() {
     canConsumeMaterials,
     canReadOrders,
   } = resolveDentalLabRoleCapabilities(memberRole);
+  const availableTabIds = [
+    ...(canReadProduction ? ['board', 'priority', 'materials'] : []),
+    ...(canManageQc ? ['team', 'services'] : []),
+    ...(canManageShipping ? ['shipping'] : []),
+    ...(canManageFinance ? ['finance'] : []),
+  ]
+  const fallbackTab = canReadProduction ? 'board'
+    : canManageFinance ? 'finance'
+      : canManageShipping ? 'shipping'
+        : availableTabIds[0] || 'board'
+  const availableTabSignature = availableTabIds.join('|')
+
+  useEffect(() => {
+    if (dashboard.isLoading || dashboard.isError || !dashboard.data) return
+    const allowedTabs = availableTabSignature ? availableTabSignature.split('|') : []
+    const nextTab = resolveWorkspaceTab(requestedTab, allowedTabs, fallbackTab)
+    setTab(nextTab)
+    if (requestedTab !== nextTab) {
+      const nextParams = new URLSearchParams(searchParams)
+      if (nextTab === 'board') nextParams.delete('tab')
+      else nextParams.set('tab', nextTab)
+      setSearchParams(nextParams, { replace: true })
+    }
+  }, [requestedTab, availableTabSignature, fallbackTab, dashboard.isLoading, dashboard.isError, dashboard.data, searchParams, setSearchParams])
+
   const effectiveTab = !canReadProduction && tab === 'board' && canManageFinance ? 'finance'
     : !canReadProduction && tab === 'board' && canManageShipping ? 'shipping'
     : (tab === 'finance' && !canManageFinance)
