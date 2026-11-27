@@ -242,6 +242,7 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
 
     if (financeOnly) {
       groups.push(group('diagnostic-finance', 'Финансовая работа', [
+        item('cashier', 'Касса и оплаты', '/diagnostics/center?tab=cashier', 'diagnostics'),
         item('finance', 'Расчёты и выплаты', '/diagnostics/center?tab=finance', 'diagnostics'),
         item('analytics', 'Финансовая аналитика', '/diagnostics/statistics', 'diagnostics-statistics'),
       ]))
