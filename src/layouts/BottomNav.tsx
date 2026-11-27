@@ -62,6 +62,17 @@ function workspaceCabinetIcon(scopeType?: string | null): React.ReactNode {
   }
 }
 
+export function shouldShowDiagnosticWorkspaceTab(
+  isAuthenticated: boolean,
+  isGuest: boolean,
+  hasUnselectedMemberships: boolean,
+  hasPartnerWorkspace: boolean,
+  canAccessDiagnostics: boolean,
+): boolean {
+  return isAuthenticated && !isGuest && !hasUnselectedMemberships
+    && !hasPartnerWorkspace && canAccessDiagnostics
+}
+
 /** Keep consumer and non-clinic contexts out of the clinic CRM tab. */
 export function shouldShowClinicWorkspaceTab(
   isAuthenticated: boolean,
@@ -128,7 +139,7 @@ export function BottomNav() {
 
     // A partner cabinet already provides its own return destination. Do not
     // add clinic or diagnostic shortcuts from stale global permissions.
-    if (!hasPartnerWorkspace && isAuthenticated && !isGuest && iam.canAccessPage('diagnostics')) {
+    if (shouldShowDiagnosticWorkspaceTab(isAuthenticated, isGuest, hasUnselectedMemberships, hasPartnerWorkspace, iam.canAccessPage('diagnostics'))) {
       const clinicTabIndex = items.findIndex((item) => item.id === 'crm' || item.id === 'cabinet');
       items.splice(clinicTabIndex >= 0 ? clinicTabIndex + 1 : 1, 0, {
         id: 'diagnostics',
