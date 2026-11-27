@@ -354,10 +354,11 @@ export default function DentalLabPlatform() {
     ...(canManageShipping ? ['shipping'] : []),
     ...(canManageFinance ? ['finance'] : []),
   ]
-  const fallbackTab = canReadProduction ? 'board'
-    : canManageFinance ? 'finance'
-      : canManageShipping ? 'shipping'
-        : availableTabIds[0] || 'board'
+  const fallbackTab = canPerformQc && !canManageQc ? 'quality'
+    : canReadProduction ? 'board'
+      : canManageFinance ? 'finance'
+        : canManageShipping ? 'shipping'
+          : availableTabIds[0] || 'board'
   const availableTabSignature = availableTabIds.join('|')
 
   useEffect(() => {
