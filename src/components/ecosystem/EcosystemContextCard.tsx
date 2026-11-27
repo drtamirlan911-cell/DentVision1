@@ -43,8 +43,8 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
   const target = home?.path || (hasOrg ? '/my-clinics' : '/profile');
   const openWorkspace = () => navigate(target);
 
-  if (collapsed && !isGuest) {
-    return <button type="button" title={`${label}${org ? ` · ${org}` : ''}`} onClick={openWorkspace} className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-xl bg-[var(--dv-accent-soft)] text-[var(--dv-accent)] hover:opacity-90"><Building2 size={16} /></button>;
+  if (collapsed) {
+    return <button type="button" title={`Открыть рабочий кабинет · ${label}${org ? ` · ${org}` : ''}`} aria-label="Открыть рабочий кабинет" onClick={openWorkspace} className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-xl bg-[var(--dv-accent-soft)] text-[var(--dv-accent)] hover:opacity-90"><Building2 size={16} /></button>;
   }
 
   return <div className={cn('mx-3 mb-2 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] p-2.5', isGuest && 'border-[var(--dv-accent)]/20')}>
