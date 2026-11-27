@@ -37,6 +37,19 @@ describe('EcosystemContextCard active workspace shortcut', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/supplier')
   })
 
+  it('opens the shared workspace directory when no organization is active', () => {
+    useWorkspaceStore.setState({ activeWorkspace: null })
+    render(
+      <MemoryRouter initialEntries={['/profile']}>
+        <EcosystemContextCard user={null} />
+        <LocationProbe />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Подключить рабочий контекст' }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/workspaces')
+  })
+
   it('keeps the cabinet shortcut available when the sidebar is collapsed', () => {
     render(
       <MemoryRouter initialEntries={['/shop']}>
