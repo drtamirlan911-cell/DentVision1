@@ -62,10 +62,24 @@ describe('role-aware workspace navigation', () => {
     expect(owner.some((entry) => entry.id === 'finance')).toBe(true)
   })
 
-  it('uses the dental production workspace for dental-lab roles', () => {
+  it('exposes production, management, shipping and finance sections to a dental-lab manager', () => {
     const items = getWorkspaceNavigationGroups('LABORATORY', 'dental_lab_manager').flatMap((entry) => entry.items)
-    expect(items).toHaveLength(1)
-    expect(items[0].path).toBe('/diagnostics/lab?workspace=dental-lab')
+    expect(items.map((entry) => entry.id)).toEqual(expect.arrayContaining([
+      'priority', 'materials', 'team', 'services', 'shipping', 'finance',
+    ]))
+    expect(items.find((entry) => entry.id === 'team')?.path)
+      .toBe('/diagnostics/lab?workspace=dental-lab&tab=team')
+  })
+
+  it('keeps dental technicians in assigned production work without exposing management or finance tabs', () => {
+    const items = getWorkspaceNavigationGroups('LABORATORY', 'dental_technician').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toEqual(['priority', 'materials'])
+    expect(items.some((entry) => entry.id === 'team' || entry.id === 'finance')).toBe(false)
+  })
+
+  it('gives a dental-lab finance specialist the finance tab without production controls', () => {
+    const items = getWorkspaceNavigationGroups('LABORATORY', 'lab_finance').flatMap((entry) => entry.items)
+    expect(items.map((entry) => entry.id)).toEqual(['finance'])
   })
 
   it('provides owner navigation for Academy sections already supported by the URL', () => {
