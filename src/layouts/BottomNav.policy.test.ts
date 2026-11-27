@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveBottomNavWorkspaceHomePath, shouldShowClinicWorkspaceTab } from './BottomNav';
+import { resolveBottomNavWorkspaceHomePath, shouldShowClinicWorkspaceTab, shouldShowDiagnosticWorkspaceTab } from './BottomNav';
 
 describe('resolveBottomNavWorkspaceHomePath', () => {
   it('returns the active supplier cabinet instead of the clinic workspace', () => {
@@ -38,6 +38,26 @@ describe('resolveBottomNavWorkspaceHomePath', () => {
 });
 
 
+
+describe('shouldShowDiagnosticWorkspaceTab', () => {
+  it('hides diagnostics until a multi-organization user selects an active workspace', () => {
+    expect(shouldShowDiagnosticWorkspaceTab(true, false, true, false, true)).toBe(false);
+  });
+
+  it('does not leak a diagnostic shortcut into a selected supplier cabinet', () => {
+    expect(shouldShowDiagnosticWorkspaceTab(true, false, false, true, true)).toBe(false);
+  });
+
+  it('shows diagnostics alongside the clinic cabinet only when IAM permits it', () => {
+    expect(shouldShowDiagnosticWorkspaceTab(true, false, false, false, true)).toBe(true);
+    expect(shouldShowDiagnosticWorkspaceTab(true, false, false, false, false)).toBe(false);
+  });
+
+  it('hides protected diagnostics from anonymous and guest navigation', () => {
+    expect(shouldShowDiagnosticWorkspaceTab(false, false, false, false, true)).toBe(false);
+    expect(shouldShowDiagnosticWorkspaceTab(true, true, false, false, true)).toBe(false);
+  });
+});
 
 describe('shouldShowClinicWorkspaceTab', () => {
   it('keeps the clinic demo entry available to unauthenticated visitors', () => {
