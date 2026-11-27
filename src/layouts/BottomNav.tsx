@@ -182,7 +182,14 @@ export function BottomNav() {
       <div className="mx-auto flex h-[var(--dv-bottomnav-height,3.5rem)] w-full max-w-xl items-stretch justify-between px-1 sm:px-2">
         {ITEMS.map((item) => {
           const isActive = item.id === 'cabinet' && item.path
-            ? isWorkspaceNavigationActive(location.pathname, location.search, item.path, { matchAllTabs: true })
+            ? (() => {
+                const [targetPath, targetQuery = ''] = item.path!.split('?')
+                const cabinetParams = new URLSearchParams(targetQuery)
+                cabinetParams.delete('tab')
+                cabinetParams.delete('section')
+                const cabinetTarget = cabinetParams.size ? `${targetPath}?${cabinetParams.toString()}` : targetPath
+                return isWorkspaceNavigationActive(location.pathname, location.search, cabinetTarget, { matchAllTabs: true })
+              })()
             : Boolean(item.path) && (location.pathname === item.path || location.pathname.startsWith(item.path + '/'));
           return (
             <motion.button
