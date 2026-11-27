@@ -254,7 +254,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       setContextFocus('workspace', ws.id, { organizationId: ws.organizationId || null, branchId: ws.branchId || null, roleKey: ws.roleKey || ws.role || null, scopeType: ws.scopeType })
       window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: ws.id, scopeId: ws.scopeId, scopeType: ws.scopeType, organizationId: ws.organizationId, branchId: ws.branchId || null, name: ws.name, roleLabel: ws.roleLabel, roleKey: ws.roleKey || null } }))
 
-      toast.success(t('platform.clinic_active', { name: ws.name }))
+      toast.success(`Активно рабочее пространство: ${ws.name}`)
       setOpen(false)
 
       void queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
@@ -267,7 +267,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       if (home) navigate(home.path)
       else if (ws.scopeType === 'CLINIC' && !location.pathname.startsWith('/crm')) navigate('/crm/schedule')
     } catch (e) {
-      toast.error((e as Error)?.message || t('platform.clinic_switch_error'))
+      toast.error((e as Error)?.message || 'Не удалось переключить рабочее пространство')
     } finally {
       setBusyId(null)
     }
@@ -379,7 +379,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
           </div>
         </div>
       )}
-      <button type="button" onClick={() => { setOpen(false); navigate('/my-clinics') }} className="mt-1 w-full flex items-center gap-2 px-2.5 py-2 min-h-11 rounded-xl border border-transparent text-xs font-medium text-txt-secondary hover:text-txt-primary hover:bg-surface-2 hover:border-bdr-subtle transition-colors"><Plus size={14} />{t('platform.all_clinics')}</button>
+      <button type="button" onClick={() => { setOpen(false); navigate('/workspaces') }} className="mt-1 w-full flex items-center gap-2 px-2.5 py-2 min-h-11 rounded-xl border border-transparent text-xs font-medium text-txt-secondary hover:text-txt-primary hover:bg-surface-2 hover:border-bdr-subtle transition-colors"><Plus size={14} />Все рабочие пространства</button>
     </div>,
     document.body,
   ) : null
@@ -394,12 +394,12 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         onMouseDown={(event) => event.stopPropagation()}
         onClick={() => { if (!open) updateMenuPosition(); setOpen((v) => !v) }}
         className={cn('group flex items-center gap-2 max-w-[8.5rem] xs:max-w-[10rem] sm:max-w-[16rem] min-h-11 px-2.5 py-1.5 rounded-xl', 'bg-surface-raised border border-bdr-strong text-txt-primary shadow-elev-1 hover:bg-surface-raised-hover hover:border-dv-gold/60 hover:shadow-elev-2 transition-[background-color,border-color,box-shadow] duration-150', open && 'border-dv-gold/70 shadow-elev-2')}
-        aria-label={activeRoleLabel ? `${t('platform.clinic_switch')}: ${current?.name || t('platform.workspace_choose', { defaultValue: 'Выберите рабочее пространство' })} — ${activeRoleLabel}` : t('platform.clinic_switch')}
+        aria-label={activeRoleLabel ? `Переключить рабочее пространство: ${current?.name || t('platform.workspace_choose', { defaultValue: 'Выберите рабочее пространство' })} — ${activeRoleLabel}` : 'Переключить рабочее пространство'}
         aria-expanded={open}
         aria-haspopup="menu"
       >
         <span className="h-6 w-6 rounded-lg bg-dv-gold/12 border border-dv-gold/25 flex items-center justify-center shrink-0"><Icon size={13} className="text-dv-gold" /></span>
-        <span className="min-w-0 text-left leading-tight"><span className="block text-xs font-semibold truncate">{current?.name || t('platform.clinic_fallback')}</span><span className="block text-[9px] font-medium text-txt-muted truncate">{activeRoleLabel}</span></span>
+        <span className="min-w-0 text-left leading-tight"><span className="block text-xs font-semibold truncate">{current?.name || t('platform.workspace_choose', { defaultValue: 'Выберите рабочее пространство' })}</span><span className="block text-[9px] font-medium text-txt-muted truncate">{activeRoleLabel}</span></span>
         <ChevronDown size={13} className={cn('shrink-0 text-txt-muted transition-transform', open && 'rotate-180')} />
       </button>
       {menu}
