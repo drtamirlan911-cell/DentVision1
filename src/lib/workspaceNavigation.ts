@@ -401,9 +401,26 @@ export function getWorkspaceNavigationGroups(scopeType?: string | null, roleKey?
   }
 
   if (scope === 'EMPLOYER') {
+    const recruiter = tokens.some((token) => token.includes('recruiter'))
+    const viewer = tokens.some((token) => token.includes('viewer'))
+    if (viewer) {
+      return [
+        group('employer-monitoring', 'Контроль найма', [
+          item('vacancies', 'Вакансии и этапы подбора', '/employer', 'employer'),
+        ]),
+      ]
+    }
+    if (recruiter) {
+      return [
+        group('employer-recruitment', 'Работа с кандидатами', [
+          item('vacancies', 'Отклики и собеседования', '/employer', 'employer'),
+          item('jobs-market', 'Рынок специалистов', '/jobs', 'jobs'),
+        ]),
+      ]
+    }
     return [
-      group('employer-work', 'Подбор специалистов', [
-        item('vacancies', 'Вакансии и отклики', '/employer', 'employer'),
+      group('employer-management', 'Управление наймом', [
+        item('vacancies', 'Вакансии и найм', '/employer', 'employer'),
         item('jobs-market', 'Рынок специалистов', '/jobs', 'jobs'),
       ]),
     ]
