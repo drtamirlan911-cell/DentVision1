@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowLeftRight, Building2, ChevronRight, Globe2, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/store/auth.store';
+import { getRoleDisplayLabel, useAuth } from '@/store/auth.store';
 import { getWorkspaceHomeTarget, isClinicFinanceOnlyRole } from '@/lib/workspaceNavigation';
 import { firstAllowedCrmPath } from '@/lib/roleAccess';
 import { cn } from '@/lib/utils';
@@ -34,7 +34,13 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
   const { activeWorkspace, workspaceContexts, pages } = useAuth();
   const hasUnselectedWorkspaces = workspaceContexts.length > 0 && !activeWorkspace;
   const org = activeWorkspace?.name || (!workspaceContexts.length ? organizationLabel(user) : null);
-  const label = hasUnselectedWorkspaces ? 'Контекст не выбран' : activeWorkspace?.roleLabel || roleLabel(user, activeWorkspace?.roleKey || activeWorkspace?.role);
+  const scopedRoleLabel = [activeWorkspace?.roleKey, activeWorkspace?.role]
+    .filter(Boolean)
+    .map((candidate) => ({ candidate: String(candidate), label: getRoleDisplayLabel(candidate) }))
+    .find((entry) => entry.label && entry.label.toLowerCase() !== entry.candidate.toLowerCase())?.label;
+  const label = hasUnselectedWorkspaces
+    ? 'Контекст не выбран'
+    : scopedRoleLabel || activeWorkspace?.roleLabel || roleLabel(user, activeWorkspace?.roleKey || activeWorkspace?.role);
   const home = activeWorkspace ? getWorkspaceHomeTarget({
     scopeType: activeWorkspace.scopeType,
     roleKey: activeWorkspace.roleKey || activeWorkspace.role || (user as any)?.effectiveRole || (user as any)?.role,
