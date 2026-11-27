@@ -4,7 +4,22 @@ import {
   getWorkspaceNavigationGroups,
   isPartnerWorkspaceType,
   isWorkspaceNavigationActive,
+  resolveWorkspaceTab,
 } from './workspaceNavigation'
+
+describe('workspace tab resolution', () => {
+  it('opens the requested tab when that tab is available to the active role', () => {
+    expect(resolveWorkspaceTab('finance', ['worklist', 'finance'], 'worklist')).toBe('finance')
+  })
+
+  it('falls back when the requested tab is not permitted for the active role', () => {
+    expect(resolveWorkspaceTab('finance', ['worklist', 'referrals'], 'worklist')).toBe('worklist')
+  })
+
+  it('uses a safe role-specific fallback when there is no requested tab', () => {
+    expect(resolveWorkspaceTab(null, ['worklist', 'referrals'], 'worklist')).toBe('worklist')
+  })
+})
 
 describe('workspace home navigation', () => {
   it.each([
