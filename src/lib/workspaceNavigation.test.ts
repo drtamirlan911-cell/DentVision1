@@ -82,6 +82,15 @@ describe('role-aware workspace navigation', () => {
     expect(items.map((entry) => entry.id)).toEqual(['finance'])
   })
 
+  it('keeps medical-lab operations and finance separate by employee role', () => {
+    const technician = getWorkspaceNavigationGroups('LABORATORY', 'medical_lab_technician').flatMap((entry) => entry.items)
+    const finance = getWorkspaceNavigationGroups('LABORATORY', 'medical_lab_finance').flatMap((entry) => entry.items)
+    const owner = getWorkspaceNavigationGroups('LABORATORY', 'medical_lab_owner').flatMap((entry) => entry.items)
+    expect(technician.map((entry) => entry.id)).toEqual(['orders'])
+    expect(finance.map((entry) => entry.id)).toEqual(['finance'])
+    expect(owner.map((entry) => entry.id)).toEqual(['orders', 'finance'])
+  })
+
   it('provides owner navigation for Academy sections already supported by the URL', () => {
     const items = getWorkspaceNavigationGroups('ACADEMY', 'academy_owner').flatMap((entry) => entry.items)
     expect(items.map((entry) => entry.path)).toContain('/academy/workspace?tab=students')
