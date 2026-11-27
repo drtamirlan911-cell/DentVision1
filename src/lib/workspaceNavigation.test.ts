@@ -50,6 +50,36 @@ describe('workspace home navigation', () => {
     })?.path).toBe('/diagnostics/lab?workspace=dental-lab')
   })
 
+  it('returns medical-lab finance staff directly to finances', () => {
+    expect(getWorkspaceHomeTarget({ scopeType: 'LABORATORY', roleKey: 'medical_lab_finance' })?.path)
+      .toBe('/diagnostics/lab?workspace=medical-lab&tab=finance')
+  })
+
+  it('returns dental-lab QC staff directly to the quality queue', () => {
+    expect(getWorkspaceHomeTarget({ scopeType: 'LABORATORY', roleKey: 'qc_specialist' })?.path)
+      .toBe('/diagnostics/lab?workspace=dental-lab&tab=quality')
+  })
+
+  it('returns dental technicians to assigned priority work', () => {
+    expect(getWorkspaceHomeTarget({ scopeType: 'LABORATORY', roleKey: 'dental_technician' })?.path)
+      .toBe('/diagnostics/lab?workspace=dental-lab&tab=priority')
+  })
+
+  it('returns dental-lab finance staff to the finance workspace', () => {
+    expect(getWorkspaceHomeTarget({ scopeType: 'LABORATORY', roleKey: 'lab_finance' })?.path)
+      .toBe('/diagnostics/lab?workspace=dental-lab&tab=finance')
+  })
+
+  it('returns diagnostic finance staff to the finance workspace', () => {
+    expect(getWorkspaceHomeTarget({ scopeType: 'DIAGNOSTIC_CENTER', roleKey: 'diagnostic_finance' })?.path)
+      .toBe('/diagnostics/center?tab=finance')
+  })
+
+  it('returns diagnostic quality staff to results, not a generic dashboard', () => {
+    expect(getWorkspaceHomeTarget({ scopeType: 'DIAGNOSTIC_CENTER', roleKey: 'diagnostic_quality' })?.path)
+      .toBe('/diagnostics/results')
+  })
+
   it('does not guess a workspace when the active identity is ambiguous', () => {
     expect(getWorkspaceHomeTarget({})).toBeNull()
   })
