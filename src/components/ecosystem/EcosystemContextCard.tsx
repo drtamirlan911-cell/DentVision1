@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, ChevronRight, Globe2, UserRound } from 'lucide-react';
+import { ArrowLeftRight, Building2, ChevronRight, Globe2, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/store/auth.store';
 import { getWorkspaceHomeTarget } from '@/lib/workspaceNavigation';
@@ -40,12 +40,21 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
     hasClinic: activeWorkspace.scopeType === 'CLINIC',
   }) : null;
   const hasOrg = Boolean(activeWorkspace?.id || (!workspaceContexts.length && ((user as any)?.organizationId || (user as any)?.clinicId || org)));
-  const target = home?.path || '/workspaces';
-  const openWorkspace = () => navigate(target);
   const openSwitcher = () => window.dispatchEvent(new CustomEvent('dentvision:open-workspace-switcher'));
+  const canSwitchWorkspace = !isGuest && workspaceContexts.length > 1;
+  const openWorkspace = () => {
+    if (activeWorkspace && home) navigate(home.path);
+    else if (workspaceContexts.length > 0) openSwitcher();
+    else navigate('/my-clinics');
+  };
 
   if (collapsed) {
-    return <button type="button" title={`Открыть рабочий кабинет · ${label}${org ? ` · ${org}` : ''}`} aria-label="Открыть рабочий кабинет" onClick={openWorkspace} className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-xl bg-[var(--dv-accent-soft)] text-[var(--dv-accent)] hover:opacity-90"><Building2 size={16} /></button>;
+    return (
+      <div className="mx-auto mb-2 flex flex-col items-center gap-1">
+        <button type="button" title={`Открыть рабочий кабинет · ${label}${org ? ` · ${org}` : ''}`} aria-label="Открыть рабочий кабинет" onClick={openWorkspace} className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--dv-accent-soft)] text-[var(--dv-accent)] hover:opacity-90"><Building2 size={16} /></button>
+        {canSwitchWorkspace && <button type="button" title="Сменить рабочее пространство" aria-label="Сменить рабочее пространство" onClick={openSwitcher} className="grid h-9 w-9 place-items-center rounded-xl text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"><ArrowLeftRight size={15} /></button>}
+      </div>
+    );
   }
 
   return <div className={cn('mx-3 mb-2 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] p-2.5', isGuest && 'border-[var(--dv-accent)]/20')}>
