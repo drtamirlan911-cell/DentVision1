@@ -118,7 +118,7 @@ export function getWorkspaceHomeTarget(source: WorkspaceHomeSource): WorkspaceHo
       return {
         scopeType,
         path: financeOnlyRole
-          ? '/diagnostics/center?tab=finance'
+          ? '/diagnostics/center?tab=cashier'
           : qualityRole
             ? '/diagnostics/results'
             : radiologyRole
