@@ -76,7 +76,10 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
       ? { ...group, items: group.items.map((item) => item.id === 'home' ? homeItem : item) }
       : group);
   const visibleGroups = navigationGroups.map(g => ({ ...g, items: g.items.filter(canSee) })).filter(g => g.items.length);
-  const visibleMore = moreItems.filter(canSee);
+  const visibleMore = (partnerWorkspace
+    ? moreItems.filter((item) => ['profile', 'settings', 'help'].includes(item.id))
+    : moreItems
+  ).filter(canSee);
   const visibleAdmin = isAdmin ? adminItems.filter(canSee) : [];
   React.useEffect(() => {
     if (!isMobile || !sidebarOpen) return;
