@@ -73,11 +73,6 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
     if (item.id === 'home' || item.id === 'ai' || item.id === 'help') return true;
     return iam.canAccessPage(item.page || pageIdFromPath(item.path));
   };
-  const homeIcon = homeTarget?.scopeType === 'SUPPLIER' ? <ShoppingBag />
-    : homeTarget?.scopeType === 'EMPLOYER' ? <BriefcaseBusiness />
-      : homeTarget?.scopeType === 'ACADEMY' || homeTarget?.scopeType === 'LECTURER' ? <GraduationCap />
-        : homeTarget?.scopeType === 'DIAGNOSTIC_CENTER' || homeTarget?.scopeType === 'LABORATORY' || homeTarget?.scopeType === 'DENTAL_LAB' ? <FlaskConical />
-          : <Building2 />;
   const contextualGroups = getWorkspaceNavigationGroups(
     activeWorkspace?.scopeType || (user as any)?.organizationType,
     activeWorkspace?.roleKey || activeWorkspace?.role || (user as any)?.effectiveRole || (user as any)?.role,
@@ -118,35 +113,6 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
       <div className={cn('flex h-16 shrink-0 items-center border-b border-[var(--dv-border)] px-3', collapsed && !isMobile ? 'justify-center' : 'justify-between')}><button type="button" onClick={() => go('/')} aria-label="DentVision — главная" className="flex min-h-11 min-w-0 items-center gap-2.5"><Logo variant="compact" height={30} /></button>{isMobile ? <button type="button" onClick={toggleSidebar} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-[var(--dv-muted)]" aria-label={text('common.close','Закрыть')}><X size={18}/></button> : <button type="button" onClick={() => setCollapsed(!collapsed)} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-[var(--dv-muted)]" aria-label="Свернуть меню"><ChevronRight className={cn('transition-transform', !collapsed && 'rotate-180')} size={17}/></button>}</div>
       <div className="px-3 pt-3">{!isPatient && <button type="button" onClick={() => setOpen(true)} className={cn('flex w-full items-center gap-2.5 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] px-2.5 py-2 text-left', collapsed && !isMobile && 'justify-center')}><span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]"><Command size={14}/></span>{(!collapsed || isMobile) && <><span className="flex-1 text-xs font-medium">Поиск</span><kbd className="rounded-md border px-1.5 py-0.5 text-[10px]">⌘K</kbd></>}</button>}</div>
       <div className={cn((collapsed && !isMobile) ? 'pt-2' : 'pt-3')}><EcosystemContextCard user={user} collapsed={collapsed && !isMobile} isGuest={isGuest} /></div>
-      {homeTarget && (
-        <div className={cn('px-3 pt-1 pb-2', collapsed && !isMobile && 'px-2')}>
-          <button
-            type="button"
-            onClick={() => go(homeTarget.path)}
-            aria-label="Мой рабочий кабинет"
-            aria-current={activePath(location.pathname, location.search, homeTarget.path, true) ? 'page' : undefined}
-            data-testid="active-workspace-link"
-            title={collapsed && !isMobile ? homeTarget.label : undefined}
-            className={cn(
-              'flex min-h-11 w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition',
-              collapsed && !isMobile && 'justify-center px-2',
-              activePath(location.pathname, location.search, homeTarget.path)
-                ? 'border-[var(--dv-accent)]/35 bg-[var(--dv-nav-active)] text-[var(--dv-text)]'
-                : 'border-[var(--dv-border)] bg-[var(--dv-surface)] text-[var(--dv-text)] hover:bg-[var(--dv-nav-hover)]',
-            )}
-          >
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]">
-              {React.cloneElement(homeIcon as React.ReactElement, { size: 17, strokeWidth: 1.8 })}
-            </span>
-            {(!collapsed || isMobile) && (
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-semibold">Мой рабочий кабинет</span>
-                <span className="block truncate text-[10px] text-[var(--dv-muted)]">{homeTarget.label}</span>
-              </span>
-            )}
-          </button>
-        </div>
-      )}
       <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4 [scrollbar-width:none]">
         {visibleGroups.map(group => { const expanded = isMobile || openGroups[group.id] !== false || group.items.some(i => activePath(location.pathname, location.search, i.path)); return <section key={group.id} className="mb-3">{(!collapsed || isMobile) && <button type="button" onClick={() => setOpenGroups(v => ({...v,[group.id]:!v[group.id]}))} className="mb-1 flex min-h-11 w-full items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--dv-muted)]"><span>{group.label}</span><ChevronRight size={12} className={cn(expanded && 'rotate-90')}/></button>}{(expanded || collapsed) && <div className="space-y-0.5">{group.items.map(item => { const active = activePath(location.pathname, location.search, item.path); return <button key={item.id} type="button" aria-current={active?'page':undefined} aria-label={item.label} data-testid={item.id === 'active-workspace' ? 'active-workspace-link' : undefined} title={collapsed?item.label:undefined} onClick={() => go(item.path)} className={cn('group relative flex min-h-11 w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left transition', collapsed?'justify-center px-2':'', active?'bg-[var(--dv-nav-active)] text-[var(--dv-text)]':'text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]')}>{active && <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-[var(--dv-accent)]"/>}<span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-[9px]',active?'bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]':'bg-[var(--dv-icon-bg)]')}>{React.cloneElement(item.icon as React.ReactElement,{size:17,strokeWidth:1.8})}</span>{(!collapsed||isMobile)&&<span className="min-w-0 flex-1 truncate text-[13px] font-medium">{item.label}</span>}</button>})}</div>}</section>})}
         {visibleMore.length > 0 && <section className="mb-3"><button type="button" onClick={() => setOpenGroups(v=>({...v,more:!v.more}))} className={cn('mb-1 flex min-h-11 w-full items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--dv-muted)]',collapsed&&'justify-center')}><span>{collapsed?'···':'Дополнительно'}</span>{!collapsed&&<ChevronRight size={12} className={cn(openGroups.more&&'rotate-90')}/>}</button>{openGroups.more&&!collapsed&&<div className="space-y-0.5">{visibleMore.map(item=><button key={item.id} type="button" onClick={()=>go(item.path)} className="flex min-h-11 w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left text-[13px] text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]"><span className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--dv-icon-bg)]">{React.cloneElement(item.icon as React.ReactElement,{size:17})}</span><span>{item.label}</span></button>)}</div>}</section>}
