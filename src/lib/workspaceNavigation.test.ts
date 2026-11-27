@@ -4,6 +4,7 @@ import {
   getWorkspaceNavigationGroups,
   isPartnerWorkspaceType,
   isWorkspaceNavigationActive,
+  isClinicFinanceOnlyRole,
   resolveWorkspaceTab,
 } from './workspaceNavigation'
 
@@ -18,6 +19,18 @@ describe('workspace tab resolution', () => {
 
   it('uses a safe role-specific fallback when there is no requested tab', () => {
     expect(resolveWorkspaceTab(null, ['worklist', 'referrals'], 'worklist')).toBe('worklist')
+  })
+})
+
+describe('clinic role home resolution', () => {
+  it('recognizes a finance-only cashier role even when expressed as an organization-scoped key', () => {
+    expect(isClinicFinanceOnlyRole('clinic.cashier')).toBe(true)
+    expect(isClinicFinanceOnlyRole('clinic.finance')).toBe(true)
+  })
+
+  it('does not classify a manager who also has finance access as finance-only', () => {
+    expect(isClinicFinanceOnlyRole('clinic.owner,clinic.finance')).toBe(false)
+    expect(isClinicFinanceOnlyRole('clinic.admin')).toBe(false)
   })
 })
 
