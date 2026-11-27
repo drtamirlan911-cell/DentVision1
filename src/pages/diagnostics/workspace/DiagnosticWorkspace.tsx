@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { Building2, CalendarClock, DollarSign, FileText, FlaskConical, TrendingUp, Users, Wallet } from 'lucide-react'
@@ -56,7 +57,15 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
         : undefined
 
   const [orgId, setOrgId] = useState<string>('')
-  const [activeTab, setActiveTab] = useState('referrals')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const [activeTab, setActiveTabState] = useState(requestedTab || 'referrals')
+  const setActiveTab = (nextTab: string) => {
+    setActiveTabState(nextTab)
+    const next = new URLSearchParams(searchParams)
+    next.set('tab', nextTab)
+    setSearchParams(next, { replace: true })
+  }
   const [phaseFilter, setPhaseFilter] = useState<PhaseId | null>(null)
 
   const contextsQuery = useQuery({
@@ -145,14 +154,29 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
     && !contextsLoading && !contextsError && diagnosticContexts.length === 0
 
   useEffect(() => {
-    if (isFinanceRole && canManageBilling) setActiveTab('cashier')
-    else if (isFinanceRole && canReadPartnerBilling) setActiveTab('finance')
-    else if (kind === 'CENTER' && canReadOperations) setActiveTab('worklist')
-    else if (canReadOperations) setActiveTab('referrals')
-    else if (canManageBilling) setActiveTab('cashier')
-    else if (canReadPartnerBilling) setActiveTab('finance')
-    else setActiveTab('')
-  }, [kind, isFinanceRole, canReadOperations, canReadPartnerBilling, canManageBilling])
+    const requestedIsAllowed =
+      (requestedTab === 'finance' && canReadPartnerBilling)
+      || (requestedTab === 'cashier' && canManageBilling)
+      || (requestedTab === 'worklist' && kind === 'CENTER' && canReadOperations)
+      || (requestedTab === 'online-bookings' && kind === 'CENTER' && canReadOperations)
+      || (requestedTab === 'modalities' && kind === 'CENTER' && canManageCatalog)
+      || (requestedTab === 'referrals' && canReadOperations)
+      || (requestedTab === 'payments' && canReadFinance && canReadOperations)
+      || (requestedTab === 'services' && canManageCatalog)
+      || (requestedTab === 'team' && canReadTeam)
+    if (requestedTab && requestedIsAllowed) {
+      setActiveTabState(requestedTab)
+      return
+    }
+
+    if (isFinanceRole && canManageBilling) setActiveTabState('cashier')
+    else if (isFinanceRole && canReadPartnerBilling) setActiveTabState('finance')
+    else if (kind === 'CENTER' && canReadOperations) setActiveTabState('worklist')
+    else if (canReadOperations) setActiveTabState('referrals')
+    else if (canManageBilling) setActiveTabState('cashier')
+    else if (canReadPartnerBilling) setActiveTabState('finance')
+    else setActiveTabState('')
+  }, [requestedTab, kind, isFinanceRole, canReadOperations, canReadPartnerBilling, canManageBilling, canManageCatalog, canReadFinance, canReadTeam])
 
   const scope = config.referralScope(orgId)
   const { data: referralsData } = useQuery({
@@ -223,7 +247,7 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
         actions={<Badge variant="outline">{kind === 'CENTER' ? 'Центр' : 'Лаборатория'}</Badge>}
       />
 
-      {orgId && hasDiagnosticAccess && canReadOperations && (
+      {orgId && hasDiagnosticAccess && (canReadOperations || canReadPartnerBilling || canManageBilling) && (
         <WorkspaceRoleStart
           roleLabel={roleGuide.role}
           heading={roleGuide.heading}
