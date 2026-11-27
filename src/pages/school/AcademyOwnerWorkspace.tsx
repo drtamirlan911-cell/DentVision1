@@ -145,8 +145,10 @@ function AcademyContextPrompt() {
 }
 
 export default function AcademyOwnerWorkspace() {
-  const { user, loading, activeWorkspace } = useAuth();
-  const organizationType = String(activeWorkspace?.scopeType || (user as any)?.organizationType || '').toUpperCase();
+  const { user, loading, activeWorkspace, workspaceContexts } = useAuth();
+  const organizationType = String(
+    activeWorkspace?.scopeType || (workspaceContexts.length === 0 ? (user as any)?.organizationType : '') || '',
+  ).toUpperCase();
 
   if (loading) {
     return <div className="p-6"><ListSkeleton count={4} /></div>;
