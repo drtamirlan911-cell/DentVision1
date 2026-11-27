@@ -24,6 +24,7 @@
 - **IAM hydration fallback:** a clinic home button no longer points to `/` when the server page list is temporarily empty; it retains the role-derived clinic home until pages have loaded.
 - **Sidebar focus:** only the current contextual group and its active destination are expanded by default; other partner groups remain collapsible on desktop and mobile.
 - **Employer menus:** distinguish recruiters from viewers; recruiter navigation foregrounds candidate/interview flow, while viewer navigation stays read-only and status-focused.
+- **Supplier employee split:** the owner receives the team-management sidebar link; the manager does not. A manager attempting a direct `?tab=team` deep link is returned to the overview instead of seeing an empty panel. Backend team endpoints continue to require the owner role.
 - **Limit:** source-level navigation remediation does not certify every domain workflow as complete. The Academy placeholder sections and other domain lifecycle gaps remain governed by their existing release blockers; do not describe them as complete.
 
 ---
