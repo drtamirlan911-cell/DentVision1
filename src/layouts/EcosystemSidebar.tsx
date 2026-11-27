@@ -69,8 +69,9 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
   const clinicFinanceHome = workspaceHome?.scopeType === 'CLINIC'
     && isClinicFinanceOnlyRole(activeWorkspaceRole)
     && (iam.pages.includes('cashier') || iam.pages.includes('finance'));
+  const firstClinicPath = iam.pages.length ? firstAllowedCrmPath(iam.pages) : workspaceHome?.path;
   const homeTarget = workspaceHome?.scopeType === 'CLINIC'
-    ? { ...workspaceHome, path: clinicFinanceHome ? '/crm/cashier' : firstAllowedCrmPath(iam.pages) }
+    ? { ...workspaceHome, path: clinicFinanceHome ? '/crm/cashier' : firstClinicPath || workspaceHome.path }
     : workspaceHome;
   const partnerWorkspace = Boolean(homeTarget && isPartnerWorkspaceType(homeTarget.scopeType));
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({ core: true, care: true, partners: false, market: false, business: false });
