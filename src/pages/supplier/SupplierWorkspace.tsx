@@ -769,7 +769,7 @@ export default function SupplierWorkspace() {
                           {ins.productName && (
                             <button
                               className="text-xs mt-2 underline underline-offset-2 opacity-80 hover:opacity-100"
-                              onClick={() => setTab('stock')}
+                              onClick={() => selectTab('stock')}
                             >
                               Открыть «{ins.productName}» <ArrowRight size={10} className="inline" />
                             </button>
