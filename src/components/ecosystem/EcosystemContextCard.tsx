@@ -1,6 +1,8 @@
 import React from 'react';
 import { Building2, ChevronRight, Globe2, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useWorkspaceStore } from '@/store/workspace.store';
+import { getWorkspaceHomeTarget } from '@/lib/workspaceNavigation';
 import { cn } from '@/lib/utils';
 import type { User as UserType } from '@/types';
 
@@ -16,8 +18,8 @@ const ROLE_LABELS: Record<string, string> = {
   dental_lab_owner: 'Владелец зуботехнической лаборатории', dental_lab_admin: 'Администратор зуботехнической лаборатории', dental_lab_manager: 'Управляющий зуботехнической лаборатории', lab_coordinator: 'Координатор лаборатории', dental_technician: 'Зубной техник', cad_designer: 'CAD-дизайнер', ceramist: 'Керамист', orthodontic_technician: 'Ортодонтический техник', qc_specialist: 'Контроль качества лаборатории', lab_finance: 'Финансы лаборатории', user: 'Участник экосистемы', guest: 'Гость',
 };
 
-function roleLabel(user: UserType | null) {
-  const raw = String((user as any)?.effectiveRole || (user as any)?.platformRole || (user as any)?.role || 'user').toLowerCase();
+function roleLabel(user: UserType | null, activeRole?: string | null) {
+  const raw = String(activeRole || (user as any)?.effectiveRole || (user as any)?.platformRole || (user as any)?.role || 'user').toLowerCase();
   return ROLE_LABELS[raw] || raw.replace(/_/g, ' ');
 }
 
@@ -28,21 +30,29 @@ function organizationLabel(user: UserType | null) {
 
 export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false, isGuest = false }) => {
   const navigate = useNavigate();
-  const org = organizationLabel(user);
-  const label = roleLabel(user);
-  const hasOrg = Boolean((user as any)?.organizationId || (user as any)?.clinicId || org);
-  const target = hasOrg ? '/my-clinics' : '/profile';
+  const activeWorkspace = useWorkspaceStore((state) => state.activeWorkspace);
+  const org = activeWorkspace?.name || organizationLabel(user);
+  const label = activeWorkspace?.roleLabel || roleLabel(user, activeWorkspace?.roleKey);
+  const scopeType = activeWorkspace?.scopeType || (user as any)?.organizationType;
+  const home = getWorkspaceHomeTarget({
+    scopeType,
+    roleKey: activeWorkspace?.roleKey || (user as any)?.effectiveRole || (user as any)?.role,
+    hasClinic: Boolean((user as any)?.clinicId || (user as any)?.organizationId),
+  });
+  const hasOrg = Boolean(activeWorkspace?.id || (user as any)?.organizationId || (user as any)?.clinicId || org);
+  const target = home?.path || (hasOrg ? '/my-clinics' : '/profile');
+  const openWorkspace = () => navigate(target);
 
   if (collapsed && !isGuest) {
-    return <button type="button" title={`${label}${org ? ` · ${org}` : ''}`} onClick={() => navigate(target)} className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-xl bg-[var(--dv-accent-soft)] text-[var(--dv-accent)] hover:opacity-90"><Building2 size={16} /></button>;
+    return <button type="button" title={`${label}${org ? ` · ${org}` : ''}`} onClick={openWorkspace} className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-xl bg-[var(--dv-accent-soft)] text-[var(--dv-accent)] hover:opacity-90"><Building2 size={16} /></button>;
   }
 
   return <div className={cn('mx-3 mb-2 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] p-2.5', isGuest && 'border-[var(--dv-accent)]/20')}>
     <button type="button" onClick={() => navigate(target)} className="flex min-h-11 w-full items-center gap-2.5 text-left">
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]">{hasOrg ? <Building2 size={15} /> : <Globe2 size={15} />}</span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[11px] font-semibold text-[var(--dv-text)]">{org || 'Личный контекст'}</span>
-        <span className="mt-0.5 block truncate text-[10px] text-[var(--dv-muted)]">{label}</span>
+        <span className="block truncate text-[11px] font-semibold text-[var(--dv-text)]">{org || home?.label || 'Личный контекст'}</span>
+        <span className="mt-0.5 block truncate text-[10px] text-[var(--dv-muted)]">{label} · Открыть кабинет</span>
       </span>
       <ChevronRight size={14} className="shrink-0 text-[var(--dv-muted)]" />
     </button>
