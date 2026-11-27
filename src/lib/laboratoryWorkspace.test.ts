@@ -18,9 +18,23 @@ describe('resolveLaboratoryWorkspaceKind', () => {
     })).toBe('dental');
   });
 
+  it('keeps legacy dental-lab staff in dental production despite a mixed fallback role list', () => {
+    expect(resolveLaboratoryWorkspaceKind({
+      roleKey: 'laboratory_technician,medical_lab_technician,dental_technician',
+      organizationType: 'LABORATORY',
+    })).toBe('dental');
+  });
+
   it('accepts a role list and recognizes a medical-lab capability within it', () => {
     expect(resolveLaboratoryWorkspaceKind({
       roleKey: 'laboratory_manager,medical_lab_validator',
+      organizationType: 'LABORATORY',
+    })).toBe('medical');
+  });
+
+  it('preserves the legacy lab_diagnostic role as a medical-laboratory context', () => {
+    expect(resolveLaboratoryWorkspaceKind({
+      roleKey: 'lab_diagnostic',
       organizationType: 'LABORATORY',
     })).toBe('medical');
   });

@@ -6,47 +6,66 @@ import { useTranslation } from 'react-i18next'
 import { BriefcaseBusiness, Building2, Check, ChevronDown, FlaskConical, GraduationCap, Loader2, Plus, Store, GitBranch } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
-import { getRoleDisplayLabel, useAuth, useAuthStore } from '@/store/auth.store'
+import { getRoleDisplayLabel, useAuth, type WorkspaceContext as AuthWorkspaceContext } from '@/store/auth.store'
 import { useToast } from '@/components/ui/ds/Toast'
 import { queryKeys } from '@/queries/keys'
-import { useWorkspaceStore } from '@/store/workspace.store'
-import { resolveGlobalRoleLabel, selectWorkspaceContext, workspaceContextFrom } from '@/lib/workspaceContext'
+import { resolveGlobalRoleLabel, selectWorkspaceContext } from '@/lib/workspaceContext'
+import { getWorkspaceHomeTarget, resolveWorkspaceRoleLabel } from '@/lib/workspaceNavigation'
 import * as api from '@/utils/api'
 
-type ScopeType = 'CLINIC' | 'DIAGNOSTIC_CENTER' | 'LABORATORY' | 'SUPPLIER' | 'LECTURER' | 'ACADEMY' | 'PARTNER' | 'EMPLOYER'
+type ScopeType = 'CLINIC' | 'DIAGNOSTIC_CENTER' | 'LABORATORY' | 'MEDICAL_LAB' | 'MEDICAL_LABORATORY' | 'DENTAL_LAB' | 'DENTAL_LABORATORY' | 'SUPPLIER' | 'SUPPLIER_COMPANY' | 'LECTURER' | 'ACADEMY' | 'PARTNER' | 'EMPLOYER'
 
-interface WorkspaceContext {
-  id: string
-  scopeType: ScopeType
-  scopeId: string
-  organizationId?: string
-  branchId?: string
-  permissions?: string[]
-  ownDataOnly?: boolean
-  roleKey?: string
-  role?: string
-  personType?: string | null
-  name: string
-  roleLabel: string
-  logo?: string | null
-}
+type WorkspaceContext = AuthWorkspaceContext & { scopeType: ScopeType; role?: string }
 
 const TYPE_ICON: Record<ScopeType, typeof Building2> = {
   CLINIC: Building2,
   DIAGNOSTIC_CENTER: FlaskConical,
   LABORATORY: FlaskConical,
+  MEDICAL_LAB: FlaskConical,
+  MEDICAL_LABORATORY: FlaskConical,
+  DENTAL_LAB: FlaskConical,
+  DENTAL_LABORATORY: FlaskConical,
   SUPPLIER: Store,
+  SUPPLIER_COMPANY: Store,
   LECTURER: GraduationCap,
   ACADEMY: GraduationCap,
   PARTNER: Building2,
   EMPLOYER: BriefcaseBusiness,
 }
 
+function workspaceRoleLabel(workspace: WorkspaceContext): string {
+  return resolveWorkspaceRoleLabel(
+    workspace.roleKey,
+    workspace.role,
+    workspace.roleLabel,
+    getRoleDisplayLabel,
+  )
+}
+
+function workspaceTypeLabel(workspace: WorkspaceContext): string {
+  const label = getWorkspaceHomeTarget({
+    scopeType: workspace.scopeType,
+    roleKey: workspace.roleKey || workspace.role,
+  })?.label
+  if (label) return label.replace(/^(?:Кабинет|Рабочее место)\s+/i, '')
+  const fallback: Record<string, string> = {
+    CLINIC: 'Стоматологическая клиника',
+    DIAGNOSTIC_CENTER: 'Диагностический центр',
+    LABORATORY: 'Лаборатория',
+    SUPPLIER: 'Поставщик',
+    LECTURER: 'Преподаватель',
+    ACADEMY: 'Академия',
+    PARTNER: 'Партнёр',
+    EMPLOYER: 'Работодатель',
+  }
+  return fallback[workspace.scopeType] || 'Рабочая организация'
+}
+
 const GROUPS: Array<{ label: string; types: ScopeType[] }> = [
   { label: 'Клиники', types: ['CLINIC'] },
   { label: 'Диагностические центры', types: ['DIAGNOSTIC_CENTER'] },
-  { label: 'Лаборатории', types: ['LABORATORY'] },
-  { label: 'Поставщики', types: ['SUPPLIER'] },
+  { label: 'Лаборатории', types: ['LABORATORY', 'MEDICAL_LAB', 'MEDICAL_LABORATORY', 'DENTAL_LAB', 'DENTAL_LABORATORY'] },
+  { label: 'Поставщики', types: ['SUPPLIER', 'SUPPLIER_COMPANY'] },
   { label: 'Академия', types: ['LECTURER', 'ACADEMY'] },
   { label: 'Партнёры', types: ['PARTNER'] },
   { label: 'Работодатели', types: ['EMPLOYER'] },
@@ -58,9 +77,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const location = useLocation()
   const toast = useToast()
   const queryClient = useQueryClient()
-  const { user, clinic, activeMembership, roleInfo, effectiveRole, isAuthenticated } = useAuth()
-  const setActiveWorkspace = useWorkspaceStore(s => s.setActiveWorkspace)
-  const setContextFocus = useWorkspaceStore(s => s.setContextFocus)
+  const { user, clinic, activeMembership, roleInfo, effectiveRole, isAuthenticated, activeWorkspace, switchWorkspace } = useAuth()
   const [open, setOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 304 })
@@ -93,6 +110,15 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   }
 
   useEffect(() => {
+    const openFromSidebar = () => {
+      updateMenuPosition()
+      setOpen(true)
+    }
+    window.addEventListener('dentvision:open-workspace-switcher', openFromSidebar)
+    return () => window.removeEventListener('dentvision:open-workspace-switcher', openFromSidebar)
+  }, [])
+
+  useEffect(() => {
     if (!open) return
     updateMenuPosition()
     const onDoc = (e: MouseEvent) => {
@@ -109,7 +135,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       window.removeEventListener('resize', onViewport)
       window.removeEventListener('scroll', onViewport, true)
     }
-  }, [open])
+  }, [open, workspacesLoading])
 
   const activeClinicId = clinic?.id || activeMembership?.clinicId || null
   const activeOrgId = (user as { organizationId?: string } | null)?.organizationId || null
@@ -118,6 +144,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const activeLecturerId = (user as { lecturerId?: string } | null)?.lecturerId || null
 
   const isActive = useCallback((ws: WorkspaceContext) => {
+    if (activeWorkspace?.id) return ws.id === activeWorkspace.id
     if (ws.scopeType === 'LECTURER') {
       return activeLecturerId ? ws.scopeId === activeLecturerId : Boolean(activeOrgId && ws.organizationId === activeOrgId)
     }
@@ -126,10 +153,12 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     }
     if (activeOrgType && activeOrgType !== 'CLINIC') return ws.organizationId === activeOrgId || ws.scopeId === activeOrgId
     return ws.scopeType === 'CLINIC' && ws.scopeId === activeClinicId
-  }, [activeClinicId, activeOrgId, activeOrgType, activeSupplierId, activeLecturerId])
+  }, [activeWorkspace?.id, activeClinicId, activeOrgId, activeOrgType, activeSupplierId, activeLecturerId])
 
   const current = useMemo(
     () => {
+      const selected = activeWorkspace?.id ? workspaces.find((workspace) => workspace.id === activeWorkspace.id) : null
+      if (selected) return selected
       const exact = workspaces.find(isActive)
       if (exact) return exact
       // Reuse the canonical fail-closed selector. A stale identity or an
@@ -139,7 +168,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         organizationId: activeOrgId,
       })
     },
-    [workspaces, isActive, activeOrgId, activeClinicId, activeSupplierId, activeLecturerId],
+    [workspaces, isActive, activeWorkspace?.id, activeOrgId, activeClinicId, activeSupplierId, activeLecturerId],
   )
   const isGenericRoleLabel = (label?: string | null) =>
     !label?.trim() || /^(?:участник(?: экосистемы)?|member|participant|user|пользователь)$/i.test(label.trim())
@@ -157,16 +186,16 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       }
       return t('platform.workspace_choose', { defaultValue: 'Контекст не выбран' })
     }
-    // Prefer the application's canonical role vocabulary over stale labels saved
-    // in older workspace rows (for example, "Руководитель" vs "Владелец").
-    const canonicalCandidates = [current?.roleKey, effectiveRole, (user as any)?.role, (user as any)?.platformRole, current?.role]
-    for (const candidate of canonicalCandidates) {
-      if (!candidate) continue
-      const label = getRoleDisplayLabel(candidate)
-      if (!isGenericRoleLabel(label) && label.toLowerCase() !== String(candidate).toLowerCase()) return label
-    }
-    if (!isGenericRoleLabel(current?.roleLabel)) return current?.roleLabel || roleInfo?.label || 'Участник экосистемы'
-    return roleInfo?.label || 'Участник экосистемы'
+    // The selected membership is authoritative; global role is only a fallback
+    // for accounts that have no organization workspace at all.
+    const scopedLabel = resolveWorkspaceRoleLabel(
+      current.roleKey,
+      current.role,
+      current.roleLabel,
+      getRoleDisplayLabel,
+    )
+    if (!isGenericRoleLabel(scopedLabel)) return scopedLabel
+    return 'Участник экосистемы'
   }, [current, workspaces.length, effectiveRole, user, roleInfo?.label, t])
 
   interface BranchOption { id: string; name: string; code?: string | null; active?: boolean }
@@ -182,23 +211,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     staleTime: 30_000,
   })
 
-  useEffect(() => {
-    if (!current) return
-    const contract = workspaceContextFrom(current, current.permissions || [])
-    api.setWorkspaceContext(contract)
-    setActiveWorkspace({
-      id: current.id,
-      scopeType: current.scopeType,
-      organizationId: current.organizationId,
-      branchId: current.branchId,
-      name: current.name,
-      roleKey: current.roleKey,
-      roleLabel: current.roleLabel,
-      permissions: current.permissions,
-      participant: current.personType,
-      dataScope: contract.dataScope,
-    }, contract)
-  }, [current, setActiveWorkspace])
+
 
   const grouped = useMemo(
     () => GROUPS.map((g) => ({ ...g, items: workspaces.filter((w) => g.types.includes(w.scopeType)) })).filter((g) => g.items.length > 0),
@@ -226,30 +239,19 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const Icon = TYPE_ICON[current?.scopeType || 'CLINIC'] || Building2
 
   const pick = async (ws: WorkspaceContext) => {
-    if (busyId || current?.id === ws.id) {
+    if (busyId) return
+    const home = getWorkspaceHomeTarget({ scopeType: ws.scopeType, roleKey: ws.roleKey || ws.role })
+    if (current?.id === ws.id) {
       setOpen(false)
+      if (home) navigate(home.path)
+      else if (ws.scopeType === 'CLINIC' && !location.pathname.startsWith('/crm')) navigate('/crm/schedule')
       return
     }
+
     setBusyId(ws.id)
     try {
-      // Lecturer/supplier workspaces have their own legacy scope identities. Switching
-      // through the organization id would collapse a lecturer into the academy (and
-      // can leave the AI on the previous clinic scope). Preserve the selected scope
-      // so the JWT carries lecturerId/supplierId and the server can rebuild the same workspace.
-      const switchScopeId = ws.scopeType === 'LECTURER' || ws.scopeType === 'SUPPLIER'
-        ? ws.scopeId
-        : (ws.organizationId || ws.scopeId)
-      const tokens = await api.switchContext(ws.scopeType, switchScopeId, ws.branchId)
-      if (tokens?.accessToken) api.setTokens(tokens.accessToken, tokens.refreshToken || null)
-      await useAuthStore.getState().restoreSession()
-
-      const contract = workspaceContextFrom(ws, ws.permissions || [])
-      api.setWorkspaceContext(contract)
-      setActiveWorkspace({ id: ws.id, scopeType: ws.scopeType, organizationId: ws.organizationId, branchId: ws.branchId, name: ws.name, roleKey: ws.roleKey, roleLabel: ws.roleLabel, permissions: ws.permissions, participant: ws.personType, dataScope: contract.dataScope }, contract)
-      setContextFocus('workspace', ws.id, { organizationId: ws.organizationId || null, branchId: ws.branchId || null, roleKey: ws.roleKey || ws.role || null, scopeType: ws.scopeType })
-      window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: ws.id, scopeId: ws.scopeId, scopeType: ws.scopeType, organizationId: ws.organizationId, branchId: ws.branchId || null, name: ws.name, roleLabel: ws.roleLabel, roleKey: ws.roleKey || null } }))
-
-      toast.success(t('platform.clinic_active', { name: ws.name }))
+      await switchWorkspace(ws)
+      toast.success(`Активно рабочее пространство: ${ws.name}`)
       setOpen(false)
 
       void queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
@@ -258,18 +260,10 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.waitingList })
       void queryClient.invalidateQueries({ queryKey: queryKeys.chairs })
 
-      switch (ws.scopeType) {
-        case 'CLINIC': if (!location.pathname.startsWith('/crm')) navigate('/crm/schedule'); break
-        case 'DIAGNOSTIC_CENTER': navigate('/diagnostics/center-dashboard'); break
-        case 'LABORATORY': navigate('/diagnostics/lab-dashboard'); break
-        case 'SUPPLIER': navigate('/supplier'); break
-        case 'LECTURER': navigate('/school/workspace'); break
-        case 'ACADEMY': navigate('/academy/workspace'); break
-        case 'PARTNER': navigate('/shop'); break
-        case 'EMPLOYER': navigate('/employer'); break
-      }
+      if (home) navigate(home.path)
+      else if (ws.scopeType === 'CLINIC' && !location.pathname.startsWith('/crm')) navigate('/crm/schedule')
     } catch (e) {
-      toast.error((e as Error)?.message || t('platform.clinic_switch_error'))
+      toast.error((e as Error)?.message || 'Не удалось переключить рабочее пространство')
     } finally {
       setBusyId(null)
     }
@@ -280,29 +274,14 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     if (current.branchId === branch.id) { setOpen(false); return }
     setBusyId(`branch:${branch.id}`)
     try {
-      const switchScopeId = current.scopeType === 'LECTURER' || current.scopeType === 'SUPPLIER'
-        ? current.scopeId
-        : (current.organizationId || current.scopeId)
-      await api.switchContext(current.scopeType, switchScopeId, branch.id)
-      // switchContext persists the scoped token centrally; rehydrate the store
-      // from that single credential source before updating the read-model.
-      await useAuthStore.getState().restoreSession()
-
       const selected = { ...current, branchId: branch.id }
-      const contract = workspaceContextFrom(selected, selected.permissions || [])
-      api.setWorkspaceContext(contract)
-      setActiveWorkspace({ id: selected.id, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: selected.branchId, name: selected.name, roleKey: selected.roleKey, roleLabel: selected.roleLabel, permissions: selected.permissions, participant: selected.personType, dataScope: contract.dataScope }, contract)
-      // Keep React Query's workspace read-model in sync with the JWT/store
-      // immediately. Without this, the server context was switched correctly
-      // but the picker could still display the previous branch until a refetch.
+      await switchWorkspace(selected)
       queryClient.setQueryData<WorkspaceContext[]>(
         ['workspaces', user?.id],
         (items) => items?.map((item) =>
           item.id === selected.id ? { ...item, branchId: branch.id } : item,
         ),
       )
-      setContextFocus('workspace', selected.id, { organizationId: selected.organizationId || null, branchId: branch.id, roleKey: selected.roleKey || selected.role || null, scopeType: selected.scopeType })
-      window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: selected.id, scopeId: selected.scopeId, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: branch.id, name: selected.name, roleLabel: selected.roleLabel, roleKey: selected.roleKey || null } }))
       toast.success(`Филиал: ${branch.name}`)
       setOpen(false)
       void queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
@@ -323,12 +302,12 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       className="fixed z-[1000] rounded-2xl border border-bdr-strong bg-surface-raised shadow-elev-3 p-1.5 overflow-y-auto overscroll-contain"
       style={{ top: menuPosition.top, left: menuPosition.left, width: menuPosition.width, maxHeight: Math.min(560, window.innerHeight - menuPosition.top - 12) }}
       role="menu"
-      aria-label="Рабочее пространство"
+      aria-label="Организация и филиал"
       data-testid="workspace-switcher-menu"
     >
       <div className="px-2 py-1.5 border-b border-bdr-subtle mb-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-txt-muted">Рабочее пространство</p>
-        <p className="text-[11px] text-txt-secondary mt-0.5">Выберите контекст DentVision</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-txt-muted">Организация и филиал</p>
+        <p className="text-[11px] text-txt-secondary mt-0.5">Выберите организацию, рабочий кабинет и филиал</p>
       </div>
       <div className="space-y-1">
         {grouped.map((group) => (
@@ -349,7 +328,10 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
                     className={cn('w-full flex items-center gap-2.5 px-2.5 py-2 min-h-12 rounded-xl text-left border transition-[background-color,border-color,color] duration-150 disabled:opacity-60', active ? 'border-dv-gold/50 bg-dv-gold/10 text-txt-primary' : 'border-transparent text-txt-primary hover:border-bdr-subtle hover:bg-surface-2')}
                   >
                     <span className={cn('h-8 w-8 rounded-lg flex items-center justify-center shrink-0 border', active ? 'bg-dv-gold/15 border-dv-gold/30 text-dv-gold' : 'bg-surface-2 border-bdr-subtle text-txt-secondary')}><WsIcon size={15} /></span>
-                    <span className="min-w-0 flex-1"><span className="block text-xs font-semibold truncate">{ws.name}</span><span className="block text-[10px] text-txt-muted truncate">{ws.roleLabel}</span></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-semibold truncate">{ws.name}</span>
+                      <span className="block text-[10px] text-txt-muted truncate">{workspaceTypeLabel(ws)} · {workspaceRoleLabel(ws)}</span>
+                    </span>
                     {loading ? <Loader2 size={15} className="animate-spin shrink-0 text-dv-gold" /> : active ? <Check size={15} className="shrink-0 text-dv-gold" /> : null}
                   </button>
                 )
@@ -381,7 +363,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
           </div>
         </div>
       )}
-      <button type="button" onClick={() => { setOpen(false); navigate('/my-clinics') }} className="mt-1 w-full flex items-center gap-2 px-2.5 py-2 min-h-11 rounded-xl border border-transparent text-xs font-medium text-txt-secondary hover:text-txt-primary hover:bg-surface-2 hover:border-bdr-subtle transition-colors"><Plus size={14} />{t('platform.all_clinics')}</button>
+      <button type="button" onClick={() => { setOpen(false); navigate('/workspaces') }} className="mt-1 w-full flex items-center gap-2 px-2.5 py-2 min-h-11 rounded-xl border border-transparent text-xs font-medium text-txt-secondary hover:text-txt-primary hover:bg-surface-2 hover:border-bdr-subtle transition-colors"><Building2 size={14} />Все рабочие пространства</button>
     </div>,
     document.body,
   ) : null
@@ -396,12 +378,12 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         onMouseDown={(event) => event.stopPropagation()}
         onClick={() => { if (!open) updateMenuPosition(); setOpen((v) => !v) }}
         className={cn('group flex items-center gap-2 max-w-[8.5rem] xs:max-w-[10rem] sm:max-w-[16rem] min-h-11 px-2.5 py-1.5 rounded-xl', 'bg-surface-raised border border-bdr-strong text-txt-primary shadow-elev-1 hover:bg-surface-raised-hover hover:border-dv-gold/60 hover:shadow-elev-2 transition-[background-color,border-color,box-shadow] duration-150', open && 'border-dv-gold/70 shadow-elev-2')}
-        aria-label={activeRoleLabel ? `${t('platform.clinic_switch')}: ${current?.name || t('platform.workspace_choose', { defaultValue: 'Выберите рабочее пространство' })} — ${activeRoleLabel}` : t('platform.clinic_switch')}
+        aria-label={activeRoleLabel ? `Переключить рабочее пространство: ${current?.name || t('platform.workspace_choose', { defaultValue: 'Выберите рабочее пространство' })} — ${activeRoleLabel}` : 'Переключить рабочее пространство'}
         aria-expanded={open}
         aria-haspopup="menu"
       >
         <span className="h-6 w-6 rounded-lg bg-dv-gold/12 border border-dv-gold/25 flex items-center justify-center shrink-0"><Icon size={13} className="text-dv-gold" /></span>
-        <span className="min-w-0 text-left leading-tight"><span className="block text-xs font-semibold truncate">{current?.name || t('platform.clinic_fallback')}</span><span className="block text-[9px] font-medium text-txt-muted truncate">{activeRoleLabel}</span></span>
+        <span className="min-w-0 text-left leading-tight"><span className="block text-xs font-semibold truncate">{current?.name || t('platform.workspace_choose', { defaultValue: 'Выберите рабочее пространство' })}</span><span className="block text-[9px] font-medium text-txt-muted truncate">{activeRoleLabel}</span></span>
         <ChevronDown size={13} className={cn('shrink-0 text-txt-muted transition-transform', open && 'rotate-180')} />
       </button>
       {menu}

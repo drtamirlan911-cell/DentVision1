@@ -220,6 +220,7 @@ export interface ReceiptItem {
 export interface Receipt {
   id: string
   clinicId?: string
+  branchId?: string | null
   patientId?: string
   patientName?: string
   doctorId?: string
@@ -277,6 +278,8 @@ export interface LabOrder {
   id: string
   clinicId?: string
   patientId?: string
+  /** Verified clinic branch persisted on LabOrder; null for legacy organization-wide records. */
+  branchId?: string | null
   patientName?: string
   doctorId?: string
   type?: string

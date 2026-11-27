@@ -12,7 +12,9 @@
 
 import type { Prisma, DiagnosticCategory, ReferralPriority } from '@prisma/client';
 import prisma from '../../../lib/prisma.js';
+import { env } from '../../../config.js';
 import { simpleChat } from '../llm/client.js';
+import { getRadiographVisionUnavailableMessage } from './radiographModelAvailability.js';
 import { resolveImageUrl } from '../../../lib/imageUrl.js';
 import { decryptMedicalHistory } from '../../../lib/phi.js';
 import { checkImageAnalysisConsent, isImageConsentDenied, IMAGE_CONSENT_MESSAGE } from './imageConsent.js';
@@ -20,11 +22,21 @@ import { applyToothFindings as applyToothFindingsToChart, isValidFdi } from '../
 import { searchClinicalNotes } from '../lib/clinicalSearch.js';
 import { uid } from '../../../lib/helpers.js';
 import { publish } from '../../../lib/events.js';
-import { resolveClinicAccess } from '../../../lib/orgContext.js';
+import { resolveAppointmentDoctor } from './appointmentDoctorAccess.js';
 import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
 import { scrubToolOutput } from '../lib/piiScrubber.js';
+import {
+  patientBranchWhere as patientBranchFilter,
+  appointmentBranchWhere as appointmentBranchFilter,
+  invoiceBranchWhere as invoiceBranchFilter,
+  inventoryBranchWhere as inventoryBranchFilter,
+  labOrderBranchWhere as labOrderBranchFilter,
+} from './aiToolBranchScope.js';
 import { createReferral } from '../../diagnostics/diagnostics.service.js';
 import { prepareLabOrderWrite, VALID_STATUSES as VALID_LAB_STATUSES } from '../../lab/lab.routes.js';
+import { getDentalLabWorkQueue, getDiagnosticCenterWorkQueue, getMedicalLabReferralQueue, getSupplierInventoryOverview } from './partnerWorkspaceTools.js';
+import { getLecturerCoursesOverview, getStudentLearningProgress } from './educationWorkspaceTools.js';
+import { getEmployerVacancyOverview } from './employerWorkspaceTools.js';
 import {
   NAV_PATHS,
   NAV_SECTION_LABELS,
@@ -41,6 +53,17 @@ export interface ToolContext {
   userId: string;
   clinicId: string | null;
   role: string;
+  /** Verified organization context is re-resolved inside the governance kernel before execution. */
+  organizationId?: string | null;
+  organizationType?: string | null;
+  /** Original domain entity id derived from the verified Organization row. */
+  organizationOriginalId?: string | null;
+  supplierId?: string | null;
+  lecturerId?: string | null;
+  /** Untrusted active branch selector; the kernel validates it against IAM membership. */
+  requestedBranchId?: string | null;
+  /** Scope verified by the governance kernel; never populated from model arguments. */
+  branchScope?: import('./aiToolBranchScope.js').AiToolBranchScope | null;
   /** What's open in the caller's workspace (os/context.ts) — the kernel may use it to fill a missing patientId, never a tool directly. */
   entity?: { type: string; id: string } | null;
 }
@@ -108,13 +131,32 @@ function requireClinic(ctx: ToolContext): string {
   return ctx.clinicId;
 }
 
-const APPOINTMENT_DOCTOR_ROLES = new Set(['DOCTOR', 'OWNER', 'DIRECTOR']);
-
-async function resolveAppointmentDoctor(doctorId: string, clinicId: string): Promise<boolean> {
-  if (!doctorId || !clinicId) return false;
-  const access = await resolveClinicAccess(doctorId, clinicId);
-  return Boolean(access && APPOINTMENT_DOCTOR_ROLES.has(String(access.role).toUpperCase()));
+function requireBranchScope(ctx: ToolContext) {
+  if (!ctx.branchScope) throw new Error('BRANCH_SCOPE_REQUIRED');
+  return ctx.branchScope;
 }
+
+function patientBranchWhere(ctx: ToolContext): Prisma.PatientWhereInput {
+  return patientBranchFilter(requireBranchScope(ctx));
+}
+
+function appointmentBranchWhere(ctx: ToolContext): Prisma.AppointmentWhereInput {
+  return appointmentBranchFilter(requireBranchScope(ctx));
+}
+
+function invoiceBranchWhere(ctx: ToolContext): Prisma.InvoiceWhereInput {
+  return invoiceBranchFilter(requireBranchScope(ctx));
+}
+
+function inventoryBranchWhere(ctx: ToolContext): Prisma.InventoryItemWhereInput {
+  return inventoryBranchFilter(requireBranchScope(ctx));
+}
+
+function labOrderBranchWhere(ctx: ToolContext): Prisma.LabOrderWhereInput {
+  return labOrderBranchFilter(requireBranchScope(ctx));
+}
+
+
 
 /**
  * `{ id, clinicId }` for a single-record by-id lookup scoped to the caller's
@@ -188,9 +230,19 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
       const query = String(args.query || '').trim();
+      let assignedPatientFilter: Prisma.PatientWhereInput = {};
+      if (env.AI_PATIENT_SCOPE === 'on' && ['DOCTOR', 'ASSISTANT'].includes(String(ctx.role).toUpperCase())) {
+        const assignments = await prisma.patientAssignment.findMany({
+          where: { clinicId, userId: ctx.userId, active: true },
+          select: { patientId: true },
+        });
+        assignedPatientFilter = { id: { in: assignments.map((assignment) => assignment.patientId) } };
+      }
       const patients = await prisma.patient.findMany({
         where: {
           clinicId,
+          ...patientBranchWhere(ctx),
+          ...assignedPatientFilter,
           ...(query && {
             OR: [
               { firstName: { contains: query, mode: 'insensitive' } },
@@ -220,7 +272,7 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
       const patient = await prisma.patient.findFirst({
-        where: scopedId(clinicId, String(args.patientId)),
+        where: { ...scopedId(clinicId, String(args.patientId)), ...patientBranchWhere(ctx) },
         include: {
           visits: { orderBy: { date: 'desc' }, take: 5 },
           teeth: { orderBy: { number: 'asc' } },
@@ -293,8 +345,8 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const visits = await prisma.visit.findMany({
         where: args.patientId
-          ? { patientId: String(args.patientId), patient: { clinicId } }
-          : { patient: { clinicId } },
+          ? { patientId: String(args.patientId), patient: { clinicId, ...patientBranchWhere(ctx) } }
+          : { patient: { clinicId, ...patientBranchWhere(ctx) } },
         orderBy: { date: 'desc' },
         take: Math.min(Number(args.limit) || 10, 50),
         include: { patient: { select: { firstName: true, lastName: true } } },
@@ -316,7 +368,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const start = new Date(date); start.setHours(0, 0, 0, 0);
       const end = new Date(date); end.setHours(23, 59, 59, 999);
       const appointments = await prisma.appointment.findMany({
-        where: { clinicId, date: { gte: start, lte: end } },
+        where: { clinicId, ...appointmentBranchWhere(ctx), date: { gte: start, lte: end } },
         orderBy: [{ date: 'asc' }, { time: 'asc' }],
         include: { patient: { select: { id: true, firstName: true, lastName: true, phone: true } } },
       });
@@ -347,13 +399,14 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { findScheduleConflicts, buildMeta } = await import('../../crm/appointmentMeta.js');
       const patient = await prisma.patient.findFirst({
-        where: scopedId(clinicId, String(args.patientId)),
-        select: { id: true, firstName: true, lastName: true },
+        where: { ...scopedId(clinicId, String(args.patientId)), ...patientBranchWhere(ctx) },
+        select: { id: true, firstName: true, lastName: true, branchId: true },
       });
       if (!patient) return { ok: false, error: 'Пациент не найден' };
 
       const doctorId = String(args.doctorId || ctx.userId);
-      if (!(await resolveAppointmentDoctor(doctorId, clinicId))) {
+      const appointmentBranchId = ctx.branchScope?.branchId || patient.branchId || null;
+      if (!(await resolveAppointmentDoctor(doctorId, clinicId, appointmentBranchId))) {
         return {
           ok: false,
           error: args.doctorId
@@ -383,6 +436,8 @@ export const TOOLS: Record<string, ToolSpec> = {
       const candidates = await prisma.appointment.findMany({
         where: {
           clinicId,
+          // Read the clinic-wide appointment set only for an internal conflict check.
+          // A doctor who works across branches cannot be booked simultaneously elsewhere.
           date: { gte: dayStart, lte: dayEnd },
           status: { notIn: ['cancelled', 'no_show'] },
         },
@@ -408,6 +463,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         data: {
           id: uid(),
           clinicId,
+          branchId: appointmentBranchId,
           patientId: patient.id,
           doctorId,
           date: new Date(date),
@@ -452,7 +508,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { buildMeta, parseMeta, serializeAppointment, toDbStatus } = await import('../../crm/appointmentMeta.js');
       const existing = await prisma.appointment.findFirst({
-        where: scopedId(clinicId, String(args.appointmentId)),
+        where: { ...scopedId(clinicId, String(args.appointmentId)), ...appointmentBranchWhere(ctx) },
         include: { patient: { select: { firstName: true, lastName: true } } },
       });
       if (!existing) return { ok: false, error: 'Запись не найдена' };
@@ -500,7 +556,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { serializeAppointment } = await import('../../crm/appointmentMeta.js');
       const existing = await prisma.appointment.findFirst({
-        where: scopedId(clinicId, String(args.appointmentId)),
+        where: { ...scopedId(clinicId, String(args.appointmentId)), ...appointmentBranchWhere(ctx) },
         include: { patient: { select: { firstName: true, lastName: true } } },
       });
       if (!existing) return { ok: false, error: 'Запись не найдена' };
@@ -553,15 +609,16 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { findScheduleConflicts, parseMeta, serializeAppointment } = await import('../../crm/appointmentMeta.js');
       const existing = await prisma.appointment.findFirst({
-        where: scopedId(clinicId, String(args.appointmentId)),
-        include: { patient: { select: { firstName: true, lastName: true } } },
+        where: { ...scopedId(clinicId, String(args.appointmentId)), ...appointmentBranchWhere(ctx) },
+        include: { patient: { select: { firstName: true, lastName: true, branchId: true } } },
       });
       if (!existing) return { ok: false, error: 'Запись не найдена' };
 
       const date = String(args.date);
       const time = String(args.time);
       const doctorId = String(args.doctorId || existing.doctorId);
-      if (!(await resolveAppointmentDoctor(doctorId, clinicId))) {
+      const appointmentBranchId = ctx.branchScope?.branchId || existing.branchId || existing.patient?.branchId || null;
+      if (!(await resolveAppointmentDoctor(doctorId, clinicId, appointmentBranchId))) {
         return { ok: false, error: 'Указанный пользователь не является врачом в этой клинике' };
       }
       const name = existing.patient
@@ -586,6 +643,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const candidates = await prisma.appointment.findMany({
         where: {
           clinicId,
+          // Keep the assignee's schedule conflict check clinic-wide across branches.
           date: { gte: dayStart, lte: dayEnd },
           status: { notIn: ['cancelled', 'no_show'] },
           id: { not: existing.id },
@@ -606,7 +664,7 @@ export const TOOLS: Record<string, ToolSpec> = {
 
       const appointment = await prisma.appointment.update({
         where: { id: existing.id },
-        data: { date: new Date(date), time, doctorId },
+        data: { date: new Date(date), time, doctorId, ...(appointmentBranchId ? { branchId: appointmentBranchId } : {}) },
         include: { patient: { select: { id: true, firstName: true, lastName: true, phone: true } } },
       });
       return { ok: true, data: serializeAppointment(appointment), navigate: '/crm/schedule' };
@@ -624,7 +682,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const plans = await prisma.treatmentPlan.findMany({
         where: {
-          patient: { clinicId },
+          patient: { clinicId, ...patientBranchWhere(ctx) },
           ...(args.patientId ? { patientId: String(args.patientId) } : {}),
         },
         orderBy: { createdAt: 'desc' },
@@ -662,8 +720,8 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
       const patient = await prisma.patient.findFirst({
-        where: scopedId(clinicId, String(args.patientId)),
-        select: { id: true, firstName: true, lastName: true },
+        where: { ...scopedId(clinicId, String(args.patientId)), ...patientBranchWhere(ctx) },
+        select: { id: true, firstName: true, lastName: true, branchId: true },
       });
       if (!patient) return { ok: false, error: 'Пациент не найден' };
 
@@ -719,7 +777,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const now = new Date();
       const from = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
       const invoices = await prisma.invoice.findMany({
-        where: { clinicId, status: 'paid', createdAt: { gte: from } },
+        where: { clinicId, ...invoiceBranchWhere(ctx), status: 'paid', createdAt: { gte: from } },
         select: { amount: true, createdAt: true },
       });
       const byMonth = new Map<string, number>();
@@ -739,13 +797,13 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(_args, ctx) {
       const clinicId = requireClinic(ctx);
       const invoices = await prisma.invoice.findMany({
-        where: { clinicId, status: { in: ['unpaid', 'partial', 'overdue'] } },
+        where: { clinicId, ...invoiceBranchWhere(ctx), status: { in: ['unpaid', 'partial', 'overdue'] } },
         orderBy: { createdAt: 'desc' },
         take: 30,
       });
       const patientIds = [...new Set(invoices.map((i) => i.patientId).filter(Boolean))] as string[];
       const patients = await prisma.patient.findMany({
-        where: { id: { in: patientIds } },
+        where: { id: { in: patientIds }, clinicId, ...patientBranchWhere(ctx) },
         select: { id: true, firstName: true, lastName: true, phone: true },
       });
       const byId = new Map(patients.map((p) => [p.id, p]));
@@ -787,8 +845,8 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
       const patient = await prisma.patient.findFirst({
-        where: scopedId(clinicId, String(args.patientId)),
-        select: { id: true, firstName: true, lastName: true },
+        where: { ...scopedId(clinicId, String(args.patientId)), ...patientBranchWhere(ctx) },
+        select: { id: true, firstName: true, lastName: true, branchId: true },
       });
       if (!patient) return { ok: false, error: 'Пациент не найден' };
       const amount = Number(args.amount);
@@ -809,6 +867,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         data: {
           id: uid(),
           clinicId,
+          branchId: ctx.branchScope?.branchId || patient.branchId || null,
           patientId: patient.id,
           amount,
           status: 'unpaid',
@@ -916,9 +975,123 @@ export const TOOLS: Record<string, ToolSpec> = {
     },
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
-      const items = await prisma.inventoryItem.findMany({ where: { clinicId }, orderBy: { name: 'asc' }, take: 100 });
+      const items = await prisma.inventoryItem.findMany({ where: { clinicId, ...inventoryBranchWhere(ctx) }, orderBy: { name: 'asc' }, take: 100 });
       const filtered = args.lowStockOnly ? items.filter((i) => i.quantity <= i.minimum) : items;
       return { ok: true, data: filtered };
+    },
+  },
+
+  getEmployerVacancyOverview: {
+    name: 'getEmployerVacancyOverview',
+    description: 'Сводка собственного кабинета работодателя: вакансии, город, диапазон оплаты, статус и агрегированное число откликов. Доступ требует активной организации работодателя, роли EMPLOYER_OWNER/RECRUITER/VIEWER и jobs.read. Персональные данные кандидатов не возвращаются.',
+    parameters: { type: 'object', properties: {} },
+    async execute(_args, ctx) {
+      const result = await getEmployerVacancyOverview({
+        userId: ctx.userId,
+        organizationId: ctx.organizationId || null,
+        organizationType: ctx.organizationType || null,
+        role: ctx.role,
+      });
+      if (!result.ok) return { ok: false, error: result.error };
+      return { ok: true, data: result.data };
+    },
+  },
+
+  getStudentLearningProgress: {
+    name: 'getStudentLearningProgress',
+    description: 'Личные курсы студента: прогресс, завершённые уроки, общее число уроков и доступность сертификата. Только записи текущего пользователя; без данных других студентов, платежей и ссылок на сертификаты.',
+    parameters: { type: 'object', properties: {} },
+    async execute(_args, ctx) {
+      const result = await getStudentLearningProgress({
+        userId: ctx.userId,
+        role: ctx.role,
+      });
+      if (!result.ok) return { ok: false, error: result.error };
+      return { ok: true, data: result.data };
+    },
+  },
+
+  getLecturerCoursesOverview: {
+    name: 'getLecturerCoursesOverview',
+    description: 'Курсы текущего лектора в Academy: название, формат, категория, даты, количество записавшихся и уроков. Только собственные курсы; без списка студентов, баланса и выплат.',
+    parameters: { type: 'object', properties: {} },
+    async execute(_args, ctx) {
+      const result = await getLecturerCoursesOverview({
+        userId: ctx.userId,
+        lecturerId: ctx.lecturerId || null,
+        role: ctx.role,
+      });
+      if (!result.ok) return { ok: false, error: result.error };
+      return { ok: true, data: result.data };
+    },
+  },
+
+  getSupplierInventoryOverview: {
+    name: 'getSupplierInventoryOverview',
+    description: 'Ассортимент и склад поставщика: собственные товары, цены и остатки, включая позиции ниже минимального уровня. Не показывает покупателей, заказы, выплаты или данные клиник.',
+    parameters: { type: 'object', properties: {} },
+    async execute(_args, ctx) {
+      const result = await getSupplierInventoryOverview({
+        userId: ctx.userId,
+        organizationId: ctx.organizationId || null,
+        organizationType: ctx.organizationType || null,
+        supplierId: ctx.supplierId || null,
+        role: ctx.role,
+      });
+      if (!result.ok) return { ok: false, error: result.error };
+      return { ok: true, data: result.data };
+    },
+  },
+
+  getDiagnosticCenterWorkQueue: {
+    name: 'getDiagnosticCenterWorkQueue',
+    description: 'Очередь диагностического центра: количество направлений, статусы, тип исследования, приоритет и дата. Без ФИО, жалоб, медицинских заметок, заключений и файлов.',
+    parameters: { type: 'object', properties: {} },
+    async execute(_args, ctx) {
+      const result = await getDiagnosticCenterWorkQueue({
+        userId: ctx.userId,
+        organizationId: ctx.organizationId || null,
+        organizationType: ctx.organizationType || null,
+        organizationOriginalId: ctx.organizationOriginalId || null,
+        role: ctx.role,
+      });
+      if (!result.ok) return { ok: false, error: result.error };
+      return { ok: true, data: result.data };
+    },
+  },
+
+  getMedicalLabReferralQueue: {
+    name: 'getMedicalLabReferralQueue',
+    description: 'Очередь медицинской лаборатории: категория анализа, приоритет, статус и даты. Доступна только владельцу, администратору и специалисту по качеству с областью ORGANIZATION и правом lab.read; персональные и клинические сведения не выбираются.',
+    parameters: { type: 'object', properties: {} },
+    async execute(_args, ctx) {
+      const result = await getMedicalLabReferralQueue({
+        userId: ctx.userId,
+        organizationId: ctx.organizationId || null,
+        organizationType: ctx.organizationType || null,
+        organizationOriginalId: ctx.organizationOriginalId || null,
+        role: ctx.role,
+      });
+      if (!result.ok) return { ok: false, error: result.error };
+      return { ok: true, data: result.data };
+    },
+  },
+
+  getDentalLabWorkQueue: {
+    name: 'getDentalLabWorkQueue',
+    description:
+      'Очередь зуботехнической лаборатории. Руководитель видит заказы только своей лаборатории; техник — только назначенные ему заказы. Возвращаются производственные метаданные без ФИО и медицинской карты пациента.',
+    parameters: { type: 'object', properties: {} },
+    async execute(_args, ctx) {
+      const result = await getDentalLabWorkQueue({
+        userId: ctx.userId,
+        organizationId: ctx.organizationId || null,
+        organizationType: ctx.organizationType || null,
+        organizationOriginalId: ctx.organizationOriginalId || null,
+        role: ctx.role,
+      });
+      if (!result.ok) return { ok: false, error: result.error || 'Не удалось загрузить очередь лаборатории' };
+      return { ok: true, data: result.data };
     },
   },
 
@@ -929,7 +1102,7 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(_args, ctx) {
       const clinicId = requireClinic(ctx);
       const orders = await prisma.labOrder.findMany({
-        where: { clinicId },
+        where: { clinicId, ...labOrderBranchWhere(ctx) },
         orderBy: { createdAt: 'desc' },
         take: 30,
       });
@@ -1072,7 +1245,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         return { ok: false, error: `Недопустимый статус. Допустимые: ${VALID_LAB_STATUSES.join(', ')}` };
       }
 
-      const owned = await prisma.labOrder.findFirst({ where: scopedId(clinicId, id), select: { id: true } });
+      const owned = await prisma.labOrder.findFirst({ where: { ...scopedId(clinicId, id), ...labOrderBranchWhere(ctx) }, select: { id: true } });
       if (!owned) return { ok: false, error: 'Заказ лаборатории не найден' };
 
       const order = await prisma.labOrder.update({
@@ -1388,14 +1561,21 @@ export const TOOLS: Record<string, ToolSpec> = {
       }
 
       const imageUrl = await resolveImageUrl(viewable.url);
-      const raw = await simpleChat(
-        'Ты — стоматолог-рентгенолог. Перед тобой снимок пациента. Опиши находки по зубам в нотации FDI. ' +
-          'Указывай ТОЛЬКО то, что видно; если зуб не просматривается — не включай его. ' +
-          'status выбирай из: caries, filled, crown, implant, missing, extracted, fracture, inflammation, root, veneer, endo_ok, endo_fail. ' +
-          'surfaces — только когда поверхность действительно различима: M, O, D, B, L.',
-        `Снимок: ${viewable.type}. Верни находки по зубам.`,
-        { maxTokens: 1200, imageUrl, jsonSchema: RADIOGRAPH_FINDINGS_SCHEMA },
-      );
+      let raw: string;
+      try {
+        raw = await simpleChat(
+          'Ты — стоматолог-рентгенолог. Перед тобой снимок пациента. Опиши находки по зубам в нотации FDI. ' +
+            'Указывай ТОЛЬКО то, что видно; если зуб не просматривается — не включай его. ' +
+            'status выбирай из: caries, filled, crown, implant, missing, extracted, fracture, inflammation, root, veneer, endo_ok, endo_fail. ' +
+            'surfaces — только когда поверхность действительно различима: M, O, D, B, L.',
+          `Снимок: ${viewable.type}. Верни находки по зубам.`,
+          { maxTokens: 1200, imageUrl, jsonSchema: RADIOGRAPH_FINDINGS_SCHEMA },
+        );
+      } catch (error) {
+        const unavailable = getRadiographVisionUnavailableMessage(error);
+        if (unavailable) return { ok: false, error: unavailable };
+        throw error;
+      }
 
       let parsed: { findings?: unknown };
       try {
@@ -1499,6 +1679,48 @@ export const TOOLS: Record<string, ToolSpec> = {
   },
 };
 
+/**
+ * Safe, human-readable capability inventory derived from the exact tool set
+ * already filtered by the DB-backed workspace/IAM resolver.
+ *
+ * Tool identifiers and argument schemas stay in the function-call channel.
+ * This prompt view exposes only the existing descriptions plus effect and
+ * confirmation metadata.
+ */
+export interface AiToolCapability {
+  description: string;
+  effect: 'read' | 'change';
+  confirmation: 'none' | 'explicit' | 'tool-policy';
+}
+
+function publicToolDescription(source: string): string {
+  let description = source.replace(/\s+/g, ' ').trim();
+  for (const { name } of Object.values(TOOLS)) {
+    description = description.split(name).join('соответствующая операция');
+  }
+  return description.slice(0, 360);
+}
+
+export function toolCapabilitiesFor(toolNames: ReadonlySet<string>): AiToolCapability[] {
+  return Object.values(TOOLS)
+    .filter((tool) => toolNames.has(tool.name))
+    .map((tool) => {
+      const effect: AiToolCapability['effect'] = tool.mutating ? 'change' : 'read';
+      const requiresExplicitConfirmation = tool.mutating
+        && /(?:требует|требуется)\s+подтверждения/i.test(tool.description);
+      const confirmation: AiToolCapability['confirmation'] = !tool.mutating
+        ? 'none'
+        : requiresExplicitConfirmation
+          ? 'explicit'
+          : 'tool-policy';
+      return {
+        description: publicToolDescription(tool.description),
+        effect,
+        confirmation,
+      };
+    });
+}
+
 /** Every registered tool name — the permission map is asserted complete against it. */
 export function listToolNames(): string[] {
   return Object.values(TOOLS).map((t) => t.name);
@@ -1532,7 +1754,17 @@ export async function executeTool(
 ): Promise<ToolResult> {
   const { runAiAction } = await import('./kernel.js');
   const result = await runAiAction(
-    { surface: 'staff', userId: ctx.userId, requestedClinicId: ctx.clinicId, entity: ctx.entity },
+    {
+      surface: 'staff',
+      userId: ctx.userId,
+      requestedClinicId: ctx.clinicId,
+      requestedOrganizationId: ctx.organizationId,
+      requestedOrganizationType: ctx.organizationType,
+      requestedBranchId: ctx.requestedBranchId || null,
+      supplierId: ctx.supplierId,
+      lecturerId: ctx.lecturerId,
+      entity: ctx.entity,
+    },
     { tool: name, args },
   );
   if (result.status === 'ok') return result.data as ToolResult;

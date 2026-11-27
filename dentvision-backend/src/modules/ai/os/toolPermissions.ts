@@ -58,6 +58,9 @@ export const TOOL_PERMISSIONS: Record<string, string> = {
   // given one, and this map cannot grant wider than that route does).
   createLabOrder: 'appointment.write',
   updateLabOrderStatus: 'appointment.write',
+  // Employer vacancy overview mirrors the Jobs REST route's organization-scoped read permission.
+  getEmployerVacancyOverview: 'jobs.read',
+  getMedicalLabReferralQueue: 'lab.read',
 };
 
 /**
@@ -75,6 +78,18 @@ export const UNGATED_TOOLS: readonly string[] = [
   // (`assertOrgAccess`) and nothing more specific — no permission key to
   // mirror here without granting narrower than the REST route itself does.
   'createDiagnosticReferral',
+  // The dental-lab queue self-authorizes via the verified DENTAL_LAB organization,
+  // LaboratoryMember membership and manager/assigned-technician row scope.
+  'getDentalLabWorkQueue',
+  // Read-only diagnostic queue rechecks DiagnosticCenterMember + organization link.
+  'getDiagnosticCenterWorkQueue',
+  // Supplier inventory is read-only and independently verifies the active
+  // Supplier organization plus canonical/legacy membership.
+  'getSupplierInventoryOverview',
+  // Lecturer course overview rechecks Lecturer.userId and never returns learner identities.
+  'getLecturerCoursesOverview',
+  // Student progress is scoped to the authenticated SchoolEnrollment.userId.
+  'getStudentLearningProgress',
 ];
 
 // The action ladder lives in lib/permissions.ts — the AI intent router needs

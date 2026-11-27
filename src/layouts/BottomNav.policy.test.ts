@@ -1,6 +1,63 @@
 import { describe, expect, it } from 'vitest';
+import { resolveBottomNavWorkspaceHomePath, shouldShowClinicWorkspaceTab, shouldShowDiagnosticWorkspaceTab } from './BottomNav';
 
-import { shouldShowClinicWorkspaceTab } from './BottomNav';
+describe('resolveBottomNavWorkspaceHomePath', () => {
+  it('returns the active supplier cabinet instead of the clinic workspace', () => {
+    expect(resolveBottomNavWorkspaceHomePath({
+      scopeType: 'SUPPLIER', roleKey: 'supplier.manager',
+    })).toBe('/supplier');
+  });
+
+  it('returns the dental-lab QC specialist to the quality queue', () => {
+    expect(resolveBottomNavWorkspaceHomePath({
+      scopeType: 'LABORATORY', roleKey: 'qc_specialist',
+    })).toBe('/diagnostics/lab?workspace=dental-lab&tab=quality');
+  });
+
+  it('returns diagnostic finance staff to the cashier tab', () => {
+    expect(resolveBottomNavWorkspaceHomePath({
+      scopeType: 'DIAGNOSTIC_CENTER', roleKey: 'diagnostic_finance',
+    })).toBe('/diagnostics/center?tab=cashier');
+  });
+
+  it('returns medical-lab finance staff to the finance tab', () => {
+    expect(resolveBottomNavWorkspaceHomePath({
+      scopeType: 'LABORATORY', roleKey: 'medical_lab_finance',
+    })).toBe('/diagnostics/lab?workspace=medical-lab&tab=finance');
+  });
+
+  it('returns a clinic cashier to the cashier when the active IAM pages allow it', () => {
+    expect(resolveBottomNavWorkspaceHomePath({
+      scopeType: 'CLINIC', roleKey: 'clinic.cashier',
+    }, ['cashier', 'billing'])).toBe('/crm/cashier');
+  });
+
+  it('does not invent a destination when no active workspace is selected', () => {
+    expect(resolveBottomNavWorkspaceHomePath(null, ['schedule'])).toBeNull();
+  });
+});
+
+
+
+describe('shouldShowDiagnosticWorkspaceTab', () => {
+  it('hides diagnostics until a multi-organization user selects an active workspace', () => {
+    expect(shouldShowDiagnosticWorkspaceTab(true, false, true, false, true)).toBe(false);
+  });
+
+  it('does not leak a diagnostic shortcut into a selected supplier cabinet', () => {
+    expect(shouldShowDiagnosticWorkspaceTab(true, false, false, true, true)).toBe(false);
+  });
+
+  it('shows diagnostics alongside the clinic cabinet only when IAM permits it', () => {
+    expect(shouldShowDiagnosticWorkspaceTab(true, false, false, false, true)).toBe(true);
+    expect(shouldShowDiagnosticWorkspaceTab(true, false, false, false, false)).toBe(false);
+  });
+
+  it('hides protected diagnostics from anonymous and guest navigation', () => {
+    expect(shouldShowDiagnosticWorkspaceTab(false, false, false, false, true)).toBe(false);
+    expect(shouldShowDiagnosticWorkspaceTab(true, true, false, false, true)).toBe(false);
+  });
+});
 
 describe('shouldShowClinicWorkspaceTab', () => {
   it('keeps the clinic demo entry available to unauthenticated visitors', () => {

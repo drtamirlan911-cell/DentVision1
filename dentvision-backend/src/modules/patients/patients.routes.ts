@@ -24,6 +24,7 @@ import { ensurePatientAssignment, revokePatientAssignment, isAssignmentRole } fr
 import { isClinicMember } from '../../lib/orgContext.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 import { assertPatientBranchBelongsToClinic, canAccessPatientBranch, canManagePatientBranch, getPatientBranchId, getPatientIdsForBranchScope, resolvePatientBranchContext, setPatientBranch } from '../../lib/patientBranchScope.js';
+import { resolveUnambiguousWriteBranch } from '../../lib/clinicBranchAccess.js';
 
 export const patientsRouter = Router();
 patientsRouter.use(authenticate);
@@ -111,12 +112,17 @@ function requirePatientMutationPermission(req: AuthRequest, res: Response, next:
 }
 
 async function branchContext(req: AuthRequest, clinicId: string) {
+  // Resolve the active tenant, role and selected branch again through canonical
+  // IAM. A hydrated token allow-list is useful for display, not a replacement
+  // for the domain authorization resolver at each patient-data boundary.
   return resolvePatientBranchContext(
     req.user!.id,
     clinicId,
     String(req.user!.role),
-    req.user!.branchIds ?? [],
-    req.user!.branchId ?? req.user!.assignedBranchId ?? null,
+    {
+      organizationId: req.user?.organizationId,
+      requestedBranchId: req.user?.branchId ?? req.user?.assignedBranchId ?? null,
+    },
   );
 }
 
@@ -164,13 +170,30 @@ patientsRouter.post('/', requirePatientMutationPermission, guardPatientCreate, a
         if(!canManagePatientBranch(context,requestedBranchId)||!(await assertPatientBranchBelongsToClinic(requestedBranchId,clinicId,req.user!.organizationId || '')))return res.status(400).json({ok:false,error:'Недействующий филиал'} satisfies ApiResponse);
         targetBranchId=requestedBranchId;
       }else{
-        targetBranchId=context.branchId && context.scope.branchIds.includes(context.branchId)
+        // Organization-wide visibility does not imply a default write branch.
+        // Require an explicit selection when the active context has no branch.
+        targetBranchId = context.branchId && context.scope.branchIds.includes(context.branchId)
           ? context.branchId
-          : context.scope.branchIds[0] ?? null;
+          : await resolveUnambiguousWriteBranch(context.scope.branchIds);
       }
     }else if(!targetBranchId)return res.status(403).json({ok:false,error:'Сотруднику не назначен филиал'} satisfies ApiResponse);
     if(!targetBranchId)return res.status(403).json({ok:false,error:'Нет активного филиала для создания пациента'} satisfies ApiResponse);
-    if(!body.id){idempotencyKey=req.headers['idempotency-key'] as string|undefined;if(!idempotencyKey)idempotencyKey=`server-${createHash('sha256').update(`${req.user!.id}:${clinicId}:${JSON.stringify(body)}`).digest('hex').slice(0,32)}`;const r=await reserveIdempotencyKey(idempotencyKey);if(r.status==='in_flight')return res.status(409).json({ok:false,error:'Пациент уже создаётся, повторите позже'} satisfies ApiResponse);if(r.status==='exists'){const prior=await prisma.patient.findUnique({where:{id:r.resultId},include:{teeth:true}});if(prior){const priorBranch=await getPatientBranchId(prior.id,clinicId);if(!canAccessPatientBranch(context,priorBranch))return res.status(404).json({ok:false,error:'Пациент не найден'});return res.json({ok:true,data:await serializePatientForCaller(prior,req)} satisfies ApiResponse)}await deleteIdempotencyKey(idempotencyKey)}}
+    if(!body.id){idempotencyKey=req.headers['idempotency-key'] as string|undefined;if(!idempotencyKey)idempotencyKey=`server-${createHash('sha256').update(`${req.user!.id}:${clinicId}:${JSON.stringify(body)}`).digest('hex').slice(0,32)}`;const r=await reserveIdempotencyKey(idempotencyKey);if(r.status==='in_flight')return res.status(409).json({ok:false,error:'Пациент уже создаётся, повторите позже'} satisfies ApiResponse);if(r.status==='exists'){
+      // Idempotency keys are global across modules and tenants. A replay must
+      // never load a result by ID alone or release a key owned by another scope.
+      const prior=await prisma.patient.findFirst({
+        where:{id:r.resultId,clinicId},
+        include:{teeth:true},
+      });
+      if(!prior)return res.status(409).json({
+        ok:false,
+        error:'Ключ идемпотентности уже использован. Повторите запрос с новым ключом.',
+        code:'IDEMPOTENCY_KEY_SCOPE_CONFLICT',
+      } satisfies ApiResponse);
+      const priorBranch=await getPatientBranchId(prior.id,clinicId);
+      if(!canAccessPatientBranch(context,priorBranch))return res.status(404).json({ok:false,error:'Пациент не найден'});
+      return res.json({ok:true,data:await serializePatientForCaller(prior,req)} satisfies ApiResponse);
+    }}
     const existing=body.id?await prisma.patient.findFirst({where:{id:body.id,clinicId}}):null;
     if(existing){
       const existingBranch=await getPatientBranchId(existing.id,clinicId);
@@ -364,5 +387,5 @@ patientsRouter.post('/:id/deposit', requirePermission('billing.write'), requireC
 async function serializeAssignments(rows:any[]){if(!rows.length)return[];const users=await prisma.user.findMany({where:{id:{in:rows.map(r=>r.userId)}},select:{id:true,firstName:true,lastName:true,role:true,spec:true}});const m=new Map(users.map(u=>[u.id,u]));return rows.map(r=>{const u=m.get(r.userId);return{id:r.id,userId:r.userId,role:r.role,createdAt:r.createdAt,name:u?`${u.firstName} ${u.lastName}`.trim():'Сотрудник удалён',spec:u?.spec||null,systemRole:u?.role||null}})}
 
 patientsRouter.get('/:id/assignments',requirePermission('patient.read'),async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const rows=await prisma.patientAssignment.findMany({where:{patientId:s.patientId,clinicId:s.clinicId,active:true},orderBy:{createdAt:'asc'},select:{id:true,userId:true,role:true,createdAt:true}});return res.json({ok:true,data:await serializeAssignments(rows)} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Не удалось загрузить ответственных'} satisfies ApiResponse)}});
-patientsRouter.post('/:id/assignments',requirePermission('patient.write'),requireClinicWritable,async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const userId=String(req.body?.userId||''),role=req.body?.role;if(!userId)return res.status(400).json({ok:false,error:'Укажите сотрудника'} satisfies ApiResponse);if(role!==undefined&&!isAssignmentRole(role))return res.status(400).json({ok:false,error:'Неизвестная роль'} satisfies ApiResponse);if(!(await isClinicMember(userId,s.clinicId)))return res.status(400).json({ok:false,error:'Сотрудник не работает в этой клинике'} satisfies ApiResponse);const written=await ensurePatientAssignment({clinicId:s.clinicId,patientId:s.patientId,userId,role});if(!written)return res.status(500).json({ok:false,error:'Не удалось назначить ответственного'} satisfies ApiResponse);await auditFromReq(req,{action:'patient.assignment.added',entity:'patient',entityId:s.patientId,details:{userId,role:role||'treating_doctor'}});const rows=await prisma.patientAssignment.findMany({where:{patientId:s.patientId,clinicId:s.clinicId,active:true},orderBy:{createdAt:'asc'},select:{id:true,userId:true,role:true,createdAt:true}});return res.status(201).json({ok:true,data:await serializeAssignments(rows)} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Не удалось назначить ответственного'} satisfies ApiResponse)}});
-patientsRouter.delete('/:id/assignments/:assignmentId',requirePermission('patient.write'),requireClinicWritable,async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const revoked=await revokePatientAssignment(s.clinicId,req.params.assignmentId);if(!revoked)return res.status(404).json({ok:false,error:'Назначение не найдено'} satisfies ApiResponse);await auditFromReq(req,{action:'patient.assignment.removed',entity:'patient',entityId:s.patientId,details:{assignmentId:req.params.assignmentId}});return res.json({ok:true,data:{id:req.params.assignmentId}} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Не удалось снять ответственного'} satisfies ApiResponse)}});
+patientsRouter.post('/:id/assignments',requirePermission('staff.write'),requireClinicWritable,async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const userId=String(req.body?.userId||''),role=req.body?.role;if(!userId)return res.status(400).json({ok:false,error:'Укажите сотрудника'} satisfies ApiResponse);if(role!==undefined&&!isAssignmentRole(role))return res.status(400).json({ok:false,error:'Неизвестная роль'} satisfies ApiResponse);if(!(await isClinicMember(userId,s.clinicId)))return res.status(400).json({ok:false,error:'Сотрудник не работает в этой клинике'} satisfies ApiResponse);const written=await ensurePatientAssignment({clinicId:s.clinicId,patientId:s.patientId,userId,role});if(!written)return res.status(500).json({ok:false,error:'Не удалось назначить ответственного'} satisfies ApiResponse);await auditFromReq(req,{action:'patient.assignment.added',entity:'patient',entityId:s.patientId,details:{userId,role:role||'treating_doctor'}});const rows=await prisma.patientAssignment.findMany({where:{patientId:s.patientId,clinicId:s.clinicId,active:true},orderBy:{createdAt:'asc'},select:{id:true,userId:true,role:true,createdAt:true}});return res.status(201).json({ok:true,data:await serializeAssignments(rows)} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Не удалось назначить ответственного'} satisfies ApiResponse)}});
+patientsRouter.delete('/:id/assignments/:assignmentId',requirePermission('staff.write'),requireClinicWritable,async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const revoked=await revokePatientAssignment({clinicId:s.clinicId,patientId:s.patientId,assignmentId:req.params.assignmentId});if(!revoked)return res.status(404).json({ok:false,error:'Назначение не найдено'} satisfies ApiResponse);await auditFromReq(req,{action:'patient.assignment.removed',entity:'patient',entityId:s.patientId,details:{assignmentId:req.params.assignmentId}});return res.json({ok:true,data:{id:req.params.assignmentId}} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Не удалось снять ответственного'} satisfies ApiResponse)}});

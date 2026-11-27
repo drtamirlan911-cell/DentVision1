@@ -1,7 +1,7 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Activity, BarChart3, BriefcaseBusiness, CalendarDays, ChevronRight, CircleHelp, Command, Database, FileCheck2, FileText, GraduationCap, LayoutDashboard, LogOut, MessageCircle, Package, Settings, ShieldCheck, ShoppingBag, Sparkles, Stethoscope, UserRound, Users, WalletCards, X, ClipboardList, Bot, Building2, FlaskConical, HeartPulse } from 'lucide-react';
+import { Activity, BarChart3, BookOpen, BriefcaseBusiness, CalendarDays, ChevronRight, CircleHelp, Command, Database, FileCheck2, FileText, GraduationCap, LayoutDashboard, LogOut, MessageCircle, Package, Settings, ShieldCheck, ShoppingBag, Sparkles, Stethoscope, UserRound, Users, WalletCards, X, ClipboardList, Bot, Building2, FlaskConical, HeartPulse } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '@/components/brand';
 import { Avatar } from '@/components/ui/ds/Avatar';
@@ -10,8 +10,9 @@ import type { User as UserType } from '@/types';
 import { useCommandPalette } from '@/components/CommandPalette';
 import { useTranslation } from 'react-i18next';
 import { useIam } from '@/iam';
-import { getRoleDisplayLabel } from '@/store/auth.store';
-import { pageIdFromPath } from '@/lib/roleAccess';
+import { getRoleDisplayLabel, useAuth } from '@/store/auth.store';
+import { firstAllowedCrmPath, pageIdFromPath } from '@/lib/roleAccess';
+import { getWorkspaceHomeTarget, getWorkspaceNavigationGroups, isClinicFinanceOnlyRole, isPartnerWorkspaceType, isWorkspaceNavigationActive } from '@/lib/workspaceNavigation';
 
 export interface EcosystemSidebarProps { collapsed: boolean; setCollapsed: (value: boolean) => void; sidebarVisible: boolean; isMobile: boolean; sidebarOpen: boolean; user: UserType | null; logout: () => void; toggleSidebar: () => void; isGuest?: boolean; pendingApprovals?: number; isAdmin?: boolean; }
 type Item = { id: string; label: string; path: string; icon: React.ReactNode; page?: string; guest?: boolean };
@@ -25,19 +26,104 @@ const groups: Group[] = [
 ];
 const moreItems: Item[] = [{ id: 'profile', label: 'Профиль', path: '/profile', icon: <UserRound /> }, { id: 'settings', label: 'Настройки', path: '/settings', icon: <Settings /> }, { id: 'help', label: 'Помощь', path: '/help', icon: <CircleHelp />, guest: true }, { id: 'clinic-settings', label: 'Настройки клиники', path: '/crm/clinic-settings', icon: <Settings /> }, { id: 'billing', label: 'Тариф и оплата', path: '/crm/billing', icon: <WalletCards /> }, { id: 'integrations', label: 'Интеграции', path: '/crm/integrations/messaging', icon: <MessageCircle /> }, { id: 'icd10', label: 'МКБ-10', path: '/crm/icd10', icon: <FileCheck2 /> }];
 const adminItems: Item[] = [{ id: 'admin', label: 'Администрирование', path: '/admin', icon: <ShieldCheck /> }, { id: 'approvals', label: 'Подтверждения AI', path: '/ai-approvals', icon: <Bot /> }, { id: 'agents', label: 'Активность AI', path: '/agent-activity', icon: <Sparkles /> }, { id: 'audit', label: 'Аудит и безопасность', path: '/audit', icon: <Database /> }, { id: 'bi', label: 'Business Intelligence', path: '/bi', icon: <BarChart3 /> }, { id: 'backup', label: 'Резервные копии', path: '/backup', icon: <Database /> }];
-function activePath(pathname: string, path: string) { return path === '/' ? pathname === '/' : pathname === path || pathname.startsWith(`${path}/`); }
+function activePath(pathname: string, search: string, path: string, matchAllTabs = false) {
+  return isWorkspaceNavigationActive(pathname, search, path, { matchAllTabs });
+}
+function contextualIcon(id: string): React.ReactNode {
+  const icons: Record<string, React.ReactNode> = {
+    today: <LayoutDashboard />, queue: <ClipboardList />, referrals: <FileText />, results: <FileCheck2 />,
+    calendar: <CalendarDays />, analytics: <BarChart3 />, settings: <Settings />, orders: <ClipboardList />,
+    finance: <WalletCards />, production: <Package />, sales: <Package />, stock: <Package />,
+    catalog: <ShoppingBag />, returns: <Activity />, ads: <BarChart3 />, profile: <Building2 />,
+    courses: <GraduationCap />, content: <BookOpen />, assessments: <ClipboardList />, students: <Users />,
+    certificates: <FileCheck2 />, schedule: <CalendarDays />, team: <Users />,
+    vacancies: <BriefcaseBusiness />, 'jobs-market': <BriefcaseBusiness />, shop: <ShoppingBag />,
+    patients: <Users />, visits: <CalendarDays />, 'medical-card': <FileText />, 'dental-chart': <Activity />,
+    'treatment-plans': <FileCheck2 />, documents: <FileText />, icd10: <FileCheck2 />, lab: <FlaskConical />,
+    inventory: <Package />, pricelist: <WalletCards />, cashier: <WalletCards />, billing: <WalletCards />,
+    staff: <Users />, 'clinic-settings': <Settings />,
+  };
+  return icons[id] || <LayoutDashboard />;
+}
 function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, sidebarOpen, user, logout, toggleSidebar, isGuest = false, pendingApprovals = 0, isAdmin = false }: EcosystemSidebarProps) {
   const navigate = useNavigate(); const location = useLocation(); const { t } = useTranslation(); const iam = useIam(); const { setOpen } = useCommandPalette();
-  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({ core: true, care: true, partners: true, market: true, business: false });
+  const { activeWorkspace, workspaceContexts } = useAuth();
+  // Never manufacture a cabinet link from a stale user-level organization
+  // claim when IAM has several contexts but no active selection.
+  const workspaceHome = activeWorkspace
+    ? getWorkspaceHomeTarget({
+        scopeType: activeWorkspace.scopeType,
+        roleKey: activeWorkspace.roleKey || activeWorkspace.role || (user as any)?.effectiveRole || (user as any)?.role,
+        hasClinic: activeWorkspace.scopeType === 'CLINIC',
+      })
+    : workspaceContexts.length === 0
+      ? getWorkspaceHomeTarget({
+          scopeType: (user as any)?.organizationType,
+          roleKey: (user as any)?.effectiveRole || (user as any)?.role,
+          hasClinic: Boolean((user as any)?.clinicId || (user as any)?.organizationId),
+        })
+      : null;
+  const activeWorkspaceRole = String(
+    activeWorkspace?.roleKey || activeWorkspace?.role || (user as any)?.effectiveRole || (user as any)?.role || '',
+  );
+  const clinicFinanceHome = workspaceHome?.scopeType === 'CLINIC'
+    && isClinicFinanceOnlyRole(activeWorkspaceRole)
+    && (iam.pages.includes('cashier') || iam.pages.includes('finance'));
+  const firstClinicPath = iam.pages.length ? firstAllowedCrmPath(iam.pages) : workspaceHome?.path;
+  const homeTarget = workspaceHome?.scopeType === 'CLINIC'
+    ? { ...workspaceHome, path: clinicFinanceHome ? '/crm/cashier' : firstClinicPath || workspaceHome.path }
+    : workspaceHome;
+  const partnerWorkspace = Boolean(homeTarget && isPartnerWorkspaceType(homeTarget.scopeType));
+  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({ core: true, care: true, partners: false, market: false, business: false });
   const text = (key: string, fallback: string) => { const v = t(key); return v && v !== key ? v : fallback; };
   const isPatient = String(iam.role || '').toLowerCase() === 'patient';
   const canSee = (item: Item) => {
+    if (item.id === 'active-workspace') return true;
     if (isGuest) return Boolean(item.guest);
+    // Partner navigation is built from the active organization-scoped role.
+    // Do not filter those items through a legacy/global clinic page list: it
+    // can hide a valid lab/supplier/academy route after an organization switch.
+    // The route and backend API still enforce the actual workspace permissions.
+    if (partnerWorkspace && contextualGroups.some((group) =>
+      group.items.some((entry) => entry.id === item.id && entry.path === item.path),
+    )) return true;
     if (isPatient) return ['shop', 'academy', 'profile'].includes(item.id);
     if (item.id === 'home' || item.id === 'ai' || item.id === 'help') return true;
     return iam.canAccessPage(item.page || pageIdFromPath(item.path));
   };
-  const visibleGroups = groups.map(g => ({ ...g, items: g.items.filter(canSee) })).filter(g => g.items.length); const visibleMore = moreItems.filter(canSee); const visibleAdmin = isAdmin ? adminItems.filter(canSee) : [];
+  const contextualGroups = getWorkspaceNavigationGroups(
+    activeWorkspace?.scopeType || (user as any)?.organizationType,
+    activeWorkspaceRole,
+  ).map((group) => ({
+    ...group,
+    items: group.items.map((item) => ({ ...item, icon: contextualIcon(item.id) })),
+  }));
+  // The selected cabinet is pinned separately below. The menu now exposes the
+  // actual workflows of the active partner instead of replacing them with the
+  // generic public marketplace links.
+  const hasActiveContextualRoute = contextualGroups.some((group) =>
+    group.items.some((item) => activePath(location.pathname, location.search, item.path)),
+  );
+  const clinicWorkspace = homeTarget?.scopeType === 'CLINIC';
+  const contextualWorkspace = partnerWorkspace || clinicWorkspace;
+  const navigationGroups = contextualWorkspace
+    ? [
+        { id: 'core', label: 'DentVision', items: [groups[0].items[0]] },
+        ...contextualGroups,
+        ...groups.filter((group) => group.id === 'market'),
+      ]
+    : groups;
+  const visibleGroups = navigationGroups.map(g => ({ ...g, items: g.items.filter(canSee) })).filter(g => g.items.length);
+  const clinicFinanceOnly = clinicWorkspace && isClinicFinanceOnlyRole(activeWorkspaceRole);
+  const visibleMore = (partnerWorkspace
+    ? moreItems.filter((item) => ['profile', 'settings', 'help'].includes(item.id))
+    : clinicWorkspace
+      ? moreItems.filter((item) => clinicFinanceOnly
+        ? ['profile', 'help'].includes(item.id)
+        : ['profile', 'settings', 'help', 'integrations'].includes(item.id))
+      : moreItems
+  ).filter(canSee);
+  const visibleAdmin = isAdmin ? adminItems.filter(canSee) : [];
   React.useEffect(() => {
     if (!isMobile || !sidebarOpen) return;
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') toggleSidebar(); };
@@ -54,9 +140,9 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
     <motion.aside role={isMobile && sidebarOpen ? 'dialog' : undefined} aria-modal={isMobile && sidebarOpen ? true : undefined} aria-label="Навигация DentVision" initial={false} animate={{ width, x: isMobile && !sidebarOpen ? -300 : 0 }} transition={{ type: 'spring', stiffness: 360, damping: 34 }} className="fixed inset-y-0 left-0 z-[60] flex flex-col overflow-hidden border-r border-[var(--dv-border)] bg-[var(--dv-sidebar)]">
       <div className={cn('flex h-16 shrink-0 items-center border-b border-[var(--dv-border)] px-3', collapsed && !isMobile ? 'justify-center' : 'justify-between')}><button type="button" onClick={() => go('/')} aria-label="DentVision — главная" className="flex min-h-11 min-w-0 items-center gap-2.5"><Logo variant="compact" height={30} /></button>{isMobile ? <button type="button" onClick={toggleSidebar} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-[var(--dv-muted)]" aria-label={text('common.close','Закрыть')}><X size={18}/></button> : <button type="button" onClick={() => setCollapsed(!collapsed)} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-[var(--dv-muted)]" aria-label="Свернуть меню"><ChevronRight className={cn('transition-transform', !collapsed && 'rotate-180')} size={17}/></button>}</div>
       <div className="px-3 pt-3">{!isPatient && <button type="button" onClick={() => setOpen(true)} className={cn('flex w-full items-center gap-2.5 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] px-2.5 py-2 text-left', collapsed && !isMobile && 'justify-center')}><span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]"><Command size={14}/></span>{(!collapsed || isMobile) && <><span className="flex-1 text-xs font-medium">Поиск</span><kbd className="rounded-md border px-1.5 py-0.5 text-[10px]">⌘K</kbd></>}</button>}</div>
-      {(!collapsed || isMobile) && <div className="pt-3"><EcosystemContextCard user={user} isGuest={isGuest} /></div>}
+      <div className={cn((collapsed && !isMobile) ? 'pt-2' : 'pt-3')}><EcosystemContextCard user={user} collapsed={collapsed && !isMobile} isGuest={isGuest} /></div>
       <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4 [scrollbar-width:none]">
-        {visibleGroups.map(group => { const expanded = isMobile || !!openGroups[group.id] || group.items.some(i => activePath(location.pathname,i.path)); return <section key={group.id} className="mb-3">{(!collapsed || isMobile) && <button type="button" onClick={() => setOpenGroups(v => ({...v,[group.id]:!v[group.id]}))} className="mb-1 flex min-h-11 w-full items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--dv-muted)]"><span>{group.label}</span><ChevronRight size={12} className={cn(expanded && 'rotate-90')}/></button>}{(expanded || collapsed) && <div className="space-y-0.5">{group.items.map(item => { const active = activePath(location.pathname,item.path); return <button key={item.id} type="button" aria-current={active?'page':undefined} aria-label={item.label} title={collapsed?item.label:undefined} onClick={() => go(item.path)} className={cn('group relative flex min-h-11 w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left transition', collapsed?'justify-center px-2':'', active?'bg-[var(--dv-nav-active)] text-[var(--dv-text)]':'text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]')}>{active && <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-[var(--dv-accent)]"/>}<span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-[9px]',active?'bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]':'bg-[var(--dv-icon-bg)]')}>{React.cloneElement(item.icon as React.ReactElement,{size:17,strokeWidth:1.8})}</span>{(!collapsed||isMobile)&&<span className="min-w-0 flex-1 truncate text-[13px] font-medium">{item.label}</span>}</button>})}</div>}</section>})}
+        {visibleGroups.map(group => { const expanded = Boolean(openGroups[group.id]) || group.items.some(i => activePath(location.pathname, location.search, i.path)) || (contextualWorkspace && !hasActiveContextualRoute && group.id === contextualGroups[0]?.id); return <section key={group.id} className="mb-3">{(!collapsed || isMobile) && <button type="button" onClick={() => setOpenGroups(v => ({...v,[group.id]:!v[group.id]}))} className="mb-1 flex min-h-11 w-full items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--dv-muted)]"><span>{group.label}</span><ChevronRight size={12} className={cn(expanded && 'rotate-90')}/></button>}{(expanded || collapsed) && <div className="space-y-0.5">{group.items.map(item => { const active = activePath(location.pathname, location.search, item.path); return <button key={item.id} type="button" aria-current={active?'page':undefined} aria-label={item.label} data-testid={item.id === 'active-workspace' ? 'active-workspace-link' : undefined} title={collapsed?item.label:undefined} onClick={() => go(item.path)} className={cn('group relative flex min-h-11 w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left transition', collapsed?'justify-center px-2':'', active?'bg-[var(--dv-nav-active)] text-[var(--dv-text)]':'text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]')}>{active && <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-[var(--dv-accent)]"/>}<span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-[9px]',active?'bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]':'bg-[var(--dv-icon-bg)]')}>{React.cloneElement(item.icon as React.ReactElement,{size:17,strokeWidth:1.8})}</span>{(!collapsed||isMobile)&&<span className="min-w-0 flex-1 truncate text-[13px] font-medium">{item.label}</span>}</button>})}</div>}</section>})}
         {visibleMore.length > 0 && <section className="mb-3"><button type="button" onClick={() => setOpenGroups(v=>({...v,more:!v.more}))} className={cn('mb-1 flex min-h-11 w-full items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--dv-muted)]',collapsed&&'justify-center')}><span>{collapsed?'···':'Дополнительно'}</span>{!collapsed&&<ChevronRight size={12} className={cn(openGroups.more&&'rotate-90')}/>}</button>{openGroups.more&&!collapsed&&<div className="space-y-0.5">{visibleMore.map(item=><button key={item.id} type="button" onClick={()=>go(item.path)} className="flex min-h-11 w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left text-[13px] text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]"><span className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--dv-icon-bg)]">{React.cloneElement(item.icon as React.ReactElement,{size:17})}</span><span>{item.label}</span></button>)}</div>}</section>}
         {visibleAdmin.length > 0 && <section className="border-t border-[var(--dv-border)] pt-3"><div className="mb-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--dv-muted)]">Администрирование</div>{visibleAdmin.map(item=><button key={item.id} type="button" onClick={()=>go(item.path)} className="flex min-h-11 w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left text-[13px] text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]"><span className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--dv-icon-bg)]">{React.cloneElement(item.icon as React.ReactElement,{size:17})}</span><span className="min-w-0 flex-1 truncate">{item.label}</span>{item.id==='approvals'&&pendingApprovals>0&&<span className="rounded-full bg-[var(--dv-accent)] px-1.5 py-0.5 text-[10px] font-bold text-white">{pendingApprovals}</span>}</button>)}</section>}
       </nav>

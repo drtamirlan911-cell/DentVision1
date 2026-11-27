@@ -4,10 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Store, Package, Wallet, BarChart3, Plus, Trash2, CheckCircle2, Clock,
   ShieldCheck, Building2, Sparkles, TrendingUp, AlertTriangle, RotateCcw,
-  Megaphone, Tag, Star, Truck, ArrowRight, Box, Percent, Camera, ImageIcon,
+  Megaphone, Tag, Star, Truck, ArrowRight, Box, Percent, Camera, ImageIcon, Users,
 } from 'lucide-react'
 import * as api from '@/utils/api'
-import { useAuth } from '@/store/auth.store'
+import { useAuth, useAuthStore } from '@/store/auth.store'
+import { useSearchParams } from 'react-router-dom'
 import { beginWorkspaceRequest, isWorkspaceRequestCurrent, selectWorkspaceContext } from '@/lib/workspaceContext'
 import { useToast } from '@/components/ui/ds/Toast'
 import { Button } from '@/components/ui/ds/Button'
@@ -19,8 +20,10 @@ import { EmptyState } from '@/components/ui/ds/EmptyState'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload'
 import { SUPPLIER_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits';
+import SupplierTeamTab from './SupplierTeamTab';
+import { WorkspaceRoleStart } from '@/components/workspaces/WorkspaceRoleStart';
 
-type TabId = 'overview' | 'sales' | 'stock' | 'returns' | 'ads' | 'analytics' | 'catalog' | 'profile'
+type TabId = 'overview' | 'sales' | 'stock' | 'returns' | 'ads' | 'analytics' | 'catalog' | 'team' | 'profile'
 type SupplierDisputeResponseType = 'ACKNOWLEDGE_RETURN_REQUEST' | 'CONTEST_RETURN_REQUEST'
 
 interface SupplierCtx {
@@ -90,10 +93,34 @@ export default function SupplierWorkspace() {
   const [contexts, setContexts] = useState<SupplierCtx[]>([])
   const [token, setToken] = useState<string | null>(null)
   const [contextSwitching, setContextSwitching] = useState(false)
-  const [tab, setTab] = useState<TabId>('overview')
-
   const [me, setMe] = useState<any>(null)
   const [dash, setDash] = useState<any>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const isSupplierTab = useCallback((value: string | null): value is TabId => {
+    const isBaseTab = value === 'overview' || value === 'sales' || value === 'stock' || value === 'returns'
+      || value === 'ads' || value === 'analytics' || value === 'catalog' || value === 'profile'
+    return isBaseTab || (value === 'team' && me?.myRole === 'owner')
+  }, [me?.myRole])
+  const [tab, setTab] = useState<TabId>(() => isSupplierTab(requestedTab) ? requestedTab : 'overview')
+  useEffect(() => {
+    if (loading) return
+    const allowedTab = isSupplierTab(requestedTab) ? requestedTab : 'overview'
+    setTab(allowedTab)
+    if (requestedTab && requestedTab !== allowedTab) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('tab')
+      setSearchParams(next, { replace: true })
+    }
+  }, [requestedTab, loading, isSupplierTab, searchParams, setSearchParams])
+  const selectTab = useCallback((nextTab: TabId) => {
+    if (nextTab === 'team' && me?.myRole !== 'owner') return
+    setTab(nextTab)
+    const next = new URLSearchParams(searchParams)
+    if (nextTab === 'overview') next.delete('tab')
+    else next.set('tab', nextTab)
+    setSearchParams(next, { replace: true })
+  }, [me?.myRole, searchParams, setSearchParams])
 
   const [addOpen, setAddOpen] = useState(false)
   const [promoOpen, setPromoOpen] = useState(false)
@@ -135,6 +162,7 @@ export default function SupplierWorkspace() {
     setToken(null)
     setMe(null)
     setDash(null)
+    setTab('overview')
     setCashbackRules([])
     setDefaultCb('1')
     setAddOpen(false)
@@ -184,15 +212,34 @@ export default function SupplierWorkspace() {
     setLoading(true)
     setContextSwitching(true)
     try {
-      const res = await api.switchContext('SUPPLIER', scopeId)
+      const auth = useAuthStore.getState()
+      const selectedContext = auth.workspaceContexts.find(
+        (workspace) => workspace.scopeType === 'SUPPLIER' && workspace.scopeId === scopeId,
+      )
+      let accessToken = auth.activeWorkspace?.scopeType === 'SUPPLIER'
+        && auth.activeWorkspace.scopeId === scopeId
+        ? auth.token
+        : null
+
+      // Workspace entry must update the same auth/read-model state used by
+      // permissions, sidebar navigation and AI. Do not mutate only the JWT.
+      if (!accessToken && selectedContext) {
+        await auth.switchWorkspace(selectedContext)
+        accessToken = useAuthStore.getState().token
+      } else if (!accessToken) {
+        const switched = await api.switchContext('SUPPLIER', scopeId)
+        await useAuthStore.getState().restoreSession()
+        accessToken = useAuthStore.getState().token || switched.accessToken
+      }
+      if (!accessToken) throw new Error('Не удалось определить активную сессию поставщика')
       if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return
-      activeTokenRef.current = res.accessToken
-      setToken(res.accessToken)
-      await loadAll(res.accessToken, generation)
-    } catch {
+      activeTokenRef.current = accessToken
+      setToken(accessToken)
+      await loadAll(accessToken, generation)
+    } catch (error) {
       if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
         clearWorkspaceData()
-        toast.error('Не удалось войти в выбранную организацию поставщика')
+        toast.error(error instanceof Error ? error.message : 'Не удалось войти в выбранную организацию поставщика')
       }
     } finally {
       if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
@@ -283,6 +330,10 @@ export default function SupplierWorkspace() {
   }
 
   const canWrite = me?.myRole === 'owner' || me?.myRole === 'manager'
+  const activeSupplierContext = contexts.find((context) => context.scopeId === String(me?.id || ''))
+  const supplierOrganizationId = activeSupplierContext?.organizationId
+    || (activeWorkspace?.scopeType === 'SUPPLIER' ? activeWorkspace.organizationId : '')
+    || ''
   const products = dash?.products || []
   const kpis = dash?.kpis || {}
   const insights = dash?.insights || []
@@ -623,6 +674,7 @@ export default function SupplierWorkspace() {
     { id: 'ads', label: 'Реклама', icon: <Megaphone size={15} /> },
     { id: 'analytics', label: 'Спрос', icon: <BarChart3 size={15} /> },
     { id: 'catalog', label: 'Каталог', icon: <Package size={15} /> },
+    ...(me?.myRole === 'owner' ? [{ id: 'team' as const, label: 'Команда', icon: <Users size={15} /> }] : []),
     { id: 'profile', label: 'Профиль', icon: <Building2 size={15} /> },
   ]
 
@@ -652,11 +704,28 @@ export default function SupplierWorkspace() {
         <StatCell icon={<RotateCcw size={16} />} label="Возвраты" value={String(kpis.openReturns || 0)} />
       </div>
 
+      {tab === 'overview' && (
+        <WorkspaceRoleStart
+          roleLabel={me?.myRole === 'owner' ? 'Владелец поставщика' : 'Менеджер поставщика'}
+          heading={me?.myRole === 'owner'
+            ? 'Контролируйте заказы, ассортимент и работу компании'
+            : 'Обрабатывайте заказы клиник и контролируйте отгрузки'}
+          description={me?.myRole === 'owner'
+            ? 'Начинайте с заказов, следите за остатками и возвратами, проверяйте выплаты. Управление сотрудниками находится в разделе «Команда».'
+            : 'Ваш основной рабочий маршрут: открыть заказ клиники, перевести его в сборку, оформить отгрузку и подтвердить вручение. Низкие остатки и претензии проверяйте в отдельных разделах.'}
+          steps={me?.myRole === 'owner'
+            ? ['Проверьте новые заказы и сроки отгрузки', 'Контролируйте остатки, возвраты и выплаты', 'Проверьте команду и актуальность профиля компании']
+            : ['Откройте «Продажи» и проверьте новые заказы клиник', 'Подготовьте заказ и зарегистрируйте отправку', 'Подтвердите вручение и сообщите о проблемах с остатками']}
+          actionLabel="Открыть заказы"
+          onAction={() => selectTab('sales')}
+        />
+      )}
+
       <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06] pb-px">
         {TABS.map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => selectTab(t.id)}
             className={`flex items-center gap-1.5 px-3 py-2.5 min-h-11 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
               tab === t.id ? 'border-dv-gold text-dv-gold' : 'border-transparent text-txt-muted hover:text-txt-primary'
             }`}
@@ -709,7 +778,7 @@ export default function SupplierWorkspace() {
                           {ins.productName && (
                             <button
                               className="text-xs mt-2 underline underline-offset-2 opacity-80 hover:opacity-100"
-                              onClick={() => setTab('stock')}
+                              onClick={() => selectTab('stock')}
                             >
                               Открыть «{ins.productName}» <ArrowRight size={10} className="inline" />
                             </button>
@@ -1116,6 +1185,14 @@ export default function SupplierWorkspace() {
                 </div>
               )}
             </div>
+          )}
+
+          {tab === 'team' && me?.myRole === 'owner' && (
+            <SupplierTeamTab
+              token={token!}
+              supplierId={String(me.id)}
+              organizationId={supplierOrganizationId}
+            />
           )}
 
           {tab === 'profile' && me && (

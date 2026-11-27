@@ -1,27 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-  centerFindFirst, labFindFirst, invitationFindUnique, invitationUpdateMany,
-  organizationFindUnique, invitationCreate, grantDiagnosticsAccess,
+  centerFindFirst, labFindFirst, supplierMemberFindFirst, supplierMemberCreate,
+  invitationFindUnique, invitationUpdateMany, organizationFindUnique, invitationCreate,
+  grantDiagnosticsAccess, syncPersonFromSupplierMember, transaction,
 } = vi.hoisted(() => ({
   centerFindFirst: vi.fn(),
   labFindFirst: vi.fn(),
+  supplierMemberFindFirst: vi.fn(),
+  supplierMemberCreate: vi.fn(),
   invitationFindUnique: vi.fn(),
   invitationUpdateMany: vi.fn(),
   organizationFindUnique: vi.fn(),
   invitationCreate: vi.fn(),
   grantDiagnosticsAccess: vi.fn(),
+  syncPersonFromSupplierMember: vi.fn(),
+  transaction: vi.fn(),
 }));
 
 vi.mock('../../lib/prisma.js', () => ({
   default: {
     diagnosticCenterMember: { findFirst: centerFindFirst },
     laboratoryMember: { findFirst: labFindFirst },
+    supplierMember: { findFirst: supplierMemberFindFirst },
     organization: { findUnique: organizationFindUnique },
     organizationInvitation: { findUnique: invitationFindUnique, updateMany: invitationUpdateMany, create: invitationCreate },
+    $transaction: transaction,
   },
 }));
 vi.mock('../diagnostics/diagnostics.service.js', () => ({ grantDiagnosticsAccess }));
+vi.mock('../../lib/syncMembership.js', () => ({ syncPersonFromSupplierMember }));
 
 import {
   acceptInvitation,
@@ -30,9 +38,11 @@ import {
   normalizeDiagnosticInviteRole,
   normalizeEmployerInviteRole,
   normalizeLaboratoryInviteRole,
+  normalizeSupplierInviteRole,
   laboratoryTypeFromSettings,
   createInvitation,
   rejectInvitation,
+  isOrganizationMemberRoleAllowed,
 } from './invitations.service.js';
 
 const NOW = new Date('2026-08-10T12:00:00Z');
@@ -41,12 +51,23 @@ const CENTER_ORG = { id: 'org-1', type: 'DIAGNOSTIC_CENTER', originalId: 'center
 beforeEach(() => {
   centerFindFirst.mockReset();
   labFindFirst.mockReset();
+  supplierMemberFindFirst.mockReset();
+  supplierMemberCreate.mockReset();
   invitationFindUnique.mockReset();
   invitationUpdateMany.mockReset();
   organizationFindUnique.mockReset();
   invitationCreate.mockReset();
   grantDiagnosticsAccess.mockReset();
+  syncPersonFromSupplierMember.mockReset();
+  transaction.mockReset();
   grantDiagnosticsAccess.mockResolvedValue(true);
+  syncPersonFromSupplierMember.mockResolvedValue(undefined);
+  supplierMemberFindFirst.mockResolvedValue(null);
+  supplierMemberCreate.mockResolvedValue({ id: 'supplier-member-1' });
+  transaction.mockImplementation(async (callback: (tx: any) => unknown) => callback({
+    supplierMember: { create: supplierMemberCreate },
+    organizationInvitation: { updateMany: invitationUpdateMany },
+  }));
   invitationUpdateMany.mockResolvedValue({ count: 1 });
 });
 
@@ -188,6 +209,63 @@ describe('createInvitation — laboratory role family', () => {
   });
 });
 
+describe('organization partner staff role policy', () => {
+  it('accepts all supported diagnostic center roles but rejects owner escalation and unknown roles', () => {
+    const center = { type: 'DIAGNOSTIC_CENTER', settings: null };
+    expect(isOrganizationMemberRoleAllowed(center, 'diagnostic_reception')).toBe(true);
+    expect(isOrganizationMemberRoleAllowed(center, 'radiology_technician')).toBe(true);
+    expect(isOrganizationMemberRoleAllowed(center, 'diagnostic_finance')).toBe(true);
+    expect(isOrganizationMemberRoleAllowed(center, 'diagnostic_quality')).toBe(true);
+    expect(isOrganizationMemberRoleAllowed(center, 'owner')).toBe(false);
+    expect(isOrganizationMemberRoleAllowed(center, 'SUPERADMIN')).toBe(false);
+  });
+
+  it('keeps medical and dental laboratory roles isolated by the canonical organization settings', () => {
+    expect(isOrganizationMemberRoleAllowed({ type: 'LABORATORY', settings: { laboratoryType: 'MEDICAL_LAB' } }, 'medical_lab_validator')).toBe(true);
+    expect(isOrganizationMemberRoleAllowed({ type: 'LABORATORY', settings: { laboratoryType: 'MEDICAL_LAB' } }, 'dental_technician')).toBe(false);
+    expect(isOrganizationMemberRoleAllowed({ type: 'LABORATORY', settings: { laboratoryType: 'DENTAL_LAB' } }, 'dental_technician')).toBe(true);
+    expect(isOrganizationMemberRoleAllowed({ type: 'LABORATORY', settings: { laboratoryType: 'DENTAL_LAB' } }, 'medical_lab_validator')).toBe(false);
+    expect(isOrganizationMemberRoleAllowed({ type: 'LABORATORY', settings: { laboratoryType: 'DENTAL_LAB' } }, 'dental_lab_owner')).toBe(false);
+  });
+});
+
+describe('supplier invitation role', () => {
+  it('allows the supplier manager role but never grants supplier ownership', () => {
+    expect(normalizeSupplierInviteRole('manager')).toBe('manager');
+    expect(normalizeSupplierInviteRole('owner')).toBe('manager');
+    expect(normalizeSupplierInviteRole('SUPERADMIN')).toBe('manager');
+    expect(normalizeSupplierInviteRole(undefined)).toBe('manager');
+  });
+
+  it('allows only the supplier owner to invite staff', async () => {
+    supplierMemberFindFirst.mockResolvedValueOnce({ role: 'owner' });
+    expect(await canManageMembers('supplier-owner', {
+      id: 'supplier-org', type: 'SUPPLIER_COMPANY', originalId: 'supplier-1',
+    })).toBe(true);
+
+    supplierMemberFindFirst.mockResolvedValueOnce({ role: 'manager' });
+    expect(await canManageMembers('supplier-manager', {
+      id: 'supplier-org', type: 'SUPPLIER_COMPANY', originalId: 'supplier-1',
+    })).toBe(false);
+  });
+
+  it('creates supplier invitations with the non-owner manager role', async () => {
+    organizationFindUnique.mockResolvedValue({
+      id: 'supplier-org', type: 'SUPPLIER_COMPANY', originalId: 'supplier-1', archivedAt: null,
+    });
+    invitationCreate.mockImplementation(async ({ data }: any) => data);
+
+    const result = await createInvitation({
+      organizationId: 'supplier-org', role: 'owner', createdBy: 'supplier-owner',
+    });
+
+    expect(result.role).toBe('manager');
+    expect(invitationCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ organizationId: 'supplier-org', role: 'manager' }),
+    }));
+  });
+});
+
 describe('normalizeEmployerInviteRole', () => {
   it('allows only recruiter and read-only employer roles', () => {
     expect(normalizeEmployerInviteRole('employer_recruiter')).toBe('employer_recruiter');
@@ -322,6 +400,32 @@ describe('acceptInvitation', () => {
     expect(result).toMatchObject({ organizationType: 'LABORATORY', entityId: 'medical-lab-1', role: 'medical_lab_finance' });
   });
 
+  it('adds a supplier employee to the existing supplier membership and canonical person graph', async () => {
+    arrangeInvite({
+      role: 'manager',
+      organization: {
+        id: 'supplier-org', type: 'SUPPLIER_COMPANY', originalId: 'supplier-1', name: 'Dental Market',
+      },
+    });
+    supplierMemberFindFirst.mockResolvedValue(null);
+    supplierMemberCreate.mockResolvedValue({ id: 'supplier-member-7' });
+
+    const result = await acceptInvitation('ABCD1234', { id: 'supplier-user-7', email: 'manager@example.test' });
+
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(supplierMemberCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ supplierId: 'supplier-1', userId: 'supplier-user-7', role: 'manager' }),
+    });
+    expect(syncPersonFromSupplierMember).toHaveBeenCalledWith('supplier-member-7', 'supplier-1', 'supplier-user-7', expect.any(Object));
+    expect(invitationUpdateMany).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      organizationId: 'supplier-org',
+      organizationType: 'SUPPLIER_COMPANY',
+      entityId: 'supplier-1',
+      role: 'manager',
+    });
+  });
+
   it('does not spend the code when the grant fails', async () => {
     // Marking it used first would burn the invite and leave the invitee with no
     // way in and no way to retry.
@@ -343,7 +447,7 @@ describe('acceptInvitation', () => {
   });
 
   it('refuses an organization type it cannot grant membership in', async () => {
-    arrangeInvite({ organization: { id: 'org-9', type: 'ACADEMY', originalId: 'ac-1', name: 'Академия' } });
+    arrangeInvite({ organization: { id: 'org-9', type: 'CLINIC', originalId: 'clinic-9', name: 'Клиника' } });
 
     await expect(acceptInvitation('ABCD1234', { id: 'u1' })).rejects.toMatchObject({ status: 400 });
     expect(invitationUpdateMany).not.toHaveBeenCalled();

@@ -8,7 +8,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import { isClinicMember, resolveClinicAccess } from '../../lib/orgContext.js';
-import { resolveClinicBranchAccess } from '../../lib/clinicBranchAccess.js';
+import { resolveClinicBranchAccess, resolveUnambiguousWriteBranch } from '../../lib/clinicBranchAccess.js';
 import { publish } from '../../lib/events.js';
 import { labPlatformRouter } from './labPlatform.routes.js';
 import { medicalLabLifecycleRouter } from './medicalLab.routes.js';
@@ -70,39 +70,71 @@ export function isDentalLabTransitionAllowed(from: string, to: string): boolean 
 interface VerifiedLabBranchScope {
   where: Record<string, unknown>;
   branchIds: string[] | null;
+  /** Explicitly selected branch; null is an organization-wide context. */
+  selectedBranchId: string | null;
+  /** Safe default for creating a branch-owned order when no branch is selected. */
+  defaultWriteBranchId: string | null;
+  /** False when the actor has no verified active branch or organization scope. */
+  configured: boolean;
 }
 
-async function branchScopedLabOrder(req: AuthRequest, clinicId: string): Promise<VerifiedLabBranchScope> {
-  if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN') return { where: {}, branchIds: null };
+async function branchScopedLabOrder(req: AuthRequest, clinicId: string, needsWriteBranch = false): Promise<VerifiedLabBranchScope> {
+  if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN') {
+    return { where: {}, branchIds: null, selectedBranchId: null, defaultWriteBranchId: null, configured: true };
+  }
   if (!req.user?.id || req.user.clinicId !== clinicId) {
-    return { where: { patient: { branchId: '__NO_BRANCH_ACCESS__' } }, branchIds: [] };
+    return {
+      where: { branchId: '__NO_BRANCH_ACCESS__' },
+      branchIds: [],
+      selectedBranchId: null,
+      defaultWriteBranchId: null,
+      configured: false,
+    };
   }
   const access = await resolveClinicBranchAccess({
-    userId: req.user.id,
+    userId: req.user?.id || '',
     clinicId,
-    organizationId: req.user.organizationId,
-    role: String(req.user.role || ''),
-    requestedBranchId: req.user.branchId,
+    organizationId: req.user?.organizationId,
+    role: String(req.user?.role || ''),
+    requestedBranchId: req.user?.branchId,
   });
-  if (!access) return { where: { patient: { branchId: '__NO_BRANCH_ACCESS__' } }, branchIds: [] };
+  if (!access) {
+    return {
+      where: { branchId: '__NO_BRANCH_ACCESS__' },
+      branchIds: [],
+      selectedBranchId: null,
+      defaultWriteBranchId: null,
+      configured: false,
+    };
+  }
 
   const organizationWide = access.roleScope === 'ORGANIZATION' && access.branchId === null;
-  const scopedBranchIds = access.branchId ? [access.branchId] : access.allowedBranchIds;
+  const selectedBranchId = access.branchId;
+  const branchIds = selectedBranchId ? [selectedBranchId] : access.allowedBranchIds;
+  const defaultWriteBranchId = selectedBranchId
+    || (organizationWide && needsWriteBranch ? await resolveUnambiguousWriteBranch(access.allowedBranchIds) : null);
   // Organization-wide users have no branch restriction. Do not pass their
   // branch inventory as a write allow-list: legacy patients may have branchId=null.
-  const branchIds = organizationWide ? null : scopedBranchIds;
   return {
+    // LabOrder owns its branch directly so name-only/patientless orders remain
+    // visible only to the branch that created them. The migration backfills
+    // proven legacy patient branches and leaves unprovable rows organization-only.
     where: organizationWide
       ? {}
-      : scopedBranchIds.length
-        ? { patient: { branchId: { in: scopedBranchIds } } }
-        : { patient: { branchId: '__NO_BRANCH_ACCESS__' } },
-    branchIds,
+      : branchIds.length
+        ? { branchId: { in: branchIds } }
+        : { branchId: '__NO_BRANCH_ACCESS__' },
+    // An unfiltered organization role may write to legacy patient records with
+    // branchId=null. Narrow roles receive only their verified active branches.
+    branchIds: organizationWide ? null : branchIds,
+    selectedBranchId,
+    defaultWriteBranchId,
+    configured: organizationWide || branchIds.length > 0,
   };
 }
 
 function serializeLabOrder(order: {
-  id: string; clinicId: string; patientId: string | null; labName: string | null;
+  id: string; clinicId: string; patientId: string | null; branchId?: string | null; labName: string | null;
   status: string; type: string | null; notes: string | null; files: unknown;
   deadline: Date | null; price: number | null; serviceId?: string | null; serviceNameSnapshot?: string | null; servicePriceSnapshot?: number | null; createdAt: Date; updatedAt: Date;
   doctorId?: string | null;
@@ -110,7 +142,7 @@ function serializeLabOrder(order: {
 }) {
   const meta = (order.files as { meta?: LabOrderMeta } | null)?.meta || {};
   return {
-    id: order.id, clinicId: order.clinicId, patientId: order.patientId,
+    id: order.id, clinicId: order.clinicId, patientId: order.patientId, branchId: order.branchId ?? null,
     patientName: meta.patientName || order.labName || '', labType: order.type,
     material: meta.material || '', toothNumber: meta.toothNumber || '', shade: meta.shade || '',
     laboratoryId: meta.laboratoryId || null, technicianId: meta.technicianId || null,
@@ -178,8 +210,18 @@ export interface LabOrderBody {
 }
 export interface PreparedLabOrder { error?: string; data?: Record<string, unknown>; }
 
-export async function prepareLabOrderWrite(clinicId: string, body: LabOrderBody, existingMeta: LabOrderMeta = {}, branchIds: string[] | null = null): Promise<PreparedLabOrder> {
-  const { patientId, patientName, labType, material, toothNumber, shade, dueDate, notes, status, price, remakeOfId, appointmentId, tryInDate, doctorId, laboratoryId, technicianId, treatmentCaseId } = body;
+export async function prepareLabOrderWrite(
+  clinicId: string,
+  body: LabOrderBody,
+  existingMeta: LabOrderMeta = {},
+  branchIds: string[] | null = null,
+  selectedBranchId: string | null = null,
+  existingOrder?: { patientId: string | null; branchId: string | null },
+): Promise<PreparedLabOrder> {
+  const { patientName, labType, material, toothNumber, shade, dueDate, notes, status, price, remakeOfId, appointmentId, tryInDate, doctorId, laboratoryId, technicianId, treatmentCaseId } = body;
+  const patientId = body.patientId !== undefined
+    ? String(body.patientId).trim() || null
+    : existingOrder?.patientId ?? null;
   if (doctorId) {
     // Canonical Organization → Person → PersonRole is authoritative for clinic
     // membership once the clinic has been migrated. Legacy ClinicMember is only
@@ -190,10 +232,20 @@ export async function prepareLabOrderWrite(clinicId: string, body: LabOrderBody,
       return { error: 'Указанный врач не найден в этой клинике' };
     }
   }
-  if (patientId && branchIds !== null) {
-    const patient = await prisma.patient.findFirst({ where: { id: patientId, clinicId, branchId: branchIds.length > 0 ? { in: branchIds } : '__NO_BRANCH_ACCESS__' }, select: { id: true } });
+  let patientBranchId: string | null = null;
+  if (patientId) {
+    const patient = await prisma.patient.findFirst({
+      where: {
+        id: patientId,
+        clinicId,
+        ...(branchIds !== null ? { branchId: { in: branchIds } } : {}),
+      },
+      select: { id: true, branchId: true },
+    });
     if (!patient) return { error: 'Пациент недоступен в текущем филиале' };
+    patientBranchId = patient.branchId ?? null;
   }
+  const branchId = patientBranchId || selectedBranchId || existingOrder?.branchId || null;
   if (laboratoryId) {
     const lab = await prisma.laboratory.findUnique({ where: { id: laboratoryId }, select: { id: true, name: true } });
     if (!lab) return { error: 'Указанная лаборатория не найдена' };
@@ -207,7 +259,7 @@ export async function prepareLabOrderWrite(clinicId: string, body: LabOrderBody,
     if (!rows[0] || rows[0].clinicId !== clinicId || (patientId && rows[0].patientId !== patientId)) return { error: 'Клинический кейс не принадлежит пациенту или клинике' };
   }
   const meta = buildMeta({ patientName, material, toothNumber, shade, remakeOfId, appointmentId, tryInDate, laboratoryId, technicianId, treatmentCaseId }, existingMeta);
-  return { data: { patientId: patientId || null, ...(doctorId ? { doctorId } : {}), type: labType || null, notes: notes || null, status: status || 'pending', deadline: dueDate ? new Date(dueDate) : null, price: price ?? null, files: { meta } } };
+  return { data: { patientId, branchId, ...(doctorId ? { doctorId } : {}), type: labType || null, notes: notes || null, status: status || 'pending', deadline: dueDate ? new Date(dueDate) : null, price: price ?? null, files: { meta } } };
 }
 
 labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
@@ -222,8 +274,18 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
       return res.status(409).json({ ok: false, error: 'Новый заказ должен начинаться со статуса «Ожидает». Используйте endpoint перехода статуса для дальнейшего workflow.', code: 'LAB_STATUS_ENDPOINT_REQUIRED' } satisfies ApiResponse);
     }
 
-    const branchScope = await branchScopedLabOrder(req, clinicId);
+    const branchScope = await branchScopedLabOrder(req, clinicId, !id);
+    if (!branchScope.configured) {
+      return res.status(403).json({ ok: false, error: 'Доступ к филиалу не настроен или недействителен' } satisfies ApiResponse);
+    }
     const branchIds = branchScope.branchIds;
+    if (!id && !body.patientId && !branchScope.selectedBranchId && !branchScope.defaultWriteBranchId) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Для заказа без пациента выберите филиал. У клиники несколько филиалов и нет единственного филиала по умолчанию.',
+        code: 'LAB_ORDER_BRANCH_REQUIRED',
+      } satisfies ApiResponse);
+    }
     const writeBody = { ...body, status: id ? body.status : 'pending', laboratoryId: undefined, technicianId: undefined };
     let order: any;
 
@@ -236,7 +298,14 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
         if (existingMeta.laboratoryId) return { kind: 'partner_owned' as const };
         if (body.status && body.status !== existing.status) return { kind: 'status_endpoint_required' as const };
 
-        const prepared = await prepareLabOrderWrite(clinicId, { ...writeBody, status: existing.status }, existingMeta, branchIds);
+        const prepared = await prepareLabOrderWrite(
+          clinicId,
+          { ...writeBody, status: existing.status },
+          existingMeta,
+          branchIds,
+          branchScope.selectedBranchId,
+          { patientId: existing.patientId, branchId: existing.branchId },
+        );
         if (prepared.error) return { kind: 'invalid' as const, error: prepared.error };
         const data = prepared.data as any;
         // POST is a specification/details editor, not a lifecycle transition endpoint.
@@ -255,7 +324,13 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
       order = outcome.order;
       await writeAuditLog({ action: 'LAB_ORDER_UPDATED', entity: 'lab_order', entityId: order.id, details: { fields: Object.keys(body).filter((field) => field !== 'status') }, userId: req.user!.id, clinicId });
     } else {
-      const prepared = await prepareLabOrderWrite(clinicId, writeBody, {}, branchIds);
+      const prepared = await prepareLabOrderWrite(
+        clinicId,
+        writeBody,
+        {},
+        branchIds,
+        branchScope.selectedBranchId ?? branchScope.defaultWriteBranchId,
+      );
       if (prepared.error) return res.status(400).json({ ok: false, error: prepared.error } satisfies ApiResponse);
       const data = prepared.data as any;
       data.status = 'pending';
@@ -278,6 +353,9 @@ labRouter.patch('/:id/status', requirePermission('lab.write'), async (req: AuthR
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const branchScope = await branchScopedLabOrder(req, clinicId);
+    if (!branchScope.configured) {
+      return res.status(403).json({ ok: false, error: 'Доступ к филиалу не настроен или недействителен' } satisfies ApiResponse);
+    }
     const { status } = req.body as { status?: string };
     if (!status || !VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) return res.status(400).json({ ok: false, error: `Недопустимый статус. Допустимые: ${VALID_STATUSES.join(', ')}` } satisfies ApiResponse);
     await ensureDentalLabOrderEventsTable();
@@ -314,6 +392,9 @@ labRouter.post('/:id/remake-request', requirePermission('lab.write'), async (req
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const branchScope = await branchScopedLabOrder(req, clinicId);
+    if (!branchScope.configured) {
+      return res.status(403).json({ ok: false, error: 'Доступ к филиалу не настроен или недействителен' } satisfies ApiResponse);
+    }
     const reason = validateLabRemakeRequestReason(req.body?.reason);
     if (!reason) return res.status(400).json({ ok: false, error: 'Укажите причину переделки (от 5 до 2000 символов)' } satisfies ApiResponse);
     const orderId = String(req.params.id);
@@ -402,6 +483,9 @@ labRouter.post('/:id/acceptance', requirePermission('lab.write'), async (req: Au
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const branchScope = await branchScopedLabOrder(req, clinicId);
+    if (!branchScope.configured) {
+      return res.status(403).json({ ok: false, error: 'Доступ к филиалу не настроен или недействителен' } satisfies ApiResponse);
+    }
     if (req.body?.note !== undefined && typeof req.body.note !== 'string') {
       return res.status(400).json({ ok: false, error: 'Комментарий должен быть текстом' } satisfies ApiResponse);
     }
@@ -522,6 +606,9 @@ labRouter.delete('/:id', requirePermission('appointment.write'), async (req: Aut
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const branchScope = await branchScopedLabOrder(req, clinicId);
+    if (!branchScope.configured) {
+      return res.status(403).json({ ok: false, error: 'Доступ к филиалу не настроен или недействителен' } satisfies ApiResponse);
+    }
     const orderId = String(req.params.id);
     const outcome = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} AND "clinicId"=${clinicId} FOR UPDATE`;

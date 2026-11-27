@@ -30,6 +30,27 @@ function uniqueIds(rows: Array<{ id: string }>): string[] {
   return [...new Set(rows.map((row) => String(row.id)).filter(Boolean))];
 }
 
+/**
+ * Choose a write target only when the current allow-list makes the choice
+ * unambiguous: one permitted active branch, or exactly one explicitly
+ * configured default among several permitted branches. Never use array order
+ * as an implicit business decision.
+ */
+export async function resolveUnambiguousWriteBranch(
+  allowedBranchIds: readonly string[],
+): Promise<string | null> {
+  const ids = [...new Set(allowedBranchIds.map((id) => String(id || '').trim()).filter(Boolean))];
+  if (ids.length === 1) return ids[0];
+  if (ids.length < 2) return null;
+
+  const defaults = await prisma.branch.findMany({
+    where: { id: { in: ids }, active: true, isDefault: true },
+    select: { id: true },
+  });
+  const defaultIds = uniqueIds(defaults).filter((id) => ids.includes(id));
+  return defaultIds.length === 1 ? defaultIds[0] : null;
+}
+
 export function clinicBranchRoleScope(role: string): ClinicBranchScope | null {
   switch (String(role || '').trim().toUpperCase()) {
     case 'OWNER':

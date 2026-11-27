@@ -59,3 +59,24 @@ describe('diagnostics dashboard branch scope', () => {
     expect(dashboard).toContain('...(branchIds !== undefined ? { branchIds } : {})');
   });
 });
+
+
+describe('diagnostic referral creation branch binding', () => {
+  const start = source.indexOf("diagnosticsRouter.post('/referrals'");
+  const end = source.indexOf("diagnosticsRouter.get('/referrals/:id'", start);
+  const route = source.slice(start, end);
+
+  it('derives the referral branch from the persisted patient and rejects a client branch pivot', () => {
+    expect(route).toContain('const patientBranchId = await patientBranch(patientId, clinicId)');
+    expect(route).toContain('resolveReferralBranchId({');
+    expect(route).toContain('requestedBranchId: body.branchId ? String(body.branchId) : null');
+    expect(route).toContain('branchId: targetBranchId');
+  });
+
+  it('validates an explicitly assigned doctor against the patient branch', () => {
+    expect(route).toContain('resolveClinicBranchAccess({');
+    expect(route).toContain('requestedBranchId: targetBranchId');
+    expect(route).toContain('doctorBranchAccess.allowedBranchIds.includes(targetBranchId)');
+    expect(route).toContain('Указанный врач не имеет доступа к филиалу пациента');
+  });
+});

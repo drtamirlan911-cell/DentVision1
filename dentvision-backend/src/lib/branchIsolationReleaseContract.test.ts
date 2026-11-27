@@ -10,9 +10,14 @@ describe('branch isolation release contract', () => {
     expect(finance).toContain('resolveFinanceBranchContext');
     expect(diagnostics).toContain('resolveDiagnosticBranchContext');
     expect(inventory).toContain('resolveInventoryBranchContext');
+    expect(finance).toContain('if (!branchId) return false');
+    expect(diagnostics).toContain('if (!branchId) return false');
+    // Inventory validation also rejects a missing clinic context before its
+    // canonical/legacy branch ownership query.
+    expect(inventory).toContain('if (!branchId || !clinicId) return false');
     for (const source of [finance, diagnostics, inventory]) {
-      expect(source).toContain('if (!branchId) return false');
-      expect(source).toContain('branch_id'); expect(source).toContain('clinic_id');
+      expect(source).toContain('branch_id');
+      expect(source).toContain('clinic_id');
     }
   });
 });

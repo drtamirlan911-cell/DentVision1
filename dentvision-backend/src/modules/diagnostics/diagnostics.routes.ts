@@ -10,11 +10,12 @@ import * as svc from './diagnostics.service.js';
 import { isAcceptedFilePayload } from '../files/fileValidation.js';
 import prisma from '../../lib/prisma.js';
 import { assertClinicOrgAccess, assertOrgAccess, resolveClinicAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
+import { resolveClinicBranchAccess } from '../../lib/clinicBranchAccess.js';
 import { CLINIC_ROLE_BY_KEY } from '../../lib/clinicRoleAccessRegistry.js';
 import { PARTNER_ROLE_BY_KEY } from '../../lib/roleAccessRegistry.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { IinValidationError } from '../../lib/patientIin.js';
-import { canAccessReferralBranch, isActiveClinicContext } from '../../lib/diagnosticReferralBranchPolicy.js';
+import { canAccessReferralBranch, isActiveClinicContext, resolveReferralBranchId } from '../../lib/diagnosticReferralBranchPolicy.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 import { DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS, LAB_RESULT_SIGNER_ROLE_KEYS, hasScopedPartnerSignerRole } from './signingAuthorization.js';
 import { assertClinicDoctorSignoff, ClinicalSignoffAuthorizationError } from './clinicalSignoffAuthorization.js';
@@ -922,7 +923,7 @@ diagnosticsRouter.get('/centers/:id/worklist/staff', async (req: AuthRequest, re
       return res.status(403).json({ ok: false, error: 'Состав команды доступен только владельцу и менеджерам центра' });
     }
     const members = await prisma.diagnosticCenterMember.findMany({
-      where: { centerId, role: { in: ['operator', 'radiologist', 'manager', 'admin'] } },
+      where: { centerId, role: { in: ['owner', 'operator', 'radiologist', 'manager', 'admin', 'diagnostic_reception', 'radiology_technician', 'diagnostic_finance', 'diagnostic_quality'] } },
       include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
       orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
     });
@@ -1170,7 +1171,83 @@ diagnosticsRouter.get('/referrals', async (req: AuthRequest, res) => {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
   }
 });
-diagnosticsRouter.post('/referrals', async (req: AuthRequest, res) => { try { const body = req.body as any; const clinicId = String(body.clinicId || '').trim(); if (!clinicId) return res.status(400).json({ ok: false, error: 'clinicId обязателен' }); if (!(await assertClinicOrgAccess(req.user!, clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' }); if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, clinicId))) return; if (!(await patientBelongsToClinic(body.patientId, clinicId))) return res.status(403).json({ ok: false, error: 'Пациент не относится к выбранной клинике' }); const targetBranchId = body.branchId ? String(body.branchId) : await patientBranch(body.patientId, clinicId); if (!targetBranchId) return res.status(403).json({ ok: false, error: 'Для направления не определён филиал' }); if (!(await referralBranchAllowed(req.user!, { clinicId, branchId: targetBranchId }))) return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу направления' }); let doctorId = req.user!.id; if (body.doctorId && body.doctorId !== req.user!.id) { const candidateDoctorId = String(body.doctorId); const doctorAccess = await resolveClinicAccess(candidateDoctorId, clinicId); if (!doctorAccess || !['DOCTOR', 'OWNER', 'DIRECTOR'].includes(doctorAccess.role)) return res.status(403).json({ ok: false, error: 'Указанный врач не имеет клинической роли в выбранной клинике' }); doctorId = candidateDoctorId; } if (body.centerId) { const center = await svc.getCenter(String(body.centerId)); if (!center) return res.status(404).json({ ok: false, error: 'Диагностический центр не найден' }); } if (body.labId) { const lab = await svc.getLaboratory(String(body.labId)); if (!lab) return res.status(404).json({ ok: false, error: 'Лаборатория не найдена' }); } const data = { ...body, clinicId, branchId: targetBranchId, doctorId }; delete data.id; delete data.status; delete data.cost; delete data.platformFee; delete data.paid; delete data.paidAt; delete data.settlementId; const referral = await svc.createReferral(data, req.user!.id); return res.status(201).json({ ok: true, data: referral } satisfies ApiResponse); } catch (e: any) { if (e instanceof IinValidationError) return res.status(400).json({ ok: false, error: e.message }); return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.post('/referrals', async (req: AuthRequest, res) => {
+  try {
+    const body = req.body as any;
+    const clinicId = String(body.clinicId || '').trim();
+    const patientId = String(body.patientId || '').trim();
+    if (!clinicId) return res.status(400).json({ ok: false, error: 'clinicId обязателен' });
+    if (!(await assertClinicOrgAccess(req.user!, clinicId))) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' });
+    }
+    if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, clinicId))) return;
+    if (!patientId || !(await patientBelongsToClinic(patientId, clinicId))) {
+      return res.status(403).json({ ok: false, error: 'Пациент не относится к выбранной клинике' });
+    }
+
+    // The patient's persisted branch is authoritative. A request branch may
+    // confirm it, but must never move a referral into another clinic branch.
+    const patientBranchId = await patientBranch(patientId, clinicId);
+    const targetBranchId = resolveReferralBranchId({
+      patientId,
+      patientBranchId,
+      requestedBranchId: body.branchId ? String(body.branchId) : null,
+    });
+    if (!targetBranchId) {
+      return res.status(403).json({ ok: false, error: 'Филиал направления не совпадает с филиалом пациента' });
+    }
+    if (!(await referralBranchAllowed(req.user!, { clinicId, branchId: targetBranchId }))) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к филиалу направления' });
+    }
+
+    let doctorId = req.user!.id;
+    if (body.doctorId && body.doctorId !== req.user!.id) {
+      const candidateDoctorId = String(body.doctorId);
+      const doctorAccess = await resolveClinicAccess(candidateDoctorId, clinicId);
+      if (!doctorAccess || !['DOCTOR', 'OWNER', 'DIRECTOR'].includes(doctorAccess.role)) {
+        return res.status(403).json({ ok: false, error: 'Указанный врач не имеет клинической роли в выбранной клинике' });
+      }
+      const doctorBranchAccess = await resolveClinicBranchAccess({
+        userId: candidateDoctorId,
+        clinicId,
+        organizationId: req.user?.organizationId,
+        role: doctorAccess.role,
+        requestedBranchId: targetBranchId,
+      });
+      if (
+        !doctorBranchAccess
+        || !doctorBranchAccess.allowedBranchIds.includes(targetBranchId)
+        || (doctorBranchAccess.branchId !== null && doctorBranchAccess.branchId !== targetBranchId)
+      ) {
+        return res.status(403).json({ ok: false, error: 'Указанный врач не имеет доступа к филиалу пациента' });
+      }
+      doctorId = candidateDoctorId;
+    }
+
+    if (body.centerId) {
+      const center = await svc.getCenter(String(body.centerId));
+      if (!center) return res.status(404).json({ ok: false, error: 'Диагностический центр не найден' });
+    }
+    if (body.labId) {
+      const lab = await svc.getLaboratory(String(body.labId));
+      if (!lab) return res.status(404).json({ ok: false, error: 'Лаборатория не найдена' });
+    }
+
+    const data = { ...body, clinicId, patientId, branchId: targetBranchId, doctorId };
+    delete data.id;
+    delete data.status;
+    delete data.cost;
+    delete data.platformFee;
+    delete data.paid;
+    delete data.paidAt;
+    delete data.settlementId;
+    const referral = await svc.createReferral(data, req.user!.id);
+    return res.status(201).json({ ok: true, data: referral } satisfies ApiResponse);
+  } catch (e: any) {
+    if (e instanceof IinValidationError) return res.status(400).json({ ok: false, error: e.message });
+    return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
 diagnosticsRouter.get('/referrals/:id', requireReferralAccess(true), async (req: AuthRequest, res) => {
   try {
     const scope = await prisma.referral.findUnique({

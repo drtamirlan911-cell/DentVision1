@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { branchMatchesOrganization, isBranchContextRecoveryPath, isOrganizationBranchManagerRoleKey, mergeBranchIds, shouldUseLegacyClinicFallback } from './auth.js';
+import { branchMatchesOrganization, isBranchContextRecoveryPath, isOrganizationBranchManagerRoleKey, mergeBranchIds, resolveAssignedBranchId, shouldUseLegacyClinicFallback } from './auth.js';
 
 const authSource = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/middleware/auth.ts'), 'utf8');
 
@@ -74,8 +74,9 @@ describe('organization-wide active branch context', () => {
     expect(source).toContain('WHERE "clinic_id" = ${effectiveClinicId} AND "active" = true');
     expect(source).toContain('const clinicAssignedBranchIds = mergeBranchIds(unifiedBranchIds, legacyBranchIds)');
     expect(source).toContain('const branchIds = mergeBranchIds(clinicAssignedBranchIds, organizationWideBranchIds)');
-    expect(source).toContain('const assignedBranchId = effectiveBranchId');
-    expect(source).toContain('(clinicAssignedBranchIds.length === 1 ? clinicAssignedBranchIds[0] : undefined)');
+    expect(source).toContain('const assignedBranchId = resolveAssignedBranchId(');
+    expect(source).toContain('organizationWideBranchIds');
+    expect(source).not.toContain('(clinicAssignedBranchIds.length === 1 ? clinicAssignedBranchIds[0] : undefined)');
     expect(source).not.toContain('const assignedBranchId = unifiedBranchIds[0] || legacyAssignedBranchId');
   });
 });
@@ -109,4 +110,27 @@ describe('organization-wide active branch allow-list', () => {
     expect(authSource).toContain('membership.branch?.active === true');
   });
 
+});
+
+
+describe('assigned branch selector', () => {
+  it('honours an explicitly selected branch', () => {
+    expect(resolveAssignedBranchId('branch-b', ['branch-a'], ['branch-a', 'branch-b'])).toBe('branch-b');
+  });
+
+  it('does not infer a selected branch from one technical membership when organization access spans multiple branches', () => {
+    expect(resolveAssignedBranchId(undefined, ['branch-a'], ['branch-a', 'branch-b'])).toBeUndefined();
+  });
+
+  it('uses the only active organization branch when the choice is unambiguous', () => {
+    expect(resolveAssignedBranchId(undefined, [], ['branch-a'])).toBe('branch-a');
+  });
+
+  it('keeps the compatibility hint for a narrow role assigned to one branch', () => {
+    expect(resolveAssignedBranchId(undefined, ['branch-a'], [])).toBe('branch-a');
+  });
+
+  it('does not pick the first branch for a narrow role with multiple assignments', () => {
+    expect(resolveAssignedBranchId(undefined, ['branch-a', 'branch-b'], [])).toBeUndefined();
+  });
 });

@@ -21,8 +21,13 @@ export function resolveLaboratoryWorkspaceKind(identity: LaboratoryWorkspaceIden
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
 
-  if (roles.some((role) => role.startsWith('medical_lab_'))) return 'medical';
-  if (roles.some((role) => role.startsWith('dental_lab_'))) return 'dental';
+  // Legacy dental-lab memberships may carry a mixed fallback role list
+  // containing medical_lab_technician as well as dental_technician. The
+  // dental scope must win for that compatibility payload; canonical
+  // medical-lab roles remain unambiguous and resolve to medical below.
+  if (roles.some((role) => role.startsWith('dental_lab_')
+    || ['dental_technician', 'cad_designer', 'ceramist', 'orthodontic_technician', 'qc_specialist', 'lab_coordinator'].includes(role))) return 'dental';
+  if (roles.some((role) => role === 'lab_diagnostic' || role.startsWith('medical_lab_'))) return 'medical';
   if (identity.workspaceParam === 'medical-lab') return 'medical';
 
   const organizationType = String(identity.organizationType || '').trim().toUpperCase();

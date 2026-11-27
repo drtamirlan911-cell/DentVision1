@@ -38,6 +38,7 @@ import { Tabs } from '@/components/ui/ds/Misc'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
 import type { Clinic, User as UserType, RoleInfo } from '@/types'
 import { PageHeader } from '@/components/ui/ds/StatCard'
+import { WorkspaceRoleStart } from '@/components/workspaces/WorkspaceRoleStart'
 import { Avatar } from '@/components/ui/ds/Avatar'
 import { T, APPOINTMENT_STATUS, HOURS, ALL_SERVICES, PAY_METHODS, gid, DENTAL_ICD10, UPPER, LOWER, TOOTH_NAMES } from '@/utils/constants'
 import { tg } from '@/utils/constants'
@@ -339,6 +340,57 @@ export default function Schedule() {
   const readOnly = !!roleInfo?.readOnly
   const canOpenCashier = iam.canAccessPage('cashier') || iam.canAccessPage('finance')
   const canManageScheduleBoard = !ownDataOnly && !readOnly
+  const clinicRoleTokens = String(activeWorkspace?.roleKey || role || user?.effectiveRole || user?.role || '')
+    .toLowerCase().split(',').map((value) => value.trim()).filter(Boolean);
+  const isReceptionRole = clinicRoleTokens.some((value) => value.includes('reception') || value.includes('registr'));
+  const isManagerRole = clinicRoleTokens.some((value) =>
+    ['owner', 'director', 'admin', 'manager'].includes(value) || /[._](owner|director|admin|manager)$/.test(value),
+  );
+  const isDoctorRole = clinicRoleTokens.some((value) => value === 'doctor' || value.includes('.doctor'));
+  const clinicRoleGuide = isReceptionRole
+    ? {
+        role: 'Регистратура',
+        heading: 'Принимайте и координируйте записи пациентов',
+        description: 'Начинайте с ближайших записей и входящих онлайн-заявок. Проверяйте контактные данные, подтверждайте время и передавайте пациента врачу.',
+        steps: ['Проверьте записи и онлайн-заявки на сегодня', 'Подтвердите запись и подготовьте пациента', 'Передайте врачу актуальную информацию'],
+        actionLabel: canManageScheduleBoard ? 'Создать запись' : undefined,
+        action: () => { setEditAppt(null); setForm(EMPTY_FORM); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setModalOpen(true); },
+      }
+    : isManagerRole
+      ? {
+          role: activeWorkspace?.roleLabel || roleInfo?.label || 'Руководитель клиники',
+          heading: 'Координируйте поток пациентов и загрузку клиники',
+          description: 'Проверяйте расписание команды, очередь ожидания и онлайн-заявки. При необходимости создавайте запись или распределяйте приёмы.',
+          steps: ['Проверьте загрузку врачей и свободные окна', 'Разберите лист ожидания и онлайн-заявки', 'Проверьте изменения и незавершённые приёмы'],
+          actionLabel: 'Открыть лист ожидания',
+          action: () => setActiveTab('waiting'),
+        }
+      : isDoctorRole
+        ? {
+          role: 'Врач',
+          heading: 'Начинайте рабочий день с ваших приёмов',
+          description: 'Смотрите личную загрузку, открывайте запись пациента и продолжайте работу с его медицинской картой и планом лечения.',
+          steps: ['Проверьте ближайшие приёмы', 'Откройте карточку пациента перед визитом', 'Зафиксируйте результат приёма и следующий шаг'],
+          actionLabel: 'Показать записи на сегодня',
+          action: () => { setSelDate(today()); setActiveTab('schedule'); },
+        }
+        : canManageScheduleBoard
+          ? {
+              role: activeWorkspace?.roleLabel || roleInfo?.label || 'Сотрудник клиники',
+              heading: 'Организуйте ежедневную работу с расписанием',
+              description: 'Используйте расписание как список задач команды. Проверяйте свободные окна, открывайте карточки пациентов и координируйте следующий шаг.',
+              steps: ['Проверьте записи на сегодня', 'Откройте нужную запись и проверьте данные', 'Согласуйте следующий шаг с ответственным врачом'],
+              actionLabel: 'Создать запись',
+              action: () => { setEditAppt(null); setForm(EMPTY_FORM); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setModalOpen(true); },
+            }
+          : {
+            role: activeWorkspace?.roleLabel || roleInfo?.label || 'Сотрудник клиники',
+            heading: 'Работайте с назначенными записями пациентов',
+            description: 'Используйте расписание как список текущих задач. Открывайте доступные записи и передавайте информацию ответственному врачу.',
+            steps: ['Проверьте свои записи на сегодня', 'Откройте карточку пациента', 'Подготовьте следующий шаг для врача'],
+            actionLabel: 'Показать записи на сегодня',
+            action: () => { setSelDate(today()); setActiveTab('schedule'); },
+          }
 
   const dayAppts = useMemo(() => {
     let list = appointments.filter(a => a.date === selDate)
@@ -1059,6 +1111,15 @@ export default function Schedule() {
           }
         />
       </motion.div>
+
+      <WorkspaceRoleStart
+        roleLabel={clinicRoleGuide.role}
+        heading={clinicRoleGuide.heading}
+        description={clinicRoleGuide.description}
+        steps={clinicRoleGuide.steps}
+        actionLabel={clinicRoleGuide.actionLabel}
+        onAction={clinicRoleGuide.action}
+      />
 
       {(offline || pendingSync > 0) && (
         <motion.div variants={fadeUp} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-warning/30 bg-warning/10 text-sm text-txt-primary">

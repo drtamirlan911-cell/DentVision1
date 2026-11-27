@@ -5,8 +5,8 @@
 ## Summary
 
 - Mounted routers: **69**
-- Unique route handlers: **763**
-- Registered HTTP routes after mount: **701**
+- Unique route handlers: **769**
+- Registered HTTP routes after mount: **707**
 - Routes without detected web/mobile consumer: **107**
 - Prisma models: **174**
 - Background jobs: **13**
@@ -24,7 +24,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 |---|---|---:|---:|
 | /api | compatRouter | 0 | 0 |
 | /api/auth | authRouter | 12 | 1 |
-| /api/iam | iamRouter | 12 | 1 |
+| /api/iam | iamRouter | 14 | 1 |
 | /api/clinics | clinicsRouter | 10 | 0 |
 | /api/patients | patientsRouter | 15 | 4 |
 | /api/appointments | appointmentsRouter | 6 | 1 |
@@ -38,9 +38,9 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/marketing | marketingRouter | 9 | 0 |
 | /api/shop | shopRouter | 39 | 2 |
 | /api/suppliers | suppliersRouter | 10 | 3 |
-| /api/supplier | supplierWorkspaceRouter | 26 | 0 |
+| /api/supplier | supplierWorkspaceRouter | 28 | 0 |
 | /api/lecturer | lecturerRouter | 10 | 0 |
-| /api/school | schoolRouter | 31 | 0 |
+| /api/school | schoolRouter | 33 | 0 |
 | /api/dentcash | dentcashRouter | 4 | 1 |
 | /api/academies | academiesRouter | 5 | 0 |
 | /api/lecturers | lecturersRouter | 6 | 2 |

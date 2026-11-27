@@ -82,7 +82,8 @@ describe('Dental Lab production command surface', () => {
     expect(workspace).toContain('assignLabTechnician');
     expect(workspace).toContain('canAssignTechnician={canManageQc}');
     expect(workspace).toContain('onAssignTechnician={(id, technicianId) => technicianMutation.mutate({ id, technicianId })}');
-    expect(workspace).toContain("['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician']");
+    expect(workspace).toContain('const technicians = (team.data || []).filter((member) => hasDentalLabRole(');
+    expect(workspace).toContain("'dental_technician'");
   });
 
   it('loads the canonical order and merges production and shipment events for authorized production roles only', () => {
@@ -117,7 +118,8 @@ describe('dental lab partner finance workspace contract', () => {
     expect(financeRoutes).toContain('!canLabMemberReadOrders(membership.role) && !canLabManageFinance(membership.role)');
     expect(financeRoutes).toContain("membershipRole: membership.role, totals: { all: 0, active: 0, dueSoon: 0, overdue: 0 }");
     expect(payoutService).toContain("role: { in: ['owner', 'admin', 'manager', 'director', 'lab_manager', 'lab_finance', 'finance', 'accountant'] }");
-    expect(workspace).toContain("canManageFinance = canManageQc || ['lab_finance', 'finance', 'accountant']");
+    expect(workspace).toContain('resolveDentalLabRoleCapabilities(memberRole)');
+    expect(workspace).toContain('canManageFinance');
     expect(workspace).toContain("enabled: effectiveTab === 'finance' && canManageFinance");
   });
 

@@ -2,6 +2,8 @@ node_modules
 dist
 .git
 *.md
+!docs/
+!docs/AI_PRODUCT_KNOWLEDGE.md
 .env
 .env.example
 src/**/*.test.ts

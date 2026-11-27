@@ -8,7 +8,8 @@ import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.j
 import { recordMovement, isMovementApplied } from './ledger.js';
 import { SUPPLY_CATALOG, SUPPLY_CATEGORIES } from './supplyCatalog.js';
 import { normalizeItemName } from './orderRestock.js';
-import { resolveInventoryBranchContext, assertInventoryBranch, inventoryBranchWhere } from '../../lib/inventoryBranchScope.js';
+import { resolveInventoryBranchContext, assertInventoryBranch } from '../../lib/inventoryBranchScope.js';
+import { resolveUnambiguousWriteBranch } from '../../lib/clinicBranchAccess.js';
 
 const inventoryRouter = Router();
 
@@ -29,26 +30,33 @@ function nonNegativeNumber(v: unknown): number | undefined {
 async function getBranchContext(req: AuthRequest, clinicId: string) {
   const user = req.user;
   if (!user?.id) return null;
-  return resolveInventoryBranchContext(
-    user.id,
-    clinicId,
-    String(user.role || ''),
-    user.branchIds ?? [],
-    user.branchId ?? user.assignedBranchId ?? null,
-  );
+  return resolveInventoryBranchContext(user.id, clinicId, String(user.role || ''), {
+    organizationId: user.organizationId,
+    requestedBranchId: user.branchId,
+  });
 }
 
-function scopedWhere(context: Awaited<ReturnType<typeof resolveInventoryBranchContext>>) {
-  return inventoryBranchWhere(context);
+function scopedWhere(context: NonNullable<Awaited<ReturnType<typeof resolveInventoryBranchContext>>>) {
+  // Organization-wide authority means every ACTIVE branch, not archived stock.
+  // resolveInventoryBranchContext rebuilds this allow-list from current IAM.
+  return { clinicId: context.clinicId, branchId: { in: context.branchIds } };
 }
 
 async function resolveCreateBranch(req: AuthRequest, clinicId: string) {
   const context = await getBranchContext(req, clinicId);
   if (!context || !context.branchIds.length) return null;
+
   const requested = typeof req.body?.branchId === 'string' ? req.body.branchId : null;
-  const branchId = requested || context.branchId || context.branchIds[0];
-  if (!context.branchIds.includes(branchId)) return null;
-  if (!(await assertInventoryBranch(branchId, clinicId))) return null;
+  // Organization-wide writes may use a single permitted branch or one
+  // explicitly configured default. With multiple ambiguous branches, require
+  // an explicit branchId instead of selecting by array order.
+  const branchId = requested || context.branchId
+    || (context.organizationWide ? await resolveUnambiguousWriteBranch(context.branchIds) : null);
+  if (!branchId || !context.branchIds.includes(branchId)) return null;
+  // A selected organization role is no longer organization-wide for writes:
+  // the request cannot silently move/create stock in a different branch.
+  if (!context.organizationWide && context.branchId !== branchId) return null;
+  if (!(await assertInventoryBranch(branchId, clinicId, req.user?.organizationId))) return null;
   return { context, branchId };
 }
 
@@ -148,7 +156,7 @@ inventoryRouter.patch('/:id', requirePermission('inventory.write'), async (req: 
     const { name, category, quantity, minimum, price, unit, supplier, sku, productId, autoRestock, expiryDate, branchId } = req.body;
     const existing = await prisma.inventoryItem.findFirst({ where: { id, ...scopedWhere(context) }, select: { id: true, quantity: true, branchId: true } });
     if (!existing) { res.status(404).json({ ok: false, error: 'Позиция склада не найдена' }); return; }
-    if (branchId !== undefined && (!context.organizationWide || !(await assertInventoryBranch(branchId, clinicId)))) { res.status(403).json({ ok: false, error: 'Недопустимый филиал' }); return; }
+    if (branchId !== undefined && (!context.organizationWide || !(await assertInventoryBranch(branchId, clinicId, req.user?.organizationId)))) { res.status(403).json({ ok: false, error: 'Недопустимый филиал' }); return; }
     if (branchId !== undefined && !context.branchIds.includes(branchId)) { res.status(403).json({ ok: false, error: 'Недопустимый филиал' }); return; }
     const qty = nonNegativeNumber(quantity), min = nonNegativeNumber(minimum), prc = nonNegativeNumber(price);
     if (Number.isNaN(qty) || Number.isNaN(min) || Number.isNaN(prc)) { res.status(400).json({ ok: false, error: 'quantity, minimum и price должны быть числом ≥ 0' }); return; }

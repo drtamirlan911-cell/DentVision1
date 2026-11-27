@@ -9,12 +9,14 @@ import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { buildWorkspaceContexts, roleLabelFor, shouldAttachDefaultPartnerBranchHint, shouldAttachMemberPartnerBranchHint, userRoleForPartnerRole } from './contexts.js';
 import { PARTNER_ROLE_BY_KEY } from '../../lib/roleAccessRegistry.js';
+import { grantDiagnosticsAccess } from '../diagnostics/diagnostics.service.js';
 import type { ScopeType } from './contexts.js';
 import {
   acceptInvitation,
   canManageMembers,
   createInvitation,
   rejectInvitation,
+  isOrganizationMemberRoleAllowed,
 } from './invitations.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import type { UserRole } from '@prisma/client';
@@ -647,8 +649,8 @@ iamRouter.post('/invitations', async (req: AuthRequest, res) => {
     if (!organizationId) return res.status(400).json({ ok: false, error: 'organizationId обязателен' } satisfies ApiResponse);
     const org = (await prisma.organization.findUnique({ where: { id: organizationId } })) || (await prisma.organization.findFirst({ where: { originalId: organizationId } }));
     if (!org) return res.status(404).json({ ok: false, error: 'Организация не найдена' } satisfies ApiResponse);
-    if (!['DIAGNOSTIC_CENTER', 'LABORATORY', 'EMPLOYER'].includes(String(org.type).toUpperCase())) {
-      return res.status(400).json({ ok: false, error: 'Приглашения пока поддерживаются для диагностических центров, лабораторий и работодателей' } satisfies ApiResponse);
+    if (!['DIAGNOSTIC_CENTER', 'LABORATORY', 'SUPPLIER_COMPANY', 'EMPLOYER', 'ACADEMY'].includes(String(org.type).toUpperCase())) {
+      return res.status(400).json({ ok: false, error: 'Приглашения пока поддерживаются для диагностических центров, лабораторий, поставщиков, академий и работодателей' } satisfies ApiResponse);
     }
     const allowed = await canManageMembers(req.user!.id, org, req.user!.role === 'SUPERADMIN');
     if (!allowed) return res.status(403).json({ ok: false, error: 'Только владелец или администратор может приглашать' } satisfies ApiResponse);
@@ -723,6 +725,185 @@ iamRouter.post('/join-by-invite', async (req: AuthRequest, res) => {
     if (status) return res.status(status).json({ ok: false, error: (error as Error).message } satisfies ApiResponse);
     console.error('IAM join-by-invite error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось присоединиться к организации' } satisfies ApiResponse);
+  }
+});
+
+/**
+ * Partner staff mutations always use the authenticated active organization.
+ * A client-supplied organizationId is deliberately not accepted here.
+ */
+async function getActiveManageablePartnerOrganization(req: AuthRequest, res: any) {
+  const organizationId = String(req.user?.organizationId || '').trim();
+  const organizationType = String(req.user?.organizationType || '').trim().toUpperCase();
+  const originalId = String((req.user as any)?.organizationOriginalId || '').trim();
+  if (!organizationId || !originalId || !['DIAGNOSTIC_CENTER', 'LABORATORY'].includes(organizationType)) {
+    res.status(403).json({ ok: false, error: 'Откройте кабинет диагностического центра или лаборатории для управления сотрудниками' } satisfies ApiResponse);
+    return null;
+  }
+  const organization = await prisma.organization.findFirst({
+    where: { id: organizationId, archivedAt: null },
+  });
+  if (!organization || organization.type !== organizationType || organization.originalId !== originalId) {
+    res.status(403).json({ ok: false, error: 'Активная организация не совпадает с контекстом сотрудника' } satisfies ApiResponse);
+    return null;
+  }
+  const allowed = await canManageMembers(req.user!.id, organization, req.user!.role === 'SUPERADMIN');
+  if (!allowed) {
+    res.status(403).json({ ok: false, error: 'Управлять сотрудниками может только владелец или администратор организации' } satisfies ApiResponse);
+    return null;
+  }
+  return organization;
+}
+
+async function findPartnerMemberRole(client: typeof prisma | Prisma.TransactionClient, organization: { type: string; originalId: string | null }, userId: string) {
+  const entityId = String(organization.originalId || '');
+  if (organization.type === 'DIAGNOSTIC_CENTER') {
+    return client.diagnosticCenterMember.findUnique({
+      where: { centerId_userId: { centerId: entityId, userId } },
+      select: { id: true, role: true },
+    });
+  }
+  if (organization.type === 'LABORATORY') {
+    return client.laboratoryMember.findUnique({
+      where: { labId_userId: { labId: entityId, userId } },
+      select: { id: true, role: true },
+    });
+  }
+  return null;
+}
+
+iamRouter.patch('/members/:userId/role', async (req: AuthRequest, res) => {
+  try {
+    const organization = await getActiveManageablePartnerOrganization(req, res);
+    if (!organization) return;
+    const targetUserId = String(req.params.userId || '').trim();
+    const requestedRole = String(req.body?.role || '').trim().toLowerCase();
+    if (!targetUserId || !requestedRole) return res.status(400).json({ ok: false, error: 'userId и role обязательны' } satisfies ApiResponse);
+
+    const actor = await findPartnerMemberRole(prisma, organization, req.user!.id);
+    if (!actor || String(actor.role).toLowerCase() !== 'owner') {
+      return res.status(403).json({ ok: false, error: 'Изменять роли сотрудников может только владелец организации' } satisfies ApiResponse);
+    }
+    if (!isOrganizationMemberRoleAllowed(organization, requestedRole)) {
+      return res.status(400).json({ ok: false, error: 'Эта роль не поддерживается данным типом организации' } satisfies ApiResponse);
+    }
+
+    const outcome = await prisma.$transaction(async (tx) => {
+      const actorInTransaction = await findPartnerMemberRole(tx, organization, req.user!.id);
+      if (!actorInTransaction || String(actorInTransaction.role).toLowerCase() !== 'owner') return { kind: 'forbidden' as const };
+      const target = await findPartnerMemberRole(tx, organization, targetUserId);
+      if (!target) return { kind: 'not_found' as const };
+      if (String(target.role).toLowerCase() === 'owner') return { kind: 'protected_owner' as const };
+
+      const person = await tx.person.findFirst({
+        where: {
+          userId: targetUserId,
+          organizationId: organization.id,
+          originalType: organization.type === 'DIAGNOSTIC_CENTER' ? 'DiagnosticCenterMember' : 'LaboratoryMember',
+          originalId: `${organization.originalId}:${targetUserId}`,
+        },
+        select: { id: true },
+      });
+      if (person) {
+        await tx.branchMember.deleteMany({ where: { personId: person.id } });
+        await tx.personRole.deleteMany({
+          where: { personId: person.id, scopeType: 'organization', scopeId: organization.id },
+        });
+      }
+
+      const granted = await grantDiagnosticsAccess(
+        organization.type === 'DIAGNOSTIC_CENTER' ? 'DiagnosticCenter' : 'Laboratory',
+        String(organization.originalId),
+        targetUserId,
+        requestedRole,
+        tx,
+      );
+      if (!granted) return { kind: 'not_found' as const };
+
+      await auditFromReq(req, {
+        action: 'organization.member_role_changed',
+        entity: 'organization_member',
+        entityId: targetUserId,
+        details: { organizationId: organization.id, previousRole: target.role, nextRole: requestedRole },
+      }, tx);
+      return { kind: 'updated' as const };
+    });
+
+    if (outcome.kind === 'forbidden') return res.status(403).json({ ok: false, error: 'Недостаточно прав для изменения роли' } satisfies ApiResponse);
+    if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Сотрудник не найден в этой организации' } satisfies ApiResponse);
+    if (outcome.kind === 'protected_owner') return res.status(409).json({ ok: false, error: 'Нельзя менять роль владельца организации' } satisfies ApiResponse);
+    return res.json({ ok: true, data: { userId: targetUserId, role: requestedRole } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('IAM partner member role update error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось изменить роль сотрудника' } satisfies ApiResponse);
+  }
+});
+
+iamRouter.delete('/members/:userId', async (req: AuthRequest, res) => {
+  try {
+    const organization = await getActiveManageablePartnerOrganization(req, res);
+    if (!organization) return;
+    const targetUserId = String(req.params.userId || '').trim();
+    if (!targetUserId) return res.status(400).json({ ok: false, error: 'userId обязателен' } satisfies ApiResponse);
+
+    const outcome = await prisma.$transaction(async (tx) => {
+      const actor = await findPartnerMemberRole(tx, organization, req.user!.id);
+      if (!actor || !['owner', 'admin'].includes(String(actor.role).toLowerCase())) return { kind: 'forbidden' as const };
+      const target = await findPartnerMemberRole(tx, organization, targetUserId);
+      if (!target) return { kind: 'not_found' as const };
+      if (String(target.role).toLowerCase() === 'owner') return { kind: 'protected_owner' as const };
+      if (String(target.role).toLowerCase() === 'admin' && String(actor.role).toLowerCase() !== 'owner') return { kind: 'forbidden' as const };
+
+      const personType = organization.type === 'DIAGNOSTIC_CENTER' ? 'DiagnosticCenterMember' : 'LaboratoryMember';
+      const person = await tx.person.findFirst({
+        where: {
+          userId: targetUserId,
+          organizationId: organization.id,
+          originalType: personType,
+          originalId: `${organization.originalId}:${targetUserId}`,
+        },
+        select: { id: true },
+      });
+
+      if (organization.type === 'DIAGNOSTIC_CENTER') {
+        await tx.diagnosticCenterMember.deleteMany({
+          where: { centerId: String(organization.originalId), userId: targetUserId },
+        });
+        await tx.radiologist.updateMany({
+          where: { centerId: String(organization.originalId), userId: targetUserId },
+          data: { active: false },
+        });
+      } else {
+        await tx.laboratoryMember.deleteMany({
+          where: { labId: String(organization.originalId), userId: targetUserId },
+        });
+      }
+      if (person) {
+        await tx.branchMember.deleteMany({ where: { personId: person.id } });
+        await tx.personRole.deleteMany({
+          where: { personId: person.id, scopeType: 'organization', scopeId: organization.id },
+        });
+        // Keep the Person identity for historical work-item references and audit
+        // history. Removing the scoped role + active branch memberships revokes
+        // workspace access without erasing the employee's historical identity.
+      }
+
+      await auditFromReq(req, {
+        action: 'organization.member_removed',
+        entity: 'organization_member',
+        entityId: targetUserId,
+        details: { organizationId: organization.id, role: target.role },
+      }, tx);
+      return { kind: 'removed' as const, role: target.role };
+    });
+
+    if (outcome.kind === 'forbidden') return res.status(403).json({ ok: false, error: 'Недостаточно прав для удаления этого сотрудника' } satisfies ApiResponse);
+    if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Сотрудник не найден в этой организации' } satisfies ApiResponse);
+    if (outcome.kind === 'protected_owner') return res.status(409).json({ ok: false, error: 'Владельца организации нельзя удалить из команды' } satisfies ApiResponse);
+    return res.json({ ok: true, data: { userId: targetUserId, removed: true } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('IAM partner member removal error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось удалить сотрудника' } satisfies ApiResponse);
   }
 });
 

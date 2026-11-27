@@ -148,6 +148,34 @@ All cabinets use the shared platform capabilities instead of re-implementing the
 - AI that can explain, summarize, navigate and draft within the active scope;
 - confirmation gates for clinical, legal and financial mutations.
 
+### 2.9 Sidebar, cabinet return and deep-link contract
+
+- The shell exposes **one** persistent action to return to the active cabinet. Do not render a second button that duplicates the same destination beside the context card.
+- The persistent context control identifies the active organization, organization type and scoped role. Its primary action returns to that organization's role-appropriate cabinet; its separate switch action opens the organization selector.
+- When no context is active and more than one membership exists, show an explicit “Выберите рабочее пространство” state and open the selector. Never infer a context from a stale global role or silently pick the first membership.
+- The organization selector distinguishes organizations by type as well as name and role. Branch selection is visible and remains inside the selected organization.
+- Sidebar groups are role-first. A technician, receptionist, finance employee, reviewer and owner must not receive the same long feature catalog. Show only workflows that the role can open; backend authorization remains authoritative for every action and record.
+- A sidebar item that opens a tab must encode the tab in the URL. The workspace must respond when that URL changes while the page remains mounted, preserve query parameters relevant to the active context, and restore the selected tab on browser back/forward.
+- A deep link to a tab not granted to the active role must fall back to a permitted default. It must never show a blank panel, expose an unavailable action or switch organization.
+- Do not present placeholder or unimplemented routes as working business processes. Hide them from operational navigation until the workflow is implemented, or label the limitation explicitly outside the primary task navigation.
+- Clinic employees receive a focused sidebar by scoped role: doctors, assistants/front desk, management and finance each see an appropriate work route; IAM page permissions still filter every item.
+- Dental-lab QC specialists may perform quality checks without inheriting team administration, service pricing, finance or shipping management.
+- Academy navigation exposes only workflows that are implemented in the current cabinet. Placeholder sections must not appear as actionable sidebar destinations.
+- URL-backed tabs in the lecturer, academy, medical-lab, dental-lab and diagnostic-centre cabinets must respond to route changes while mounted and restore state from browser history.
+- The organization / branch selector remains accessible even when the account has only one organization: that organization may still contain multiple branches. When a context has not yet been selected, the primary cabinet action opens the selector; do not show a duplicate “connect context” action.
+- Keep the sidebar visually focused: open the active contextual group; when a workspace is at its root without a matching tab item, open only its first operational group. Other groups remain collapsible, including on mobile. Do not expand every partner section simultaneously.
+- Return destinations are employee-task-aware: clinic cashier → cashier, medical-lab finance → finance, dental-lab QC → quality queue, dental-lab technician → assigned priority tasks, dental-lab logistics → shipping, diagnostic finance → cashier, diagnostic quality → results, radiology → assigned worklist.
+- Diagnostic-centre menus distinguish owner/admin/manager, reception/operator, radiologist/technician, quality and finance. A cashier action is shown only when the role has billing-management access; read-only billing must not expose collection controls.
+- Employer menus distinguish recruiter and viewer: recruiters see candidate/interview work; viewers see hiring status without an unnecessary public market shortcut.
+- Supplier owners receive a direct `Команда сотрудников` destination; supplier managers receive sales, inventory, catalog, returns and partner-growth workflows without an owner-only team link. The supplier workspace must reject a direct `?tab=team` request for non-owners and return them to the overview.
+- The mobile bottom navigation must expose a **Кабинет** destination for the selected organization, using the same role-specific home route as the desktop context card. Do not show a CRM shortcut for a selected non-clinic partner context.
+- With multiple memberships and no selected active workspace, the mobile **Кабинет** action opens the organization selector. It must never select the first membership automatically.
+- The cabinet indicator remains active across tabs inside that workspace, while its click returns to the role start tab. Preserve organization identity in query-backed workspace routes while ignoring only the current tab for the cabinet-level active indicator.
+- Protected partner routes must resolve against active organization scope; diagnostic routes must also match a route present in that active role's menu. Legacy/global clinic page lists must not strand a valid partner membership, and APIs remain authoritative for data/action authorization.
+- The selected workspace role shown in the context card and organization selector must come from that membership's `roleKey` / `role`, not from the user's global account role. Prefer a mapped scoped role label, then the saved membership label; use the global role only when no organization is active.
+- During IAM hydration, a clinic cabinet return must not resolve to `/` just because the page list has not loaded yet. Preserve the role-derived clinic home until a non-empty allowed-page list is available.
+- Automated coverage must include: return to the same cabinet from another module; switch A → B → A; same-named organizations of different types; branch selection; role-specific menu visibility; query-backed tab activation; unauthorized-tab fallback; and browser history restoration.
+
 ## 3. Domain-specific operating contracts
 
 ## 3.1 Diagnostic Center OS — RIS/PACS, not just referrals

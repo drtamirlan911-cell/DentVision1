@@ -138,7 +138,48 @@ async function ensureClinicWritableForPatient(req: AuthRequest, res: any, clinic
     return false;
   }
 }
-patientPortalRouter.get('/available-slots', ensurePatient, async (req: AuthRequest, res) => { try { const clinicId = await resolvePatientClinicId(resolvePatientId(req)!); if (!clinicId || await isClinicOrganizationArchived(clinicId)) return res.status(404).json({ ok: false, error: 'Клиника не найдена' }); const date = String(req.query.date || ''); if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ ok: false, error: 'Ожидается дата в формате YYYY-MM-DD' }); const doctorId = req.query.doctorId ? String(req.query.doctorId) : null; return res.json({ ok: true, data: await portalSvc.getAvailableSlots(clinicId, date, doctorId) }); } catch (e: any) { if (e instanceof portalSvc.PortalActionError) return res.status(e.code === 'NOT_FOUND' ? 404 : 400).json({ ok: false, error: 'Не удалось выполнить запрос. Попробуйте позже.' }); return res.status(500).json({ ok: false, error: 'Не удалось выполнить запрос. Попробуйте позже.' }); } });
+patientPortalRouter.get('/available-slots', ensurePatient, async (req: AuthRequest, res) => {
+  try {
+    const patientId = resolvePatientId(req)!;
+    const patient = await (prisma as any).patient.findUnique({
+      where: { id: patientId },
+      select: { clinicId: true, branchId: true },
+    });
+    const clinicId = patient?.clinicId || null;
+    const branchId = patient?.branchId || null;
+    if (!clinicId || await isClinicOrganizationArchived(clinicId)) {
+      return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
+    }
+    if (!branchId) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Филиал карточки пациента ещё не определён. Обратитесь в клинику.',
+        code: 'PATIENT_BRANCH_UNASSIGNED',
+      });
+    }
+    if (!(await portalSvc.isActiveClinicBranch(clinicId, branchId))) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Филиал карточки пациента больше не доступен для записи.',
+        code: 'PATIENT_BRANCH_INACTIVE',
+      });
+    }
+    const date = String(req.query.date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ ok: false, error: 'Ожидается дата в формате YYYY-MM-DD' });
+    }
+    const doctorId = req.query.doctorId ? String(req.query.doctorId) : null;
+    return res.json({
+      ok: true,
+      data: await portalSvc.getAvailableSlots(clinicId, date, doctorId, branchId, patientId),
+    });
+  } catch (e: any) {
+    if (e instanceof portalSvc.PortalActionError) {
+      return res.status(e.code === 'NOT_FOUND' ? 404 : 400).json({ ok: false, error: 'Не удалось выполнить запрос. Попробуйте позже.' });
+    }
+    return res.status(500).json({ ok: false, error: 'Не удалось выполнить запрос. Попробуйте позже.' });
+  }
+});
 patientPortalRouter.post('/appointments/request', ensurePatient, async (req: AuthRequest, res) => { try { const patientId = resolvePatientId(req)!; const clinicId = await resolvePatientClinicId(patientId); if (!clinicId) return res.status(404).json({ ok: false, error: 'Клиника не найдена' }); if (!(await ensureClinicWritableForPatient(req, res, clinicId))) return; const body = (req.body || {}) as Record<string, unknown>; const date = String(body.date || ''); const time = String(body.time || '').trim(); if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ ok: false, error: 'Ожидается дата в формате YYYY-MM-DD' }); if (!time) return res.status(400).json({ ok: false, error: 'Не выбрано время' }); const result = await portalSvc.requestAppointment({ patientId, clinicId, date, time, doctorId: body.doctorId ? String(body.doctorId) : null, serviceName: body.serviceName ? String(body.serviceName).slice(0, 200) : null, notes: body.notes ? String(body.notes).slice(0, 500) : null, releaseId: body.releaseId ? String(body.releaseId) : null }); return res.json({ ok: true, data: result }); } catch (e: any) { if (e instanceof portalSvc.PortalActionError) return res.status(e.code === 'NOT_FOUND' ? 404 : 400).json({ ok: false, error: 'Не удалось выполнить запрос. Попробуйте позже.' }); return res.status(500).json({ ok: false, error: 'Не удалось выполнить запрос. Попробуйте позже.' }); } });
 patientPortalRouter.get('/access-requests', async (req: AuthRequest, res) => { try { return res.json({ ok: true, data: await crossClinicSvc.listAccessRequests(req.user!.id) }); } catch (e: any) { return res.status(500).json({ ok: false, error: 'Не удалось выполнить запрос. Попробуйте позже.' }); } });
 patientPortalRouter.post('/access-requests/:grantId/approve', async (req: AuthRequest, res) => { try { const ok = await crossClinicSvc.approveRequest(String(req.params.grantId), req.user!.id); if (!ok) return res.status(404).json({ ok: false, error: 'Запрос не найден' }); return res.json({ ok: true, data: { approved: true } }); } catch (e: any) { return res.status(500).json({ ok: false, error: 'Не удалось выполнить запрос. Попробуйте позже.' }); } });

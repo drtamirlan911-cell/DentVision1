@@ -8,14 +8,27 @@ describe('dental lab branch isolation contract', () => {
   it('derives order visibility from authenticated branch memberships', () => {
     expect(source).toContain("from '../../lib/clinicBranchAccess.js'");
     expect(source).toContain('await resolveClinicBranchAccess({');
-    expect(source).toContain('requestedBranchId: req.user.branchId');
+    expect(source).toContain('organizationId: req.user?.organizationId');
+    expect(source).toContain('requestedBranchId: req.user?.branchId');
     expect(source).toContain('const organizationWide = access.roleScope === \'ORGANIZATION\' && access.branchId === null');
-    expect(source).toContain('const scopedBranchIds = access.branchId ? [access.branchId] : access.allowedBranchIds');
-    expect(source).toContain('const branchIds = organizationWide ? null : scopedBranchIds');
-    expect(source).toContain('patient: { branchId: { in: scopedBranchIds } }');
-    expect(source).toContain('prepareLabOrderWrite(clinicId, writeBody, {}, branchIds)');
+    expect(source).toContain('const branchIds = selectedBranchId ? [selectedBranchId] : access.allowedBranchIds');
+    expect(source).toContain('branchIds: organizationWide ? null : branchIds');
+    expect(source).toContain('branchId: { in: branchIds }');
+    expect(source).toContain('const selectedBranchId = access.branchId');
+    expect(source).toContain('resolveUnambiguousWriteBranch(access.allowedBranchIds)');
+    expect(source).toContain('defaultWriteBranchId');
+    expect(source).toContain('branchId: order.branchId ?? null');
+    expect(source).toContain('branchScope.selectedBranchId ?? branchScope.defaultWriteBranchId');
+    const upsertStart = source.indexOf("labRouter.post('/',");
+    const statusStart = source.indexOf("labRouter.patch('/:id/status'", upsertStart);
+    const upsertSource = source.slice(upsertStart, statusStart);
+    expect((upsertSource.match(/prepareLabOrderWrite\(/g) || [])).toHaveLength(2);
+    expect(source).toContain('branchScope.selectedBranchId,');
+    expect(source).toContain('branchScope.selectedBranchId ?? branchScope.defaultWriteBranchId,');
+    expect(source).toContain('{ patientId: existing.patientId, branchId: existing.branchId },');
     expect(source).toContain('__NO_BRANCH_ACCESS__');
-    expect(source).toContain("if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN') return { where: {}, branchIds: null };");
+    expect(source).toContain("if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN')");
+    expect(source).toContain('configured: true');
     expect(source).not.toContain("['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)");
   });
 
@@ -26,7 +39,8 @@ describe('dental lab branch isolation contract', () => {
     const upsert = source.slice(upsertStart, statusStart);
     expect(upsert).toContain('FOR UPDATE');
     expect(upsert).toContain('tx.labOrder.findFirst({ where: { id, clinicId, ...branchScope.where } })');
-    expect(upsert).toContain('prepareLabOrderWrite(clinicId, { ...writeBody, status: existing.status }, existingMeta, branchIds)');
+    expect(upsert).toContain('branchScope.selectedBranchId');
+    expect(upsert).toContain('{ patientId: existing.patientId, branchId: existing.branchId }');
     expect(upsert.indexOf('FOR UPDATE')).toBeLessThan(upsert.indexOf('tx.labOrder.findFirst'));
     expect(upsert).toContain("if (existingMeta.laboratoryId) return { kind: 'partner_owned' as const }");
 
@@ -47,6 +61,48 @@ describe('dental lab branch isolation contract', () => {
   });
 });
 
+
+describe('dental lab branch access must fail closed', () => {
+  const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/lab/lab.routes.ts'), 'utf8');
+
+  it('derives access only from the authenticated canonical clinic membership', () => {
+    expect(source).toContain("from '../../lib/clinicBranchAccess.js'");
+    expect(source).toContain('await resolveClinicBranchAccess({');
+    expect(source).toContain('organizationId: req.user?.organizationId');
+    expect(source).toContain('requestedBranchId: req.user?.branchId');
+    expect(source).not.toContain('req.user?.branchIds ?? []');
+    expect(source).toContain('const branchIds = selectedBranchId ? [selectedBranchId] : access.allowedBranchIds');
+    expect(source).toContain('configured: organizationWide || branchIds.length > 0');
+  });
+
+  it('uses the direct LabOrder branch as the visibility boundary, including patientless orders', () => {
+    expect(source).toContain('branchId: { in: branchIds }');
+    expect(source).not.toContain('patient: { branchId: { in: branchIds } }');
+    expect(source).toContain('const branchId = patientBranchId || selectedBranchId || existingOrder?.branchId || null');
+    expect(source).toContain("code: 'LAB_ORDER_BRANCH_REQUIRED'");
+    expect(source).toContain('branchId: { in: branchIds }');
+  });
+
+  it('requires a verified scope before every clinic-owned lab mutation', () => {
+    const routeSections = [
+      source.slice(source.indexOf("labRouter.post('/',"), source.indexOf("labRouter.patch('/:id/status'")),
+      source.slice(source.indexOf("labRouter.patch('/:id/status'"), source.indexOf("labRouter.post('/:id/remake-request'")),
+      source.slice(source.indexOf("labRouter.post('/:id/remake-request'"), source.indexOf("labRouter.post('/:id/acceptance'")),
+      source.slice(source.indexOf("labRouter.post('/:id/acceptance'"), source.indexOf("labRouter.delete('/:id'")),
+      source.slice(source.indexOf("labRouter.delete('/:id'")),
+    ];
+    for (const section of routeSections) {
+      expect(section).toContain('if (!branchScope.configured)');
+    }
+  });
+
+  it('keeps the explicit SUPERADMIN bypass and fails closed for missing access', () => {
+    expect(source).toContain("if (String(req.user?.role || '').toUpperCase() === 'SUPERADMIN')");
+    expect(source).toContain("configured: false");
+    expect(source).toContain("branchId: '__NO_BRANCH_ACCESS__'");
+    expect(source).not.toContain("['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)");
+  });
+});
 
 describe('clinic-authorized dental-lab remake request boundary', () => {
   const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/lab/lab.routes.ts'), 'utf8');

@@ -25,8 +25,9 @@ import { ListSkeleton } from '@/components/ui/ds/Skeleton';
 import { Modal } from '@/components/ui/ds/Modal';
 import { PageHeader, StatCard } from '@/components/ui/ds/StatCard';
 import * as api from '@/utils/api';
+import AcademyTeamTab from './AcademyTeamTab';
 
-type AcademyTab = 'courses' | 'students';
+type AcademyTab = 'courses' | 'students' | 'team';
 type CourseStatus = 'draft' | 'published' | 'archived';
 
 interface AcademyCourse {
@@ -144,8 +145,10 @@ function AcademyContextPrompt() {
 }
 
 export default function AcademyOwnerWorkspace() {
-  const { user, loading, activeWorkspace } = useAuth();
-  const organizationType = String((user as any)?.organizationType || '').toUpperCase();
+  const { user, loading, activeWorkspace, workspaceContexts } = useAuth();
+  const organizationType = String(
+    activeWorkspace?.scopeType || (workspaceContexts.length === 0 ? (user as any)?.organizationType : '') || '',
+  ).toUpperCase();
 
   if (loading) {
     return <div className="p-6"><ListSkeleton count={4} /></div>;
@@ -170,7 +173,7 @@ export default function AcademyOwnerWorkspace() {
 function AcademyManagement() {
   const { activeWorkspace } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const requestedTab = searchParams.get('tab') === 'students' ? 'students' : 'courses';
+  const requestedTab: AcademyTab = searchParams.get('tab') === 'students' ? 'students' : searchParams.get('tab') === 'team' || searchParams.get('section') === 'team' ? 'team' : 'courses';
   const [tab, setTab] = useState<AcademyTab>(requestedTab);
   const requestedSection = searchParams.get('section');
   const sectionTitles: Record<string, string> = {
@@ -180,7 +183,6 @@ function AcademyManagement() {
     schedule: 'Расписание занятий',
     finance: 'Финансы академии',
     analytics: 'Аналитика обучения',
-    team: 'Команда академии',
   };
   const [courses, setCourses] = useState<AcademyCourse[]>([]);
   const [enrollments, setEnrollments] = useState<AcademyEnrollment[]>([]);
@@ -189,6 +191,11 @@ function AcademyManagement() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [query, setQuery] = useState('');
+  useEffect(() => {
+    setTab(requestedTab);
+    setQuery('');
+  }, [requestedTab]);
+
   const [formOpen, setFormOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<AcademyCourse | null>(null);
   const [form, setForm] = useState<CourseForm>({ ...EMPTY_FORM });
@@ -438,18 +445,30 @@ function AcademyManagement() {
             >
               <Users size={15} /> Учащиеся <span className="tabular-nums">{enrollments.length}</span>
             </Button>
+            <Button
+              type="button"
+              size="md"
+              variant={tab === 'team' ? 'primary' : 'ghost'}
+              role="tab"
+              aria-selected={tab === 'team'}
+              onClick={() => selectTab('team')}
+            >
+              <GraduationCap size={15} /> Команда
+            </Button>
           </div>
-          <div className="w-full sm:max-w-xs">
-            <Input
-              aria-label={tab === 'courses' ? 'Поиск по курсам' : 'Поиск учащихся'}
-              className="min-h-11"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={tab === 'courses' ? 'Найти курс…' : 'Имя, email или курс…'}
-              icon={<Search size={16} />}
-              clearable
-            />
-          </div>
+          {tab !== 'team' && (
+            <div className="w-full sm:max-w-xs">
+              <Input
+                aria-label={tab === 'courses' ? 'Поиск по курсам' : 'Поиск учащихся'}
+                className="min-h-11"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={tab === 'courses' ? 'Найти курс…' : 'Имя, email или курс…'}
+                icon={<Search size={16} />}
+                clearable
+              />
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {error && (
@@ -461,7 +480,9 @@ function AcademyManagement() {
             </div>
           )}
 
-          {loading ? (
+          {tab === 'team' ? (
+            <AcademyTeamTab organizationId={String(activeWorkspace?.organizationId || '')} />
+          ) : loading ? (
             <ListSkeleton count={5} />
           ) : tab === 'courses' ? (
             filteredCourses.length === 0 ? (

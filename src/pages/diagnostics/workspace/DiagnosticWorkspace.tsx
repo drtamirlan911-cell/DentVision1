@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { Building2, CalendarClock, DollarSign, FileText, FlaskConical, TrendingUp, Users, Wallet } from 'lucide-react'
@@ -10,6 +11,7 @@ import { Badge } from '@/components/ui/ds/Badge'
 import { Tabs } from '@/components/ui/ds/Misc'
 import { countAwaitingAction, countByPhase, type PhaseId } from '@/lib/referralStatus'
 import { selectWorkspaceContext } from '@/lib/workspaceContext'
+import { resolveWorkspaceTab } from '@/lib/workspaceNavigation'
 import { queryKeys } from '@/queries/keys'
 import { useAuth } from '@/store/auth.store'
 import { useIam } from '@/iam'
@@ -30,6 +32,7 @@ import { TeamTab } from './TeamTab'
 import { WorklistTab } from './WorklistTab'
 import { ModalitiesTab } from './ModalitiesTab'
 import { OrganizationOnboarding } from '@/components/OrganizationOnboarding'
+import { WorkspaceRoleStart } from '@/components/workspaces/WorkspaceRoleStart'
 
 /**
  * One workspace for diagnostic centres and laboratories.
@@ -44,6 +47,10 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   const ecosystem = useEcosystemUrlContext()
   const isSuperadmin = user?.role === 'superadmin'
   const activeScopeType = String(activeWorkspace?.scopeType || user?.organizationType || '').toUpperCase()
+  const roleKey = String(activeWorkspace?.roleKey || activeWorkspace?.role || user?.effectiveRole || user?.role || '').toLowerCase()
+  const isFinanceRole = /(finance|cashier|accountant)/.test(roleKey)
+  const isRadiologyRole = /(radiologist|radiology_technician)/.test(roleKey)
+  const isReceptionRole = /(reception|operator)/.test(roleKey)
 
   const claimedKind: OrgKind | undefined =
     activeScopeType === 'LABORATORY' ? 'LAB'
@@ -51,7 +58,15 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
         : undefined
 
   const [orgId, setOrgId] = useState<string>('')
-  const [activeTab, setActiveTab] = useState('referrals')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const [activeTab, setActiveTabState] = useState(requestedTab || 'referrals')
+  const setActiveTab = (nextTab: string) => {
+    setActiveTabState(nextTab)
+    const next = new URLSearchParams(searchParams)
+    next.set('tab', nextTab)
+    setSearchParams(next, { replace: true })
+  }
   const [phaseFilter, setPhaseFilter] = useState<PhaseId | null>(null)
 
   const contextsQuery = useQuery({
@@ -139,13 +154,6 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   const needsOnboarding = !pinnedKind && !claimedKind && !requiresWorkspaceSelection && !isOwnOrg && !isSuperadmin
     && !contextsLoading && !contextsError && diagnosticContexts.length === 0
 
-  useEffect(() => {
-    if (kind === 'CENTER' && canReadOperations) setActiveTab('worklist')
-    else if (canReadOperations) setActiveTab('referrals')
-    else if (canReadPartnerBilling) setActiveTab('finance')
-    else setActiveTab('')
-  }, [kind, canReadOperations, canReadPartnerBilling])
-
   const scope = config.referralScope(orgId)
   const { data: referralsData } = useQuery({
     queryKey: queryKeys.diagnostics.referrals({ ...scope, limit: '100' }),
@@ -159,6 +167,20 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
 
   const counts = useMemo(() => countByPhase(referrals), [referrals])
   const awaiting = useMemo(() => countAwaitingAction(referrals), [referrals])
+
+  const roleGuide = isFinanceRole
+    ? { role: roleKey.includes('cashier') ? 'Кассир' : 'Финансовый специалист', heading: 'Принимайте оплату и следите за расчётами', description: 'Ваш рабочий раздел — касса и финансовые операции. Клинические и организационные настройки не нужны для ежедневной работы.', steps: ['Откройте кассу или расчёты', 'Найдите нужное направление и проверьте сумму', 'Зафиксируйте оплату и проверьте статус расчёта'] }
+    : isRadiologyRole
+      ? { role: roleKey.includes('technician') ? 'Рентген-лаборант' : 'Рентгенолог', heading: 'Выполняйте исследования и проверяйте результаты', description: 'Начинайте с рабочей очереди. В карточке направления проверяйте клинический контекст, выполняйте свой этап и передавайте результат следующему специалисту.', steps: ['Откройте рабочую очередь или направления', 'Проверьте данные и статус исследования', 'Завершите свой этап и передайте результат'] }
+      : isReceptionRole
+        ? { role: roleKey.includes('reception') ? 'Регистратор' : 'Оператор', heading: 'Принимайте новые направления и организуйте запись', description: 'Сначала обработайте новые входящие направления. Проверяйте, кто направил пациента, какие данные уже заполнены и какой следующий шаг требуется.', steps: ['Откройте входящие направления', 'Проверьте данные и назначьте следующий шаг', 'Передайте направление ответственному специалисту'] }
+        : roleKey.includes('quality')
+          ? { role: 'Специалист контроля качества', heading: 'Проверяйте полноту и корректность результата', description: 'Работайте с результатами, ожидающими проверки. Не изменяйте исходные данные без зафиксированной причины.', steps: ['Откройте очередь результатов', 'Проверьте обязательные данные и вложения', 'Зафиксируйте проверку или замечание'] }
+          : { role: roleKey.includes('owner') ? 'Владелец центра' : roleKey.includes('admin') || roleKey.includes('manager') ? 'Руководитель' : 'Сотрудник диагностики', heading: 'Сначала обработайте задачи, ожидающие действия', description: 'Рабочая очередь показывает незавершённые направления. Команда, оборудование, услуги и финансы находятся в отдельных разделах и открываются только при наличии соответствующих прав.', steps: ['Проверьте количество задач в очереди', 'Откройте направление и выполните доступное действие', 'Передайте работу следующему ответственному'] }
+  const roleStartTab = isFinanceRole
+    ? (canManageBilling ? 'cashier' : canReadPartnerBilling ? 'finance' : kind === 'CENTER' ? 'worklist' : 'referrals')
+    : kind === 'CENTER' && canReadOperations ? 'worklist'
+      : canReadOperations ? 'referrals' : canManageBilling ? 'cashier' : 'finance'
 
   const tabs = [
     ...(kind === 'CENTER' && canReadOperations ? [
@@ -188,6 +210,27 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
     ] : []),
   ]
 
+  const availableTabIds = tabs.map((tab) => tab.id)
+  const fallbackTab = availableTabIds.includes(roleStartTab)
+    ? roleStartTab
+    : availableTabIds[0] || ''
+  const availableTabSignature = availableTabIds.join('|')
+
+  // The route is the source of truth for sidebar deep-links and browser
+  // back/forward. Invalid or unauthorized tab requests fall back to the
+  // first role-allowed workspace section instead of showing an empty panel.
+  useEffect(() => {
+    const allowedTabs = availableTabSignature ? availableTabSignature.split('|') : []
+    const nextTab = resolveWorkspaceTab(requestedTab, allowedTabs, fallbackTab)
+    setActiveTabState(nextTab)
+    if (requestedTab !== nextTab) {
+      const next = new URLSearchParams(searchParams)
+      if (nextTab) next.set('tab', nextTab)
+      else next.delete('tab')
+      setSearchParams(next, { replace: true })
+    }
+  }, [requestedTab, availableTabSignature, fallbackTab, searchParams, setSearchParams])
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -200,6 +243,17 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
         icon={<FlaskConical size={22} />}
         actions={<Badge variant="outline">{kind === 'CENTER' ? 'Центр' : 'Лаборатория'}</Badge>}
       />
+
+      {orgId && hasDiagnosticAccess && (canReadOperations || canReadPartnerBilling || canManageBilling) && (
+        <WorkspaceRoleStart
+          roleLabel={roleGuide.role}
+          heading={roleGuide.heading}
+          description={roleGuide.description}
+          steps={roleGuide.steps}
+          actionLabel="Открыть мой рабочий раздел"
+          onAction={() => setActiveTab(roleStartTab)}
+        />
+      )}
 
       {(ecosystem.patientId || ecosystem.caseId) && (
         <EcosystemCaseFlow context={ecosystem} compact />

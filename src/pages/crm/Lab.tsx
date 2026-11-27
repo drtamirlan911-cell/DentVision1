@@ -255,7 +255,16 @@ export default function Lab() {
         printWorkOrder({ ...newOrder, ...(savedData && typeof savedData === 'object' ? savedData : {}) } as LabOrder)
       }
       setModalOpen(false)
-    } catch { showToast('Ошибка сохранения', 'error') } finally { setSubmitting(false) }
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error
+        ? String((error as { code?: unknown }).code || '')
+        : ''
+      if (code === 'LAB_ORDER_BRANCH_REQUIRED') {
+        showToast('Выберите филиал в переключателе рабочего пространства перед созданием заказа.', 'warning')
+      } else {
+        showToast(error instanceof Error ? error.message : 'Не удалось сохранить заказ', 'error')
+      }
+    } finally { setSubmitting(false) }
   }
   const changeStatus = async (order: LabOrder, newStatus: string) => { await api.updateLabOrderStatus(order.id, newStatus); await queryClient.invalidateQueries({ queryKey: [...queryKeys.labOrders, clinic?.id] }); showToast(`Статус изменён: ${STATUS_CFG[newStatus]?.label}`, 'success') }
   const displayOrders = activeTab === 'active' ? active : activeTab === 'ready' ? ready : activeTab === 'completed' ? completed : []

@@ -43,4 +43,39 @@ describe('AI Employee task payload minimization', () => {
       expect(input.sourceEventType).toBe(EventType.PatientCreated);
     }
   });
+  it('does not log patient identifiers or clinical text when task persistence fails', async () => {
+    let handler: ((event: CRMEvent) => Promise<void>) | undefined;
+    subscribe.mockImplementation((_type: string, callback: (event: CRMEvent) => Promise<void>) => {
+      handler = callback;
+      return () => undefined;
+    });
+    createAiEmployeeTask.mockRejectedValue(
+      new Error('Patient Иван Тестов, phone +7 700 000 00 00, diagnosis pulpitis'),
+    );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    try {
+      registerAiEmployeeTaskSubscriber();
+      expect(handler).toBeTypeOf('function');
+      await handler!({
+        id: 'event-sensitive',
+        type: EventType.PatientCreated,
+        timestamp: new Date('2026-11-04T00:00:00.000Z'),
+        source: 'test',
+        clinicId: 'clinic-a',
+        userId: 'user-a',
+        payload: { patientId: 'patient-a', hasComplaints: true },
+      });
+
+      const output = JSON.stringify(warn.mock.calls);
+      expect(output).toContain('AI Employee Tasks');
+      expect(output).toContain('Error');
+      expect(output).not.toContain('Иван Тестов');
+      expect(output).not.toContain('+7 700 000 00 00');
+      expect(output).not.toContain('pulpitis');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
 });

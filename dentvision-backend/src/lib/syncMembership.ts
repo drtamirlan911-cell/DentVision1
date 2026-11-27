@@ -1,4 +1,5 @@
 import prisma from './prisma.js';
+import type { Prisma } from '@prisma/client';
 import { uid } from './helpers.js';
 
 const CM_ROLE_TO_ROLE_KEY: Record<string, string> = {
@@ -103,25 +104,33 @@ export async function removePersonFromClinicMember(clinicId: string, userId: str
  * originalId is the SupplierMember row's own id (matches the backfill in
  * prisma/migrate-unified-schema.ts, which upserts by `sm.id`, not a composite key).
  */
-export async function syncPersonFromSupplierMember(memberId: string, supplierId: string, userId: string): Promise<void> {
-  const user = await prisma.user.findUnique({
+export async function syncPersonFromSupplierMember(
+  memberId: string,
+  supplierId: string,
+  userId: string,
+  tx?: Prisma.TransactionClient,
+): Promise<void> {
+  // Accept an existing transaction so invitation acceptance can atomically
+  // persist the legacy membership, its canonical Person graph and invite claim.
+  const db = tx ?? prisma;
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: { id: true, firstName: true, lastName: true, phone: true, email: true },
   });
   if (!user) return;
 
-  const org = await prisma.organization.findFirst({
+  const org = await db.organization.findFirst({
     where: { originalType: 'Supplier', originalId: supplierId },
   });
   if (!org) return;
 
-  const fullName = `${user.firstName} ${user.lastName}`.trim();
+  const fullName = `${user.firstName} ${user.lastName}`.trim() || user.email || 'Сотрудник';
 
-  let person = await prisma.person.findFirst({
+  let person = await db.person.findFirst({
     where: { originalType: 'SupplierMember', originalId: memberId },
   });
   if (!person) {
-    person = await prisma.person.create({
+    person = await db.person.create({
       data: {
         id: uid(),
         fullName,
@@ -135,7 +144,7 @@ export async function syncPersonFromSupplierMember(memberId: string, supplierId:
       },
     });
   } else {
-    await prisma.person.update({
+    await db.person.update({
       where: { id: person.id },
       data: {
         fullName,
@@ -147,10 +156,10 @@ export async function syncPersonFromSupplierMember(memberId: string, supplierId:
     });
   }
 
-  const dbRole = await prisma.role.findUnique({ where: { key: 'seller' } });
+  const dbRole = await db.role.findUnique({ where: { key: 'seller' } });
   if (dbRole) {
     const scopeKey = `organization:${org.id}`;
-    await prisma.personRole.upsert({
+    await db.personRole.upsert({
       where: { personId_roleId_scopeKey: { personId: person.id, roleId: dbRole.id, scopeKey } },
       update: { scopeType: 'organization', scopeId: org.id },
       create: { personId: person.id, roleId: dbRole.id, scopeType: 'organization', scopeId: org.id, scopeKey },
@@ -171,24 +180,25 @@ export async function removePersonFromSupplierMember(memberId: string): Promise<
  * Keep Person in sync with a Lecturer profile.
  * originalId is the Lecturer row's own id (matches the backfill).
  */
-export async function syncPersonFromLecturer(lecturerId: string, userId: string, academyId?: string | null): Promise<void> {
-  const user = await prisma.user.findUnique({
+export async function syncPersonFromLecturer(lecturerId: string, userId: string, academyId?: string | null, tx?: Prisma.TransactionClient): Promise<void> {
+  const db = tx ?? prisma;
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: { id: true, firstName: true, lastName: true, phone: true, email: true },
   });
   if (!user) return;
 
   const org = academyId
-    ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: academyId } })
+    ? await db.organization.findFirst({ where: { originalType: 'Academy', originalId: academyId } })
     : null;
 
   const fullName = `${user.firstName} ${user.lastName}`.trim() || `Lecturer ${lecturerId}`;
 
-  let person = await prisma.person.findFirst({
+  let person = await db.person.findFirst({
     where: { originalType: 'Lecturer', originalId: lecturerId },
   });
   if (!person) {
-    person = await prisma.person.create({
+    person = await db.person.create({
       data: {
         id: uid(),
         fullName,
@@ -202,7 +212,7 @@ export async function syncPersonFromLecturer(lecturerId: string, userId: string,
       },
     });
   } else {
-    await prisma.person.update({
+    await db.person.update({
       where: { id: person.id },
       data: {
         fullName,
@@ -214,21 +224,21 @@ export async function syncPersonFromLecturer(lecturerId: string, userId: string,
     });
   }
 
-  const dbRole = await prisma.role.findUnique({ where: { key: 'lecturer' } });
+  const dbRole = await db.role.findUnique({ where: { key: 'lecturer' } });
   if (!dbRole) return;
 
   if (!org) {
     // Lecturer access is organization-scoped. Never create or retain a
     // platform-scoped lecturer role when the Academy relationship is missing.
     // The Person remains unscoped until an explicit Academy is assigned.
-    await prisma.personRole.deleteMany({
+    await db.personRole.deleteMany({
       where: { personId: person.id, roleId: dbRole.id, scopeType: 'platform' },
     });
     return;
   }
 
   const scopeKey = `organization:${org.id}`;
-  await prisma.personRole.upsert({
+  await db.personRole.upsert({
     where: { personId_roleId_scopeKey: { personId: person.id, roleId: dbRole.id, scopeKey } },
     update: { scopeType: 'organization', scopeId: org.id },
     create: { personId: person.id, roleId: dbRole.id, scopeType: 'organization', scopeId: org.id, scopeKey },

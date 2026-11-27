@@ -47,7 +47,7 @@ const STATUS_FLOW: Record<string, string[]> = {
   in_progress: ['try_in', 'adjustment', 'qc', 'remake', 'delayed', 'cancelled'],
   try_in: ['adjustment', 'qc', 'remake'],
   adjustment: ['try_in', 'qc', 'remake'],
-  // QC outcome must be recorded only through the manager-only /qc endpoint.
+  // QC outcome must be recorded only through the manager or QC-specialist /qc endpoint.
   qc: [],
   ready: [],
   delivered: [],
@@ -1242,7 +1242,7 @@ labPlatformRouter.patch('/orders/:id/qc', async (req: AuthRequest, res) => {
     if (!submission) return res.status(400).json({ ok: false, error: 'Заполните все пункты QC; при несоответствии укажите замечание' } satisfies ApiResponse);
     const nextStatus = submission.passed ? 'ready' : 'remake';
     const qualityControl = { ...submission, checkedByUserId: req.user!.id, checkedAt: new Date().toISOString() };
-    const eventNote = submission.passed ? 'QC подтверждён владельцем лаборатории' : `QC не пройден: ${submission.note}`;
+    const eventNote = submission.passed ? 'QC подтверждён руководителем или специалистом качества лаборатории' : `QC не пройден: ${submission.note}`;
 
     await ensureDentalLabOrderEventsTable();
     const outcome = await prisma.$transaction(async (tx) => {

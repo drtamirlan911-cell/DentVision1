@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import prisma from './prisma.js';
+import { resolveClinicBranchAccess } from './clinicBranchAccess.js';
 
 export type PatientBranchScope =
   | { kind: 'organization'; branchIds: string[] }
@@ -11,7 +12,13 @@ export interface PatientBranchContext {
   userId: string;
   role: string;
   branchId: string | null;
+  allowedBranchIds?: string[];
   scope: PatientBranchScope;
+}
+
+export interface PatientBranchContextOptions {
+  organizationId?: string | null;
+  requestedBranchId?: string | null;
 }
 
 const ORGANIZATION_ROLES = new Set(['OWNER', 'ADMIN']);
@@ -22,9 +29,26 @@ export async function resolvePatientBranchContext(
   userId: string,
   clinicId: string,
   role: string,
-  authorizedBranchIds: readonly string[] = [],
+  optionsOrAuthorizedBranchIds: PatientBranchContextOptions | readonly string[] = [],
   assignedBranchId?: string | null,
 ): Promise<PatientBranchContext> {
+  if (!Array.isArray(optionsOrAuthorizedBranchIds)) {
+    const options = optionsOrAuthorizedBranchIds as PatientBranchContextOptions;
+    const access = await resolveClinicBranchAccess({
+      userId,
+      clinicId,
+      organizationId: options.organizationId,
+      role,
+      requestedBranchId: options.requestedBranchId,
+    });
+    if (!access) {
+      return { clinicId, userId, role, branchId: null, allowedBranchIds: [], scope: { kind: 'assigned', branchIds: [] } };
+    }
+    const kind = access.roleScope === 'ORGANIZATION' ? 'organization' : access.roleScope === 'BRANCH' ? 'branch' : 'assigned';
+    const visibleBranchIds = access.branchId ? [access.branchId] : access.allowedBranchIds;
+    return { clinicId, userId, role, branchId: access.branchId, allowedBranchIds: access.allowedBranchIds, scope: { kind, branchIds: visibleBranchIds } };
+  }
+  const authorizedBranchIds = optionsOrAuthorizedBranchIds as readonly string[];
   // Start from the branch allow-list rebuilt by authenticate from canonical
   // BranchMember + active legacy assignments. Recheck the exact legacy clinic
   // membership here as a compatibility path for older E2E/deployed sessions
@@ -88,13 +112,13 @@ export async function resolvePatientBranchContext(
 }
 
 export function canAccessPatientBranch(context: PatientBranchContext, branchId: string | null): boolean {
-  if (!branchId) return false;
+  if (!branchId) return context.scope.kind === 'organization' && context.branchId === null;
   return context.scope.branchIds.includes(branchId);
 }
 
 export function canManagePatientBranch(context: PatientBranchContext, branchId: string | null): boolean {
   if (!branchId) return false;
-  return context.scope.kind === 'organization' && context.scope.branchIds.includes(branchId);
+  return context.scope.kind === 'organization' && (context.allowedBranchIds ?? context.scope.branchIds).includes(branchId);
 }
 
 export async function getPatientBranchId(patientId: string, clinicId: string): Promise<string | null> {

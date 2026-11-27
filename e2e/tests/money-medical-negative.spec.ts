@@ -14,6 +14,7 @@
  */
 import { test, expect, APIRequestContext, request } from '@playwright/test';
 import { makeIin } from '../helpers/iin';
+import { switchToDefaultClinicBranch } from '../helpers/branch-context';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 
@@ -52,6 +53,11 @@ test.beforeAll(async () => {
   ctx = await request.newContext({ baseURL: BASE_URL });
   ownerA = await signIn(ACCOUNTS.ownerA.email, ACCOUNTS.ownerA.password);
   doctorA = await signIn(ACCOUNTS.doctorA.email, ACCOUNTS.doctorA.password);
+  doctorA = (await switchToDefaultClinicBranch({
+    request: ctx,
+    baseUrl: BASE_URL,
+    accessToken: doctorA,
+  })).accessToken;
   assistantA = await signIn(ACCOUNTS.assistantA.email, ACCOUNTS.assistantA.password);
   managerA = await signIn(ACCOUNTS.managerA.email, ACCOUNTS.managerA.password);
   ownerB = await signIn(ACCOUNTS.ownerB.email, ACCOUNTS.ownerB.password);

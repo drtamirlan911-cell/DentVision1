@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { queryRaw } = vi.hoisted(() => ({ queryRaw: vi.fn() }));
+const { queryRaw, resolveClinicBranchAccess } = vi.hoisted(() => ({ queryRaw: vi.fn(), resolveClinicBranchAccess: vi.fn() }));
 
 vi.mock('./prisma.js', () => ({
   default: { $queryRaw: queryRaw },
 }));
+vi.mock('./clinicBranchAccess.js', () => ({ resolveClinicBranchAccess }));
 
 import { resolvePatientBranchContext } from './patientBranchScope.js';
 import { resolveFinanceBranchContext } from './financeBranchScope.js';
@@ -18,6 +19,7 @@ const ACTIVE_BRANCH_ID = 'branch-active';
 
 beforeEach(() => {
   queryRaw.mockReset().mockResolvedValue([]);
+  resolveClinicBranchAccess.mockReset().mockResolvedValue(null);
 });
 
 describe('archived branch operational scope', () => {
@@ -40,11 +42,9 @@ describe('archived branch operational scope', () => {
     expect(diagnostics.branchIds).toEqual([]);
     expect(diagnostics.organizationWide).toBe(false);
 
-    queryRaw.mockReset().mockResolvedValueOnce([{ branch_id: ARCHIVED_BRANCH_ID, branch_active: false }]);
+    resolveClinicBranchAccess.mockResolvedValueOnce(null);
     const inventory = await resolveInventoryBranchContext(USER_ID, CLINIC_ID, 'DOCTOR');
-    expect(inventory.branchId).toBeNull();
-    expect(inventory.branchIds).toEqual([]);
-    expect(inventory.organizationWide).toBe(false);
+    expect(inventory).toBeNull();
   });
 
   it('limits organization-wide visibility to active branches only', async () => {
@@ -67,12 +67,8 @@ describe('archived branch operational scope', () => {
     const diagnostics = await resolveDiagnosticBranchContext(USER_ID, CLINIC_ID, 'OWNER');
     expect(diagnostics.branchIds).toEqual([ACTIVE_BRANCH_ID]);
 
-    queryRaw.mockReset()
-      .mockResolvedValueOnce([{ branch_id: ARCHIVED_BRANCH_ID, branch_active: false }])
-      .mockResolvedValueOnce([{ id: ACTIVE_BRANCH_ID }]);
-    const inventory = await resolveInventoryBranchContext(
-      USER_ID, CLINIC_ID, 'OWNER', [], ARCHIVED_BRANCH_ID,
-    );
-    expect(inventory.branchIds).toEqual([ACTIVE_BRANCH_ID]);
+    resolveClinicBranchAccess.mockResolvedValueOnce({ roleScope: 'ORGANIZATION', branchId: null, allowedBranchIds: [ACTIVE_BRANCH_ID] });
+    const inventory = await resolveInventoryBranchContext(USER_ID, CLINIC_ID, 'OWNER');
+    expect(inventory).toMatchObject({ organizationWide: true, branchIds: [ACTIVE_BRANCH_ID] });
   });
 });

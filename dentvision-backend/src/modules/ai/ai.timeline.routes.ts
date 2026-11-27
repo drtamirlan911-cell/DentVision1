@@ -1,3 +1,4 @@
+import { safeErrorKind } from '../../lib/safeError.js';
 /**
  * AI Timeline / Agent Activity Center API.
  *
@@ -23,8 +24,37 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest } from '../../types/index.js';
 import { buildActivityFilter, redactPhiRows } from './os/activityQuery.js';
+import { resolveAiToolAccess } from './os/access.js';
+import { resolveAiToolBranchScope, isNarrowAiToolBranchScope } from './os/aiToolBranchScope.js';
 
 const router = Router();
+
+async function isBranchScopedActivityView(req: AuthRequest, clinicId: string | null): Promise<boolean> {
+  try {
+    if (!req.user?.id) return true;
+    const access = await resolveAiToolAccess({
+      userId: req.user.id,
+      clinicId,
+      organizationId: req.user.organizationId,
+      organizationType: req.user.organizationType,
+      supplierId: req.user.supplierId,
+      lecturerId: req.user.lecturerId,
+      isGuest: req.user.isGuest,
+    });
+    if (access.role === 'SUPERADMIN') return false;
+    if (!access.clinicId) return true;
+    const scope = await resolveAiToolBranchScope({
+      userId: req.user.id,
+      clinicId: access.clinicId,
+      organizationId: access.organizationId || req.user.organizationId,
+      role: access.role,
+      requestedBranchId: req.user.branchId || req.user.assignedBranchId || null,
+    });
+    return !scope || isNarrowAiToolBranchScope(scope);
+  } catch {
+    return true;
+  }
+}
 
 /** Enough for tool + patient + approval + produced record, with room to spare. */
 const EVIDENCE_PER_ACTIVITY = 12;
@@ -63,7 +93,12 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
     const dateFrom = req.query.dateFrom as string | undefined;
     const dateTo = req.query.dateTo as string | undefined;
 
-    const { where: visibilityWhere, canReadPhi } = await buildActivityFilter(req.user.id, resolveClinicParam(req));
+    const activeClinicId = resolveClinicParam(req);
+    const { where: visibilityWhere, canReadPhi } = await buildActivityFilter(req.user.id, activeClinicId);
+    const branchScoped = await isBranchScopedActivityView(req, activeClinicId);
+    if (branchScoped) {
+      return res.json({ ok: true, data: { entries: [], total: 0, limit, offset } });
+    }
 
     const where = {
       ...visibilityWhere,
@@ -140,7 +175,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('[AI Timeline] Error:', error);
+    console.error('[AI Timeline] Error:', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Failed to fetch timeline' });
   }
 });
@@ -157,7 +192,13 @@ router.get('/stats', authenticate, async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const { where } = await buildActivityFilter(req.user.id, resolveClinicParam(req));
+    const activeClinicId = resolveClinicParam(req);
+    const { where: visibilityWhere } = await buildActivityFilter(req.user.id, activeClinicId);
+    const branchScoped = await isBranchScopedActivityView(req, activeClinicId);
+    if (branchScoped) {
+      return res.json({ ok: true, data: { totalEvents: 0, todayEvents: 0, successEvents: 0, failedEvents: 0, successRate: 0 } });
+    }
+    const where = visibilityWhere;
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -184,7 +225,7 @@ router.get('/stats', authenticate, async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('[AI Timeline Stats] Error:', error);
+    console.error('[AI Timeline Stats] Error:', safeErrorKind(error));
     res.status(500).json({ ok: false, error: 'Failed to fetch stats' });
   }
 });

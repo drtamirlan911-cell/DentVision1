@@ -2,9 +2,9 @@
  * Canonical partner transaction economics.
  * Amounts are whole KZT (not tiyn/minor units).
  * Call only after confirmed commercial settlement and persist the returned snapshot.
- * Source: docs/business/DENTVISION_PARTNER_ECONOMICS.md v1.2.
+ * Source: docs/business/DENTVISION_PARTNER_ECONOMICS.md v1.3.
  */
-export const PARTNER_ECONOMICS_POLICY_VERSION = '1.2';
+export const PARTNER_ECONOMICS_POLICY_VERSION = '1.3';
 
 export type PartnerBranchSubscriptionVertical = 'DIAGNOSTIC_3D' | 'MEDICAL_ANALYSIS' | 'DENTAL_LAB';
 

@@ -1,3 +1,35 @@
+## 2026-11-27 — Cabinet UX, role-first navigation and multi-organization return path (PR #353)
+
+- Continued on the existing candidate PR #353 / `integrate/jarvis-product-knowledge-20261125`; `main` was not changed and no new branch was created.
+- Reworked `src/layouts/EcosystemSidebar.tsx`: the active cabinet entry is pinned outside collapsible groups, the sidebar now renders domain-specific partner navigation, and active state distinguishes URL-backed tabs from the cabinet-level shortcut.
+- Consolidated role/workspace destination rules in `src/lib/workspaceNavigation.ts`. Added direct routes to existing workflow tabs for diagnostic-centre finance, medical/dental laboratory operations, supplier orders/stock/catalogue/returns, lecturer work and Academy sections. No duplicate pages or new authorization paths were introduced.
+- Added multi-organization switch entry in `EcosystemContextCard.tsx`; it opens the existing `WorkspaceSwitcher`. If multiple contexts exist but there is no authenticated active context, the UI now asks the user to choose rather than reusing a stale organization claim. Switcher positioning also updates after workspace loading finishes.
+- Added query-backed section selection to lecturer and diagnostic-centre workspaces; supplier sections already use URL state and now all internal shortcut actions preserve that URL state. Medical-lab finance-only staff return to the finance section; diagnostic-finance staff have a direct finance tab.
+- Added a shared dental-lab role capability resolver used by sidebar navigation and `DentalLabPlatform`, covering legacy and canonical IAM role names. This prevents a role link from appearing while the corresponding page tab remains hidden. Mixed legacy dental/medical laboratory role lists resolve to dental production when a dental-lab role is present; legacy `lab_diagnostic` remains medical-laboratory.
+- Added role-first task guidance to clinic scheduling, medical and dental laboratory workspaces and lecturer workspace. Guidance differs for doctors, reception, clinic managers, laboratory technicians, quality roles, finance staff and delivery roles; it does not grant permissions.
+- Regression coverage added for ambiguous multi-organization selection, cabinet return, tab highlighting, diagnostic finance navigation, dental-lab role capability mapping and laboratory workspace resolution.
+- **Verification at source HEAD `74b7a6e96f6f343347a677543fef9968c7e228a6`:** frontend lint, backend lint and RB-034 were successful; CI `lint-test` / Quality Gate exposed two missing imports (`resolveDentalLabRoleCapabilities` in `workspaceNavigation.ts`, `WorkspaceRoleStart` in `Schedule.tsx`). Both imports were corrected in subsequent source commits. Fresh checks are required on the documentation commit and final current PR HEAD; no older SHA is accepted as final evidence.
+- Vercel/Supabase Preview is not treated as a successful deployment unless the exact final SHA receives a READY deployment/status. No production/staging database, PHI, secret/key, payment provider, legal signature or production deployment was accessed or changed.
+
+---
+
+## 2026-11-26 — PR #353 source verification and integration reconciliation
+
+- Continued on the existing repository `drtamirlan911-cell/DentVision1` and existing integration candidate PR #353; no new product branch was created.
+- Verified main at `88ac207cefad1ba42e3b272b3e4a868662eb91bb`; PR #352 is merged. PR #353 code HEAD at verification time was `96ef732508d3097ef0466018aa4831b129a4e895`, 100 commits ahead / 0 behind main, 126 changed files; not merged. PR #351 remains OPEN/DRAFT and is not to be merged wholesale because its file history overlaps the already-merged #352 work.
+- Exact code SHA passed CI [45626319064], Quality Gate [45626319150] and RB-034 [45626319094]. CI jobs E2E, frontend lint, backend lint and lint-test all completed successfully.
+- E2E details from the workflow log: Core 262 passed / 5 skipped; Browser UX 4 passed; Mobile Design 16 passed; Role/Context 147 passed / 28 skipped; Visual Agent 48 passed; Business Owner 11 passed; Organization Owner 8 passed; Playwright CLI smoke and Visual Release Gate passed. Skipped tests are retained as skipped in the evidence.
+- Reviewed PR #353 branch scope and data-boundary changes across patient portal, appointments, analytics, CRM operations, diagnostics, inventory, dental/medical labs and partner workspace tools. The lab-order migration backfills only when the linked patient proves a branch; the CRM operations migration leaves ambiguous legacy branch mappings unresolved. The migrations were run in isolated CI E2E only.
+- Reviewed the newly added read-only workspace projections: diagnostic center and medical-lab queues expose operational workflow metadata only; dental-lab queue uses the production read-scope predicate and assigned-work limits; supplier overview is restricted to that supplier's catalogue/stock; lecturer course overview checks lecturer ownership; student progress uses the authenticated user's enrollment; employer vacancy overview verifies active employer organization, scoped role and `jobs.read`. No new partner write tool was enabled.
+- Reviewed Product Knowledge: local guide file, bounded lexical retrieval, no external embedding request with conversational text, prompt text explicitly treats guide excerpts as untrusted reference material, and patient portal receives only patient-guide chunks. Model routing uses explicit model capability metadata and refuses image analysis when no vision-capable model is available.
+- Replied to and resolved all PR #353 review threads. The two former P1 comments concerned (1) the branch-ownership contract assertion and (2) cleanup of one-shot mocks; both corresponding source changes were already present on the verified HEAD and exact-head CI passed. Review-thread count: 0 unresolved.
+- Vercel open-deployment lookup found no Preview deployment for `96ef732508d3097ef0466018aa4831b129a4e895`. GitHub combined status points to the Vercel build-rate-limit gate. The latest READY preview found on the same branch was attached to older SHA `8133e87f0d5b69de4d1e8104157c7127122dcf31`; it does not certify the current candidate.
+- No source-code modification, main merge, staging/production DB operation, historical PHI operation, key/secret change, payment-provider action, legal signature or production deployment was performed in this verification pass.
+- This checkpoint is a documentation-only reconciliation. Because it changes the PR branch HEAD, rerun exact-head CI, Quality Gate, RB-034 and Preview before merge. No old SHA result should be reused as proof for the documentation commit.
+- RB-029 remains P0/OPEN; release remains NOT READY.
+
+---
+
 ## 2026-11-15 — RB-029 staged AI Admin writes and retained queue backfill candidate
 
 - Continued on existing PR #347 / security/rb029-ai-admin-external-id-20261114; no new branch or PR.

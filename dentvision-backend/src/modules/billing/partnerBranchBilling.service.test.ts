@@ -193,7 +193,7 @@ describe('partner branch invoice issuance', () => {
       organizationId: 'org-center-1',
       ownerId: 'center-1',
       vertical: 'DIAGNOSTIC_3D',
-      policyVersion: '1.2',
+      policyVersion: '1.3',
       activeBranchCount: 2,
       billableBranchCount: 2,
       branchIds: ['branch-a', 'branch-b'],

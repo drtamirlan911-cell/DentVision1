@@ -18,6 +18,8 @@ import crypto from 'crypto';
 import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
 import { grantDiagnosticsAccess } from '../diagnostics/diagnostics.service.js';
+import { syncPersonFromSupplierMember, syncPersonFromLecturer } from '../../lib/syncMembership.js';
+import { getOrCreateWallet } from '../finance/finance.service.js';
 
 /** Organization types this module can actually grant membership in. */
 const DIAGNOSTIC_ORG_TYPES: Record<string, 'DiagnosticCenter' | 'Laboratory'> = {
@@ -26,7 +28,7 @@ const DIAGNOSTIC_ORG_TYPES: Record<string, 'DiagnosticCenter' | 'Laboratory'> = 
 };
 
 /** Roles a diagnostics invite may carry, in that module's own vocabulary. */
-export const DIAGNOSTIC_INVITE_ROLES = ['admin', 'manager', 'radiologist', 'operator'] as const;
+export const DIAGNOSTIC_INVITE_ROLES = ['admin', 'manager', 'radiologist', 'operator', 'diagnostic_reception', 'radiology_technician', 'diagnostic_finance', 'diagnostic_quality'] as const;
 
 export const MEDICAL_LAB_INVITE_ROLES = [
   'medical_lab_admin', 'medical_lab_manager', 'medical_lab_reception',
@@ -42,6 +44,12 @@ export const DENTAL_LAB_INVITE_ROLES = [
 
 /** Employer invitations grant scoped hiring access, never ownership or platform roles. */
 export const EMPLOYER_INVITE_ROLES = ['employer_recruiter', 'employer_viewer'] as const;
+
+/** Supplier company employees receive the existing manager capability; ownership is never inviteable. */
+export const SUPPLIER_INVITE_ROLES = ['manager'] as const;
+
+/** Academy owners may invite professional lecturers; ownership and platform roles are not inviteable. */
+export const ACADEMY_INVITE_ROLES = ['lecturer'] as const;
 
 /** Roles that may invite others into the organization. */
 const MEMBER_MANAGER_ROLES = ['owner', 'admin'];
@@ -115,6 +123,30 @@ export function normalizeEmployerInviteRole(role?: string): string {
   return (EMPLOYER_INVITE_ROLES as readonly string[]).includes(wanted) ? wanted : 'employer_viewer';
 }
 
+/** Suppliers currently have one non-owner team permission set: manager. */
+export function normalizeSupplierInviteRole(role?: string): string {
+  const wanted = String(role || '').trim().toLowerCase();
+  return (SUPPLIER_INVITE_ROLES as readonly string[]).includes(wanted) ? wanted : 'manager';
+}
+
+/** Strict role validation for owner-managed member changes. Owner/platform roles are never assignable. */
+export function isOrganizationMemberRoleAllowed(
+  organization: { type: string; settings?: unknown },
+  role: string,
+): boolean {
+  const wanted = String(role || '').trim().toLowerCase();
+  if (organization.type === 'DIAGNOSTIC_CENTER') {
+    return (DIAGNOSTIC_INVITE_ROLES as readonly string[]).includes(wanted);
+  }
+  if (organization.type === 'LABORATORY') {
+    const allowed = laboratoryTypeFromSettings(organization.settings) === 'DENTAL_LAB'
+      ? DENTAL_LAB_INVITE_ROLES
+      : MEDICAL_LAB_INVITE_ROLES;
+    return (allowed as readonly string[]).includes(wanted);
+  }
+  return false;
+}
+
 /** Eight hex characters, the same shape clinic invitations already use. */
 export function generateInviteCode(): string {
   return crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -152,6 +184,21 @@ export async function canManageMembers(
     return !!member && MEMBER_MANAGER_ROLES.includes(String(member.role).toLowerCase());
   }
 
+  if (org.type === 'ACADEMY') {
+    return !!(await prisma.academy.findFirst({
+      where: { id: entityId, ownerId: userId },
+      select: { id: true },
+    }));
+  }
+
+  if (org.type === 'SUPPLIER_COMPANY') {
+    const member = await prisma.supplierMember.findFirst({
+      where: { supplierId: entityId, userId },
+      select: { role: true },
+    });
+    return !!member && MEMBER_MANAGER_ROLES.includes(String(member.role).toLowerCase());
+  }
+
   if (org.type === 'EMPLOYER') {
     const owner = await prisma.personRole.findFirst({
       where: {
@@ -181,6 +228,18 @@ export async function isAlreadyMember(
   if (org.type === 'LABORATORY') {
     return !!(await prisma.laboratoryMember.findFirst({ where: { labId: entityId, userId } }));
   }
+  if (org.type === 'ACADEMY') {
+    return !!(await prisma.lecturer.findFirst({
+      where: { academyId: entityId, userId },
+      select: { id: true },
+    }));
+  }
+  if (org.type === 'SUPPLIER_COMPANY') {
+    return !!(await prisma.supplierMember.findFirst({
+      where: { supplierId: entityId, userId },
+      select: { id: true },
+    }));
+  }
   if (org.type === 'EMPLOYER') {
     return !!(await prisma.personRole.findFirst({
       where: { scopeType: 'organization', scopeId: org.id, person: { userId } },
@@ -206,6 +265,8 @@ export async function createInvitation(input: {
   }
   let role: string;
   if (organization.type === 'EMPLOYER') role = normalizeEmployerInviteRole(input.role);
+  else if (organization.type === 'ACADEMY') role = 'lecturer';
+  else if (organization.type === 'SUPPLIER_COMPANY') role = normalizeSupplierInviteRole(input.role);
   else if (organization.type === 'LABORATORY') role = normalizeLaboratoryInviteRole(input.role, laboratoryTypeFromSettings(organization.settings));
   else if (organization.type === 'DIAGNOSTIC_CENTER') role = normalizeDiagnosticInviteRole(input.role);
   else throw Object.assign(new Error('Этот тип организации пока не поддерживает приглашения'), { status: 400 });
@@ -286,6 +347,113 @@ export async function acceptInvitation(
       organizationType: org.type,
       entityId,
       role: expectedRole,
+    };
+  }
+
+  if (org.type === 'ACADEMY') {
+    if (!(ACADEMY_INVITE_ROLES as readonly string[]).includes(invitation!.role)) {
+      throw Object.assign(new Error('Недопустимая роль приглашения академии'), { status: 400 });
+    }
+
+    const academy = await prisma.academy.findUnique({ where: { id: entityId }, select: { id: true } });
+    if (!academy) throw Object.assign(new Error('Академия не найдена'), { status: 404 });
+
+    let lecturerId = '';
+    try {
+      await prisma.$transaction(async (tx) => {
+        const account = await tx.user.findUnique({
+          where: { id: user.id },
+          select: { id: true, firstName: true, lastName: true, email: true },
+        });
+        if (!account) throw Object.assign(new Error('Пользователь не найден'), { status: 404 });
+
+        const existing = await tx.lecturer.findUnique({
+          where: { userId: user.id },
+          select: { id: true, academyId: true },
+        });
+        if (existing?.academyId && existing.academyId !== entityId) {
+          throw Object.assign(new Error('Профиль лектора уже привязан к другой академии'), { status: 409 });
+        }
+
+        const lecturer = existing
+          ? await tx.lecturer.update({
+              where: { id: existing.id },
+              data: { academyId: entityId },
+            })
+          : await tx.lecturer.create({
+              data: {
+                id: uid(),
+                userId: account.id,
+                academyId: entityId,
+                level: 'new',
+              },
+            });
+        lecturerId = lecturer.id;
+
+        await syncPersonFromLecturer(lecturer.id, account.id, entityId, tx);
+
+        const claimed = await tx.organizationInvitation.updateMany({
+          where: { code, usedAt: null, revokedAt: null },
+          data: { usedAt: new Date(), usedBy: user.id },
+        });
+        if (claimed.count !== 1) {
+          throw Object.assign(new Error('Приглашение уже использовано'), { status: 409 });
+        }
+      });
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw Object.assign(new Error('Профиль лектора уже существует или приглашение было использовано'), { status: 409 });
+      }
+      throw error;
+    }
+
+    // Wallet creation mirrors self-registration. It is a non-blocking derived
+    // account and does not affect the atomic Academy membership grant.
+    await getOrCreateWallet('LECTURER', lecturerId).catch(() => null);
+
+    return {
+      organizationId: org.id,
+      organizationName: org.name,
+      organizationType: org.type,
+      entityId: lecturerId,
+      role: 'lecturer',
+    };
+  }
+
+  if (org.type === 'SUPPLIER_COMPANY') {
+    if (!(SUPPLIER_INVITE_ROLES as readonly string[]).includes(invitation!.role)) {
+      throw Object.assign(new Error('Недопустимая роль приглашения поставщика'), { status: 400 });
+    }
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        const member = await tx.supplierMember.create({
+          data: { id: uid(), supplierId: entityId, userId: user.id, role: invitation!.role },
+        });
+        // The supplier workspace reads SupplierMember; the canonical Person graph
+        // powers organization context, branch scope and audit-aware identity.
+        await syncPersonFromSupplierMember(member.id, entityId, user.id, tx);
+        const claimed = await tx.organizationInvitation.updateMany({
+          where: { code, usedAt: null, revokedAt: null },
+          data: { usedAt: new Date(), usedBy: user.id },
+        });
+        if (claimed.count !== 1) {
+          throw Object.assign(new Error('Приглашение уже использовано'), { status: 409 });
+        }
+      });
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw Object.assign(new Error('Вы уже состоите в этой организации'), { status: 409 });
+      }
+      throw error;
+    }
+
+    return {
+      organizationId: org.id,
+      organizationName: org.name,
+      organizationType: org.type,
+      entityId,
+      role: invitation!.role,
     };
   }
 

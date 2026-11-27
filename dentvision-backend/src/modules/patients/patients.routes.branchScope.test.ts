@@ -8,12 +8,20 @@ describe('patients route branch scope contract', () => {
   it('uses the shared patient branch resolver', () => {
     expect(source).toContain("from '../../lib/patientBranchScope.js'");
     expect(source).toContain('resolvePatientBranchContext');
-    expect(source).toContain('req.user!.branchIds ?? []');
-    expect(source).toContain('req.user!.branchId ?? req.user!.assignedBranchId ?? null');
+    expect(source).toContain('organizationId: req.user?.organizationId');
+    expect(source).toContain('requestedBranchId: req.user?.branchId ?? req.user?.assignedBranchId ?? null');
+    expect(source).not.toContain('req.user!.branchIds');
     expect(source).toContain('getPatientIdsForBranchScope');
   });
-  it('uses the explicitly selected branch before any compatibility assignment hint', () => {
-    expect(source).toContain('req.user!.branchId ?? req.user!.assignedBranchId ?? null');
+  it('resolves selected branch context through canonical IAM instead of trusting a JWT branch array', () => {
+    expect(source).toContain('requestedBranchId: req.user?.branchId ?? req.user?.assignedBranchId ?? null');
+    expect(source).not.toContain('req.user!.branchIds');
+  });
+
+  it('uses only an unambiguous active/default branch for organization-wide patient creation', () => {
+    expect(source).toContain('targetBranchId = context.branchId && context.scope.branchIds.includes(context.branchId)');
+    expect(source).toContain('await resolveUnambiguousWriteBranch(context.scope.branchIds)');
+    expect(source).not.toContain('context.scope.branchIds[0]');
   });
 
   it('filters patient lists by branch at query construction time', () => {
@@ -132,5 +140,38 @@ describe('patients route branch scope contract', () => {
   it('rejects zero, negative and non-finite patient deposits at the API boundary', () => {
     expect(source).toContain('Number.isSafeInteger(amount)');
     expect(source).toContain("requirePermission('billing.write')");
+  });
+});
+
+
+describe('patient route tenant and staffing authorization', () => {
+  it('scopes idempotency replay to the active clinic and preserves globally owned keys', () => {
+    const start = source.indexOf("patientsRouter.post('/',");
+    const end = source.indexOf("patientsRouter.patch('/:id'", start);
+    const route = source.slice(start, end);
+    expect(route).toContain('where:{id:r.resultId,clinicId}');
+    expect(route).toContain('IDEMPOTENCY_KEY_SCOPE_CONFLICT');
+    expect(route).toContain("if(!prior)return res.status(409)");
+    expect(route).not.toContain('findUnique({where:{id:r.resultId}');
+    const replayStart = route.indexOf("if(r.status==='exists')");
+    const replayEnd = route.indexOf('const existing=body.id', replayStart);
+    const replay = route.slice(replayStart, replayEnd);
+    expect(replay).not.toContain('deleteIdempotencyKey(idempotencyKey)');
+    // The handler still releases its own incomplete reservation on failure.
+    expect(route).toContain('if(idempotencyKey&&!completed)await deleteIdempotencyKey(idempotencyKey).catch');
+  });
+
+  it('requires staff.write rather than patient.write to add or revoke patient assignments', () => {
+    expect(source).toContain("patientsRouter.post('/:id/assignments',requirePermission('staff.write')");
+    expect(source).toContain("patientsRouter.delete('/:id/assignments/:assignmentId',requirePermission('staff.write')");
+    expect(source).not.toContain("patientsRouter.post('/:id/assignments',requirePermission('patient.write')");
+    expect(source).not.toContain("patientsRouter.delete('/:id/assignments/:assignmentId',requirePermission('patient.write')");
+  });
+
+  it('binds assignment revocation to the route patient as well as the clinic', () => {
+    const routeStart = source.indexOf("patientsRouter.delete('/:id/assignments/:assignmentId'");
+    const routeEnd = source.indexOf('\n', routeStart);
+    const route = source.slice(routeStart, routeEnd);
+    expect(route).toContain('revokePatientAssignment({clinicId:s.clinicId,patientId:s.patientId,assignmentId:req.params.assignmentId})');
   });
 });

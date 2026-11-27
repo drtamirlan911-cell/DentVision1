@@ -40,8 +40,58 @@ describe('resolveModels — discovery', () => {
 
     expect(models.full).toBe(FULL_TOP);
     expect(models.mini).toBe(MINI_TOP);
+    // No operator pin was supplied; both chat tiers came from account discovery.
     expect(models.source).toBe('probe');
     expect(models.degraded).toBe(false);
+  });
+
+  it('routes standard, deep, visual and high-volume work to their intended GPT-6 tiers', async () => {
+    stubModels([
+      'gpt-6.2-astra',
+      'gpt-6.1-sol',
+      'gpt-6.1-terra',
+      'gpt-6-luna',
+    ]);
+
+    const models = await resolveModels({ apiKey: 'k' });
+
+    expect(models.full).toBe('gpt-6.1-sol');
+    expect(models.deep).toBe('gpt-6.2-astra');
+    expect(models.mini).toBe('gpt-6-luna');
+    expect(models.vision).toBe('gpt-6.1-terra');
+    expect(models.fullSupportsReasoning).toBe(true);
+    expect(models.deepSupportsReasoning).toBe(true);
+    expect(models.miniSupportsReasoning).toBe(false);
+    expect(models.visionSupportsReasoning).toBe(true);
+  });
+
+  it('separates standard agent work from deep reasoning when both models are available', async () => {
+    stubModels(['gpt-6.2-sol', 'gpt-6.2-astra', 'gpt-6.1-terra', 'gpt-6-luna']);
+
+    const models = await resolveModels({ apiKey: 'k' });
+
+    expect(models.full).toBe('gpt-6.2-sol');
+    expect(models.deep).toBe('gpt-6.2-astra');
+    expect(models.mini).toBe('gpt-6-luna');
+    expect(models.deepSupportsReasoning).toBe(true);
+  });
+
+  it('falls back to the verified standard model when no deep model is available', async () => {
+    stubModels(['gpt-6.2-sol', 'gpt-6-luna']);
+
+    const models = await resolveModels({ apiKey: 'k' });
+
+    expect(models.full).toBe('gpt-6.2-sol');
+    expect(models.deep).toBe('gpt-6.2-sol');
+    expect(models.deepSupportsReasoning).toBe(false);
+  });
+
+  it('keeps the legacy vision fallback when Terra is not available', async () => {
+    stubModels(['gpt-6.2-astra', 'gpt-6-luna', 'gpt-4o']);
+
+    const models = await resolveModels({ apiKey: 'k' });
+
+    expect(models.vision).toBe('gpt-4o');
   });
 
   it('skips ladder entries this account cannot call', async () => {
@@ -89,13 +139,42 @@ describe('resolveModels — discovery', () => {
 });
 
 describe('resolveModels — operator pin', () => {
-  it('uses pinned ids and skips the probe entirely', async () => {
-    const fetchMock = stubModels([FULL_TOP, MINI_TOP]);
+  it('pins chat tiers but still discovers the best auxiliary models', async () => {
+    const fetchMock = stubModels([
+      'gpt-6.1-terra',
+      'text-embedding-3-large',
+      'gpt-transcribe',
+    ]);
 
     const models = await resolveModels({ apiKey: 'k', envFull: 'pinned-full', envMini: 'pinned-mini' });
 
-    expect(models).toMatchObject({ full: 'pinned-full', mini: 'pinned-mini', source: 'env' });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(models).toMatchObject({
+      full: 'pinned-full',
+      mini: 'pinned-mini',
+      vision: 'gpt-6.1-terra',
+      embedding: 'text-embedding-3-large',
+      transcription: 'gpt-transcribe',
+      source: 'env',
+      degraded: false,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps operator chat pins when discovery fails and marks auxiliary resolution degraded', async () => {
+    const fetchMock = vi.fn(async () => new Response('unavailable', { status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const models = await resolveModels({ apiKey: 'k', envFull: 'pinned-full', envMini: 'pinned-mini' });
+
+    expect(models).toMatchObject({
+      full: 'pinned-full',
+      mini: 'pinned-mini',
+      embedding: 'text-embedding-3-small',
+      transcription: 'whisper-1',
+      source: 'env',
+      degraded: true,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('still discovers the other tier when only one id is pinned', async () => {
@@ -105,7 +184,9 @@ describe('resolveModels — operator pin', () => {
 
     expect(models.full).toBe('pinned-full');
     expect(models.mini).toBe(MINI_TOP);
-    expect(models.source).toBe('probe');
+    // The full tier is pinned, so the aggregate source is `env`; the unpinned
+    // mini tier is still selected from the provider's live catalogue.
+    expect(models.source).toBe('env');
   });
 });
 

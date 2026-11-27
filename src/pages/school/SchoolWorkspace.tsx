@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { ListSkeleton } from '@/components/ui/ds';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GraduationCap, BookOpen, Wallet, BarChart3, Plus, Trash2, Users, Award, Building2, Camera, ImageIcon, Radio, BookMarked } from 'lucide-react';
 import * as api from '@/utils/api';
-import { useAuth } from '@/store/auth.store';
+import { useAuth, useAuthStore } from '@/store/auth.store';
 import { beginWorkspaceRequest, isWorkspaceRequestCurrent, selectWorkspaceContext } from '@/lib/workspaceContext';
 import { useToast } from '@/components/ui/ds/Toast';
 import { Button } from '@/components/ui/ds/Button';
@@ -16,6 +16,7 @@ import { EmptyState } from '@/components/ui/ds/EmptyState';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload';
 import { LECTURER_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits';
+import { WorkspaceRoleStart } from '@/components/workspaces/WorkspaceRoleStart';
 
 interface LecturerCtx { scopeId: string; organizationId?: string; name?: string; roleLabel?: string; level?: string; academy?: { id: string; name: string } | null }
 
@@ -65,11 +66,20 @@ export default function SchoolWorkspace() {
   const navigate = useNavigate();
   const toast = useToast();
   const { activeWorkspace } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const tab: 'courses' | 'analytics' | 'profile' =
+    requestedTab === 'analytics' || requestedTab === 'profile' ? requestedTab : 'courses';
+  const selectTab = useCallback((nextTab: 'courses' | 'analytics' | 'profile') => {
+    const next = new URLSearchParams(searchParams);
+    if (nextTab === 'courses') next.delete('tab');
+    else next.set('tab', nextTab);
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
   const [loading, setLoading] = useState(true);
   const [contexts, setContexts] = useState<LecturerCtx[]>([]);
   const [token, setToken] = useState<string | null>(null);
   const [contextSwitching, setContextSwitching] = useState(false);
-  const [tab, setTab] = useState<'courses' | 'analytics' | 'profile'>('courses');
 
   const [me, setMe] = useState<any>(null);
   const [courses, setCourses] = useState<any[]>([]);
@@ -100,7 +110,6 @@ export default function SchoolWorkspace() {
     setPublicationUpdatingId(null);
     setForm({ ...EMPTY_FORM });
     setListFilter('all');
-    setTab('courses');
     setSaving(false);
     setPhotoUploading(false);
   }, []);
@@ -124,14 +133,32 @@ export default function SchoolWorkspace() {
     setContextSwitching(true);
     clearWorkspaceData();
     try {
-      const res = await api.switchContext('LECTURER', scopeId);
+      const auth = useAuthStore.getState();
+      const selectedContext = auth.workspaceContexts.find(
+        (workspace) => workspace.scopeType === 'LECTURER' && workspace.scopeId === scopeId,
+      );
+      let accessToken = auth.activeWorkspace?.scopeType === 'LECTURER'
+        && auth.activeWorkspace.scopeId === scopeId
+        ? auth.token
+        : null;
+
+      // Keep the lecturer token and the global active-workspace contract aligned.
+      if (!accessToken && selectedContext) {
+        await auth.switchWorkspace(selectedContext);
+        accessToken = useAuthStore.getState().token;
+      } else if (!accessToken) {
+        const switched = await api.switchContext('LECTURER', scopeId);
+        await useAuthStore.getState().restoreSession();
+        accessToken = useAuthStore.getState().token || switched.accessToken;
+      }
+      if (!accessToken) throw new Error('Не удалось определить активную сессию лектора');
       if (!isWorkspaceRequestCurrent(requestGenerationRef, generation)) return;
-      setToken(res.accessToken);
-      await loadAll(res.accessToken, generation);
-    } catch {
+      setToken(accessToken);
+      await loadAll(accessToken, generation);
+    } catch (error) {
       if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
         setToken(null);
-        toast.error('Не удалось войти в выбранную организацию лектора');
+        toast.error(error instanceof Error ? error.message : 'Не удалось войти в выбранную организацию лектора');
       }
     } finally {
       if (isWorkspaceRequestCurrent(requestGenerationRef, generation)) {
@@ -421,12 +448,22 @@ export default function SchoolWorkspace() {
           </Badge>
         )}
       />
+      {tab === 'courses' && (
+        <WorkspaceRoleStart
+          roleLabel="Преподаватель"
+          heading="Создавайте и развивайте свои образовательные продукты"
+          description="В этом кабинете вы управляете курсами, вебинарами и учебниками. После публикации отслеживайте продажи, прогресс учащихся и доступный баланс."
+          steps={['Проверьте или создайте образовательный продукт', 'Подготовьте материалы и условия доступа', 'Следите за результатами и выплатами в аналитике']}
+          actionLabel="Создать продукт"
+          onAction={() => { setForm({ ...EMPTY_FORM }); setAddOpen(true); }}
+        />
+      )}
 
       <div className="flex flex-wrap gap-1 mt-4 mb-5 border-b border-white/[0.06]">
         {TABS.map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => selectTab(t.id)}
             className={`flex items-center gap-1.5 px-4 py-2.5 min-h-11 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t.id ? 'border-dv-gold text-dv-gold' : 'border-transparent text-txt-muted hover:text-txt-primary'}`}
           >
             {t.icon}{t.label}

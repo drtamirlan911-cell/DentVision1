@@ -1,5 +1,5 @@
 # Builder
-FROM node:20-alpine AS builder
+FROM node:22.23.5-alpine3.23 AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -9,12 +9,14 @@ COPY . .
 RUN npm run build
 
 # Runner
-FROM node:20-alpine AS runner
+FROM node:22.23.5-alpine3.23 AS runner
 WORKDIR /app
 RUN apk add --no-cache curl && addgroup -S app && adduser -S app -G app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
+# Jarvis loads its approved product guide from /app/docs at runtime.
+COPY --from=builder /app/docs ./docs
 COPY --from=builder /app/package.json ./
 RUN chown -R app:app /app
 EXPOSE 3001

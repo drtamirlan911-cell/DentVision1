@@ -1,3 +1,38 @@
+## Current release checkpoint — 2026-11-27 (PR #353 integration candidate)
+
+- **Candidate:** [PR #353](https://github.com/drtamirlan911-cell/DentVision1/pull/353), branch `integrate/jarvis-product-knowledge-20261125`, target `main`. PR remains OPEN / not merged; 204 files are changed at this checkpoint. PR #351 remains a separate draft and must not be merged wholesale.
+- **Code checkpoint before this documentation update:** `67af7b90cdb4cc67555a342e9fa1963a9e70de23`. On this exact code SHA, Quality Gate and RB-034 passed; CI frontend and backend lint passed, while unit tests and Playwright E2E were still running. Combined Vercel Preview remained **failure** at the account build-rate-limit page. The documentation write advances PR head; final checks must run on the resulting SHA.
+- **Cabinet/navigation changes included:** one desktop cabinet-return action; organization/branch selector for single- and multi-organization users; type and membership-role labels; role-first clinic and partner menus; task-aware desktop/mobile cabinet destinations; query/history synchronization; role-aware deep-link fallback; and scope-aware partner route guards.
+- **Mobile return:** the bottom bar displays **Кабинет** for the active organization and opens the employee's role home. With memberships but no selected context, it opens the organization selector. It hides stale clinic/diagnostic shortcuts in selected partner contexts and remains highlighted across tabs within the same organization.
+- **Employee task routes:** clinic cashier → cashier; medical-lab finance → finance; diagnostic finance → cashier; diagnostic quality → results; radiology → assigned worklist; dental-lab technician → priority tasks; dental-lab QC → dedicated `status=qc` queue; dental-lab logistics → shipping.
+- **Role presentation and supplier split:** the selected membership role takes precedence over global account role labels. Supplier owners see team-management navigation; managers do not, and direct non-owner requests for `?tab=team` fall back to the overview.
+- **Scoped route boundary:** supplier/employer/lecturer routes require the corresponding active organization; diagnostic nested routes must match the active role's contextual navigation. Scoped client routing does not grant record/action permissions; APIs remain authoritative. RB-035 still requires full route × role × tenant × branch × session verification.
+- **Dental-lab QC:** QC specialists can submit quality decisions through the existing manager-or-QC-specialist backend endpoint without team, service-pricing, finance or shipping management UI rights.
+- **Commercial policy:** partner branch subscriptions plus transaction commissions remain active for Diagnostic / 3D centers, Medical Analysis laboratories and Dental laboratories. Clinic CRM SaaS remains separate. The withdrawn 2026-11-26 commission-only amendment is not active policy.
+- **Release blockers remain OPEN:** RB-029 P0 historical PHI lifecycle and verified backup/restore; RB-031 WebKit/CORS/WebSocket; RB-033 branch-protection evidence; RB-035 full patient/clinical/billing route × role × tenant × branch × session matrix; D1/D2 staging and restore; Kazakhstan legal / EDS; official Kaspi provider evidence; physical Android acceptance; diagnostics/PACS/DICOM and LIS; Dental Lab D10 settlement; Marketplace/Supplier returns and settlement; Academy/Community; employer lifecycle; public discovery; and WebGL odontogram browser/clinical acceptance.
+- **Marketplace SHOP-013:** source implementation and Playwright buyer-cancellation scenario exist, including authenticated ownership, non-owner 404, atomic stock restoration and UI payment-evidence guard. Exact-head CI/E2E confirmation remains required; online provider void/refund remains a separate capability.
+- **Environment boundary:** no production/staging database, PHI, secret/key, payment provider, legal signature or production deployment was accessed or modified.
+- **Release classification: NOT READY.** Passing source gates do not establish production, legal, provider, mobile or operational readiness.
+
+---
+
+## Historical release checkpoint — 2026-11-26 (superseded by 2026-11-27 policy / source audit)
+
+- **Current main:** `88ac207cefad1ba42e3b272b3e4a868662eb91bb`; PR #352 is merged.
+- **Current candidate:** PR [#353](https://github.com/drtamirlan911-cell/DentVision1/pull/353), branch `integrate/jarvis-product-knowledge-20261125`, verified code SHA `96ef732508d3097ef0466018aa4831b129a4e895`. It is 100 commits ahead / 0 behind main, 126 changed files, OPEN / not merged. PR #351 remains OPEN/DRAFT; do not merge its older overlapping branch independently.
+- **Exact source gate results on `96ef732508d3097ef0466018aa4831b129a4e895`:** CI [45626319064] SUCCESS; Quality Gate [45626319150] SUCCESS; RB-034 [45626319094] SUCCESS. E2E detail: Core 262 passed / 5 skipped; Browser UX 4 passed; Mobile Design 16 passed; Role/Context 147 passed / 28 skipped; Visual Agent 48 passed; Business Owner 11 passed; Organization Owner 8 passed; Playwright CLI smoke and Visual Release Gate passed. Frontend lint, backend lint and lint-test jobs succeeded. PR review threads: 0 unresolved.
+- **Vercel Preview is still a blocker for this SHA:** no Vercel deployment was found for `96ef732508d3097ef0466018aa4831b129a4e895`; GitHub combined status links to the Vercel build-rate-limit gate. The last READY deployment found on the branch used older SHA `8133e87f0d5b69de4d1e8104157c7127122dcf31`; it is not current Preview evidence.
+- **Do not clear release blockers based on source CI.** The PR #353 changes add branch ownership and safer, read-only AI workspace projections but do not complete partner workflows, production integration, historical data protection or regulatory acceptance.
+- **RB-029 remains P0 / OPEN:** historical Patient/AI derivative PHI inventory and count/backfill; legacy worker drain and strict cutover; key versioning/rotation and old-key handling; retention/export/deletion; encryption of derived copies; verified backup/restore and rollback; exception reconciliation; approved staging dry-run/apply remain outstanding. No historical PHI operation was performed.
+- **RB-031 remains OPEN:** WebKit OPTIONS/CORS/WebSocket behavior and production-equivalent evidence are not closed.
+- **RB-033 remains OPEN / NOT VERIFIED:** required main-branch protection and required-check policy still need authoritative repository settings evidence.
+- **RB-035 remains OPEN:** full patient/clinical/billing route × role × tenant × organization × clinic × branch × active/revoked/expired-session matrix, partner-branch coverage and an explicitly authorized archive-history read policy remain outstanding.
+- **Other OPEN/PARTIAL release gates:** D1/D2 approved staging and verified backup/restore; legal templates and EDS/signature; official Kaspi merchant and callback/provider evidence; physical Android runtime; diagnostics/PACS/DICOM and complete medical-lab/LIS workflows; Dental Lab D10 logistics/settlement; Marketplace/Supplier returns and seller settlement; Academy/Community full workflows; employer lifecycle; public discovery; and true 32-tooth WebGL odontogram.
+- **Environment boundary:** migrations were exercised only in the isolated GitHub Actions E2E database. No production/staging database, PHI, secret/key, payment provider, legal signature or production deployment was accessed or modified.
+- **Release remains NOT READY.** The new documentation-only commit changes the PR head and must receive fresh exact-head CI, Quality Gate, RB-034 and Preview checks; the currently recorded green source checks refer to `96ef732508d3097ef0466018aa4831b129a4e895` before that documentation commit.
+
+---
+
 ## Current checkpoint — 2026-11-19 (RB-035 expanded source review)
 
 - **Current main remains** da1257fc650f536c76583bdff570906290b92bcd; PR #349 is merged with exact CI/Quality Gate/Vercel success. The next candidate is PR #350 / security/rb035-inactive-branch-access-main-20261119; it is not merged.
@@ -776,7 +811,7 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 
 - Added docs/MASTER_SPEC_COMPLIANCE_AUDIT.md, a section-by-section review of all 24 Master Spec 5.0 sections against source, schema, generated inventories, E2E tests and exact-head CI.
 - Audit outcome at HEAD 1284de604b638937ee2939f3f198f8674a5fa6d4: 18 PARTIAL, 4 OPEN, 2 GUIDANCE; no section is certified end-to-end. Release remains NOT READY; PR #330 stays Draft.
-- Explicit missing capability recorded: Shop order cancellation currently returns 404 in SHOP-013. The audit also records missing independent dental-lab owner E2E proof, public participant profile redirects, accepted-paid-settled / medical-analysis settlement gap, 32-tooth WebGL/3D odontogram, PHI transcript/backfill and Android runtime evidence.
+- Historical audit note at that older HEAD: Shop order cancellation was recorded as returning 404. This was subsequently implemented on PR #330 and is covered by the current `PATCH /api/shop/orders/:id/cancel` route, buyer-cancellation service tests and `e2e/tests/marketplace.spec.ts` SHOP-013 scenario. Current PR #353 still requires exact-head CI/E2E confirmation. The audit also records missing independent dental-lab owner E2E proof, public participant profile redirects, accepted-paid-settled / medical-analysis settlement gap, 32-tooth WebGL/3D odontogram, PHI transcript/backfill and Android runtime evidence.
 - Current exact-head CI 41183045451 is still running at Role/Context; core E2E, Browser UX and Mobile Design passed. Quality Gate 41183045517 and RB-034 diagnostic 41183045421 passed. This is not full release verification.
 - This is a source/test audit only. No staging/production migration, PHI backfill, payment-provider callback, branch-rule change, Android device test or merge was performed.
 
@@ -976,3 +1011,21 @@ ACADEMY-010/011 are not resolved: core E2E on ce6347e4 had 259 passed, 5 skipped
 - Academy protected update/delete still fail E2E on 404 despite route/handler/course-found/history-conflict markers matching; new response writer instrumentation records the actual status/JSON writer. Keep ACADEMY-010/011 OPEN until 409 is returned and learner course/lesson/enrollment records are proven unchanged.
 - On previous SHA b580006, core E2E 259 passed, 5 skipped, 2 failed; backend/frontend lint, full lint/test, Quality Gate, RB-034, Browser UX and Mobile Design succeeded. Role/context and later owner/visual gates were still running when checked. This does not satisfy merge/release gate.
 - Partner branch monthly invoicing/QR/payment initiation/settlement is present, not automatic recurring debit. Partner verticals remain PARTIAL; paid-entitlement enforcement across all APIs, dunning, proration, refunds/credit notes, tax/EDS, bank reconciliation and live Kaspi acceptance remain OPEN.
+
+
+
+## 2026-11-27 — Reaffirmed partner branch monetization policy (PR #353)
+
+The 2026-11-26 CRM-only / commission-only amendment was an incorrect interpretation and is withdrawn. The active authority is the corrected v1.3 of `docs/business/DENTVISION_PARTNER_ECONOMICS.md`.
+
+- Clinic CRM SaaS remains a distinct recurring subscription.
+- Diagnostic / 3D centers pay **₸49,900 per active billable branch / month plus 7%** on eligible settled transactions.
+- Medical-analysis laboratories pay **₸19,900 per active billable branch / month plus 6%** on eligible settled transactions.
+- Dental laboratories pay **₸29,900 per active billable branch / month plus the case commission** defined by the active volume tiers.
+- Marketplace sellers, academies / lecturers, employers and other partner types follow their separately defined economics. Do not invent a branch tariff for a vertical without one.
+- PR #353 restores partner branch-subscription invoice issuance, the monthly invoicing cron and in-app finance notifications, the partner Finance UI and Platform Finance visibility. Monthly invoicing is not an automatic recurring debit.
+- Branch subscriptions and transaction commissions are separate revenue streams. Commission is earned only on successful settlement; refunds and chargebacks use compensating ledger events.
+- Existing invoices, payments, subscription rows and revenue entries remain immutable. No automatic legacy re-pricing, deletion, refund or balance closure is authorized.
+- Partner verticals remain PARTIAL until paid-entitlement enforcement, dunning / recovery, proration / credits, refunds / credit notes, VAT / EDS, bank reconciliation, official Kaspi acceptance, payout and full operational lifecycle evidence are complete.
+
+**Release remains NOT READY.** This correction fixes commercial-policy alignment; it does not close staging, privacy, legal, provider, mobile, RB-029, RB-031, RB-033, RB-035 or product-completeness blockers.

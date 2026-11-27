@@ -217,4 +217,17 @@ describe('IAM partner context archive and legacy branch protection', () => {
     expect(source).toContain('BRANCH_ASSIGNMENT_REQUIRED');
     expect(source).toContain('BRANCH_SELECTION_REQUIRED');
   });
+
+  it('changes or removes partner staff only inside the active organization and writes audit in the same transaction', () => {
+    expect(source).toContain("iamRouter.patch('/members/:userId/role'");
+    expect(source).toContain("iamRouter.delete('/members/:userId'");
+    expect(source).toContain('getActiveManageablePartnerOrganization');
+    expect(source).toContain('isOrganizationMemberRoleAllowed(organization, requestedRole)');
+    expect(source).toContain("String(actor.role).toLowerCase() !== 'owner'");
+    expect(source).toContain("String(target.role).toLowerCase() === 'owner'");
+    expect(source).toContain("organization.member_removed");
+    expect(source).toContain("organization.member_role_changed");
+    expect(source).toContain('await auditFromReq(req, {');
+  });
+
 });

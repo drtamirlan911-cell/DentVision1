@@ -1,6 +1,9 @@
 import React from 'react';
-import { Building2, ChevronRight, Globe2, UserRound } from 'lucide-react';
+import { ArrowLeftRight, Building2, ChevronRight, Globe2, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getRoleDisplayLabel, useAuth } from '@/store/auth.store';
+import { getWorkspaceHomeTarget, isClinicFinanceOnlyRole, resolveWorkspaceRoleLabel } from '@/lib/workspaceNavigation';
+import { firstAllowedCrmPath } from '@/lib/roleAccess';
 import { cn } from '@/lib/utils';
 import type { User as UserType } from '@/types';
 
@@ -16,8 +19,8 @@ const ROLE_LABELS: Record<string, string> = {
   dental_lab_owner: 'Владелец зуботехнической лаборатории', dental_lab_admin: 'Администратор зуботехнической лаборатории', dental_lab_manager: 'Управляющий зуботехнической лаборатории', lab_coordinator: 'Координатор лаборатории', dental_technician: 'Зубной техник', cad_designer: 'CAD-дизайнер', ceramist: 'Керамист', orthodontic_technician: 'Ортодонтический техник', qc_specialist: 'Контроль качества лаборатории', lab_finance: 'Финансы лаборатории', user: 'Участник экосистемы', guest: 'Гость',
 };
 
-function roleLabel(user: UserType | null) {
-  const raw = String((user as any)?.effectiveRole || (user as any)?.platformRole || (user as any)?.role || 'user').toLowerCase();
+function roleLabel(user: UserType | null, activeRole?: string | null) {
+  const raw = String(activeRole || (user as any)?.effectiveRole || (user as any)?.platformRole || (user as any)?.role || 'user').toLowerCase();
   return ROLE_LABELS[raw] || raw.replace(/_/g, ' ');
 }
 
@@ -28,25 +31,62 @@ function organizationLabel(user: UserType | null) {
 
 export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false, isGuest = false }) => {
   const navigate = useNavigate();
-  const org = organizationLabel(user);
-  const label = roleLabel(user);
-  const hasOrg = Boolean((user as any)?.organizationId || (user as any)?.clinicId || org);
-  const target = hasOrg ? '/my-clinics' : '/profile';
+  const { activeWorkspace, workspaceContexts, pages } = useAuth();
+  const hasUnselectedWorkspaces = workspaceContexts.length > 0 && !activeWorkspace;
+  const org = activeWorkspace?.name || (!workspaceContexts.length ? organizationLabel(user) : null);
+  const label = hasUnselectedWorkspaces
+    ? 'Контекст не выбран'
+    : activeWorkspace
+      ? resolveWorkspaceRoleLabel(activeWorkspace.roleKey, activeWorkspace.role, activeWorkspace.roleLabel, getRoleDisplayLabel)
+      : roleLabel(user);
+  const home = activeWorkspace ? getWorkspaceHomeTarget({
+    scopeType: activeWorkspace.scopeType,
+    roleKey: activeWorkspace.roleKey || activeWorkspace.role || (user as any)?.effectiveRole || (user as any)?.role,
+    hasClinic: activeWorkspace.scopeType === 'CLINIC',
+  }) : null;
+  const hasOrg = Boolean(activeWorkspace?.id || (!workspaceContexts.length && ((user as any)?.organizationId || (user as any)?.clinicId || org)));
+  const clinicFinanceHome = home?.scopeType === 'CLINIC' && isClinicFinanceOnlyRole(activeWorkspace?.roleKey || activeWorkspace?.role)
+    && (pages.includes('cashier') || pages.includes('finance'));
+  const firstClinicPath = pages.length ? firstAllowedCrmPath(pages) : home?.path;
+  const homePath = clinicFinanceHome ? '/crm/cashier'
+    : home?.scopeType === 'CLINIC' ? (firstClinicPath && firstClinicPath !== '/' ? firstClinicPath : home.path) : home?.path;
+  const openSwitcher = () => window.dispatchEvent(new CustomEvent('dentvision:open-workspace-switcher'));
+  const canSwitchWorkspace = !isGuest && Boolean(activeWorkspace) && workspaceContexts.length > 0;
+  const openWorkspace = () => {
+    if (activeWorkspace && homePath) navigate(homePath);
+    else if (workspaceContexts.length > 0) openSwitcher();
+    else navigate('/my-clinics');
+  };
 
-  if (collapsed && !isGuest) {
-    return <button type="button" title={`${label}${org ? ` · ${org}` : ''}`} onClick={() => navigate(target)} className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-xl bg-[var(--dv-accent-soft)] text-[var(--dv-accent)] hover:opacity-90"><Building2 size={16} /></button>;
+  if (collapsed) {
+    return (
+      <div className="mx-auto mb-2 flex flex-col items-center gap-1">
+        <button type="button" title={`Открыть кабинет · ${org || home?.label || label} · ${label}`} aria-label="Открыть рабочий кабинет" data-testid="active-workspace-link" onClick={openWorkspace} className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--dv-accent-soft)] text-[var(--dv-accent)] hover:opacity-90"><Building2 size={16} /></button>
+        {canSwitchWorkspace && <button type="button" title="Сменить организацию или филиал" aria-label="Сменить организацию или филиал" onClick={openSwitcher} className="grid h-9 w-9 place-items-center rounded-xl text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"><ArrowLeftRight size={15} /></button>}
+      </div>
+    );
   }
 
   return <div className={cn('mx-3 mb-2 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] p-2.5', isGuest && 'border-[var(--dv-accent)]/20')}>
-    <button type="button" onClick={() => navigate(target)} className="flex min-h-11 w-full items-center gap-2.5 text-left">
+    <button type="button" aria-label="Открыть рабочий кабинет" data-testid="active-workspace-link" onClick={openWorkspace} className="flex min-h-11 w-full items-center gap-2.5 text-left">
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]">{hasOrg ? <Building2 size={15} /> : <Globe2 size={15} />}</span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[11px] font-semibold text-[var(--dv-text)]">{org || 'Личный контекст'}</span>
-        <span className="mt-0.5 block truncate text-[10px] text-[var(--dv-muted)]">{label}</span>
+        <span className="block truncate text-[11px] font-semibold text-[var(--dv-text)]">{hasUnselectedWorkspaces ? 'Выберите рабочее пространство' : 'Открыть рабочий кабинет'}</span>
+        <span className="mt-0.5 block truncate text-[10px] text-[var(--dv-muted)]">{hasUnselectedWorkspaces ? 'Организация и роль пока не выбраны' : [org || home?.label || 'Личный контекст', label, home?.label].filter(Boolean).join(' · ')}</span>
       </span>
       <ChevronRight size={14} className="shrink-0 text-[var(--dv-muted)]" />
     </button>
-    {!isGuest && !hasOrg && <button type="button" onClick={() => navigate('/my-clinics')} className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--dv-border)] px-2 py-1.5 text-[10px] font-medium text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"><UserRound size={12} /> Подключить рабочий контекст</button>}
+    {canSwitchWorkspace && (
+      <button
+        type="button"
+        onClick={openSwitcher}
+        aria-label="Сменить организацию или филиал"
+        className="mt-2 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--dv-border)] px-2 py-1.5 text-[10px] font-medium text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"
+      >
+        <ArrowLeftRight size={12} /> Сменить организацию / филиал
+      </button>
+    )}
+    {!isGuest && !hasOrg && workspaceContexts.length === 0 && <button type="button" onClick={() => navigate('/my-clinics')} className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--dv-border)] px-2 py-1.5 text-[10px] font-medium text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"><UserRound size={12} /> Подключить рабочий контекст</button>}
   </div>;
 };
 

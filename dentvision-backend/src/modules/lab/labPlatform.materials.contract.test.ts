@@ -65,7 +65,9 @@ describe('dental laboratory material authorization', () => {
     expect(route).toContain('labOrderId: orderId');
     expect(authorization).toContain('files: { path: [\'meta\', \'technicianId\'], equals: input.userId }');
     expect(frontend).toContain('canConsume={canConsumeMaterials}');
-    expect(frontend).toContain("['lab_coordinator', 'qc_specialist', 'technician'");
+    expect(frontend).toContain('resolveDentalLabRoleCapabilities(memberRole)');
+    expect(frontend).toContain('canConsumeMaterials');
+    expect(frontend).toContain('hasDentalLabRole(');
   });
 
   it('locks the order and selected lot, rejects expired/insufficient stock, and decrements conditionally', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { calculatePartnerBranchSubscriptionQuote, calculatePartnerTransactionFee, resolveAcademyRevenueSplit } from './partnerEconomics.js';
 
-describe('canonical partner economics v1.2', () => {
+describe('canonical partner economics v1.3', () => {
   it.each([[5_000, 500], [10_000, 700], [50_000, 3_000]])('calculates diagnostic fee', (gross, expected) => {
     expect(calculatePartnerTransactionFee({ domain: 'DIAGNOSTIC_STUDY', grossAmountKzt: gross }).commissionKzt).toBe(expected);
   });
@@ -33,7 +33,7 @@ describe('canonical partner economics v1.2', () => {
 
   it('calculates academy splits by acquisition source', () => {
     expect(resolveAcademyRevenueSplit('LECTURER_OWN_AUDIENCE')).toEqual({
-      policyVersion: '1.2', dentVisionBps: 1_000, lecturerBps: 9_000,
+      policyVersion: '1.3', dentVisionBps: 1_000, lecturerBps: 9_000,
     });
     expect(resolveAcademyRevenueSplit('DENTVISION_ACQUISITION').dentVisionBps).toBe(2_500);
     expect(resolveAcademyRevenueSplit('DENTVISION_FULL_SERVICE').dentVisionBps).toBe(3_000);
@@ -67,7 +67,7 @@ describe('canonical partner economics v1.2', () => {
 });
 
 
-describe('partner branch subscription quote v1.2', () => {
+describe('partner branch subscription quote v1.3', () => {
   it('uses only the approved monthly branch prices', () => {
     expect(calculatePartnerBranchSubscriptionQuote({
       vertical: 'DIAGNOSTIC_3D', organizationActivated: true, activeBillableBranchCount: 1,
@@ -102,7 +102,7 @@ describe('partner branch subscription quote v1.2', () => {
     });
     expect(quote.billableBranchCount).toBe(3);
     expect(quote.monthlyTotalKzt).toBe(59_700);
-    expect(quote.policyVersion).toBe('1.2');
+    expect(quote.policyVersion).toBe('1.3');
   });
 
   it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(

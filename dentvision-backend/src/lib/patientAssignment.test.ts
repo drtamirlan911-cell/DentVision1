@@ -66,16 +66,40 @@ describe('ensurePatientAssignment', () => {
 });
 
 describe('revokePatientAssignment', () => {
-  it('scopes the revoke by clinic so an id from another tenant matches nothing', async () => {
-    await revokePatientAssignment('c1', 'pa1');
+  it('scopes the revoke by clinic, parent patient and assignment id', async () => {
+    await revokePatientAssignment({ clinicId: 'c1', patientId: 'p1', assignmentId: 'pa1' });
 
-    expect(updateManyMock.mock.calls[0][0].where).toEqual({ id: 'pa1', clinicId: 'c1', active: true });
+    expect(updateManyMock.mock.calls[0][0].where).toEqual({
+      id: 'pa1',
+      clinicId: 'c1',
+      patientId: 'p1',
+      active: true,
+    });
+  });
+
+  it('cannot revoke an assignment belonging to a different patient in the same clinic', async () => {
+    updateManyMock.mockResolvedValue({ count: 0 });
+
+    await expect(revokePatientAssignment({
+      clinicId: 'c1',
+      patientId: 'patient-from-route',
+      assignmentId: 'assignment-of-another-patient',
+    })).resolves.toBe(false);
+    expect(updateManyMock.mock.calls[0][0].where).toMatchObject({
+      clinicId: 'c1',
+      patientId: 'patient-from-route',
+      id: 'assignment-of-another-patient',
+    });
   });
 
   it('reports false when nothing matched', async () => {
     updateManyMock.mockResolvedValue({ count: 0 });
 
-    await expect(revokePatientAssignment('c1', 'missing')).resolves.toBe(false);
+    await expect(revokePatientAssignment({
+      clinicId: 'c1',
+      patientId: 'p1',
+      assignmentId: 'missing',
+    })).resolves.toBe(false);
   });
 });
 

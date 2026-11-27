@@ -9,11 +9,14 @@ vi.mock('@/utils/api', () => ({
   clearTokens: vi.fn(),
   loadTokens: vi.fn(),
   switchClinic: vi.fn(),
+  switchWorkspace: vi.fn(),
+  setWorkspaceContext: vi.fn(),
   upsertUser: vi.fn(),
   forgotPassword: vi.fn(),
 }))
 
 import { useAuthStore, ORG_ROLES, PLATFORM_ROLES } from './auth.store'
+import { useWorkspaceStore } from './workspace.store'
 import * as api from '@/utils/api'
 
 beforeEach(() => {
@@ -86,6 +89,65 @@ describe('auth store - logout', () => {
     expect(state.token).toBeNull()
     expect(state.clinic).toBeNull()
     expect(api.clearTokens).toHaveBeenCalled()
+  })
+})
+
+describe('auth store - workspace switching', () => {
+  it('switches the selected partner workspace through one canonical context path', async () => {
+    const workspace = {
+      id: 'supplier-workspace',
+      scopeType: 'SUPPLIER',
+      scopeId: 'supplier-1',
+      organizationId: 'organization-1',
+      branchId: 'branch-1',
+      name: 'Dental Supply',
+      roleKey: 'supplier_manager',
+      roleLabel: 'Менеджер поставщика',
+      permissions: ['supplier.orders.read', 'supplier.shipments.write'],
+      personType: 'supplier',
+    } as any
+
+    vi.mocked(api.switchWorkspace).mockResolvedValue({
+      accessToken: 'new-access-token',
+      refreshToken: 'new-refresh-token',
+      permissions: ['supplier.orders.read', 'supplier.shipments.write'],
+      pages: ['supplier'],
+      effectiveRole: 'supplier_manager',
+    } as any)
+    vi.mocked(api.getMe).mockResolvedValue({
+      user: { id: 'person-1', name: 'Manager', role: 'user' },
+      memberships: [],
+      activeMembership: null,
+      permissions: ['supplier.orders.read', 'supplier.shipments.write'],
+      pages: ['supplier'],
+      effectiveRole: 'supplier_manager',
+      capabilities: {},
+    } as any)
+    vi.mocked(api.getMyContexts).mockResolvedValue({ contexts: [workspace] } as any)
+
+    const onWorkspaceSwitched = vi.fn()
+    window.addEventListener('dentvision:workspace-switched', onWorkspaceSwitched)
+    try {
+      await useAuthStore.getState().switchWorkspace(workspace)
+
+      expect(api.switchWorkspace).toHaveBeenCalledWith('SUPPLIER', 'supplier-1', 'branch-1')
+      expect(api.setTokens).toHaveBeenCalledWith('new-access-token', 'new-refresh-token')
+      expect(useAuthStore.getState().activeWorkspace?.id).toBe('supplier-workspace')
+      expect(useAuthStore.getState().activeWorkspace?.roleKey).toBe('supplier_manager')
+      expect(useAuthStore.getState().activeWorkspace?.branchId).toBe('branch-1')
+      expect(useWorkspaceStore.getState().activeWorkspace?.id).toBe('supplier-workspace')
+      expect(useWorkspaceStore.getState().context.focusId).toBe('supplier-workspace')
+      expect(api.setWorkspaceContext).toHaveBeenCalled()
+      expect(onWorkspaceSwitched).toHaveBeenCalledTimes(1)
+      expect((onWorkspaceSwitched.mock.calls[0][0] as CustomEvent).detail).toMatchObject({
+        id: 'supplier-workspace',
+        scopeType: 'SUPPLIER',
+        organizationId: 'organization-1',
+        branchId: 'branch-1',
+      })
+    } finally {
+      window.removeEventListener('dentvision:workspace-switched', onWorkspaceSwitched)
+    }
   })
 })
 

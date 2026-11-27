@@ -5,31 +5,45 @@ import { resolve } from 'node:path';
 describe('appointment branch isolation contract', () => {
   const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/appointments/appointments.routes.ts'), 'utf8');
 
-  it('derives access from the authenticated branch memberships', () => {
-    expect(source).toContain("req.user?.branchIds ?? []");
-    expect(source).toContain("branchId: { in: branchIds }");
+  it('resolves branch access from the canonical clinic IAM helper', () => {
+    expect(source).toContain("from '../../lib/clinicBranchAccess.js'");
+    expect(source).toContain('resolveClinicBranchAccess({');
+    expect(source).toContain('requestedBranchId: req.user?.branchId');
     expect(source).toContain("__NO_BRANCH_ACCESS__");
+    expect(source).not.toContain("req.user?.branchIds ?? []");
   });
 
-  it('does not give clinic OWNER/ADMIN a wildcard across archived branches', () => {
-    expect(source).toContain("if (role === 'SUPERADMIN') return {}");
-    expect(source).not.toContain("if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {}");
+  it('keeps organization-wide access only when no branch is selected', () => {
+    expect(source).toContain("if (access.roleScope === 'ORGANIZATION' && !access.branchId) return {};");
+    expect(source).toContain("if (access.branchId) return { branchId: access.branchId };");
+    expect(source).toContain("if (role === 'SUPERADMIN') return {};");
   });
 
-  it('scopes appointment listing and conflict queries', () => {
-    expect(source).toContain("const where: Record<string, unknown> = { clinicId, ...branchScope(req) }");
-    expect(source).toContain("where: { clinicId, ...branchScope(req), date:");
-    expect(source).toContain("where: { id: req.params.id as string, clinicId, ...branchScope(req) }");
+  it('verifies the selected doctor has membership in the patient branch', () => {
+    expect(source).toContain("role: 'DOCTOR'");
+    expect(source).toContain('requestedBranchId: patient.branchId');
+    expect(source).toContain('if (!doctorHasBranchAccess)');
+    expect(source).toContain('Указанный врач не имеет доступа к филиалу пациента');
   });
 
-  it('scopes create, update, close, status and cancel by branch', () => {
-    expect(source).toContain("where: { id, clinicId, ...branchScope(req) }");
-    expect(source).toContain("where: { id: req.params.id as string, clinicId, ...branchScope(req) }");
-    expect(source).toContain("clinicId, ...branchScope(req), status:");
+  it('scopes appointment listing and conflict queries to the resolved branch', () => {
+    expect(source).toContain("const where: Record<string, unknown> = { clinicId, ...(await branchScope(req, clinicId)) }");
+    expect(source).toContain("where: { clinicId, ...(await branchScope(req, clinicId)), date:");
+  });
+
+  it('scopes create, update, close, status and cancel by the same verified branch', () => {
+    expect(source).toContain("where: { id, clinicId, ...(await branchScope(req, clinicId)) }");
+    expect(source).toContain("where: { id: req.params.id as string, clinicId, ...(await branchScope(req, clinicId)) }");
+    expect(source).toContain("clinicId, ...(await branchScope(req, clinicId)), status:");
     expect(source).toContain("branchId }, include: { patient");
   });
 
-  it('does not allow a scoped user to create from a patient outside their branches', () => {
-    expect(source).toContain("where: { id: patientId, clinicId, ...branchScope(req) }");
+  it('does not allow a scoped user to create from a patient outside the active branch', () => {
+    expect(source).toContain("where: { id: patientId, clinicId, ...(await branchScope(req, clinicId)) }");
+  });
+
+  it('applies branch scope to every appointment read and mutation callsite', () => {
+    expect(source.match(/await branchScope\(req, clinicId\)/g)?.length).toBe(9);
+    expect(source).not.toContain('...branchScope(req)');
   });
 });

@@ -16,6 +16,15 @@ export interface AiPrincipal {
   userId: string;
   /** Requested clinic scope — NEVER trusted as-is; re-verified inside the kernel. */
   requestedClinicId: string | null;
+  /** Requested unified workspace scope — re-verified against Organization + membership inside the kernel. */
+  requestedOrganizationId?: string | null;
+  /** Context hint only; the canonical type is read from the database. */
+  requestedOrganizationType?: string | null;
+  /** Untrusted branch selector; the governance kernel revalidates it against current IAM membership. */
+  requestedBranchId?: string | null;
+  /** Legacy partner entity ids — membership is re-verified inside the kernel. */
+  supplierId?: string | null;
+  lecturerId?: string | null;
   isGuest?: boolean;
   /** Set only on the patient surface. */
   patientId?: string | null;
@@ -45,6 +54,7 @@ export type AiDenyReason =
   | 'NO_CLINIC'
   | 'CLINIC_MISMATCH'
   | 'OUT_OF_PATIENT_SCOPE'
+  | 'BRANCH_SCOPE_REQUIRED'
   | 'EXEC_ERROR'
   /** `approvalId` didn't resolve to an approved row for this exact tool/clinic. */
   | 'INVALID_APPROVAL'
