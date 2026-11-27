@@ -13,7 +13,7 @@ import { resolveGlobalRoleLabel, selectWorkspaceContext } from '@/lib/workspaceC
 import { getWorkspaceHomeTarget, resolveWorkspaceRoleLabel } from '@/lib/workspaceNavigation'
 import * as api from '@/utils/api'
 
-type ScopeType = 'CLINIC' | 'DIAGNOSTIC_CENTER' | 'LABORATORY' | 'SUPPLIER' | 'LECTURER' | 'ACADEMY' | 'PARTNER' | 'EMPLOYER'
+type ScopeType = 'CLINIC' | 'DIAGNOSTIC_CENTER' | 'LABORATORY' | 'MEDICAL_LAB' | 'MEDICAL_LABORATORY' | 'DENTAL_LAB' | 'DENTAL_LABORATORY' | 'SUPPLIER' | 'SUPPLIER_COMPANY' | 'LECTURER' | 'ACADEMY' | 'PARTNER' | 'EMPLOYER'
 
 type WorkspaceContext = AuthWorkspaceContext & { scopeType: ScopeType; role?: string }
 
@@ -21,7 +21,12 @@ const TYPE_ICON: Record<ScopeType, typeof Building2> = {
   CLINIC: Building2,
   DIAGNOSTIC_CENTER: FlaskConical,
   LABORATORY: FlaskConical,
+  MEDICAL_LAB: FlaskConical,
+  MEDICAL_LABORATORY: FlaskConical,
+  DENTAL_LAB: FlaskConical,
+  DENTAL_LABORATORY: FlaskConical,
   SUPPLIER: Store,
+  SUPPLIER_COMPANY: Store,
   LECTURER: GraduationCap,
   ACADEMY: GraduationCap,
   PARTNER: Building2,
@@ -59,8 +64,8 @@ function workspaceTypeLabel(workspace: WorkspaceContext): string {
 const GROUPS: Array<{ label: string; types: ScopeType[] }> = [
   { label: 'Клиники', types: ['CLINIC'] },
   { label: 'Диагностические центры', types: ['DIAGNOSTIC_CENTER'] },
-  { label: 'Лаборатории', types: ['LABORATORY'] },
-  { label: 'Поставщики', types: ['SUPPLIER'] },
+  { label: 'Лаборатории', types: ['LABORATORY', 'MEDICAL_LAB', 'MEDICAL_LABORATORY', 'DENTAL_LAB', 'DENTAL_LABORATORY'] },
+  { label: 'Поставщики', types: ['SUPPLIER', 'SUPPLIER_COMPANY'] },
   { label: 'Академия', types: ['LECTURER', 'ACADEMY'] },
   { label: 'Партнёры', types: ['PARTNER'] },
   { label: 'Работодатели', types: ['EMPLOYER'] },
