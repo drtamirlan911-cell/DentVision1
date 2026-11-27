@@ -83,9 +83,6 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
     if (item.id === 'home' || item.id === 'ai' || item.id === 'help') return true;
     return iam.canAccessPage(item.page || pageIdFromPath(item.path));
   };
-  const activeWorkspaceRole = String(
-    activeWorkspace?.roleKey || activeWorkspace?.role || (user as any)?.effectiveRole || (user as any)?.role || '',
-  ).toLowerCase();
   const contextualGroups = getWorkspaceNavigationGroups(
     activeWorkspace?.scopeType || (user as any)?.organizationType,
     activeWorkspaceRole,
