@@ -113,14 +113,17 @@ export function getWorkspaceHomeTarget(source: WorkspaceHomeSource): WorkspaceHo
     case 'DIAGNOSTIC_CENTER': {
       const financeOnlyRole = tokens.some((token) => token.includes('finance') || token === 'accountant')
         && !tokens.some((token) => /(?:^|_)(owner|admin|manager|director|reception|operator|radiologist|technician|quality)$/.test(token))
-      const qualityRole = tokens.some((token) => token.includes('quality') || token.includes('radiologist'))
+      const qualityRole = tokens.some((token) => token.includes('quality'))
+      const radiologyRole = tokens.some((token) => token.includes('radiologist') || token.includes('radiology_technician'))
       return {
         scopeType,
         path: financeOnlyRole
           ? '/diagnostics/center?tab=finance'
           : qualityRole
             ? '/diagnostics/results'
-            : '/diagnostics/center?tab=worklist',
+            : radiologyRole
+              ? '/diagnostics/center?tab=worklist'
+              : '/diagnostics/center?tab=worklist',
         label: 'Кабинет диагностического центра',
       }
     }
