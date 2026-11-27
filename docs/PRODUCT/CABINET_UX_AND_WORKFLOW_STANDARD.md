@@ -167,6 +167,10 @@ All cabinets use the shared platform capabilities instead of re-implementing the
 - Return destinations are employee-task-aware: clinic cashier → cashier, medical-lab finance → finance, dental-lab QC → quality queue, dental-lab technician → assigned priority tasks, dental-lab logistics → shipping, diagnostic finance → cashier, diagnostic quality → results, radiology → assigned worklist.
 - Diagnostic-centre menus distinguish owner/admin/manager, reception/operator, radiologist/technician, quality and finance. A cashier action is shown only when the role has billing-management access; read-only billing must not expose collection controls.
 - Employer menus distinguish recruiter and viewer: recruiters see candidate/interview work; viewers see hiring status without an unnecessary public market shortcut.
+- The mobile bottom navigation must expose a **Кабинет** destination for the selected organization, using the same role-specific home route as the desktop context card. Do not show a CRM shortcut for a selected non-clinic partner context.
+- With multiple memberships and no selected active workspace, the mobile **Кабинет** action opens the organization selector. It must never select the first membership automatically.
+- The cabinet indicator remains active across tabs inside that workspace, while its click returns to the role start tab. Preserve organization identity in query-backed workspace routes while ignoring only the current tab for the cabinet-level active indicator.
+- Protected partner routes must resolve against active organization scope; diagnostic routes must also match a route present in that active role's menu. Legacy/global clinic page lists must not strand a valid partner membership, and APIs remain authoritative for data/action authorization.
 - Automated coverage must include: return to the same cabinet from another module; switch A → B → A; same-named organizations of different types; branch selection; role-specific menu visibility; query-backed tab activation; unauthorized-tab fallback; and browser history restoration.
 
 ## 3. Domain-specific operating contracts
