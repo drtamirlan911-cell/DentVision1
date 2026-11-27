@@ -6,6 +6,7 @@ describe('dental-lab role capabilities', () => {
     const owner = resolveDentalLabRoleCapabilities('dental_lab_owner')
     const manager = resolveDentalLabRoleCapabilities('dental_lab_manager')
     expect(owner.canManageQc).toBe(true)
+    expect(owner.canPerformQc).toBe(true)
     expect(owner.canManageFinance).toBe(true)
     expect(manager.canManageShipping).toBe(true)
     expect(manager.canReadProduction).toBe(true)
@@ -14,10 +15,24 @@ describe('dental-lab role capabilities', () => {
   it('gives a canonical dental technician production and materials only', () => {
     expect(resolveDentalLabRoleCapabilities('dental_lab_technician')).toEqual({
       canManageQc: false,
+      canPerformQc: false,
       canManageShipping: false,
       canManageFinance: false,
       canReadProduction: true,
       canConsumeMaterials: true,
+      canReadOrders: true,
+    })
+  })
+
+  it('allows QC specialists to complete quality checks without granting team or finance management', () => {
+    const access = resolveDentalLabRoleCapabilities('qc_specialist')
+    expect(access).toEqual({
+      canManageQc: false,
+      canPerformQc: true,
+      canManageShipping: false,
+      canManageFinance: false,
+      canReadProduction: true,
+      canConsumeMaterials: false,
       canReadOrders: true,
     })
   })
